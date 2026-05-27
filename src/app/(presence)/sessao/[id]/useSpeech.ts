@@ -3,11 +3,11 @@
 import { useEffect, useRef, useState } from 'react'
 
 /**
- * Hook de transcrição streaming via Web Speech API nativa do navegador.
- * Chrome/Edge ótimo. Safari ok. Firefox não suporta.
+ * Transcrição streaming via Web Speech API nativa.
+ * Chrome/Edge ótimo · Safari ok · Firefox não suporta.
  *
- * Diarização heurística: alterna P↔C quando há pausa >2s OU o turno
- * passa de ~25 segundos (limite de um "ato"). Psicóloga corrige clicando.
+ * Diarização heurística: alterna P↔C em pausa >2s ou turno >25s.
+ * Psicóloga corrige clicando no "P:"/"C:" do turno.
  */
 
 export type SpeechFinalChunk = {
@@ -22,19 +22,25 @@ type Options = {
   onInterim?: (text: string) => void
 }
 
-// Tipos para Web Speech API (não no @types/web por padrão)
 type SR = any
 
 export function useSpeech({ enabled, onFinal, onInterim }: Options) {
-  const recRef = useRef<SR | null>(null)
+  // Callbacks vão pra refs ESTÁVEIS — o useEffect principal não reage
+  // a mudanças delas, evitando recriar SpeechRecognition a cada render.
+  const onFinalRef = useRef(onFinal)
+  const onInterimRef = useRef(onInterim)
+  useEffect(() => { onFinalRef.current = onFinal }, [onFinal])
+  useEffect(() => { onInterimRef.current = onInterim }, [onInterim])
+
   const lastEndRef = useRef<number>(0)
   const lastWhoRef = useRef<'psicologo' | 'paciente'>('paciente')
   const turnStartRef = useRef<number>(Date.now())
+
   const [supported, setSupported] = useState<boolean | null>(null)
   const [active, setActive] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  // detecta suporte uma vez
+  // Detecta suporte uma vez.
   useEffect(() => {
     if (typeof window === 'undefined') return
     const SR: SR | undefined =
@@ -42,71 +48,96 @@ export function useSpeech({ enabled, onFinal, onInterim }: Options) {
     setSupported(!!SR)
   }, [])
 
+  // Ciclo de vida do reconhecedor.
   useEffect(() => {
-    if (!enabled || !supported) return
+    if (!enabled || supported !== true) return
+
     const SR: SR =
       (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition
+    if (!SR) return
+
+    let alive = true
+    let restartTimer: ReturnType<typeof setTimeout> | null = null
+
     const r = new SR()
     r.lang = 'pt-BR'
     r.continuous = true
     r.interimResults = true
     r.maxAlternatives = 1
 
+    r.onstart = () => { if (alive) { setActive(true); setError(null) } }
+
     r.onresult = (ev: any) => {
+      if (!alive) return
       let interim = ''
       for (let i = ev.resultIndex; i < ev.results.length; i++) {
         const res = ev.results[i]
         const txt = res[0]?.transcript ?? ''
         if (res.isFinal) {
           const now = Date.now()
-          // diarização: se houve pausa longa OU o turno ficou muito longo, troca.
           const pausa = now - lastEndRef.current
           const turno = now - turnStartRef.current
-          if (lastEndRef.current && (pausa > 2_000 || turno > 25_000)) {
+          if (lastEndRef.current && (pausa > 2000 || turno > 25_000)) {
             lastWhoRef.current = lastWhoRef.current === 'paciente' ? 'psicologo' : 'paciente'
             turnStartRef.current = now
           }
           lastEndRef.current = now
           const clean = txt.trim()
-          if (clean) {
-            onFinal({ texto: clean, who: lastWhoRef.current, ts: new Date(now).toISOString() })
-          }
+          if (clean) onFinalRef.current?.({ texto: clean, who: lastWhoRef.current, ts: new Date(now).toISOString() })
         } else {
           interim += txt
         }
       }
-      onInterim?.(interim.trim())
+      onInterimRef.current?.(interim.trim())
     }
 
     r.onerror = (ev: any) => {
       const msg = ev?.error ?? 'unknown'
-      // 'no-speech', 'aborted' são triviais — não escala
-      if (msg !== 'no-speech' && msg !== 'aborted') setError(msg)
+      // Trivials — não escalar nem encerrar
+      if (msg === 'no-speech' || msg === 'aborted') return
+      if (msg === 'not-allowed' || msg === 'service-not-allowed') {
+        setError('Permissão de microfone negada ou serviço bloqueado.')
+        alive = false
+        return
+      }
+      setError(`Reconhecimento: ${msg}`)
     }
 
     r.onend = () => {
-      // auto-reinicia se ainda ativo (Chrome encerra periodicamente)
-      if (recRef.current === r && enabled) {
-        try { r.start() } catch { /* já startado */ }
-      } else {
-        setActive(false)
-      }
+      if (!alive) { setActive(false); return }
+      // Throttle: 500ms antes de tentar restart. Evita tight loop se
+      // o navegador estiver em erro persistente.
+      if (restartTimer) clearTimeout(restartTimer)
+      restartTimer = setTimeout(() => {
+        if (!alive) return
+        try {
+          r.start()
+        } catch {
+          // Estado inválido (já startou, etc) — para de tentar.
+          alive = false
+          setActive(false)
+        }
+      }, 500)
     }
 
-    recRef.current = r
     try {
       r.start()
-      setActive(true)
-      setError(null)
     } catch (err: any) {
       setError(err?.message ?? 'falha ao iniciar')
+      alive = false
     }
 
     return () => {
-      recRef.current = null
-      try { r.stop() } catch { /* */ }
+      alive = false
+      if (restartTimer) { clearTimeout(restartTimer); restartTimer = null }
+      // Desliga handlers antes do stop pra evitar onend disparando restart.
+      try {
+        r.onend = null; r.onresult = null; r.onerror = null; r.onstart = null
+        r.stop()
+      } catch { /* */ }
+      setActive(false)
     }
-  }, [enabled, supported, onFinal, onInterim])
+  }, [enabled, supported])
 
   function forceSpeakerToggle() {
     lastWhoRef.current = lastWhoRef.current === 'paciente' ? 'psicologo' : 'paciente'
