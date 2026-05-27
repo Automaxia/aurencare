@@ -1,14 +1,31 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import type { GrafoDados, GrafoNode } from '@/server/services/temas'
 import { GrafoCanvas } from './GrafoCanvas'
 import { TemasChat } from './TemasChat'
+import { CfpBadge } from '@/components/brand/CfpBadge'
 
 export function TemasView({ pacienteId, initialGrafo }: { pacienteId: string; initialGrafo: GrafoDados }) {
   const [grafo, setGrafo] = useState(initialGrafo)
   const [selecionado, setSelecionado] = useState<GrafoNode | null>(null)
   const [recalc, setRecalc] = useState(false)
+  const [insight, setInsight] = useState<string | null>(null)
+  const [insightLoading, setInsightLoading] = useState(false)
+
+  async function fetchInsight() {
+    if (grafo.nodes.length === 0) return
+    setInsightLoading(true)
+    try {
+      const res = await fetch(`/api/pacientes/${pacienteId}/temas/insight`)
+      const json = await res.json()
+      setInsight(json?.text ?? null)
+    } finally {
+      setInsightLoading(false)
+    }
+  }
+
+  useEffect(() => { fetchInsight() }, [pacienteId])
 
   async function recalcular() {
     setRecalc(true)
@@ -17,6 +34,8 @@ export function TemasView({ pacienteId, initialGrafo }: { pacienteId: string; in
       const res = await fetch(`/api/pacientes/${pacienteId}/temas`)
       const json = await res.json()
       setGrafo(json)
+      setInsight(null)
+      fetchInsight()
     } finally {
       setRecalc(false)
     }
@@ -37,7 +56,8 @@ export function TemasView({ pacienteId, initialGrafo }: { pacienteId: string; in
 
   return (
     <div>
-      <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 8 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: 8, gap: 12 }}>
+        <InsightCard text={insight} loading={insightLoading} />
         <button className="btn ghost" onClick={recalcular} disabled={recalc}>
           {recalc ? 'Recalculando…' : '↻ Recalcular'}
         </button>
@@ -51,6 +71,26 @@ export function TemasView({ pacienteId, initialGrafo }: { pacienteId: string; in
           <TemasChat pacienteId={pacienteId} selecionado={selecionado?.palavra ?? null} />
         </div>
       </div>
+    </div>
+  )
+}
+
+function InsightCard({ text, loading }: { text: string | null; loading: boolean }) {
+  return (
+    <div className="card" style={{ flex: 1, padding: '12px 16px', background: 'var(--accent-lo)', borderColor: 'transparent' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+        <span style={{ fontSize: 11, color: '#4a3299', textTransform: 'uppercase', letterSpacing: '.06em', fontWeight: 500 }}>
+          Observação inicial
+        </span>
+        <CfpBadge />
+      </div>
+      {loading ? (
+        <div style={{ fontSize: 12, color: 'var(--muted)' }}>… gerando observação</div>
+      ) : text ? (
+        <p style={{ fontSize: 13, color: 'var(--ink-soft)', margin: 0, lineHeight: 1.5 }}>{text}</p>
+      ) : (
+        <p style={{ fontSize: 12, color: 'var(--muted)', margin: 0 }}>Sem dados suficientes para uma observação.</p>
+      )}
     </div>
   )
 }

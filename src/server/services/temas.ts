@@ -170,6 +170,11 @@ export async function lerGrafo(pacienteId: string): Promise<GrafoDados> {
  */
 export async function recalcularGrafo(pacienteId: string): Promise<{ sessoes: number; nodes: number }> {
   const { tryDecrypt } = await import('@/server/lib/crypto')
+  const { redis } = await import('@/server/lib/redis')
+
+  // invalida cache do auto-insight
+  const r = await redis()
+  if (r) await r.del(`temas-insight:${pacienteId}`)
 
   await db.query(`DELETE FROM arestas_tema   WHERE paciente_id = $1`, [pacienteId])
   await db.query(`DELETE FROM palavras_chave WHERE paciente_id = $1`, [pacienteId])

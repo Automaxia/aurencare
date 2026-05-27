@@ -9,6 +9,10 @@ type Props = {
   pacienteNome: string
   resumoIA: string | null
   pagamentoStatus: string
+  sugestaoMarcacao: Array<{ idx: number; mark: string; razao: string }> | null
+  sugestaoRisco: { autolesao: string; ideacao: string; plano: string; justificativa: string } | null
+  onAplicarMarcacao: () => void
+  onAplicarRisco: () => void
   onClose: () => void
 }
 
@@ -18,6 +22,8 @@ export function PostSessionModal(p: Props) {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [signed, setSigned] = useState(false)
+  const [marcacaoAplicada, setMarcacaoAplicada] = useState(false)
+  const [riscoAplicado, setRiscoAplicado] = useState(false)
 
   async function assinar() {
     setLoading(true); setError(null)
@@ -47,7 +53,7 @@ export function PostSessionModal(p: Props) {
       position: 'fixed', inset: 0, background: 'rgba(20,16,38,.55)', display: 'grid', placeItems: 'center',
       zIndex: 50, padding: 16, backdropFilter: 'blur(4px)',
     }}>
-      <div className="card" style={{ maxWidth: 620, width: '100%', padding: 24, maxHeight: '92vh', overflowY: 'auto' }}>
+      <div className="card" style={{ maxWidth: 680, width: '100%', padding: 24, maxHeight: '92vh', overflowY: 'auto' }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
           <h2 style={{ margin: 0 }}>Pós-sessão</h2>
           <CfpBadge />
@@ -63,22 +69,28 @@ export function PostSessionModal(p: Props) {
           )}
         </p>
 
-        <Field label="Resumo (rascunho gerado · revise antes de assinar)">
-          <textarea
-            value={resumo}
-            onChange={e => setResumo(e.target.value)}
-            rows={8}
-            placeholder="Resumo da sessão…"
+        {/* Sugestões IA — banner com ação de aplicar */}
+        {p.sugestaoMarcacao && p.sugestaoMarcacao.length > 0 && !marcacaoAplicada && (
+          <SuggestionBanner
+            title={`IA sugere ${p.sugestaoMarcacao.length} marcações na transcrição`}
+            detail={p.sugestaoMarcacao.slice(0, 3).map(m => `[${m.idx}] ${labelMark(m.mark)} — ${m.razao}`).join(' · ')}
+            onApply={() => { p.onAplicarMarcacao(); setMarcacaoAplicada(true) }}
           />
+        )}
+        {p.sugestaoRisco && !riscoAplicado && (
+          <SuggestionBanner
+            title="IA sugere avaliação de risco"
+            detail={`Autolesão: ${riskLabel(p.sugestaoRisco.autolesao)} · Ideação: ${riskLabel(p.sugestaoRisco.ideacao)} · Plano: ${riskLabel(p.sugestaoRisco.plano)} — ${p.sugestaoRisco.justificativa}`}
+            onApply={() => { p.onAplicarRisco(); setRiscoAplicado(true) }}
+          />
+        )}
+
+        <Field label="Resumo (rascunho gerado · revise antes de assinar)">
+          <textarea value={resumo} onChange={e => setResumo(e.target.value)} rows={8} placeholder="Resumo da sessão…" />
         </Field>
 
         <Field label="Nota clínica privada (opcional)">
-          <textarea
-            value={nota}
-            onChange={e => setNota(e.target.value)}
-            rows={4}
-            placeholder="Observações que ficam só para você…"
-          />
+          <textarea value={nota} onChange={e => setNota(e.target.value)} rows={4} placeholder="Observações que ficam só para você…" />
         </Field>
 
         {error && <div style={{ color: 'var(--rose)', fontSize: 12, marginBottom: 12 }}>{error}</div>}
@@ -105,6 +117,21 @@ export function PostSessionModal(p: Props) {
   )
 }
 
+function SuggestionBanner({ title, detail, onApply }: { title: string; detail: string; onApply: () => void }) {
+  return (
+    <div style={{
+      background: 'var(--accent-lo)', borderRadius: 10, padding: '10px 14px', marginBottom: 12,
+      display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12,
+    }}>
+      <div>
+        <div style={{ fontSize: 12, fontWeight: 500, color: '#391d96', marginBottom: 2 }}>🧭 {title}</div>
+        <div style={{ fontSize: 11, color: 'var(--ink-soft)', lineHeight: 1.4 }}>{detail}</div>
+      </div>
+      <button className="btn" style={{ background: 'white', whiteSpace: 'nowrap' }} onClick={onApply}>Aplicar</button>
+    </div>
+  )
+}
+
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <label style={{ display: 'grid', gap: 4, marginBottom: 14 }}>
@@ -112,4 +139,11 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
       {children}
     </label>
   )
+}
+
+function labelMark(m: string) {
+  return ({ insight: 'Insight', comportamento: 'Comportamento', avanco: 'Avanço' } as Record<string, string>)[m] ?? m
+}
+function riskLabel(v: string) {
+  return ({ lo: 'Baixo', md: 'Médio', hi: 'Alto' } as Record<string, string>)[v] ?? v
 }
