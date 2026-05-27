@@ -10,9 +10,11 @@ import { HumorCheck } from './widgets/HumorCheck'
 import { RiskAssessment } from './widgets/RiskAssessment'
 import { PostSessionModal } from './widgets/PostSessionModal'
 import { useSpeech } from './useSpeech'
+import { useContexto, UltimaSessaoWidget, TopicosWidget, InfoPacienteWidget } from './widgets/ContextWidgets'
 
 type Props = {
   sessaoId: string
+  pacienteId: string
   pacienteNome: string
   numeroSessao: number
   duracaoMin: number
@@ -43,6 +45,9 @@ export function PresenceClient(props: Props) {
     startedRef.current = true
     fetch(`/api/sessao/${props.sessaoId}/iniciar`, { method: 'POST' }).catch(() => {})
   }, [props.sessaoId])
+
+  // contexto (última sessão, tópicos, condições)
+  const { ctx, loading: ctxLoading } = useContexto(props.sessaoId)
 
   // timer
   useEffect(() => {
@@ -194,25 +199,13 @@ export function PresenceClient(props: Props) {
 
           <HumorCheck humor={humor} onChange={setHumor} />
 
-          <div className="widget" data-widget-id="info">
-            <div className="widget-grip" aria-hidden="true">⠿</div>
-            <div className="widget-title">Informações do paciente</div>
-            <div style={{ fontSize: 12, color: 'var(--muted)' }}>—</div>
-          </div>
+          <InfoPacienteWidget ctx={ctx} loading={ctxLoading} pacienteId={props.pacienteId} />
 
           <RiskAssessment value={risco} onChange={setRisco} />
 
-          <div className="widget wide" data-widget-id="ultima">
-            <div className="widget-grip" aria-hidden="true">⠿</div>
-            <div className="widget-title">Última sessão</div>
-            <div style={{ fontSize: 12, color: 'var(--muted)' }}>—</div>
-          </div>
+          <UltimaSessaoWidget ctx={ctx} loading={ctxLoading} />
 
-          <div className="widget" data-widget-id="topicos">
-            <div className="widget-grip" aria-hidden="true">⠿</div>
-            <div className="widget-title">Tópicos em aberto</div>
-            <div style={{ fontSize: 12, color: 'var(--muted)' }}>—</div>
-          </div>
+          <TopicosWidget ctx={ctx} loading={ctxLoading} />
 
           <div className="widget qnote" data-widget-id="nota">
             <div className="widget-grip" aria-hidden="true">⠿</div>

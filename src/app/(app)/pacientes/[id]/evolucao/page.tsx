@@ -1,3 +1,4 @@
+import Link from 'next/link'
 import { redirect, notFound } from 'next/navigation'
 import { PageHeader } from '@/components/PageHeader'
 import { requirePsicologo } from '@/server/lib/auth'
@@ -36,19 +37,21 @@ export default async function EvolucaoPage({ params }: { params: { id: string } 
           ) : (
             <ol style={{ margin: 0, padding: 0, listStyle: 'none', display: 'grid', gap: 12 }}>
               {sessoes.map(s => (
-                <li key={s.id} className="card">
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
-                    <h3 style={{ margin: 0 }}>Sessão #{s.numero}</h3>
-                    <span style={{ fontSize: 11, color: 'var(--muted)' }}>{formatDateBR(s.data_hora)}</span>
-                  </div>
-                  <p style={{ fontSize: 13, color: 'var(--ink-soft)', whiteSpace: 'pre-wrap', marginTop: 8 }}>
-                    {tryDecrypt(s.resumo_ia) ?? '(sem resumo)'}
-                  </p>
-                  {s.assinatura_timestamp && (
-                    <div style={{ fontSize: 11, color: 'var(--sage)', marginTop: 6 }}>
-                      ✓ Assinada em {new Date(s.assinatura_timestamp).toLocaleString('pt-BR')}
+                <li key={s.id}>
+                  <Link href={`/sessao/${s.id}`} className="card" style={{ display: 'block' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
+                      <h3 style={{ margin: 0 }}>Sessão #{s.numero}</h3>
+                      <span style={{ fontSize: 11, color: 'var(--muted)' }}>{formatDateBR(s.data_hora)} →</span>
                     </div>
-                  )}
+                    <p style={{ fontSize: 13, color: 'var(--ink-soft)', whiteSpace: 'pre-wrap', marginTop: 8 }}>
+                      {tryDecrypt(s.resumo_ia) ?? '(sem resumo)'}
+                    </p>
+                    {s.assinatura_timestamp && (
+                      <div style={{ fontSize: 11, color: 'var(--sage)', marginTop: 6 }}>
+                        ✓ Assinada em {new Date(s.assinatura_timestamp).toLocaleString('pt-BR')}
+                      </div>
+                    )}
+                  </Link>
                 </li>
               ))}
             </ol>
