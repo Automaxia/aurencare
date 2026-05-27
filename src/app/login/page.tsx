@@ -1,113 +1,88 @@
-"use client";
+'use client'
 
-import { useState } from "react";
-import { signIn } from "next-auth/react";
-import { useRouter } from "next/navigation";
+import { signIn } from 'next-auth/react'
+import { useRouter, useSearchParams } from 'next/navigation'
+import { useState } from 'react'
+import { Logo } from '@/components/brand/Logo'
 
 export default function LoginPage() {
-  const router = useRouter();
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [error, setError] = useState<string | null>(null);
-  const [loading, setLoading] = useState(false);
+  const router = useRouter()
+  const params = useSearchParams()
+  const callbackUrl = params?.get('callbackUrl') ?? '/'
 
-  async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    setError(null);
-    setLoading(true);
+  const [email, setEmail] = useState('ana@aurencare.com')
+  const [password, setPassword] = useState('auren123')
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
 
-    const result = await signIn("credentials", {
-      email,
-      password,
-      redirect: false,
-    });
-
-    setLoading(false);
-
-    if (!result || result.error) {
-      setError("Credenciais inválidas. Tente novamente.");
-      return;
-    }
-
-    router.push("/inicio");
-    router.refresh();
+  async function onSubmit(e: React.FormEvent) {
+    e.preventDefault()
+    setLoading(true); setError(null)
+    const res = await signIn('credentials', { email, password, redirect: false, callbackUrl })
+    setLoading(false)
+    if (res?.error) setError('Credenciais inválidas.')
+    else router.push(res?.url || callbackUrl)
   }
 
   return (
-    <main className="min-h-screen flex items-center justify-center px-4">
-      <div className="w-full max-w-md">
-        <div className="text-center mb-10">
-          <h1 className="font-display text-5xl text-primary leading-none">
-            Auren Care
-          </h1>
-          <p className="text-ink-muted mt-3 text-sm tracking-wide">
-            Cuidando de quem cuida.
-          </p>
+    <div style={{
+      minHeight: '100vh', display: 'grid', placeItems: 'center',
+      background: 'linear-gradient(180deg, var(--page) 0%, var(--surface) 100%)',
+    }}>
+      <div className="card" style={{ width: 360, padding: 28 }}>
+        <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 18 }}>
+          <Logo size={32} />
         </div>
+        <h2 style={{ textAlign: 'center', marginBottom: 4 }}>Entrar</h2>
+        <p style={{ textAlign: 'center', color: 'var(--muted)', fontSize: 12, marginBottom: 20 }}>
+          Sistema operacional da prática clínica.
+        </p>
 
-        <form
-          onSubmit={handleSubmit}
-          className="bg-white rounded-2xl shadow-soft border border-primary-100/60 p-8 space-y-5"
-        >
-          <div>
-            <h2 className="font-display text-2xl text-ink mb-1">Bem-vinda</h2>
-            <p className="text-sm text-ink-muted">
-              Acesse seu consultório digital.
-            </p>
-          </div>
-
-          <div className="space-y-1.5">
-            <label htmlFor="email" className="text-sm font-medium text-ink">
-              E-mail
-            </label>
+        <form onSubmit={onSubmit} style={{ display: 'grid', gap: 12 }}>
+          <Field label="Email">
             <input
-              id="email"
-              type="email"
+              type="email" required value={email}
+              onChange={e => setEmail(e.target.value)}
               autoComplete="email"
-              required
-              value={email}
-              onChange={(event) => setEmail(event.target.value)}
-              className="w-full rounded-lg border border-primary-100 bg-white px-3.5 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary"
             />
-          </div>
-
-          <div className="space-y-1.5">
-            <label htmlFor="password" className="text-sm font-medium text-ink">
-              Senha
-            </label>
+          </Field>
+          <Field label="Senha">
             <input
-              id="password"
-              type="password"
+              type="password" required value={password}
+              onChange={e => setPassword(e.target.value)}
               autoComplete="current-password"
-              required
-              value={password}
-              onChange={(event) => setPassword(event.target.value)}
-              className="w-full rounded-lg border border-primary-100 bg-white px-3.5 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary"
             />
-          </div>
-
-          {error && (
-            <p className="text-sm text-red-600" role="alert">
-              {error}
-            </p>
-          )}
-
-          <button
-            type="submit"
-            disabled={loading}
-            className="w-full bg-primary text-white font-medium py-2.5 rounded-lg transition hover:bg-primary-600 disabled:opacity-60"
-          >
-            {loading ? "Entrando..." : "Entrar"}
+          </Field>
+          {error && <div style={{ color: 'var(--rose)', fontSize: 12 }}>{error}</div>}
+          <button type="submit" className="btn primary" disabled={loading} style={{ justifyContent: 'center' }}>
+            {loading ? 'Entrando…' : 'Entrar'}
           </button>
-
-          <p className="text-center text-xs text-ink-muted">
-            Esqueceu a senha?{" "}
-            <a className="text-primary hover:underline" href="#">
-              Recuperar acesso
-            </a>
-          </p>
         </form>
       </div>
-    </main>
-  );
+    </div>
+  )
+}
+
+function Field({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <label style={{ display: 'grid', gap: 4 }}>
+      <span style={{ fontSize: 11, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '.06em' }}>{label}</span>
+      <span style={{
+        display: 'block', border: '1px solid var(--border)', borderRadius: 8,
+        padding: '8px 12px', background: 'white',
+      }}>
+        {(() => {
+          // Permite estilizar o input nativo via parent.
+          // (passthrough; React não permite cloneElement em ReactNode sem cast.)
+          return children
+        })()}
+      </span>
+      <style jsx>{`
+        input {
+          width: 100%; border: 0; outline: none; background: transparent;
+          font-size: 13px; color: var(--ink);
+        }
+      `}</style>
+    </label>
+  )
 }

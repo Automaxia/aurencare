@@ -1,20 +1,15 @@
-import { withAuth } from "next-auth/middleware";
+import { withAuth } from 'next-auth/middleware'
 
 export default withAuth({
-  pages: {
-    signIn: "/login",
-  },
-});
+  pages: { signIn: '/login' },
+})
 
 export const config = {
+  /**
+   * Protege todo o app exceto rotas públicas:
+   * /login · /onboard/* · /api/auth/* · /api/webhooks/* · assets internos.
+   */
   matcher: [
-    /**
-     * Protege tudo exceto:
-     *  - /login (tela de autenticação)
-     *  - /api/auth/* (handlers do NextAuth)
-     *  - assets estáticos do Next
-     *  - favicon
-     */
-    "/((?!login|api/auth|_next/static|_next/image|favicon.ico).*)",
+    '/((?!login|onboard|api/auth|api/webhooks|_next/static|_next/image|favicon.ico).*)',
   ],
-};
+}

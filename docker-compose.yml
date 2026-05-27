@@ -17,6 +17,20 @@ services:
       timeout: 5s
       retries: 10
 
+  redis:
+    image: redis:7-alpine
+    container_name: aurencare-redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - aurencare-redis:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
   adminer:
     image: adminer:latest
     container_name: aurencare-adminer
@@ -30,3 +44,4 @@ services:
 
 volumes:
   aurencare-pg:
+  aurencare-redis:
