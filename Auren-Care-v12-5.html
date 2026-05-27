@@ -1,0 +1,2606 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Auren Care</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 50 50'><rect width='50' height='50' rx='12' fill='url(%23g)'/><defs><linearGradient id='g' x1='0' y1='0' x2='1' y2='1'><stop offset='0' stop-color='%237a5ee0'/><stop offset='1' stop-color='%235c9d88'/></linearGradient></defs><path d='M25 38C25 38 14 38 14 27C14 16 25 16 25 16' stroke='rgba(255,255,255,.55)' stroke-width='2.2' stroke-linecap='round' fill='none'/><path d='M25 16C25 16 36 16 36 27C36 38 25 44 12 42' stroke='rgba(255,255,255,.78)' stroke-width='2.2' stroke-linecap='round' fill='none'/><path d='M12 42C4 40 4 28 4 24C4 12 14 6 26 6C38 6 46 14 46 26' stroke='white' stroke-width='2.2' stroke-linecap='round' fill='none'/><circle cx='46' cy='26' r='3' fill='white'/></svg>">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;1,300;1,400&family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;1,9..40,300&display=swap" rel="stylesheet">
+<style>
+
+/* ═══════════════════════════════════════════════════════
+   DESIGN TOKENS — calm, warm, premium
+═══════════════════════════════════════════════════════ */
+:root {
+  /* Palette — dessaturada, quente, orgânica */
+  --ink:       #1a1825;
+  --ink-soft:  #3d3852;
+  --muted:     #7a7590;
+  --faint:     #a8a4be;
+  --page:      #f9f8f5;      /* off-white ainda mais quente */
+  --surface:   #f1efe9;      /* areia suave */
+  --card:      #ffffff;
+  --card-warm: #fefcf8;      /* quente */
+
+  /* Roxo refinado — um tom abaixo */
+  --accent:    #6a4ec8;
+  --accent-lo: rgba(106,78,200,.065);
+  --accent-md: rgba(106,78,200,.11);
+  --accent-hi: rgba(107,79,207,.22);
+
+  /* Verde clínico — teal suave */
+  --sage:      #5a9e8a;
+  --sage-lo:   rgba(90,158,138,.07);
+
+  /* Rose muito suave — quase neutro */
+  --rose:      #c4607a;
+  --rose-lo:   rgba(196,96,122,.07);
+
+  /* Âmbar suave */
+  --amber:     #b07d40;
+  --amber-lo:  rgba(176,125,64,.08);
+
+  /* Bordas — quase invisíveis */
+  --border:    rgba(26,24,37,.055);
+  --border-md: rgba(26,24,37,.09);
+
+  /* Sombras muito suaves */
+  --sh:   0 1px 3px rgba(26,24,37,.04), 0 4px 16px rgba(26,24,37,.04);
+  --sh-m: 0 2px 8px rgba(26,24,37,.06), 0 8px 28px rgba(26,24,37,.07);
+  --sh-lg:0 4px 20px rgba(26,24,37,.08), 0 20px 60px rgba(26,24,37,.08);
+
+  /* Raios */
+  --r:    16px;
+  --rsm:  10px;
+  --rlg:  22px;
+
+  /* Sidebar */
+  --sw:  228px;
+  --sc:  52px;
+
+  /* Tipografia */
+  --f-display: 'Cormorant Garamond', Georgia, serif;
+  --f-body:    'DM Sans', system-ui, sans-serif;
+
+  /* Transição global */
+  --ease: cubic-bezier(.4,0,.2,1);
+  --ease-out: cubic-bezier(0,.8,.4,1);
+}
+
+/* ═══ RESET ═══════════════════════════════════════════ */
+*, *::before, *::after { box-sizing:border-box; margin:0; padding:0 }
+html { scroll-behavior:smooth; -webkit-font-smoothing:antialiased }
+body {
+  font-family: var(--f-body);
+  background: var(--page);
+  color: var(--ink);
+  display: flex;
+  min-height: 100vh;
+  font-size: 13.5px;
+  line-height: 1.65;
+  overflow-x: hidden;
+}
+
+/* ═══ SIDEBAR — lavanda ainda mais gentil ══════════════ */
+.sb {
+  width: var(--sw);
+  min-height: 100vh;
+  background: #f0eef9;
+  border-right: 1px solid rgba(107,79,207,.09);
+  display: flex;
+  flex-direction: column;
+  position: fixed;
+  top: 0; left: 0; bottom: 0;
+  z-index: 100;
+  transition: width .32s var(--ease);
+  overflow: hidden;
+}
+.sb.col { width: var(--sc) }
+
+/* Brand */
+.sb-brand {
+  padding: 24px 18px 18px;
+  border-bottom: 1px solid rgba(107,79,207,.08);
+  display: flex; align-items: center; gap: 12px;
+  min-height: 66px; flex-shrink: 0;
+}
+.gem {
+  width: 30px; height: 30px; border-radius: 9px;
+  background: linear-gradient(145deg,#7b5ee8,#5a9e8a);
+  display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0;
+  box-shadow: 0 2px 10px rgba(107,79,207,.22);
+}
+.brand-txt { transition: opacity .22s var(--ease); white-space: nowrap }
+.sb.col .brand-txt { opacity:0; pointer-events:none }
+.brand-name {
+  font-family: var(--f-display);
+  font-weight: 300; font-size: 17px;
+  color: #291860; letter-spacing: -.3px; line-height: 1;
+}
+.brand-name strong {
+  font-weight: 500;
+  background: linear-gradient(135deg, #6a4ec8, #5c9d88);
+  -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+.brand-sub {
+  font-size: 9.5px; color: rgba(107,79,207,.32);
+  letter-spacing: .5px; margin-top:2px;
+  font-style: italic; font-family: var(--f-display);
+  font-weight: 300;
+}
+
+/* Toggle */
+.sb-tog {
+  position: absolute; top: 22px; right: -11px;
+  width: 22px; height: 22px; border-radius: 50%;
+  background: var(--card); border: 1px solid var(--border);
+  cursor: pointer; display: flex; align-items: center; justify-content: center;
+  font-size: 9px; color: var(--muted); z-index: 10;
+  box-shadow: var(--sh); transition: all .18s;
+}
+.sb-tog:hover { background: var(--surface) }
+
+/* Nav */
+.sb-nav { flex:1; padding:10px 8px 4px; overflow-y:auto; overflow-x:hidden }
+.sb-nav::-webkit-scrollbar { display:none }
+
+/* Section headers */
+.w-sep { height:1px; background:rgba(107,79,207,.09); margin:10px 10px 8px; transition:opacity .2s }
+.sb.col .w-sep { opacity:0 }
+.w-hd { padding:10px 10px 4px; transition:opacity .2s }
+.sb.col .w-hd { opacity:0 }
+.w-lbl { font-size:9px; font-weight:500; letter-spacing:2px; text-transform:uppercase; color:rgba(107,79,207,.4) }
+
+/* Nav items */
+.ni {
+  display: flex; align-items: center; gap: 9px;
+  padding: 8px 10px; border-radius: 9px;
+  cursor: pointer; color: rgba(42,26,104,.4);
+  font-size: 13px; transition: all .18s;
+  text-decoration: none; white-space: nowrap;
+}
+.ni:hover { background: rgba(107,79,207,.07); color: rgba(42,26,104,.75) }
+.ni.active { background: rgba(107,79,207,.11); color: #3a1e9a }
+.ni.active .ni-ico { opacity:1; color: var(--accent) }
+.ni.biz-item.active { background: rgba(90,158,138,.1); color: #2a6456 }
+.ni.biz-item.active .ni-ico { color: var(--sage) }
+.ni-ico { font-size:14px; flex-shrink:0; width:17px; text-align:center; opacity:.45; transition:opacity .18s }
+.ni-lbl { flex:1; transition:opacity .2s }
+.sb.col .ni-lbl { opacity:0; pointer-events:none }
+.ni-badge {
+  font-size:10px; font-weight:500; padding:1px 6px; border-radius:6px;
+  background: rgba(196,96,122,.12); color: var(--rose);
+  transition:opacity .2s;
+}
+.sb.col .ni-badge { opacity:0 }
+
+/* User */
+.sb-bot { padding:10px 8px; border-top:1px solid rgba(107,79,207,.08); flex-shrink:0 }
+.sb-user {
+  display:flex; align-items:center; gap:9px;
+  padding:8px 8px; border-radius:9px; cursor:pointer; transition:background .18s;
+}
+.sb-user:hover { background:rgba(107,79,207,.06) }
+.u-av {
+  width:30px; height:30px; border-radius:50%;
+  background:linear-gradient(145deg,#6b4fcf,#5a9e8a);
+  display:flex; align-items:center; justify-content:center;
+  font-size:11px; color:#fff; font-weight:500; flex-shrink:0;
+}
+.u-meta { overflow:hidden; transition:opacity .2s }
+.sb.col .u-meta { opacity:0 }
+.u-name { font-size:12px; color:rgba(42,26,104,.65); white-space:nowrap; overflow:hidden; text-overflow:ellipsis }
+.u-crp { font-size:9.5px; color:rgba(107,79,207,.35) }
+
+/* ═══ MAIN ═══════════════════════════════════════════ */
+.main {
+  margin-left: var(--sw);
+  flex: 1; display:flex; flex-direction:column;
+  min-height:100vh; transition:margin-left .32s var(--ease);
+  position:relative; z-index:1;
+}
+.sb.col ~ .main { margin-left: var(--sc) }
+
+/* ═══ TOPBAR — mais leve, menos burocrática ══════════ */
+.topbar {
+  background: rgba(250,249,247,.92);
+  backdrop-filter: blur(24px);
+  border-bottom: 1px solid var(--border);
+  padding: 0 28px;
+  height: 54px;
+  display: flex; align-items: center; justify-content: space-between;
+  position: sticky; top: 0; z-index: 50;
+}
+.tp-l { display:flex; align-items:center; gap:12px }
+.tp-crumb { font-size:14px; color:var(--muted); display:flex; align-items:center }
+.tp-crumb strong { color:var(--ink-soft); font-weight:500 }
+.tp-r { display:flex; align-items:center; gap:8px }
+
+/* Sessão ativa — pill na topbar */
+.sess-pill {
+  display:flex; align-items:center; gap:6px;
+  padding:5px 12px 5px 10px;
+  background: rgba(90,158,138,.08);
+  border: 1px solid rgba(90,158,138,.18);
+  border-radius:20px; cursor:pointer;
+  transition: all .2s; font-size:12px; font-weight:500; color:var(--sage);
+}
+.sess-pill:hover { background:rgba(90,158,138,.14) }
+.sess-pill .rp { width:6px; height:6px; border-radius:50%; background:var(--sage); flex-shrink:0 }
+
+/* ═══ BOTÕES ══════════════════════════════════════════ */
+.btn {
+  display:inline-flex; align-items:center; gap:5px;
+  padding:7px 16px; border-radius:9px;
+  font-size:13px; font-weight:500; font-family:inherit;
+  cursor:pointer; border:none; transition:all .18s; white-space:nowrap;
+}
+.btn-ghost {
+  background: transparent; color: var(--muted);
+  border: 1px solid var(--border-md);
+}
+.btn-ghost:hover { background:var(--card); color:var(--ink); box-shadow:var(--sh) }
+.btn-prim {
+  background: var(--accent); color:#fff;
+  box-shadow: 0 2px 10px rgba(107,79,207,.22);
+}
+.btn-prim:hover { background:#5a40b8 }
+.btn-sm { padding:5px 13px; font-size:12px; border-radius:8px }
+.btn-ico {
+  width:34px; height:34px; padding:0;
+  display:inline-flex; align-items:center; justify-content:center;
+  background:transparent; border:1px solid var(--border-md);
+  border-radius:10px; font-size:15px; cursor:pointer;
+  color:var(--muted); transition:all .18s;
+}
+.btn-ico:hover { background:var(--card); color:var(--ink) }
+
+/* ═══ PAGES ══════════════════════════════════════════ */
+.page { display:none; padding:38px 32px; animation:pgIn .38s var(--ease); position:relative }
+.page.active { display:block }
+@keyframes pgIn { from { opacity:0; transform:translateY(4px) } to { opacity:1; transform:none } }
+
+/* ═══ CARDS — mais respiro, sem bordas agressivas ════ */
+.card {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--r);
+  box-shadow: var(--sh);
+}
+.card-warm {
+  background: var(--card-warm);
+  border: 1px solid rgba(176,125,64,.1);
+  border-radius: var(--r);
+  box-shadow: var(--sh);
+}
+.card-h {
+  padding: 16px 20px;
+  display:flex; align-items:center; justify-content:space-between;
+  border-bottom: 1px solid var(--border);
+}
+.card-title { font-size:13px; font-weight:500; color:var(--ink-soft) }
+.card-act {
+  font-size:12px; color:var(--accent); cursor:pointer;
+  background:none; border:none; font-family:inherit; padding:0;
+  transition:opacity .15s;
+}
+.card-act:hover { opacity:.7 }
+.card-b { padding:18px 20px }
+
+/* ═══ TAGS — mais silenciosas ════════════════════════ */
+.tag { display:inline-block; font-size:11px; font-weight:500; padding:2px 9px; border-radius:6px }
+.t-ok   { background:rgba(90,158,138,.1);  color:#3a6e60 }
+.t-warn { background:rgba(176,125,64,.1);  color:#7a5520 }
+.t-info { background:rgba(107,79,207,.09); color:var(--accent) }
+.t-mute { background:rgba(26,24,37,.05);   color:var(--muted) }
+.t-rose { background:rgba(196,96,122,.09); color:var(--rose) }
+
+/* ═══ LABELS de seção — discretos ════════════════════ */
+.sec-lbl {
+  font-size:9.5px; font-weight:500; letter-spacing:2px;
+  text-transform:uppercase; color:var(--faint);
+  margin-bottom:14px;
+}
+.divider { border:none; border-top:1px solid var(--border); margin:20px 0 }
+
+/* ═══ HOME — NOVO LAYOUT ════════════════════════════ */
+
+/* Saudação — domina o espaço, emocional */
+.greeting { margin-bottom:40px }
+.greeting .date { font-size:11px; color:var(--faint); letter-spacing:.6px; margin-bottom:10px }
+.greeting h1 {
+  font-family: var(--f-display);
+  font-weight: 300; font-size: 40px;
+  letter-spacing: -.8px; line-height: 1.08;
+  color: var(--ink);
+}
+.greeting h1 em { font-style:italic; color:var(--accent) }
+.greeting .sub {
+  margin-top:12px; font-size:13px; color:var(--muted);
+  display:flex; align-items:center; gap:18px; flex-wrap:wrap;
+}
+.pip { display:inline-flex; align-items:center; gap:6px; font-size:12.5px; color:var(--muted) }
+.pip-d { width:5px; height:5px; border-radius:50% }
+
+/* Próxima sessão — elemento absolutamente dominante */
+.next-sess {
+  background: linear-gradient(130deg, rgba(106,78,200,.055) 0%, rgba(90,158,138,.03) 100%);
+  border: 1px solid rgba(106,78,200,.09);
+  border-radius: var(--rlg);
+  padding: 28px 30px;
+  margin-bottom: 22px;
+  cursor: pointer;
+  transition: box-shadow .28s, transform .22s;
+  display: flex; align-items: center; gap: 24px;
+  position: relative; overflow: hidden;
+}
+.next-sess::before {
+  content:''; position:absolute; left:0; top:14px; bottom:14px;
+  width:3px; border-radius:3px;
+  background: linear-gradient(180deg, var(--accent) 0%, var(--sage) 100%);
+}
+.next-sess:hover { box-shadow:var(--sh-m); transform:translateY(-2px) }
+.next-time {
+  font-family:var(--f-display); font-size:52px; font-weight:300;
+  color:var(--ink); line-height:1; flex-shrink:0; letter-spacing:-2px;
+}
+.next-meta { flex:1 }
+.next-name { font-size:17px; font-weight:500; color:var(--ink-soft); margin-bottom:4px }
+.next-detail { font-size:13px; color:var(--muted) }
+.next-tags { display:flex; gap:6px; margin-top:10px }
+.next-cta {
+  padding:11px 22px; background:var(--accent); color:#fff;
+  border-radius:11px; font-size:13px; font-weight:500;
+  border:none; cursor:pointer; font-family:inherit;
+  box-shadow:0 2px 14px rgba(106,78,200,.2);
+  transition:all .2s; white-space:nowrap; flex-shrink:0;
+}
+.next-cta:hover { background:#5a40b8; transform:translateY(-1px) }
+
+/* Agenda do dia */
+.ag-row {
+  display:flex; align-items:center; gap:14px;
+  padding:13px 0; border-bottom:1px solid var(--border);
+  cursor:pointer; transition:all .18s;
+}
+.ag-row:last-child { border-bottom:none; padding-bottom:0 }
+.ag-row:hover { padding-left:4px }
+.ag-time { font-size:12px; color:var(--faint); width:38px; flex-shrink:0; font-variant-numeric:tabular-nums }
+.ag-bar { width:2px; height:28px; border-radius:2px; flex-shrink:0; opacity:.7 }
+.ag-inf { flex:1 }
+.ag-name { font-size:13.5px; font-weight:500; color:var(--ink-soft) }
+.ag-sub { font-size:11.5px; color:var(--muted); margin-top:1px; display:flex; gap:6px }
+.ag-st { font-size:11.5px; color:var(--faint); white-space:nowrap }
+.ag-st.now { color:var(--sage) }
+.ag-st.nxt { color:var(--accent) }
+
+/* Grid 2 colunas home */
+.home-grid { display:grid; grid-template-columns:1fr 300px; gap:18px }
+
+/* Cards KPI — silenciosos */
+.kpi-quiet {
+  background:var(--card-warm); border:1px solid var(--border);
+  border-radius:var(--r); padding:18px 20px; box-shadow:var(--sh);
+}
+.kpi-quiet .kl { font-size:11px; color:var(--faint); letter-spacing:.3px; margin-bottom:6px }
+.kpi-quiet .kv { font-family:var(--f-display); font-size:30px; font-weight:300; color:var(--ink); line-height:1 }
+.kpi-quiet .kn { font-size:12px; color:var(--muted); margin-top:4px }
+.kpi-quiet .kn.up { color:var(--sage) }
+
+/* Inteligência silenciosa */
+.intel {
+  padding:14px 16px; border-radius:var(--rsm);
+  cursor:pointer; transition:background .18s;
+  margin-bottom:8px;
+}
+.intel:last-child { margin-bottom:0 }
+.intel:hover { background:rgba(26,24,37,.04) }
+.intel-dot { width:6px; height:6px; border-radius:50%; flex-shrink:0; margin-top:5px }
+.intel-body { font-size:13px; color:var(--ink-soft); line-height:1.6 }
+.intel-meta { font-size:11px; color:var(--faint); margin-top:2px }
+
+/* Pendências simples */
+.pend-row {
+  display:flex; align-items:center; gap:10px;
+  padding:10px 0; border-bottom:1px solid var(--border); cursor:pointer;
+}
+.pend-row:last-child { border-bottom:none }
+.pend-row:hover .pend-lbl { color:var(--accent) }
+.pend-ico { font-size:14px; opacity:.5 }
+.pend-lbl { font-size:13px; color:var(--muted); flex:1; transition:color .15s }
+.pend-act { font-size:12px; color:var(--accent); opacity:.6 }
+
+/* ═══ MODO SESSÃO — ambiente contemplativo ═══════════ */
+body.presence .sb { width:0!important; overflow:hidden }
+body.presence .main { margin-left:0 }
+body.presence .topbar { display:none }
+body.presence .pbar { display:flex!important }
+body.presence #page-sessao { padding:0; background:var(--page) }
+
+.pbar { display:none; align-items:center; justify-content:space-between; padding:0 28px; height:46px; background:rgba(249,248,245,.97); backdrop-filter:blur(28px); border-bottom:1px solid rgba(26,24,37,.04); position:sticky; top:0; z-index:50 }
+.pb-name { font-family:var(--f-display); font-size:19px; font-weight:300; color:var(--ink-soft); letter-spacing:-.3px }
+.pb-meta { font-size:12px; color:var(--faint); margin-left:10px }
+.pb-r { display:flex; align-items:center; gap:8px }
+.rec-ind { display:flex; align-items:center; gap:6px; padding:4px 10px; background:rgba(92,157,136,.07); border-radius:7px; font-size:11.5px; font-weight:500; color:var(--sage) }
+.rp { width:5px; height:5px; border-radius:50%; background:var(--sage); animation:rp 3.8s ease infinite }
+@keyframes rp { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:.3;transform:scale(.75)} }
+
+/* Layout: transcrição + painel direito 2 colunas */
+.sess-wrap { display:grid; grid-template-columns:1fr 600px; gap:16px; padding:22px 26px; height:calc(100vh - 46px); overflow:hidden }
+.sess-right { height:100%; overflow-y:auto; padding-right:4px; display:grid; grid-template-columns:1fr 1fr; grid-auto-flow:dense; gap:12px; align-content:start; scrollbar-width:thin }
+.sess-right::-webkit-scrollbar { width:4px }
+.sess-right::-webkit-scrollbar-thumb { background:rgba(26,24,37,.06); border-radius:4px }
+.sess-right > .wide { grid-column:1 / -1 }
+
+/* Apoio à sessão */
+.trans-card { background:var(--card); border:1px solid var(--border); border-radius:var(--r); box-shadow:var(--sh); display:flex; flex-direction:column; overflow:hidden }
+.trans-head { padding:14px 20px; border-bottom:1px solid rgba(26,24,37,.04); display:flex; align-items:center; justify-content:space-between }
+.live-pill { display:inline-flex; align-items:center; gap:5px; font-size:10.5px; color:var(--sage); font-weight:500; background:rgba(92,157,136,.07); padding:2px 9px; border-radius:5px }
+.live-d { width:4px; height:4px; border-radius:50%; background:var(--sage) }
+.trans-body { padding:22px 22px; flex:1; overflow-y:auto; display:flex; flex-direction:column; gap:22px }
+.trans-body::-webkit-scrollbar { width:3px }
+.trans-body::-webkit-scrollbar-thumb { background:rgba(26,24,37,.06) }
+
+/* Turnos — com suporte a marcação */
+.turn { display:flex; flex-direction:column; gap:6px; transition:background .22s, padding .22s, margin .22s, border-radius .22s }
+.turn.armable { cursor:pointer }
+.turn.armable:hover { background:rgba(26,24,37,.025); border-radius:8px; padding:6px 10px; margin:-6px -10px }
+.turn[data-mark] { padding:10px 14px; margin:-2px -14px; border-radius:10px; position:relative }
+.turn[data-mark="insight"]       { background:var(--accent-lo); box-shadow:inset 3px 0 0 var(--accent) }
+.turn[data-mark="comportamento"] { background:var(--rose-lo);   box-shadow:inset 3px 0 0 var(--rose) }
+.turn[data-mark="avanco"]        { background:var(--sage-lo);   box-shadow:inset 3px 0 0 var(--sage) }
+.turn[data-mark] .mark-chip { position:absolute; top:8px; right:10px; font-size:9px; font-weight:500; letter-spacing:.4px; padding:2px 7px; border-radius:5px; text-transform:lowercase; background:rgba(26,24,37,.05); color:var(--ink-soft) }
+.turn-top { display:flex; align-items:center; gap:8px }
+.t-sp { font-size:9.5px; letter-spacing:1.8px; text-transform:uppercase; font-weight:500; color:var(--faint) }
+.turn.psic .t-sp { color:rgba(106,78,200,.42) }
+.t-time { font-size:10px; color:var(--faint) }
+.t-tone { font-size:10px; font-weight:500; padding:1px 8px; border-radius:4px; margin-left:auto; opacity:.5 }
+.tn-calm    { background:rgba(90,158,138,.07);  color:var(--sage) }
+.tn-tense   { background:rgba(176,125,64,.07);  color:var(--amber) }
+.tn-open    { background:rgba(106,78,200,.06);  color:var(--accent) }
+.tn-closed  { background:rgba(26,24,37,.04);    color:var(--muted) }
+.tn-anxious { background:rgba(192,94,120,.06);  color:var(--rose) }
+.turn-txt { font-size:14px; line-height:1.8; color:rgba(56,50,78,.48); max-width:94%; font-weight:300 }
+.turn.psic .turn-txt { color:var(--ink-soft); font-weight:400 }
+
+/* Widget base + grip */
+.talk-card { background:var(--card); border:1px solid var(--border); border-radius:var(--r); box-shadow:var(--sh); padding:16px; position:relative }
+.widget-grip { position:absolute; top:8px; right:9px; width:22px; height:22px; display:flex; align-items:center; justify-content:center; color:var(--faint); opacity:0; cursor:grab; border-radius:5px; transition:opacity .18s, background .15s; z-index:8; user-select:none }
+[data-widget-id]:hover .widget-grip { opacity:1 }
+.widget-grip:hover { background:rgba(26,24,37,.06) }
+.widget-grip:active { cursor:grabbing }
+
+/* Ritmo da conversa */
+.rhythm-bars { display:flex; flex-direction:column; gap:10px; margin:12px 0 4px }
+.rhythm-row .rh-lbl { display:flex; align-items:baseline; justify-content:space-between; font-size:11px; color:var(--muted); margin-bottom:5px; letter-spacing:.2px }
+.rhythm-row .rh-pct { font-family:var(--f-display); font-size:15px; font-weight:400; color:var(--ink-soft); letter-spacing:-.2px }
+.rh-bar { height:6px; background:var(--surface); border-radius:6px; overflow:hidden; position:relative }
+.rh-bar > span { display:block; height:100%; border-radius:6px; transition:width .6s var(--ease) }
+.rh-bar.psic > span { background:var(--accent); opacity:.7 }
+.rh-bar.pac  > span { background:var(--sage);   opacity:.7 }
+
+/* Segmentos */
+.seg-tags { display:flex; flex-direction:column; gap:2px; padding-top:10px; margin-top:10px; border-top:1px solid var(--border) }
+.seg-tags .sec-lbl-sm { width:100%; font-size:9px; font-weight:500; letter-spacing:1.8px; text-transform:uppercase; color:var(--faint); margin-bottom:5px; display:flex; justify-content:space-between; align-items:center }
+.seg-edit { background:none; border:none; padding:3px; cursor:pointer; color:var(--faint); border-radius:5px; transition:all .15s; display:flex; align-items:center; justify-content:center }
+.seg-edit:hover { color:var(--accent); background:rgba(106,78,200,.06) }
+.seg-btn { display:flex; align-items:center; gap:9px; width:100%; padding:5px 9px 5px 11px; border-radius:5px; background:transparent; border:none; border-left:2px solid; font-size:11.5px; color:var(--ink-soft); cursor:pointer; font-family:inherit; transition:all .14s; text-align:left; position:relative }
+.seg-btn:hover { background:rgba(26,24,37,.025) }
+.seg-btn .seg-lbl { flex:1; line-height:1.4 }
+.seg-btn .seg-cnt { font-size:9.5px; font-variant-numeric:tabular-nums; color:var(--faint); min-width:14px; text-align:right }
+.seg-btn[data-color="accent"] { border-left-color:rgba(106,78,200,.32) }
+.seg-btn[data-color="rose"]   { border-left-color:rgba(192,94,120,.32) }
+.seg-btn[data-color="sage"]   { border-left-color:rgba(92,157,136,.32) }
+.seg-btn[data-color="amber"]  { border-left-color:rgba(168,120,64,.32) }
+.seg-btn.armed { background:rgba(26,24,37,.04); font-weight:500 }
+.seg-btn.armed[data-color="accent"] { border-left-color:var(--accent); color:var(--accent) }
+.seg-btn.armed[data-color="rose"]   { border-left-color:var(--rose);   color:var(--rose) }
+.seg-btn.armed[data-color="sage"]   { border-left-color:var(--sage);   color:var(--sage) }
+.seg-btn.armed[data-color="amber"]  { border-left-color:var(--amber);  color:var(--amber) }
+.seg-edit-panel { background:var(--card-warm); border:1px dashed var(--border-md); border-radius:8px; padding:8px 10px; margin-top:6px }
+.seg-edit-row { display:flex; align-items:center; gap:8px; padding:4px 0 }
+.seg-edit-row + .seg-edit-row { border-top:1px solid var(--border) }
+.seg-edit-row .swatch { width:12px; height:12px; border-radius:50%; flex-shrink:0; cursor:pointer; border:2px solid transparent; transition:transform .15s }
+.seg-edit-row .swatch:hover { transform:scale(1.2) }
+.seg-edit-row .swatch.cur { border-color:var(--ink-soft); border-width:1.5px }
+.seg-edit-row .swatch[data-c="accent"] { background:var(--accent) }
+.seg-edit-row .swatch[data-c="rose"]   { background:var(--rose) }
+.seg-edit-row .swatch[data-c="sage"]   { background:var(--sage) }
+.seg-edit-row .swatch[data-c="amber"]  { background:var(--amber) }
+.seg-edit-row input { flex:1; border:none; outline:none; background:transparent; font:inherit; font-size:12px; color:var(--ink-soft); padding:2px 4px; border-bottom:1px solid transparent; transition:border-color .15s }
+.seg-edit-row input:focus { border-bottom-color:var(--accent) }
+.seg-edit-row .rm { background:none; border:none; cursor:pointer; color:var(--faint); font-size:13px; padding:2px 5px; border-radius:4px }
+.seg-edit-row .rm:hover { color:var(--rose); background:rgba(192,94,120,.08) }
+.seg-edit-actions { display:flex; justify-content:space-between; margin-top:6px; padding-top:6px; border-top:1px solid var(--border) }
+.seg-edit-actions button { background:none; border:none; cursor:pointer; font-family:inherit; font-size:11px; color:var(--muted); padding:3px 8px; border-radius:5px }
+.seg-edit-actions button.add-row { color:var(--accent) }
+.seg-edit-actions button.done-btn { color:var(--sage); font-weight:500 }
+
+/* Temas desta sessão */
+.themes-card { background:radial-gradient(ellipse at 25% 30%, rgba(106,78,200,.04) 0%, transparent 55%), radial-gradient(ellipse at 80% 70%, rgba(92,157,136,.04) 0%, transparent 55%), var(--card); border:1px solid var(--border); border-radius:var(--r); box-shadow:var(--sh); overflow:hidden; position:relative }
+.themes-head { padding:10px 14px; border-bottom:1px solid var(--border); display:flex; align-items:center; justify-content:space-between }
+.themes-card .themes-head .ttl { font-size:12px; font-weight:500; color:var(--ink-soft) }
+.themes-card .themes-head .sub { font-size:10.5px; color:var(--faint) }
+.themes-card canvas { display:block; width:100%; height:170px }
+
+/* Avaliação de risco */
+.risk-list { display:flex; flex-direction:column; gap:4px; margin-top:8px }
+.risk-row { display:flex; align-items:center; justify-content:space-between; gap:8px; padding:5px 9px }
+.risk-row + .risk-row { border-top:1px solid var(--border) }
+.risk-name { font-size:12px; color:var(--ink-soft) }
+.risk-pills { display:flex; gap:1px }
+.risk-pill { font-size:9px; font-weight:500; letter-spacing:.9px; text-transform:uppercase; padding:2px 6px; border-radius:4px; cursor:pointer; background:transparent; color:var(--faint); border:none; font-family:inherit; transition:all .15s }
+.risk-pill:hover { color:var(--ink-soft) }
+.risk-pill.lo.on { background:rgba(92,157,136,.13);  color:#3a6e60 }
+.risk-pill.md.on { background:rgba(168,120,64,.13);  color:#7a5520 }
+.risk-pill.hi.on { background:rgba(192,94,120,.13);  color:var(--rose) }
+.risk-foot { display:flex; justify-content:space-between; align-items:center; margin-top:8px; padding-top:8px; border-top:1px solid var(--border); font-size:10.5px; color:var(--muted) }
+.risk-foot .summary { font-family:var(--f-display); font-size:13px; color:var(--ink-soft) }
+
+/* Checagem de humor */
+.emo-state { background:var(--card-warm); border:1px solid var(--border); border-radius:9px; padding:9px 13px 8px; margin:9px 0 11px }
+.emo-head { display:flex; align-items:baseline; justify-content:space-between; margin-bottom:6px }
+.emo-label { font-size:10.5px; font-weight:500; color:var(--ink-soft); letter-spacing:.2px }
+.emo-label .sub { font-size:9px; font-weight:400; letter-spacing:1.6px; text-transform:uppercase; color:var(--faint); margin-left:8px }
+.emo-value { font-family:var(--f-display); font-size:13.5px; color:var(--ink-soft) }
+.emo-slider { position:relative; height:22px; margin:0 3px }
+.emo-track { position:absolute; left:0; right:0; top:50%; height:6px; transform:translateY(-50%); border-radius:6px; background:linear-gradient(90deg,rgba(106,78,200,.7) 0%,rgba(106,78,200,.4) 22%,#b8d8d2 50%,rgba(224,200,137,.55) 78%,rgba(218,180,86,.85) 100%); box-shadow:inset 0 1px 1px rgba(26,24,37,.04) }
+.emo-ticks { position:absolute; left:0; right:0; top:50%; transform:translateY(-50%); height:10px; display:flex; justify-content:space-between; align-items:center; pointer-events:none }
+.emo-ticks .tk { width:1px; height:4px; background:rgba(255,255,255,.65); border-radius:1px }
+.emo-ticks .tk.center { height:10px; width:2px; background:rgba(26,24,37,.28) }
+.emo-thumb { position:absolute; top:50%; left:50%; width:16px; height:16px; border-radius:50%; background:#fff; border:2px solid var(--ink-soft); transform:translate(-50%,-50%); box-shadow:0 2px 5px rgba(26,24,37,.18); pointer-events:none; transition:border-color .2s }
+.emo-slider input[type=range] { position:absolute; inset:-6px 0; width:100%; opacity:0; cursor:pointer; margin:0; height:34px }
+.emo-anchors { display:flex; justify-content:space-between; margin-top:5px; font-size:9.5px; color:var(--faint); letter-spacing:.3px }
+.emo-anchors .left  { color:rgba(106,78,200,.65) }
+.emo-anchors .right { color:rgba(168,120,64,.7) }
+.mood-moments { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:6px; margin-top:2px }
+.moment { background:var(--card-warm); border:1px solid var(--border); border-radius:8px; padding:8px 10px; text-align:center; min-width:0 }
+.moment .when { font-size:8.5px; font-weight:500; letter-spacing:1.3px; text-transform:uppercase; color:var(--faint); margin-bottom:3px }
+.mood-input { width:100%; border:none; outline:none; border-bottom:1px solid var(--border); background:transparent; text-align:center; padding:2px 0 3px; font-family:var(--f-display); font-style:italic; font-weight:400; font-size:14.5px; color:var(--ink-soft); letter-spacing:-.2px; transition:border-color .15s }
+.mood-input::placeholder { color:var(--faint); font-style:italic }
+.mood-input:focus { border-bottom-color:var(--accent) }
+.intensity-row { display:flex; flex-direction:column; align-items:center; gap:2px; margin-top:6px }
+.intensity-dots { display:flex; gap:4px }
+.intensity-dots button { width:10px; height:10px; border-radius:50%; padding:0; background:#fff; border:1.5px solid rgba(26,24,37,.18); cursor:pointer; transition:all .14s }
+.intensity-dots button:hover { border-color:var(--ink-soft); transform:scale(1.18) }
+.intensity-dots button.on { background:var(--ink-soft); border-color:var(--ink-soft) }
+.intensity-lbl { font-size:9px; color:var(--faint); letter-spacing:1px; text-transform:uppercase }
+.scales { margin-top:10px; padding-top:10px; border-top:1px solid var(--border); display:flex; flex-direction:column; gap:9px }
+.scale .sc-head { display:flex; justify-content:space-between; font-size:9px; font-weight:500; letter-spacing:1.6px; text-transform:uppercase; color:var(--faint); margin-bottom:4px }
+.scale .sc-head .sc-val { font-family:var(--f-display); font-size:12px; color:var(--ink-soft); letter-spacing:0; text-transform:none; font-weight:400 }
+.sc-track { position:relative; height:4px; background:var(--surface); border-radius:4px }
+.sc-track .sc-fill { position:absolute; left:0; top:0; bottom:0; border-radius:4px; background:var(--ink-soft); opacity:.4 }
+.sc-track .sc-thumb { position:absolute; top:50%; width:10px; height:10px; background:#fff; border:1px solid var(--border-md); border-radius:50%; transform:translate(-50%,-50%); pointer-events:none; box-shadow:0 1px 2px rgba(26,24,37,.12) }
+.sc-track input[type=range] { position:absolute; inset:-8px 0; width:100%; opacity:0; cursor:pointer; margin:0 }
+.sc-anchors { display:flex; justify-content:space-between; font-size:9px; color:var(--faint); margin-top:3px }
+
+/* Informações do paciente */
+.info-block + .info-block { margin-top:10px; padding-top:10px; border-top:1px solid var(--border) }
+.info-list { list-style:none; padding:0; margin:0; display:flex; flex-direction:column; gap:3px }
+.info-list li { font-size:12.5px; color:var(--ink-soft); display:flex; justify-content:space-between; align-items:baseline }
+.info-list li .sub { font-size:10.5px; color:var(--muted); font-style:italic }
+.info-pills { display:flex; flex-wrap:wrap; gap:4px; margin-top:2px }
+.info-pill { font-size:10.5px; padding:2px 8px; border-radius:5px; background:var(--surface); color:var(--muted); border:1px solid var(--border) }
+.info-pill.alert { background:rgba(192,94,120,.08); color:var(--rose); border-color:rgba(192,94,120,.2) }
+
+/* Painéis contextuais */
+.sess-side { display:flex; flex-direction:column; gap:10px }
+.sp { background:var(--card); border:1px solid rgba(26,24,37,.055); border-radius:var(--r); box-shadow:0 1px 3px rgba(26,24,37,.03); padding:14px 16px; position:relative }
+.sp-t { font-size:9px; font-weight:500; letter-spacing:2.2px; text-transform:uppercase; color:var(--faint); margin-bottom:11px }
+.sp-li { display:flex; gap:7px; align-items:flex-start; font-size:13px; color:var(--muted); line-height:1.6; margin-bottom:6px; font-weight:300 }
+.sp-li::before { content:'·'; color:var(--faint); flex-shrink:0 }
+.sp-li:last-child { margin-bottom:0 }
+.qnote { background:var(--card); border:1px solid rgba(26,24,37,.055); border-radius:var(--r); padding:13px 15px; box-shadow:0 1px 3px rgba(26,24,37,.03); position:relative }
+.qnote textarea { width:100%; border:none; outline:none; font-family:inherit; font-size:13.5px; color:var(--ink-soft); resize:none; background:transparent; line-height:1.75; min-height:80px; font-weight:300 }
+.qnote textarea::placeholder { color:var(--faint) }
+
+/* ═══ TEMAS RECORRENTES (ex-Grafo) ══════════════════ */
+.grafo-wrap { display:grid; grid-template-columns:1fr 280px 290px; gap:16px }
+#graph-container {
+  background: radial-gradient(ellipse at 32% 42%, #1e1830 0%, #141022 55%, #0e0c18 100%);
+  border-radius:var(--rlg);
+  overflow:hidden; position:relative;
+}
+.graph-legend { position:absolute; top:18px; left:18px; z-index:10; display:flex; flex-direction:column; gap:7px }
+.gl-row { display:flex; align-items:center; gap:7px }
+.gl-dot { width:8px; height:8px; border-radius:50% }
+.gl-lbl { font-size:11px; color:rgba(255,255,255,.45) }
+.graph-hint { position:absolute; bottom:14px; left:0; right:0; text-align:center; font-size:11px; color:rgba(255,255,255,.15); pointer-events:none }
+
+/* ═══ AI CHAT — silencioso ════════════════════════════ */
+.ai-chat {
+  background:#1c1a2e; border-radius:var(--rlg);
+  overflow:hidden; display:flex; flex-direction:column;
+}
+.ai-chat-head { padding:16px 18px; border-bottom:1px solid rgba(255,255,255,.06) }
+.ai-dot { width:7px; height:7px; border-radius:50%; background:var(--sage); box-shadow:0 0 6px rgba(90,158,138,.5) }
+.ai-msgs { padding:14px 16px; display:flex; flex-direction:column; gap:10px; height:300px; overflow-y:auto }
+.ai-msgs::-webkit-scrollbar { width:3px }
+.ai-msgs::-webkit-scrollbar-thumb { background:rgba(255,255,255,.08) }
+.ai-msg-ai { background:rgba(255,255,255,.06); border-radius:2px 10px 10px 10px; padding:10px 13px; font-size:12.5px; color:rgba(255,255,255,.65); line-height:1.65; max-width:92% }
+.ai-msg-user { background:rgba(107,79,207,.28); border-radius:10px 2px 10px 10px; padding:10px 13px; font-size:12.5px; color:rgba(255,255,255,.82); line-height:1.65; max-width:92%; align-self:flex-end }
+.ai-typing { background:rgba(255,255,255,.06); border-radius:2px 10px 10px 10px; padding:10px 13px; font-size:12px; color:rgba(255,255,255,.28) }
+.ai-quick { padding:10px 14px; border-top:1px solid rgba(255,255,255,.05); display:flex; flex-wrap:wrap; gap:6px }
+.ai-qbtn {
+  background:rgba(255,255,255,.05); border:1px solid rgba(255,255,255,.09);
+  border-radius:20px; padding:4px 11px; font-size:11px;
+  color:rgba(255,255,255,.45); cursor:pointer; font-family:inherit;
+  transition:all .18s;
+}
+.ai-qbtn:hover { background:rgba(255,255,255,.1); color:rgba(255,255,255,.75) }
+.ai-input-row { padding:10px 14px; border-top:1px solid rgba(255,255,255,.05); display:flex; gap:8px; align-items:flex-end }
+.ai-textarea {
+  flex:1; background:rgba(255,255,255,.06); border:none; border-radius:9px;
+  padding:8px 12px; font-size:12.5px; color:rgba(255,255,255,.72);
+  font-family:inherit; outline:none; resize:none; line-height:1.55; min-height:36px;
+}
+.ai-textarea::placeholder { color:rgba(255,255,255,.22) }
+.ai-send {
+  width:32px; height:32px; border-radius:8px; background:var(--accent);
+  border:none; color:#fff; font-size:14px; cursor:pointer;
+  display:flex; align-items:center; justify-content:center;
+  flex-shrink:0; transition:background .15s;
+}
+.ai-send:hover { background:#5a40b8 }
+
+/* ═══ SELETOR DE PACIENTE ════════════════════════════ */
+.pt-selector {
+  display:flex; align-items:center;
+  background:var(--card); border:1px solid var(--border);
+  border-radius:var(--r); box-shadow:var(--sh); margin-bottom:22px; overflow:hidden;
+}
+.pts-cur {
+  display:flex; align-items:center; gap:13px;
+  padding:14px 18px; flex:1; cursor:pointer; transition:background .18s;
+}
+.pts-cur:hover { background:rgba(26,24,37,.02) }
+.pts-av {
+  width:36px; height:36px; border-radius:50%;
+  display:flex; align-items:center; justify-content:center;
+  font-size:13px; font-weight:500; color:#fff; flex-shrink:0;
+}
+.pts-name { font-family:var(--f-display); font-size:18px; font-weight:300; letter-spacing:-.2px }
+.pts-meta { font-size:11.5px; color:var(--muted); margin-top:1px }
+.pts-chg {
+  padding:14px 18px; border-left:1px solid var(--border);
+  font-size:12px; color:var(--accent); cursor:pointer;
+  display:flex; align-items:center; gap:5px;
+  transition:background .18s; font-weight:500;
+}
+.pts-chg:hover { background:var(--accent-lo) }
+
+/* ═══ FILTROS ════════════════════════════════════════ */
+.ftabs { display:flex; gap:6px; flex-wrap:wrap }
+.ftab {
+  padding:5px 14px; border-radius:20px; font-size:12px; font-weight:500;
+  cursor:pointer; border:1px solid var(--border);
+  background:transparent; color:var(--muted); transition:all .18s; font-family:inherit;
+}
+.ftab.active { background:var(--accent); color:#fff; border-color:var(--accent) }
+.ftab:hover:not(.active) { background:var(--surface); color:var(--ink-soft) }
+
+/* ═══ AGENDA — 3 visões ══════════════════════════════ */
+.cal-block { padding:5px 8px; border-radius:7px; cursor:pointer; transition:all .18s }
+.cal-block:hover { filter:brightness(.97); transform:translateY(-1px) }
+.cal-block-name { font-size:12px; font-weight:500; color:var(--ink-soft); margin-bottom:1px }
+.cal-block-meta { font-size:10px; color:var(--muted); margin-bottom:4px }
+.cal-slot-free {
+  height:44px; border:1.5px dashed rgba(107,79,207,.14);
+  border-radius:7px; display:flex; align-items:center; justify-content:center;
+  cursor:pointer; transition:background .18s;
+}
+.cal-slot-free:hover { background:rgba(107,79,207,.04) }
+.cal-tag-green { background:rgba(90,158,138,.1); color:#3a6e60; font-size:9px; font-weight:500; padding:1px 5px; border-radius:4px }
+.cal-tag-purple { background:rgba(107,79,207,.09); color:var(--accent); font-size:9px; font-weight:500; padding:1px 5px; border-radius:4px }
+.cal-tag-amber { background:rgba(176,125,64,.1); color:#7a5520; font-size:9px; font-weight:500; padding:1px 5px; border-radius:4px }
+
+/* ═══ PACIENTES ══════════════════════════════════════ */
+.ptc { background:var(--card); border:1px solid var(--border); border-radius:var(--r); box-shadow:var(--sh); cursor:pointer; transition:all .22s }
+.ptc:hover { box-shadow:var(--sh-m); transform:translateY(-1px) }
+.ptc-b { padding:18px 19px }
+
+/* ═══ NEGÓCIO ════════════════════════════════════════ */
+.kpi { background:var(--card); border:1px solid var(--border); border-radius:var(--r); padding:16px 18px; box-shadow:var(--sh); cursor:pointer; transition:all .22s; position:relative; overflow:hidden }
+.kpi:hover { box-shadow:var(--sh-m); transform:translateY(-1px) }
+.kpi-bar { position:absolute; top:0; left:0; right:0; height:2px; opacity:.6 }
+.kpi-lbl { font-size:10px; color:var(--faint); text-transform:uppercase; letter-spacing:.5px; margin-bottom:8px }
+.kpi-val { font-family:var(--f-display); font-weight:300; font-size:28px; line-height:1; color:var(--ink); margin-bottom:3px }
+.kpi-d { font-size:12px }
+.kpi-d.up { color:var(--sage) }
+.kpi-d.warn { color:var(--amber) }
+.kpi-d.neu { color:var(--muted) }
+.kpi-row { display:grid; grid-template-columns:repeat(5,1fr); gap:10px; margin-bottom:18px }
+.biz-grid { display:grid; grid-template-columns:1fr 1fr; gap:14px }
+.biz-grid-3 { display:grid; grid-template-columns:1fr 1fr 1fr; gap:14px; margin-top:14px }
+.wk-bars { display:flex; align-items:flex-end; gap:5px; height:60px; margin:10px 0 5px }
+.wk-bw { flex:1; display:flex; flex-direction:column; align-items:center; gap:3px; cursor:pointer }
+.wk-bar { width:100%; border-radius:4px 4px 0 0; transition:opacity .2s }
+.wk-bl { font-size:9.5px; color:var(--muted) }
+.wk-bw:not(.hl) .wk-bar { opacity:.38 }
+.wk-bw:hover .wk-bar { opacity:.62 }
+.wk-bw.hl .wk-bar { opacity:1 }
+.donut-row { display:flex; align-items:center; gap:16px }
+.dl { display:flex; flex-direction:column; gap:6px }
+.dl-row { display:flex; align-items:center; gap:7px; font-size:12px }
+.dl-dot { width:7px; height:7px; border-radius:50% }
+.dl-lbl { color:var(--muted); flex:1 }
+.dl-val { font-weight:500; color:var(--ink-soft) }
+.al {
+  padding:12px 14px; border-radius:var(--rsm); font-size:13px; line-height:1.6;
+  margin-bottom:7px; border-left:2.5px solid; cursor:pointer; transition:filter .15s;
+}
+.al:hover { filter:brightness(.97) }
+.al:last-child { margin-bottom:0 }
+.al strong { font-weight:500; display:block; margin-bottom:1px; color:var(--ink-soft) }
+.al-am { background:rgba(176,125,64,.07); border-color:var(--amber) }
+.al-ro { background:rgba(196,96,122,.06); border-color:var(--rose) }
+.al-te { background:rgba(90,158,138,.07); border-color:var(--sage) }
+.rt { width:100%; border-collapse:collapse }
+.rt th { font-size:10px; font-weight:500; color:var(--faint); text-transform:uppercase; letter-spacing:.6px; padding:7px 0; text-align:left; border-bottom:1px solid var(--border) }
+.rt td { font-size:13px; padding:9px 0; border-bottom:1px solid var(--border); color:var(--muted) }
+.rt td:first-child { color:var(--ink-soft); font-weight:500 }
+.rt tr:last-child td { border-bottom:none }
+.rchip { display:inline-block; padding:2px 9px; border-radius:20px; font-size:10.5px; font-weight:500 }
+.rc-hi { background:rgba(196,96,122,.1); color:var(--rose) }
+.rc-md { background:rgba(176,125,64,.1); color:var(--amber) }
+.rc-lo { background:rgba(90,158,138,.1); color:var(--sage) }
+.rev-split { display:flex; height:6px; border-radius:6px; overflow:hidden; gap:2px; margin:8px 0 5px }
+
+/* ═══ MODAL ══════════════════════════════════════════ */
+.ov { display:none; position:fixed; inset:0; z-index:200; background:rgba(26,24,37,.4); backdrop-filter:blur(12px); align-items:center; justify-content:center; animation:pgIn .22s ease }
+.ov.open { display:flex }
+.modal { background:var(--card); border-radius:var(--rlg); width:440px; max-width:92vw; box-shadow:var(--sh-lg); animation:di .26s cubic-bezier(.34,1.1,.64,1); overflow:hidden }
+@keyframes di { from{opacity:0;transform:scale(.96) translateY(10px)} to{opacity:1;transform:none} }
+.modal-hd { padding:20px 22px 16px; border-bottom:1px solid var(--border); display:flex; align-items:flex-start; justify-content:space-between }
+.modal-hd h3 { font-size:16px; font-weight:500; color:var(--ink-soft) }
+.modal-hd p { font-size:11.5px; color:var(--muted); margin-top:3px }
+.mcls { width:26px; height:26px; border-radius:50%; background:var(--surface); border:none; cursor:pointer; display:flex; align-items:center; justify-content:center; font-size:12px; color:var(--muted); transition:background .15s; flex-shrink:0 }
+.mcls:hover { background:#e0ddf0 }
+.modal-b { padding:20px 22px }
+.f-row { margin-bottom:14px }
+.f-lbl { font-size:11.5px; font-weight:500; color:var(--muted); margin-bottom:5px; display:block }
+.f-inp { width:100%; border:1px solid var(--border-md); border-radius:var(--rsm); padding:9px 13px; font-size:13px; font-family:inherit; color:var(--ink); background:var(--card); outline:none; transition:border-color .18s }
+.f-inp:focus { border-color:var(--accent) }
+.f-g2 { display:grid; grid-template-columns:1fr 1fr; gap:10px }
+.mode-opts { display:flex; gap:7px }
+.mode-o { flex:1; padding:8px 10px; border:1px solid var(--border-md); border-radius:var(--rsm); text-align:center; font-size:12.5px; cursor:pointer; transition:all .18s; color:var(--muted); font-family:inherit }
+.mode-o:hover { border-color:var(--accent); color:var(--accent) }
+.mode-o.sel { border-color:var(--accent); background:var(--accent-lo); color:var(--accent); font-weight:500 }
+.start-btn { width:100%; padding:12px; background:var(--accent); color:#fff; border:none; border-radius:11px; font-size:13.5px; font-weight:500; font-family:inherit; cursor:pointer; transition:all .15s; display:flex; align-items:center; justify-content:center; gap:6px; box-shadow:0 2px 12px rgba(107,79,207,.24) }
+.start-btn:hover { background:#5a40b8 }
+.modal-ft { padding:0 22px 22px }
+
+/* ═══ SELETOR DE PACIENTE OVERLAY ════════════════════ */
+.pt-drop-ov { display:none; position:fixed; inset:0; z-index:200; background:rgba(26,24,37,.38); backdrop-filter:blur(10px); align-items:center; justify-content:center; animation:pgIn .2s ease }
+.pt-drop-ov.open { display:flex }
+.pt-drop-panel { background:var(--card); border-radius:var(--rlg); width:460px; max-width:92vw; box-shadow:var(--sh-lg); animation:di .24s cubic-bezier(.34,1.1,.64,1); overflow:hidden }
+.pt-drop-hd { padding:18px 20px 14px; border-bottom:1px solid var(--border); display:flex; align-items:center; justify-content:space-between }
+.pt-drop-hd h3 { font-size:15px; font-weight:500; color:var(--ink-soft) }
+.pt-drop-cls { width:26px; height:26px; border-radius:50%; background:var(--surface); border:none; cursor:pointer; display:flex; align-items:center; justify-content:center; font-size:12px; color:var(--muted) }
+.pt-search-wrap { padding:12px 16px; border-bottom:1px solid var(--border) }
+.pt-search { width:100%; border:1px solid var(--border-md); border-radius:9px; padding:8px 12px; font-size:13px; font-family:inherit; color:var(--ink); background:var(--surface); outline:none; transition:border-color .15s }
+.pt-search:focus { border-color:var(--accent); background:var(--card) }
+.pt-list { max-height:280px; overflow-y:auto }
+.pt-opt { display:flex; align-items:center; gap:12px; padding:13px 20px; cursor:pointer; transition:background .15s; border-bottom:1px solid var(--border) }
+.pt-opt:last-child { border-bottom:none }
+.pt-opt:hover { background:var(--accent-lo) }
+.pt-opt.sel { background:var(--accent-lo) }
+.pt-opt-av { width:32px; height:32px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:12px; font-weight:500; color:#fff; flex-shrink:0 }
+.pt-opt-name { font-size:13px; font-weight:500; color:var(--ink-soft); margin-bottom:1px }
+.pt-opt-meta { font-size:11px; color:var(--muted) }
+.pt-opt-tags { margin-left:auto; display:flex; gap:5px }
+
+/* ═══ NOVO PACIENTE ══════════════════════════════════ */
+.npt-wa-preview {
+  background:#0d1117; border-radius:12px; padding:16px 15px; margin-top:14px;
+}
+.npt-wa-hd { display:flex; align-items:center; gap:9px; margin-bottom:13px; padding-bottom:11px; border-bottom:1px solid rgba(255,255,255,.06) }
+.npt-wa-msg { background:rgba(107,79,207,.2); border-radius:3px 11px 11px 11px; padding:11px 13px; font-size:12.5px; color:rgba(255,255,255,.78); line-height:1.7; max-width:90% }
+.npt-wa-time { font-size:10px; color:rgba(255,255,255,.2); text-align:right; margin-top:7px }
+
+/* ═══ PÓSVERSÃO SESSÃO ═══════════════════════════════ */
+.post-sess-grad { background:linear-gradient(145deg,#f8f6ff,#f0eef8); border-bottom:1px solid var(--border) }
+
+/* ═══ SPARK CHARTS ═══════════════════════════════════ */
+.spark-svg { width:100%; overflow:visible }
+.chart-wrap { background:var(--card); border:1px solid var(--border); border-radius:var(--r); padding:20px; box-shadow:var(--sh) }
+.evo-grid { display:grid; grid-template-columns:1fr 1fr; gap:16px; margin-bottom:16px }
+.slog { display:flex; flex-direction:column; gap:9px }
+.sl-row { display:flex; gap:12px; align-items:flex-start; padding:12px 14px; background:rgba(26,24,37,.02); border-radius:var(--rsm); cursor:pointer; transition:background .18s; border:1px solid transparent }
+.sl-row:hover { background:var(--accent-lo); border-color:rgba(107,79,207,.08) }
+.sl-date { text-align:center; width:36px; flex-shrink:0 }
+.sl-day { font-family:var(--f-display); font-size:18px; font-weight:300; line-height:1 }
+.sl-mo { font-size:9px; color:var(--muted); text-transform:uppercase; letter-spacing:.4px }
+.sl-b { flex:1 }
+.sl-title { font-size:13px; font-weight:500; color:var(--ink-soft); margin-bottom:2px }
+.sl-prev { font-size:12.5px; color:var(--muted); line-height:1.55; margin-bottom:5px }
+
+/* ═══ ESCALA BARS ═══════════════════════════════════ */
+.escala-bar-bg { height:4px; background:var(--surface); border-radius:3px; overflow:hidden; margin:5px 0 2px }
+.escala-bar-fill { height:100%; border-radius:3px }
+
+/* ═══ ORIENT ═════════════════════════════════════════ */
+.orient-grid { display:grid; grid-template-columns:1fr 360px; gap:20px }
+.disclaimer { background:rgba(176,125,64,.06); border:1px solid rgba(176,125,64,.18); border-radius:11px; padding:12px 16px; display:flex; align-items:center; gap:12px; margin-bottom:20px }
+
+/* ═══ TOAST ══════════════════════════════════════════ */
+.toast { position:fixed; bottom:24px; right:24px; background:var(--ink); color:#fff; padding:12px 16px; border-radius:11px; font-size:13px; display:flex; align-items:center; gap:8px; opacity:0; transform:translateY(6px); transition:all .22s; z-index:999; pointer-events:none; box-shadow:0 8px 30px rgba(26,24,37,.24) }
+.toast.show { opacity:1; transform:none }
+
+/* ═══ SCROLLBAR ══════════════════════════════════════ */
+::-webkit-scrollbar { width:4px }
+::-webkit-scrollbar-track { background:transparent }
+::-webkit-scrollbar-thumb { background:var(--border-md); border-radius:4px }
+
+/* ═══ EXPAND ══════════════════════════════════════════ */
+.expand-btn { display:flex; align-items:center; gap:5px; font-size:12px; color:var(--accent); cursor:pointer; padding:8px 0 0; background:none; border:none; font-family:inherit; opacity:.7; transition:opacity .15s }
+.expand-btn:hover { opacity:1 }
+.expandable { display:none; animation:pgIn .2s ease }
+.expandable.open { display:block }
+</style>
+</head>
+<body>
+
+<!-- ══════════════════ SIDEBAR ══════════════════ -->
+<aside class="sb" id="sb">
+  <div class="sb-tog" id="sb-tog" onclick="toggleSb()">‹</div>
+  <div class="sb-brand">
+    <!-- Logomarca B — espiral de continuidade -->
+    <div class="gem">
+      <svg width="18" height="18" viewBox="0 0 50 50" fill="none">
+        <path d="M 25 38 C 25 38 14 38 14 27 C 14 16 25 16 25 16"
+              stroke="rgba(255,255,255,.55)" stroke-width="2.2" stroke-linecap="round" fill="none"/>
+        <path d="M 25 16 C 25 16 36 16 36 27 C 36 38 25 44 12 42"
+              stroke="rgba(255,255,255,.78)" stroke-width="2.2" stroke-linecap="round" fill="none"/>
+        <path d="M 12 42 C 4 40 4 28 4 24 C 4 12 14 6 26 6 C 38 6 46 14 46 26"
+              stroke="white" stroke-width="2.2" stroke-linecap="round" fill="none"/>
+        <circle cx="46" cy="26" r="3" fill="white"/>
+      </svg>
+    </div>
+    <div class="brand-txt">
+      <div class="brand-name">Auren <strong>Care</strong></div>
+      <div class="brand-sub">a inteligência silenciosa da prática</div>
+    </div>
+  </div>
+  <nav class="sb-nav">
+    <div class="w-hd"><span class="w-lbl">Clínico</span></div>
+    <a class="ni active" onclick="go('home','cli')"><span class="ni-ico">◈</span><span class="ni-lbl">Início</span></a>
+    <a class="ni" onclick="go('pacientes','cli')"><span class="ni-ico">◉</span><span class="ni-lbl">Pacientes</span><span class="ni-badge">8</span></a>
+    <a class="ni" onclick="go('continuidade','cli')"><span class="ni-ico">◬</span><span class="ni-lbl">Objetivos e Progresso</span></a>
+    <a class="ni" onclick="go('grafo','cli')"><span class="ni-ico">◍</span><span class="ni-lbl">Temas Recorrentes</span></a>
+    <a class="ni" onclick="go('longitudinal','cli')"><span class="ni-ico">◫</span><span class="ni-lbl">Evolução Registrada</span></a>
+
+    <div class="w-sep"></div>
+    <div class="w-hd"><span class="w-lbl">Prática</span></div>
+    <a class="ni biz-item" onclick="go('negocio','biz')"><span class="ni-ico">◑</span><span class="ni-lbl">Financeiro</span></a>
+    <a class="ni biz-item" onclick="go('agenda','biz')"><span class="ni-ico">◷</span><span class="ni-lbl">Agenda</span></a>
+    <a class="ni biz-item" onclick="go('saude','biz')"><span class="ni-ico">◬</span><span class="ni-lbl">Saúde da Prática</span></a>
+
+    <div class="w-sep"></div>
+    <a class="ni" onclick="showToast('🔒 Privacidade · em breve')"><span class="ni-ico">◧</span><span class="ni-lbl">Privacidade</span></a>
+  </nav>
+  <div class="sb-bot">
+    <div class="sb-user">
+      <div class="u-av">CR</div>
+      <div class="u-meta">
+        <div class="u-name">Dra. Camila Ribeiro</div>
+        <div class="u-crp">CRP 06/12345</div>
+      </div>
+    </div>
+  </div>
+</aside>
+
+<div class="main" id="main">
+<!-- TOPBAR -->
+<div class="topbar" id="topbar">
+  <div class="tp-l">
+    <div class="tp-crumb" id="tp-path"><strong>Início</strong></div>
+  </div>
+  <div class="tp-r">
+    <!-- Sessão ativa — pill silenciosa na topbar -->
+    <div class="sess-pill" id="sess-live-pill" onclick="enterPresence()">
+      <span class="rp"></span>
+      <span>Fernanda K. · em andamento</span>
+    </div>
+    <button class="btn-ico" style="position:relative" title="Notificações">
+      🔔
+      <span style="position:absolute;top:7px;right:7px;width:5px;height:5px;border-radius:50%;background:var(--amber);border:1.5px solid var(--page)"></span>
+    </button>
+    <button class="btn btn-ghost btn-sm" onclick="go('agenda','biz')">Agenda</button>
+    <button class="btn btn-prim btn-sm" onclick="openModal()">+ Sessão</button>
+  </div>
+</div>
+
+<!-- PBAR — apoio à sessão -->
+<div class="pbar" id="pbar">
+  <div style="display:flex;align-items:center">
+    <div class="pb-name">Fernanda K.</div>
+    <div class="pb-meta">· Sessão 7 · <span id="p-timer" style="font-variant-numeric:tabular-nums">47:18</span></div>
+  </div>
+  <div class="pb-r">
+    <div class="rec-ind"><div class="rp"></div>Presente</div>
+    <button class="btn btn-ghost btn-sm" onclick="openPostSess()">Encerrar</button>
+    <button class="btn btn-ghost btn-sm" onclick="exitPresence()">← Voltar</button>
+  </div>
+</div>
+
+<!-- ══════════ INÍCIO ══════════ -->
+<div class="page active" id="page-home">
+
+  <!-- Saudação -->
+  <div class="greeting">
+    <div class="date">Quinta-feira · 22 de maio de 2025</div>
+    <h1>Boa tarde, <em>Camila.</em></h1>
+    <div class="sub">
+      <span class="pip"><span class="pip-d" style="background:var(--sage)"></span>4 sessões hoje</span>
+      <span class="pip"><span class="pip-d" style="background:var(--accent)"></span>1 em andamento</span>
+      <span class="pip"><span class="pip-d" style="background:var(--amber)"></span>2 pendências</span>
+    </div>
+  </div>
+
+  <!-- Espiral decorativa — watermark de identidade, muito discreta -->
+  <div style="position:absolute;top:28px;right:28px;opacity:.06;pointer-events:none">
+    <svg width="120" height="120" viewBox="0 0 50 50" fill="none">
+      <path d="M 25 38 C 25 38 14 38 14 27 C 14 16 25 16 25 16" stroke="var(--accent)" stroke-width="1.4" stroke-linecap="round" fill="none"/>
+      <path d="M 25 16 C 25 16 36 16 36 27 C 36 38 25 44 12 42" stroke="var(--accent)" stroke-width="1.4" stroke-linecap="round" fill="none"/>
+      <path d="M 12 42 C 4 40 4 28 4 24 C 4 12 14 6 26 6 C 38 6 46 14 46 26" stroke="var(--accent)" stroke-width="1.4" stroke-linecap="round" fill="none"/>
+      <circle cx="46" cy="26" r="2" fill="var(--accent)"/>
+    </svg>
+  </div>
+
+  <!-- Próxima sessão — bloco principal -->
+  <div class="next-sess" onclick="enterPresence()">
+    <div class="next-time">10:30</div>
+    <div class="next-meta">
+      <div class="next-name">Fernanda K. <span style="font-size:11px;font-weight:300;color:var(--muted)">· Sessão 7</span></div>
+      <div class="next-detail">Online · 50 min · pagamento confirmado</div>
+      <div class="next-tags">
+        <span class="tag t-info" style="font-size:10px">● Em andamento agora</span>
+        <span class="tag t-ok" style="font-size:10px">PIX ✓</span>
+      </div>
+    </div>
+    <button class="next-cta">Retomar sessão</button>
+  </div>
+
+  <!-- Grid principal -->
+  <div class="home-grid">
+
+    <!-- Agenda do dia -->
+    <div class="card">
+      <div class="card-h">
+        <span class="card-title">Seu dia</span>
+        <button class="card-act" onclick="openModal()">+ Encaixe</button>
+      </div>
+      <div class="card-b">
+        <div class="ag-row" onclick="showToast('📋 Lucas M.')">
+          <span class="ag-time">09:00</span>
+          <div class="ag-bar" style="background:var(--sage)"></div>
+          <div class="ag-inf">
+            <div class="ag-name">Lucas M. <span style="font-weight:300;font-size:11px;color:var(--faint)">· Sessão 12</span></div>
+            <div class="ag-sub"><span class="tag t-mute" style="font-size:10px">Presencial</span></div>
+          </div>
+          <span class="ag-st">Concluída</span>
+        </div>
+        <div class="ag-row" onclick="enterPresence()">
+          <span class="ag-time">10:30</span>
+          <div class="ag-bar" style="background:var(--accent)"></div>
+          <div class="ag-inf">
+            <div class="ag-name">Fernanda K. <span style="font-weight:300;font-size:11px;color:var(--faint)">· Sessão 7</span></div>
+            <div class="ag-sub"><span class="tag t-info" style="font-size:10px">Online</span></div>
+          </div>
+          <span class="ag-st now">● Agora</span>
+        </div>
+        <div class="ag-row">
+          <span class="ag-time">14:00</span>
+          <div class="ag-bar" style="background:var(--amber)"></div>
+          <div class="ag-inf">
+            <div class="ag-name">Rafael S. <span style="font-weight:300;font-size:11px;color:var(--faint)">· Sessão 19</span></div>
+            <div class="ag-sub"><span class="tag t-warn" style="font-size:10px">Aguardando confirmação</span></div>
+          </div>
+          <span class="ag-st nxt">Pendente</span>
+        </div>
+        <div class="ag-row">
+          <span class="ag-time">16:00</span>
+          <div class="ag-bar" style="background:var(--rose)"></div>
+          <div class="ag-inf">
+            <div class="ag-name">Ana P. <span style="font-weight:300;font-size:11px;color:var(--faint)">· Sessão 3</span></div>
+            <div class="ag-sub"><span class="tag t-ok" style="font-size:10px">Confirmada</span></div>
+          </div>
+          <span class="ag-st nxt">Confirmada</span>
+        </div>
+
+        <!-- Inteligência silenciosa — expandível, discreta -->
+        <button class="expand-btn" onclick="toggleEx('hx','hx-lbl')"><span id="hx-lbl">↓ Observações da semana</span></button>
+        <div class="expandable" id="hx">
+          <div class="divider" style="margin-top:10px"></div>
+          <div class="intel" onclick="go('saude','biz')">
+            <div style="display:flex;align-items:flex-start;gap:10px">
+              <div class="intel-dot" style="background:var(--amber)"></div>
+              <div>
+                <div class="intel-body">3 pacientes com intervalos crescendo entre sessões.</div>
+                <div class="intel-meta">Rafael S. · Paulo L. · Júlia O. — últimas 3 semanas</div>
+              </div>
+            </div>
+          </div>
+          <div class="intel" onclick="go('saude','biz')">
+            <div style="display:flex;align-items:flex-start;gap:10px">
+              <div class="intel-dot" style="background:var(--sage)"></div>
+              <div>
+                <div class="intel-body">Quinta-feira é seu dia de maior ocupação esta semana.</div>
+                <div class="intel-meta">4 sessões · 84% do dia</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Coluna direita -->
+    <div style="display:flex;flex-direction:column;gap:14px">
+
+      <div class="card">
+        <div class="card-h"><span class="card-title">Pendências</span></div>
+        <div class="card-b" style="padding-top:8px;padding-bottom:8px">
+          <div class="pend-row" onclick="showToast('📝 Registro Lucas')"><span class="pend-ico">📝</span><span class="pend-lbl">Registrar — Lucas M.</span><span class="pend-act">→</span></div>
+          <div class="pend-row" onclick="showToast('📝 Registro Fernanda')"><span class="pend-ico">📝</span><span class="pend-lbl">Registrar — Fernanda K.</span><span class="pend-act">→</span></div>
+          <div class="pend-row" onclick="showToast('💳 Rafael')"><span class="pend-ico">💳</span><span class="pend-lbl">Confirmação — Rafael S.</span><span class="pend-act">→</span></div>
+        </div>
+      </div>
+
+      <!-- KPI quieto -->
+      <div class="kpi-quiet" onclick="go('negocio','biz')" style="cursor:pointer">
+        <div class="kl">Sua prática esta semana</div>
+        <div class="kv">R$&thinsp;9.4k</div>
+        <div class="kn up">↑ 8% vs. semana anterior · 4 sessões hoje</div>
+      </div>
+
+      <!-- Previsão -->
+      <div class="card-warm" onclick="go('negocio','biz')" style="cursor:pointer;border-radius:var(--r);padding:18px 20px;box-shadow:var(--sh)">
+        <div class="sec-lbl">Previsão junho</div>
+        <div style="font-family:var(--f-display);font-weight:300;font-size:28px;line-height:1;margin-bottom:4px;color:var(--ink)">R$&thinsp;8.800</div>
+        <div style="font-size:12px;color:var(--muted)">com agenda atual → ver detalhes</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════ APOIO À SESSÃO ══════════ -->
+<div class="page" id="page-sessao">
+  <div class="sess-wrap" id="sess-wrap">
+
+    <!-- ── Transcrição / Registro assistido ── -->
+    <div class="trans-card" data-panel="transcricao">
+      <div class="trans-head">
+        <div style="display:flex;align-items:center;gap:9px">
+          <span style="cursor:grab;font-size:12px;color:var(--faint);user-select:none">⠿</span>
+          <span style="font-size:13px;font-weight:500;color:var(--ink-soft)">Registro assistido</span>
+        </div>
+        <div style="display:flex;align-items:center;gap:8px">
+          <div class="live-pill"><div class="live-d"></div>Presente</div>
+        </div>
+      </div>
+      <div class="trans-body" id="trans-body">
+        <div class="turn psic armable">
+          <div class="turn-top"><span class="t-sp">Psicóloga</span><span class="t-time">10:31</span><span class="t-tone tn-calm">calmo</span></div>
+          <div class="turn-txt">Como você se sentiu essa semana? Teve algo que ficou na cabeça?</div>
+        </div>
+        <div class="turn armable">
+          <div class="turn-top"><span class="t-sp" style="color:var(--faint)">Paciente</span><span class="t-time">10:31</span><span class="t-tone tn-tense">tenso</span></div>
+          <div class="turn-txt">Tive um episódio no trabalho. Meu chefe me chamou e eu travei. Senti que ia ser mandada embora, perder tudo.</div>
+        </div>
+        <div class="turn psic armable">
+          <div class="turn-top"><span class="t-sp">Psicóloga</span><span class="t-time">10:34</span><span class="t-tone tn-open">acolhedor</span></div>
+          <div class="turn-txt">O que você sentiu no corpo naquele momento?</div>
+        </div>
+        <div class="turn armable" data-mark="insight">
+          <div class="mark-chip">insight</div>
+          <div class="turn-top"><span class="t-sp" style="color:var(--faint)">Paciente</span><span class="t-time">10:35</span><span class="t-tone tn-anxious">ansioso</span></div>
+          <div class="turn-txt">O coração acelerou, não conseguia respirar. Aquela sensação de que o chão sumia.</div>
+        </div>
+        <div class="turn psic armable">
+          <div class="turn-top"><span class="t-sp">Psicóloga</span><span class="t-time">10:38</span><span class="t-tone tn-calm">calmo</span></div>
+          <div class="turn-txt">Isso te lembra alguma situação parecida?</div>
+        </div>
+        <div class="turn armable">
+          <div class="turn-top"><span class="t-sp" style="color:var(--faint)">Paciente</span><span class="t-time">10:39</span><span class="t-tone tn-closed">fechado</span></div>
+          <div class="turn-txt">Prefiro não falar disso agora. Mas sim. É parecido com quando minha mãe sumia por dias.</div>
+        </div>
+        <div class="turn psic armable">
+          <div class="turn-top"><span class="t-sp">Psicóloga</span><span class="t-time">10:42</span><span class="t-tone tn-open">acolhedor</span></div>
+          <div class="turn-txt">Obrigada por compartilhar. Vamos respeitar esse espaço hoje.</div>
+        </div>
+        <div class="turn armable" data-mark="avanco">
+          <div class="mark-chip">avanço</div>
+          <div class="turn-top"><span class="t-sp" style="color:var(--faint)">Paciente</span><span class="t-time">10:44</span><span class="t-tone tn-open">aberto</span></div>
+          <div class="turn-txt">Tá bom. Eu acho que... essa coisa do chefe me lembrou muito a minha mãe mesmo. Quando ela sumia e eu ficava no silêncio.</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── Painel direito — grid 2 colunas ── -->
+    <div class="sess-right" id="session-grid">
+
+      <!-- Ritmo da conversa -->
+      <div class="talk-card" data-widget-id="ritmo">
+        <div class="widget-grip" title="Arraste para reorganizar"><svg viewBox="0 0 10 16" width="9" height="13" fill="currentColor"><circle cx="2" cy="3" r="1.2"/><circle cx="2" cy="8" r="1.2"/><circle cx="2" cy="13" r="1.2"/><circle cx="8" cy="3" r="1.2"/><circle cx="8" cy="8" r="1.2"/><circle cx="8" cy="13" r="1.2"/></svg></div>
+        <div class="sec-lbl" style="margin-bottom:2px">Ritmo da conversa</div>
+        <div class="rhythm-bars">
+          <div class="rhythm-row">
+            <div class="rh-lbl"><span>Psicóloga</span><span class="rh-pct" id="rh-psi">42%</span></div>
+            <div class="rh-bar psic"><span style="width:42%"></span></div>
+          </div>
+          <div class="rhythm-row">
+            <div class="rh-lbl"><span>Paciente</span><span class="rh-pct" id="rh-pac">58%</span></div>
+            <div class="rh-bar pac"><span style="width:58%"></span></div>
+          </div>
+        </div>
+        <div class="seg-tags" id="seg-tags">
+          <div class="sec-lbl-sm">
+            <span>Marcar segmento</span>
+            <button class="seg-edit" id="seg-add" title="Personalizar categorias">
+              <svg viewBox="0 0 16 16" width="12" height="12" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M11.5 2.5l2 2-8 8H3.5v-2z"/><path d="M10 4l2 2"/></svg>
+            </button>
+          </div>
+          <button class="seg-btn" data-tag="insight" data-color="accent"><span class="seg-lbl">Insight relevante</span><span class="seg-cnt" data-cnt="">1</span></button>
+          <button class="seg-btn" data-tag="comportamento" data-color="rose"><span class="seg-lbl">Comportamento problema</span><span class="seg-cnt" data-cnt="">0</span></button>
+          <button class="seg-btn" data-tag="avanco" data-color="sage"><span class="seg-lbl">Avanço terapêutico</span><span class="seg-cnt" data-cnt="">1</span></button>
+        </div>
+      </div>
+
+      <!-- Temas desta sessão -->
+      <div class="themes-card" data-widget-id="temas">
+        <div class="widget-grip" title="Arraste para reorganizar"><svg viewBox="0 0 10 16" width="9" height="13" fill="currentColor"><circle cx="2" cy="3" r="1.2"/><circle cx="2" cy="8" r="1.2"/><circle cx="2" cy="13" r="1.2"/><circle cx="8" cy="3" r="1.2"/><circle cx="8" cy="8" r="1.2"/><circle cx="8" cy="13" r="1.2"/></svg></div>
+        <div class="themes-head"><span class="ttl">Temas desta sessão</span><span class="sub">ao vivo</span></div>
+        <canvas id="liveGC"></canvas>
+      </div>
+
+      <!-- Checagem de humor — WIDE -->
+      <div class="talk-card wide" data-widget-id="humor">
+        <div class="widget-grip" title="Arraste para reorganizar"><svg viewBox="0 0 10 16" width="9" height="13" fill="currentColor"><circle cx="2" cy="3" r="1.2"/><circle cx="2" cy="8" r="1.2"/><circle cx="2" cy="13" r="1.2"/><circle cx="8" cy="3" r="1.2"/><circle cx="8" cy="8" r="1.2"/><circle cx="8" cy="13" r="1.2"/></svg></div>
+        <div class="sec-lbl" style="margin-bottom:2px">Checagem de humor</div>
+        <div class="emo-state">
+          <div class="emo-head">
+            <div class="emo-label">Estado emocional <span class="sub">esta semana</span></div>
+            <div class="emo-value" id="emo-val">Neutro</div>
+          </div>
+          <div class="emo-slider">
+            <div class="emo-track"></div>
+            <div class="emo-ticks">
+              <span class="tk"></span><span class="tk"></span><span class="tk"></span><span class="tk"></span><span class="tk"></span>
+              <span class="tk center"></span>
+              <span class="tk"></span><span class="tk"></span><span class="tk"></span><span class="tk"></span><span class="tk"></span>
+            </div>
+            <div class="emo-thumb" id="emo-thumb"></div>
+            <input type="range" id="emo-range" min="-5" max="5" value="0" step="1">
+          </div>
+          <div class="emo-anchors"><span class="left">Desagradável</span><span>Neutro</span><span class="right">Agradável</span></div>
+        </div>
+        <div class="mood-moments">
+          <div class="moment">
+            <div class="when">Predominante</div>
+            <input class="mood-input" type="text" value="tenso" placeholder="ex: tenso">
+            <div class="intensity-row">
+              <div class="intensity-dots" data-int="3"><button data-i="1" class="on"></button><button data-i="2" class="on"></button><button data-i="3" class="on"></button><button data-i="4"></button><button data-i="5"></button></div>
+              <div class="intensity-lbl">Intensidade · 3</div>
+            </div>
+          </div>
+          <div class="moment">
+            <div class="when">Início da sessão</div>
+            <input class="mood-input" type="text" value="ansioso" placeholder="digite o humor">
+            <div class="intensity-row">
+              <div class="intensity-dots" data-int="5"><button data-i="1" class="on"></button><button data-i="2" class="on"></button><button data-i="3" class="on"></button><button data-i="4" class="on"></button><button data-i="5" class="on"></button></div>
+              <div class="intensity-lbl">Intensidade · 5</div>
+            </div>
+          </div>
+          <div class="moment">
+            <div class="when">Final da sessão</div>
+            <input class="mood-input" type="text" value="aliviado" placeholder="digite o humor">
+            <div class="intensity-row">
+              <div class="intensity-dots" data-int="2"><button data-i="1" class="on"></button><button data-i="2" class="on"></button><button data-i="3"></button><button data-i="4"></button><button data-i="5"></button></div>
+              <div class="intensity-lbl">Intensidade · 2</div>
+            </div>
+          </div>
+        </div>
+        <div class="scales">
+          <div class="scale" data-scale="freq">
+            <div class="sc-head"><span>Frequência</span><span class="sc-val">Diariamente</span></div>
+            <div class="sc-track"><div class="sc-fill" style="width:50%"></div><div class="sc-thumb" style="left:50%"></div><input type="range" min="0" max="100" value="50"></div>
+            <div class="sc-anchors"><span>nunca</span><span>algumas vezes</span><span>o tempo todo</span></div>
+          </div>
+          <div class="scale" data-scale="int">
+            <div class="sc-head"><span>Intensidade</span><span class="sc-val">Moderado</span></div>
+            <div class="sc-track"><div class="sc-fill" style="width:45%"></div><div class="sc-thumb" style="left:45%"></div><input type="range" min="0" max="100" value="45"></div>
+            <div class="sc-anchors"><span>nenhum</span><span>leve</span><span>extremo</span></div>
+          </div>
+          <div class="scale" data-scale="dur">
+            <div class="sc-head"><span>Duração</span><span class="sc-val">2–4 horas</span></div>
+            <div class="sc-track"><div class="sc-fill" style="width:35%"></div><div class="sc-thumb" style="left:35%"></div><input type="range" min="0" max="100" value="35"></div>
+            <div class="sc-anchors"><span>sem humor</span><span>4–8h</span><span>7 dias</span></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Informações do paciente — WIDE -->
+      <div class="sp wide" data-widget-id="info">
+        <div class="widget-grip" title="Arraste para reorganizar"><svg viewBox="0 0 10 16" width="9" height="13" fill="currentColor"><circle cx="2" cy="3" r="1.2"/><circle cx="2" cy="8" r="1.2"/><circle cx="2" cy="13" r="1.2"/><circle cx="8" cy="3" r="1.2"/><circle cx="8" cy="8" r="1.2"/><circle cx="8" cy="13" r="1.2"/></svg></div>
+        <div style="display:flex;align-items:baseline;justify-content:space-between;margin-bottom:11px">
+          <div class="sp-t" style="margin:0">Informações do paciente</div>
+          <div style="font-size:9px;color:var(--faint);letter-spacing:.6px;text-transform:uppercase">prontuário</div>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px">
+          <div>
+            <div class="info-block">
+              <div class="sp-t">Condições</div>
+              <div class="info-pills"><span class="info-pill">Hipotireoidismo</span><span class="info-pill">Enxaqueca crônica</span></div>
+            </div>
+            <div class="info-block">
+              <div class="sp-t">Diagnósticos clínicos</div>
+              <ul class="info-list">
+                <li><span>Ansiedade generalizada</span><span class="sub">F41.1</span></li>
+                <li><span>Depressivo moderado</span><span class="sub">F32.1</span></li>
+              </ul>
+            </div>
+          </div>
+          <div>
+            <div class="info-block">
+              <div class="sp-t">Medicações em uso</div>
+              <ul class="info-list">
+                <li><span>Sertralina</span><span class="sub">50 mg · manhã</span></li>
+                <li><span>Clonazepam</span><span class="sub">0,5 mg · SOS</span></li>
+                <li><span>Levotiroxina</span><span class="sub">75 µg · jejum</span></li>
+              </ul>
+            </div>
+            <div class="info-block">
+              <div class="sp-t">Alertas</div>
+              <div class="info-pills"><span class="info-pill alert">alergia · dipirona</span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Avaliação de risco -->
+      <div class="talk-card" data-widget-id="risco">
+        <div class="widget-grip" title="Arraste para reorganizar"><svg viewBox="0 0 10 16" width="9" height="13" fill="currentColor"><circle cx="2" cy="3" r="1.2"/><circle cx="2" cy="8" r="1.2"/><circle cx="2" cy="13" r="1.2"/><circle cx="8" cy="3" r="1.2"/><circle cx="8" cy="8" r="1.2"/><circle cx="8" cy="13" r="1.2"/></svg></div>
+        <div style="display:flex;align-items:baseline;justify-content:space-between">
+          <div class="sec-lbl" style="margin-bottom:2px">Avaliação de risco</div>
+          <div style="font-size:9px;color:var(--faint);letter-spacing:.6px">agora</div>
+        </div>
+        <div class="risk-list" id="risk-list">
+          <div class="risk-row" data-key="autolesao">
+            <div class="risk-name">Autolesão</div>
+            <div class="risk-pills">
+              <button class="risk-pill lo">Baixo</button>
+              <button class="risk-pill md on">Médio</button>
+              <button class="risk-pill hi">Alto</button>
+            </div>
+          </div>
+          <div class="risk-row" data-key="ideacao">
+            <div class="risk-name">Pensamentos suicidas</div>
+            <div class="risk-pills">
+              <button class="risk-pill lo on">Baixo</button>
+              <button class="risk-pill md">Médio</button>
+              <button class="risk-pill hi">Alto</button>
+            </div>
+          </div>
+          <div class="risk-row" data-key="plano">
+            <div class="risk-name">Plano suicida</div>
+            <div class="risk-pills">
+              <button class="risk-pill lo on">Baixo</button>
+              <button class="risk-pill md">Médio</button>
+              <button class="risk-pill hi">Alto</button>
+            </div>
+          </div>
+        </div>
+        <div class="risk-foot"><span>nível geral</span><span class="summary" id="risk-summary">Atenção moderada</span></div>
+      </div>
+
+      <!-- Última sessão -->
+      <div class="sp" data-widget-id="ultima">
+        <div class="widget-grip" title="Arraste para reorganizar"><svg viewBox="0 0 10 16" width="9" height="13" fill="currentColor"><circle cx="2" cy="3" r="1.2"/><circle cx="2" cy="8" r="1.2"/><circle cx="2" cy="13" r="1.2"/><circle cx="8" cy="3" r="1.2"/><circle cx="8" cy="8" r="1.2"/><circle cx="8" cy="13" r="1.2"/></svg></div>
+        <div class="sp-t">Última sessão</div>
+        <div class="sp-li">retomou tema do trabalho</div>
+        <div class="sp-li">abertura emocional presente</div>
+        <div class="sp-li">registro assinado</div>
+      </div>
+
+      <!-- Tópicos em aberto -->
+      <div class="sp" data-widget-id="topicos">
+        <div class="widget-grip" title="Arraste para reorganizar"><svg viewBox="0 0 10 16" width="9" height="13" fill="currentColor"><circle cx="2" cy="3" r="1.2"/><circle cx="2" cy="8" r="1.2"/><circle cx="2" cy="13" r="1.2"/><circle cx="8" cy="3" r="1.2"/><circle cx="8" cy="8" r="1.2"/><circle cx="8" cy="13" r="1.2"/></svg></div>
+        <div class="sp-t">Tópicos em aberto</div>
+        <div class="sp-li">tema familiar surgiu, não aprofundado</div>
+        <div class="sp-li">rotina de sono a explorar</div>
+      </div>
+
+      <!-- Nota rápida -->
+      <div class="qnote wide" data-widget-id="nota">
+        <div class="widget-grip" title="Arraste para reorganizar"><svg viewBox="0 0 10 16" width="9" height="13" fill="currentColor"><circle cx="2" cy="3" r="1.2"/><circle cx="2" cy="8" r="1.2"/><circle cx="2" cy="13" r="1.2"/><circle cx="8" cy="3" r="1.2"/><circle cx="8" cy="8" r="1.2"/><circle cx="8" cy="13" r="1.2"/></svg></div>
+        <div class="sp-t">Nota rápida</div>
+        <textarea placeholder="Algo para lembrar depois…"></textarea>
+      </div>
+
+    </div><!-- /sess-right -->
+  </div><!-- /sess-wrap -->
+</div>
+
+<!-- ══════════ TEMAS RECORRENTES (ex-Grafo) ══════════ -->
+<div class="page" id="page-grafo">
+  <div class="pt-selector">
+    <div class="pts-cur" onclick="openPtDrop()">
+      <div class="pts-av" id="grafo-av" style="background:linear-gradient(135deg,#6b4fcf,#a080f8)">FK</div>
+      <div>
+        <div class="pts-name" id="grafo-name">Fernanda K.</div>
+        <div class="pts-meta" id="grafo-meta">7 sessões · março 2025 · semanal · online</div>
+      </div>
+    </div>
+    <div class="pts-chg" onclick="openPtDrop()">Trocar ↕</div>
+  </div>
+
+  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
+    <div class="ftabs">
+      <button class="ftab active" onclick="setCluster(this,'all')">Todos</button>
+      <button class="ftab" onclick="setCluster(this,'emocional')"><span style="display:inline-block;width:6px;height:6px;border-radius:50%;background:var(--accent);margin-right:5px;vertical-align:middle"></span>Emocional</button>
+      <button class="ftab" onclick="setCluster(this,'relacional')"><span style="display:inline-block;width:6px;height:6px;border-radius:50%;background:var(--rose);margin-right:5px;vertical-align:middle"></span>Relacional</button>
+      <button class="ftab" onclick="setCluster(this,'situacional')"><span style="display:inline-block;width:6px;height:6px;border-radius:50%;background:var(--sage);margin-right:5px;vertical-align:middle"></span>Situacional</button>
+      <button class="ftab" onclick="setCluster(this,'cognitivo')"><span style="display:inline-block;width:6px;height:6px;border-radius:50%;background:var(--amber);margin-right:5px;vertical-align:middle"></span>Cognitivo</button>
+    </div>
+    <div style="display:flex;gap:7px;align-items:center">
+      <select id="grafo-sessao" onchange="filterGrafo(this.value)" style="border:1px solid var(--border-md);border-radius:9px;padding:6px 12px;font-size:12px;font-family:inherit;background:var(--card);color:var(--ink-soft);cursor:pointer;outline:none">
+        <option value="all">Todas as sessões</option>
+        <option value="7">Sessão 7 (hoje)</option>
+        <option value="6">Sessão 6</option>
+        <option value="5">Sessão 5</option>
+        <option value="4">Sessão 4</option>
+      </select>
+      <button class="btn btn-ghost btn-sm" onclick="resetGrafo()">↺</button>
+    </div>
+  </div>
+
+  <div class="grafo-wrap">
+    <div id="graph-container">
+      <div class="graph-legend">
+        <div style="font-size:9px;letter-spacing:1.5px;text-transform:uppercase;color:rgba(255,255,255,.18);margin-bottom:5px">Temas</div>
+        <div class="gl-row"><div class="gl-dot" style="background:var(--accent)"></div><span class="gl-lbl">Emocional</span></div>
+        <div class="gl-row"><div class="gl-dot" style="background:var(--rose)"></div><span class="gl-lbl">Relacional</span></div>
+        <div class="gl-row"><div class="gl-dot" style="background:var(--sage)"></div><span class="gl-lbl">Situacional</span></div>
+        <div class="gl-row"><div class="gl-dot" style="background:var(--amber)"></div><span class="gl-lbl">Cognitivo</span></div>
+      </div>
+      <div class="graph-hint">Clique em um tema para explorar</div>
+      <canvas id="grafo-canvas" style="display:block;width:100%;cursor:default"></canvas>
+    </div>
+
+    <div style="display:flex;flex-direction:column;gap:10px">
+      <div id="node-placeholder" style="background:var(--card);border:1px solid var(--border);border-radius:var(--r);padding:24px;text-align:center">
+        <div style="font-size:22px;margin-bottom:10px;opacity:.4">◍</div>
+        <div style="font-size:13px;font-weight:500;color:var(--ink-soft);margin-bottom:5px">Clique em um tema</div>
+        <div style="font-size:12px;color:var(--muted);line-height:1.6">Veja como os temas das sessões se conectam ao longo do tempo.</div>
+      </div>
+      <div id="node-detail" style="display:none">
+        <div style="display:flex;align-items:center;gap:9px;margin-bottom:14px"><div id="node-dot" style="width:10px;height:10px;border-radius:50%;flex-shrink:0"></div><div><div id="node-word" style="font-size:17px;font-family:var(--f-display);font-weight:400;color:var(--ink-soft)"></div><div id="node-meta" style="font-size:11px;color:var(--muted)"></div></div></div>
+        <div style="font-size:9.5px;font-weight:500;letter-spacing:2px;text-transform:uppercase;color:var(--faint);margin-bottom:8px">Conexões com outros temas</div>
+        <div id="node-edges" style="display:flex;flex-direction:column;gap:6px;margin-bottom:14px"></div>
+        <div id="node-summary" style="font-size:12.5px;color:var(--muted);line-height:1.7;background:var(--surface);border-radius:10px;padding:12px"></div>
+      </div>
+      <div class="card">
+        <div class="card-h" style="padding:12px 16px"><span class="card-title">Temas mais presentes</span></div>
+        <div style="padding:10px 16px"><div id="top-correlacoes" style="display:flex;flex-direction:column;gap:8px"></div></div>
+      </div>
+    </div>
+
+    <!-- Chat de apoio — discreto -->
+    <div style="position:sticky;top:70px;align-self:start">
+      <div class="ai-chat">
+        <div class="ai-chat-head">
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:5px"><div class="ai-dot"></div><span style="font-size:13px;color:rgba(255,255,255,.72);font-weight:500">Apoio à reflexão</span></div>
+          <div style="font-size:11px;color:rgba(255,255,255,.28);line-height:1.5">Pergunte sobre os temas e conexões registrados nas sessões de Fernanda.</div>
+        </div>
+        <div class="ai-msgs" id="grafo-msgs">
+          <div class="ai-msg-ai">Vejo os registros de <span id="grafo-chat-name">Fernanda K.</span> Posso explorar como os temas se conectaram ao longo das sessões ou o que mudou com o tempo. O que gostaria de saber?</div>
+        </div>
+        <div class="ai-quick">
+          <button class="ai-qbtn" onclick="sendGrafoQuick(this)">Como "trabalho" e "família" se conectam?</button>
+          <button class="ai-qbtn" onclick="sendGrafoQuick(this)">O que mais mudou entre as sessões?</button>
+          <button class="ai-qbtn" onclick="sendGrafoQuick(this)">Temas que aparecem com mais frequência</button>
+        </div>
+        <div class="ai-input-row">
+          <textarea class="ai-textarea" id="grafo-input" rows="2" placeholder="Explore os temas das sessões…" onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();sendGrafoMsg()}"></textarea>
+          <button class="ai-send" onclick="sendGrafoMsg()">↑</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════ EVOLUÇÃO REGISTRADA (ex-Longitudinal) ══════════ -->
+<div class="page" id="page-longitudinal">
+  <div class="disclaimer">
+    <span style="font-size:16px">🧭</span>
+    <div style="flex:1">
+      <div style="font-size:12px;font-weight:500;color:#7a5520;margin-bottom:2px">Apoio à continuidade clínica</div>
+      <div style="font-size:11px;color:#9a7030;line-height:1.55">Registros e observações de continuidade baseados no histórico das sessões. A interpretação e decisão clínica pertencem exclusivamente ao psicólogo responsável.</div>
+    </div>
+    <div style="font-size:10px;color:#9a7030;white-space:nowrap">CFP 09/2024</div>
+  </div>
+
+  <div class="pt-selector">
+    <div class="pts-cur" onclick="openPtDrop()">
+      <div class="pts-av" id="long-av" style="background:linear-gradient(135deg,#6b4fcf,#a080f8)">FK</div>
+      <div><div class="pts-name" id="long-name">Fernanda K.</div><div class="pts-meta" id="long-meta">7 sessões · março 2025 · semanal · online</div></div>
+    </div>
+    <div class="pts-chg" onclick="openPtDrop()">Trocar ↕</div>
+  </div>
+
+  <div class="orient-grid">
+    <div style="display:flex;flex-direction:column;gap:16px">
+
+      <!-- Perfil simples -->
+      <div class="card">
+        <div class="card-b" style="display:flex;align-items:center;gap:16px">
+          <div style="width:46px;height:46px;border-radius:50%;background:linear-gradient(135deg,#6b4fcf,#a080f8);display:flex;align-items:center;justify-content:center;font-size:15px;font-weight:500;color:#fff;flex-shrink:0">FK</div>
+          <div style="flex:1">
+            <div style="font-family:var(--f-display);font-size:19px;font-weight:300;margin-bottom:2px;color:var(--ink-soft)">Fernanda K.</div>
+            <div style="font-size:12px;color:var(--muted)">7 sessões · 45 min em média · desde março 2025</div>
+          </div>
+          <div style="display:flex;gap:8px">
+            <div style="text-align:center;padding:10px 14px;background:var(--accent-lo);border-radius:10px">
+              <div style="font-family:var(--f-display);font-size:22px;color:var(--accent)">82</div>
+              <div style="font-size:10px;color:var(--muted)">Presença</div>
+            </div>
+            <div style="text-align:center;padding:10px 14px;background:var(--sage-lo);border-radius:10px">
+              <div style="font-family:var(--f-display);font-size:22px;color:var(--sage)">28</div>
+              <div style="font-size:10px;color:var(--muted)">Abertura</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Continuidade — linguagem suave, sem "padrões identificados" -->
+      <div class="card">
+        <div class="card-h"><span class="card-title">Histórico de temas recorrentes</span></div>
+        <div class="card-b" style="display:flex;flex-direction:column;gap:9px">
+          <div style="padding:12px 14px;border-radius:var(--rsm);background:var(--surface)">
+            <div style="font-size:13px;font-weight:500;color:var(--ink-soft);margin-bottom:3px">"Trabalho" aparece em conjunto com "medo"</div>
+            <div style="font-size:12.5px;color:var(--muted);line-height:1.65">Presentes juntos em 6 das 7 sessões. Com mais frequência nas últimas 3.</div>
+          </div>
+          <div style="padding:12px 14px;border-radius:var(--rsm);background:var(--surface)">
+            <div style="font-size:13px;font-weight:500;color:var(--ink-soft);margin-bottom:3px">"Família" surge brevemente em 3 sessões</div>
+            <div style="font-size:12.5px;color:var(--muted);line-height:1.65">Aparece cerca de 1 vez por sessão nas últimas 3. Não aprofundado no mesmo encontro.</div>
+          </div>
+          <div style="padding:12px 14px;border-radius:var(--rsm);background:rgba(90,158,138,.05);border:1px solid rgba(90,158,138,.12)">
+            <div style="font-size:13px;font-weight:500;color:var(--ink-soft);margin-bottom:3px">"Controle" com presença decrescente</div>
+            <div style="font-size:12.5px;color:var(--muted);line-height:1.65">S1–S3: média de 15 vezes por sessão. S5–S7: média de 9 vezes. Redução de 40% ao longo do processo.</div>
+            <div style="font-size:11px;color:var(--sage);margin-top:4px">→ Tendência de redução nas últimas semanas.</div>
+          </div>
+          <div style="padding:12px 14px;border-radius:var(--rsm);background:rgba(90,158,138,.05);border:1px solid rgba(90,158,138,.12)">
+            <div style="font-size:13px;font-weight:500;color:var(--ink-soft);margin-bottom:3px">Tom mais aberto ao longo das sessões</div>
+            <div style="font-size:12.5px;color:var(--muted);line-height:1.65">Na sessão 1, tom aberto em 15% dos turnos. Na sessão 7, em 65%. Crescimento gradual e consistente.</div>
+            <div style="font-size:11px;color:var(--sage);margin-top:4px">→ Evolução registrada ao longo do acompanhamento.</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Instrumentos — sugeridos, não estimados -->
+      <div class="card">
+        <div class="card-h">
+          <span class="card-title">Instrumentos a considerar</span>
+          <span style="font-size:11px;color:var(--faint)">baseado no histórico</span>
+        </div>
+        <div class="card-b" style="display:flex;flex-direction:column;gap:10px">
+          <div style="padding:12px 14px;border-radius:var(--rsm);background:var(--rose-lo);border:1px solid rgba(196,96,122,.15)">
+            <div style="font-size:12px;font-weight:600;color:var(--rose);margin-bottom:4px">PHQ-9</div>
+            <div style="font-size:12.5px;color:var(--muted);line-height:1.6">"apatia", "sono" e "culpa" surgem juntos em 4 das últimas 7 sessões. Pode ser interessante rastrear de forma estruturada.</div>
+          </div>
+          <div style="padding:12px 14px;border-radius:var(--rsm);background:var(--amber-lo);border:1px solid rgba(176,125,64,.15)">
+            <div style="font-size:12px;font-weight:600;color:var(--amber);margin-bottom:4px">GAD-7</div>
+            <div style="font-size:12.5px;color:var(--muted);line-height:1.6">"ansiedade" com frequência crescente em 6 sessões. Rastrear pode ajudar a acompanhar a evolução ao longo do processo.</div>
+          </div>
+          <div style="font-size:11px;color:var(--faint);line-height:1.55;padding:8px 12px;background:var(--surface);border-radius:var(--rsm)">
+            A aplicação de qualquer instrumento é decisão exclusiva do psicólogo responsável.
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Chat de apoio longitudinal -->
+    <div style="position:sticky;top:70px;align-self:start">
+      <div class="ai-chat">
+        <div class="ai-chat-head">
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:5px"><div class="ai-dot"></div><span style="font-size:13px;color:rgba(255,255,255,.72);font-weight:500">Memória do processo</span></div>
+          <div style="font-size:11px;color:rgba(255,255,255,.28);line-height:1.5">Pergunte sobre o histórico de Fernanda. Registro de 7 sessões disponível.</div>
+        </div>
+        <div class="ai-msgs" id="ai-msgs">
+          <div class="ai-msg-ai">Registrei 7 sessões de Fernanda K. Posso ajudar a organizar o que foi observado ao longo do processo — temas recorrentes, mudanças, continuidade entre sessões. O que quer explorar?</div>
+        </div>
+        <div class="ai-quick">
+          <button class="ai-qbtn" onclick="sendQuick(this)">Como evoluiu entre a S1 e a S7?</button>
+          <button class="ai-qbtn" onclick="sendQuick(this)">Quando "família" surgiu?</button>
+          <button class="ai-qbtn" onclick="sendQuick(this)">O que mudou nas últimas 3 sessões?</button>
+        </div>
+        <div class="ai-input-row">
+          <textarea class="ai-textarea" id="ai-input" rows="2" placeholder="Explore o histórico de Fernanda…" onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();sendMsg()}"></textarea>
+          <button class="ai-send" onclick="sendMsg()">↑</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════ OBJETIVOS E PROGRESSO ══════════ -->
+<div class="page" id="page-continuidade">
+  <div class="pt-selector">
+    <div class="pts-cur" onclick="openPtDrop()">
+      <div class="pts-av" id="cont-av" style="background:linear-gradient(135deg,#6b4fcf,#a080f8)">FK</div>
+      <div><div class="pts-name" id="cont-name">Fernanda K.</div><div class="pts-meta" id="cont-meta">7 sessões · março 2025 · semanal · online</div></div>
+    </div>
+    <div class="pts-chg" onclick="openPtDrop()">Trocar ↕</div>
+  </div>
+
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px">
+    <div class="card">
+      <div class="card-h"><span class="card-title">Objetivos terapêuticos</span><button class="card-act">+ Adicionar</button></div>
+      <div class="card-b" style="display:flex;flex-direction:column;gap:10px">
+        <div style="padding:13px 15px;border-radius:var(--rsm);background:var(--accent-lo);border:1px solid rgba(107,79,207,.14)">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:5px">
+            <div style="font-size:13px;font-weight:500;color:var(--ink-soft)">Reduzir ansiedade no trabalho</div>
+            <span class="tag t-info" style="font-size:10px">Em andamento</span>
+          </div>
+          <div style="font-size:12.5px;color:var(--muted);margin-bottom:9px">Episódios passaram de 3–4× para 1× por semana.</div>
+          <div style="background:rgba(107,79,207,.12);border-radius:4px;height:4px;overflow:hidden"><div style="width:60%;height:100%;background:var(--accent);border-radius:4px"></div></div>
+          <div style="font-size:10.5px;color:var(--faint);margin-top:4px">Progresso estimado: 60%</div>
+        </div>
+        <div style="padding:13px 15px;border-radius:var(--rsm);background:var(--sage-lo);border:1px solid rgba(90,158,138,.14)">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:5px">
+            <div style="font-size:13px;font-weight:500;color:var(--ink-soft)">Explorar relação com figura materna</div>
+            <span class="tag t-warn" style="font-size:10px">Iniciando</span>
+          </div>
+          <div style="font-size:12.5px;color:var(--muted);margin-bottom:9px">Surgiu na S4. Ritmo lento e respeitoso.</div>
+          <div style="background:rgba(90,158,138,.15);border-radius:4px;height:4px;overflow:hidden"><div style="width:15%;height:100%;background:var(--sage);border-radius:4px"></div></div>
+          <div style="font-size:10.5px;color:var(--faint);margin-top:4px">Progresso estimado: 15%</div>
+        </div>
+        <div style="padding:13px 15px;border-radius:var(--rsm);background:rgba(26,24,37,.03);border:1px solid var(--border)">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:5px">
+            <div style="font-size:13px;font-weight:500;color:var(--ink-soft)">Melhorar qualidade do sono</div>
+            <span class="tag t-ok" style="font-size:10px">Atingido ✓</span>
+          </div>
+          <div style="font-size:12.5px;color:var(--muted)">Referiu dormir 7h+ nas últimas 3 semanas.</div>
+          <div style="font-size:10.5px;color:var(--sage);margin-top:6px">Concluído na sessão 6 · 22 mai 2025</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-h"><span class="card-title">Marcos do processo</span></div>
+      <div class="card-b" style="display:flex;flex-direction:column;gap:0">
+        <div style="display:flex;gap:12px;padding:11px 0;border-bottom:1px solid var(--border)">
+          <div style="display:flex;flex-direction:column;align-items:center;width:36px;flex-shrink:0"><div style="width:8px;height:8px;border-radius:50%;background:var(--accent);margin-top:3px"></div><div style="width:1px;flex:1;background:var(--border);margin-top:5px"></div></div>
+          <div><div style="font-size:13px;font-weight:500;color:var(--ink-soft);margin-bottom:2px">Primeira sessão com expressão emocional intensa</div><div style="font-size:12px;color:var(--muted)">Sessão 4 · 1 mai — abertura emocional ao falar da mãe pela primeira vez.</div></div>
+        </div>
+        <div style="display:flex;gap:12px;padding:11px 0;border-bottom:1px solid var(--border)">
+          <div style="display:flex;flex-direction:column;align-items:center;width:36px;flex-shrink:0"><div style="width:8px;height:8px;border-radius:50%;background:var(--sage);margin-top:3px"></div><div style="width:1px;flex:1;background:var(--border);margin-top:5px"></div></div>
+          <div><div style="font-size:13px;font-weight:500;color:var(--ink-soft);margin-bottom:2px">Relatou melhora no sono</div><div style="font-size:12px;color:var(--muted)">Sessão 5 · 8 mai — primeiro relato espontâneo de melhora.</div></div>
+        </div>
+        <div style="display:flex;gap:12px;padding:11px 0">
+          <div style="display:flex;flex-direction:column;align-items:center;width:36px;flex-shrink:0"><div style="width:8px;height:8px;border-radius:50%;background:var(--amber);margin-top:3px"></div></div>
+          <div><div style="font-size:13px;font-weight:500;color:var(--ink-soft);margin-bottom:2px">Tema familiar conectado ao trabalho</div><div style="font-size:12px;color:var(--muted)">Sessão 7 · 22 mai — conexão espontânea entre os dois contextos.</div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-h"><span class="card-title">Histórico de sessões</span><button class="card-act" onclick="showToast('📤 Exportando…')">Exportar</button></div>
+    <div class="card-b">
+      <div class="slog">
+        <div class="sl-row" onclick="enterPresence()"><div class="sl-date"><div class="sl-day">22</div><div class="sl-mo">mai</div></div><div class="sl-b"><div class="sl-title">Sessão 7 · Em andamento</div><div class="sl-prev">Episódio no trabalho. Tema familiar surgiu no contexto profissional. Abertura emocional presente.</div><div style="display:flex;gap:5px;margin-top:6px"><span class="tag t-info" style="font-size:10px">trabalho</span><span class="tag t-rose" style="font-size:10px">família</span><span class="tag t-ok" style="font-size:10px">Em andamento</span></div></div></div>
+        <div class="sl-row" onclick="showToast('📋 Sessão 6')"><div class="sl-date"><div class="sl-day">15</div><div class="sl-mo">mai</div></div><div class="sl-b"><div class="sl-title">Sessão 6 · Concluída ✓</div><div class="sl-prev">Tom mais colaborativo. Explorou relacionamento atual e pertencimento.</div><div style="display:flex;gap:5px;margin-top:6px"><span class="tag t-ok" style="font-size:10px">Revisada</span></div></div></div>
+        <div class="sl-row" onclick="showToast('📋 Sessão 5')"><div class="sl-date"><div class="sl-day">8</div><div class="sl-mo">mai</div></div><div class="sl-b"><div class="sl-title">Sessão 5 · Concluída ✓</div><div class="sl-prev">Relatou melhora no sono. Tema materno emergiu brevemente.</div></div></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════ PACIENTES ══════════ -->
+<div class="page" id="page-pacientes">
+  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:22px">
+    <div>
+      <h2 style="font-family:var(--f-display);font-weight:300;font-size:28px;letter-spacing:-.4px;color:var(--ink)">Pacientes</h2>
+      <p style="font-size:13px;color:var(--muted);margin-top:2px">12 pacientes ativos</p>
+    </div>
+    <div style="display:flex;gap:8px;align-items:center">
+      <div style="display:flex;align-items:center;gap:7px;background:var(--card);border:1px solid var(--border);border-radius:10px;padding:7px 13px">
+        <span style="font-size:13px;color:var(--faint)">⌕</span>
+        <input id="pt-search-field" type="text" placeholder="Buscar…" oninput="filterPtList(this.value)" style="border:none;outline:none;font-family:inherit;font-size:13px;color:var(--ink-soft);background:transparent;width:150px">
+      </div>
+      <button class="btn btn-prim btn-sm" onclick="openNovoPt()">+ Novo paciente</button>
+    </div>
+  </div>
+
+  <div style="display:flex;gap:6px;margin-bottom:20px;flex-wrap:wrap">
+    <button class="ftab active" onclick="setPtFilter(this,'todos')">Todos</button>
+    <button class="ftab" onclick="setPtFilter(this,'hoje')">Sessão hoje</button>
+    <button class="ftab" onclick="setPtFilter(this,'atencao')">Atenção</button>
+    <button class="ftab" onclick="setPtFilter(this,'novos')">Novos</button>
+  </div>
+
+  <div id="pt-cards-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(270px,1fr));gap:12px">
+    <div class="ptc" data-filter="hoje" onclick="go('continuidade','cli')">
+      <div class="ptc-b">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
+          <div style="display:flex;align-items:center;gap:11px">
+            <div style="width:36px;height:36px;border-radius:50%;background:linear-gradient(135deg,#6b4fcf,#a080f8);display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:500;color:#fff;flex-shrink:0">FK</div>
+            <div><div style="font-size:13.5px;font-weight:500;color:var(--ink-soft)">Fernanda K.</div><div style="font-size:11.5px;color:var(--muted)">desde mar 2025 · Sessão 7</div></div>
+          </div>
+          <div style="width:7px;height:7px;border-radius:50%;background:var(--sage)" title="Sessão em andamento"></div>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:0">
+          <div style="display:flex;justify-content:space-between;align-items:center;padding:7px 0;border-top:1px solid var(--border)"><span style="font-size:11.5px;color:var(--faint)">Próxima sessão</span><span style="font-size:12.5px;font-weight:500;color:var(--ink-soft)">Hoje · 10h30</span></div>
+          <div style="display:flex;justify-content:space-between;align-items:center;padding:7px 0;border-top:1px solid var(--border)"><span style="font-size:11.5px;color:var(--faint)">Frequência</span><span class="tag t-ok">Semanal ✓</span></div>
+          <div style="display:flex;justify-content:space-between;align-items:center;padding:7px 0;border-top:1px solid var(--border)"><span style="font-size:11.5px;color:var(--faint)">WhatsApp</span><span class="tag t-ok">Conectado</span></div>
+        </div>
+        <div style="display:flex;gap:6px;margin-top:13px">
+          <button class="btn btn-ghost btn-sm" style="flex:1;justify-content:center" onclick="event.stopPropagation();go('longitudinal','cli')">Evolução</button>
+          <button class="btn btn-ghost btn-sm" style="flex:1;justify-content:center" onclick="event.stopPropagation();showToast('💬 WhatsApp')">WhatsApp</button>
+          <button class="btn btn-prim btn-sm" style="flex:1;justify-content:center" onclick="event.stopPropagation();openModal()">Sessão →</button>
+        </div>
+      </div>
+    </div>
+    <div class="ptc" data-filter="normal" onclick="showToast('📋 Lucas M.')">
+      <div class="ptc-b">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
+          <div style="display:flex;align-items:center;gap:11px">
+            <div style="width:36px;height:36px;border-radius:50%;background:linear-gradient(135deg,#2060a0,#60a0e0);display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:500;color:#fff;flex-shrink:0">LM</div>
+            <div><div style="font-size:13.5px;font-weight:500;color:var(--ink-soft)">Lucas M.</div><div style="font-size:11.5px;color:var(--muted)">desde jan 2025 · Sessão 12</div></div>
+          </div>
+          <span class="tag t-warn" style="font-size:10px">Registrar</span>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:0">
+          <div style="display:flex;justify-content:space-between;align-items:center;padding:7px 0;border-top:1px solid var(--border)"><span style="font-size:11.5px;color:var(--faint)">Próxima sessão</span><span style="font-size:12.5px;font-weight:500;color:var(--ink-soft)">29 mai · 09h</span></div>
+          <div style="display:flex;justify-content:space-between;align-items:center;padding:7px 0;border-top:1px solid var(--border)"><span style="font-size:11.5px;color:var(--faint)">Frequência</span><span class="tag t-ok">Semanal ✓</span></div>
+          <div style="display:flex;justify-content:space-between;align-items:center;padding:7px 0;border-top:1px solid var(--border)"><span style="font-size:11.5px;color:var(--faint)">WhatsApp</span><span class="tag t-ok">Conectado</span></div>
+        </div>
+        <div style="display:flex;gap:6px;margin-top:13px">
+          <button class="btn btn-ghost btn-sm" style="flex:1;justify-content:center" onclick="event.stopPropagation();showToast('📋 Evolução Lucas')">Evolução</button>
+          <button class="btn btn-ghost btn-sm" style="flex:1;justify-content:center" onclick="event.stopPropagation();showToast('💬 WhatsApp')">WhatsApp</button>
+          <button class="btn btn-prim btn-sm" style="flex:1;justify-content:center" onclick="event.stopPropagation();showToast('📝 Assinar')">Assinar →</button>
+        </div>
+      </div>
+    </div>
+    <div class="ptc" data-filter="hoje atencao" onclick="showToast('📋 Rafael S.')">
+      <div class="ptc-b">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
+          <div style="display:flex;align-items:center;gap:11px">
+            <div style="width:36px;height:36px;border-radius:50%;background:linear-gradient(135deg,#c04080,#f090b0);display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:500;color:#fff;flex-shrink:0">RS</div>
+            <div><div style="font-size:13.5px;font-weight:500;color:var(--ink-soft)">Rafael S.</div><div style="font-size:11.5px;color:var(--muted)">desde out 2024 · Sessão 19</div></div>
+          </div>
+          <span class="tag t-rose" style="font-size:10px">Atenção</span>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:0">
+          <div style="display:flex;justify-content:space-between;align-items:center;padding:7px 0;border-top:1px solid var(--border)"><span style="font-size:11.5px;color:var(--faint)">Próxima sessão</span><span style="font-size:12.5px;font-weight:500;color:var(--ink-soft)">Hoje · 14h</span></div>
+          <div style="display:flex;justify-content:space-between;align-items:center;padding:7px 0;border-top:1px solid var(--border)"><span style="font-size:11.5px;color:var(--faint)">Frequência</span><span class="tag t-warn">Espaçando</span></div>
+          <div style="display:flex;justify-content:space-between;align-items:center;padding:7px 0;border-top:1px solid var(--border)"><span style="font-size:11.5px;color:var(--faint)">WhatsApp</span><span class="tag t-ok">Conectado</span></div>
+        </div>
+        <div style="display:flex;gap:6px;margin-top:13px">
+          <button class="btn btn-ghost btn-sm" style="flex:1;justify-content:center" onclick="event.stopPropagation();showToast('📋 Evolução Rafael')">Evolução</button>
+          <button class="btn btn-ghost btn-sm" style="flex:1;justify-content:center" onclick="event.stopPropagation();showToast('💬 WhatsApp')">WhatsApp</button>
+          <button class="btn btn-prim btn-sm" style="flex:1;justify-content:center" onclick="event.stopPropagation();openModal()">Sessão →</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════ FINANCEIRO ══════════ -->
+<div class="page" id="page-negocio">
+  <div style="margin-bottom:22px">
+    <h2 style="font-family:var(--f-display);font-weight:300;font-size:28px;letter-spacing:-.4px;color:var(--ink);margin-bottom:3px">Financeiro</h2>
+    <p style="font-size:13px;color:var(--muted)">Receita, ocupação e previsibilidade da sua prática.</p>
+  </div>
+  <div class="kpi-row">
+    <div class="kpi"><div class="kpi-bar" style="background:linear-gradient(90deg,var(--accent),#a080f8)"></div><div class="kpi-lbl">Receita mai</div><div class="kpi-val">R$&thinsp;9.4k</div><div class="kpi-d up">↑ 8% abr</div></div>
+    <div class="kpi"><div class="kpi-bar" style="background:linear-gradient(90deg,var(--sage),#80c0b0)"></div><div class="kpi-lbl">Valor médio por sessão</div><div class="kpi-val">R$&thinsp;247</div><div class="kpi-d up">↑ vs. mar</div></div>
+    <div class="kpi"><div class="kpi-bar" style="background:linear-gradient(90deg,var(--amber),#d4a060)"></div><div class="kpi-lbl">Confirmação</div><div class="kpi-val">81%</div><div class="kpi-d up">↑ 4pp</div></div>
+    <div class="kpi"><div class="kpi-bar" style="background:linear-gradient(90deg,var(--rose),#e09090)"></div><div class="kpi-lbl">Sem comparecimento</div><div class="kpi-val">9%</div><div class="kpi-d warn">atenção</div></div>
+    <div class="kpi"><div class="kpi-bar" style="background:linear-gradient(90deg,#5a7368,#80a090)"></div><div class="kpi-lbl">Previsão jun</div><div class="kpi-val">R$&thinsp;8.8k</div><div class="kpi-d neu">agenda atual</div></div>
+  </div>
+  <div class="biz-grid">
+    <div class="card"><div class="card-h"><span class="card-title">Receita por semana — maio</span></div><div class="card-b">
+      <div class="wk-bars">
+        <div class="wk-bw"><div class="wk-bar" style="height:36px;background:var(--accent)"></div><div class="wk-bl">S1</div></div>
+        <div class="wk-bw"><div class="wk-bar" style="height:50px;background:var(--accent)"></div><div class="wk-bl">S2</div></div>
+        <div class="wk-bw hl"><div class="wk-bar" style="height:60px;background:var(--accent)"></div><div class="wk-bl" style="font-weight:600;color:var(--accent)">S3 ★</div></div>
+        <div class="wk-bw"><div class="wk-bar" style="height:40px;background:var(--accent)"></div><div class="wk-bl">S4</div></div>
+      </div>
+      <div style="font-size:12.5px;color:var(--muted)">S3 — 12 sessões · <strong style="color:var(--ink-soft)">R$ 2.960</strong></div>
+      <div class="divider" style="margin:12px 0"></div>
+      <div class="sec-lbl">Por modalidade</div>
+      <div class="rev-split"><div style="flex:3;background:var(--accent)"></div><div style="flex:1;background:var(--sage)"></div></div>
+      <div style="display:flex;gap:14px;font-size:12px;color:var(--muted)"><span>● <strong style="color:var(--ink-soft)">Online</strong> 75%</span><span>● <strong style="color:var(--ink-soft)">Presencial</strong> 25%</span></div>
+    </div></div>
+    <div class="card"><div class="card-h"><span class="card-title">Ocupação da agenda</span></div><div class="card-b">
+      <div class="donut-row">
+        <svg width="80" height="80" viewBox="0 0 80 80" style="flex-shrink:0">
+          <circle cx="40" cy="40" r="31" fill="none" stroke="var(--surface)" stroke-width="10"/>
+          <circle cx="40" cy="40" r="31" fill="none" stroke="var(--accent)" stroke-width="10" stroke-dasharray="141 55" stroke-linecap="round" transform="rotate(-90 40 40)"/>
+          <text x="40" y="43" text-anchor="middle" font-family="Cormorant Garamond,serif" font-size="13" font-weight="300" fill="var(--ink)">72%</text>
+        </svg>
+        <div class="dl">
+          <div class="dl-row"><div class="dl-dot" style="background:var(--accent)"></div><span class="dl-lbl">Realizadas</span><span class="dl-val">38</span></div>
+          <div class="dl-row"><div class="dl-dot" style="background:var(--rose)"></div><span class="dl-lbl">Sem comparecimento</span><span class="dl-val">4</span></div>
+          <div class="dl-row"><div class="dl-dot" style="background:var(--amber)"></div><span class="dl-lbl">Canceladas</span><span class="dl-val">5</span></div>
+        </div>
+      </div>
+      <div class="divider"></div>
+      <div class="al al-am"><strong>Terças à tarde com menor adesão</strong>3 cancelamentos nas últimas 4 semanas.</div>
+      <div class="al al-te"><strong>Quintas com alta confirmação</strong>Slot ideal para novos agendamentos.</div>
+    </div></div>
+  </div>
+</div>
+
+<!-- ══════════ SAÚDE DA PRÁTICA ══════════ -->
+<div class="page" id="page-saude">
+  <div style="margin-bottom:24px">
+    <h2 style="font-family:var(--f-display);font-weight:300;font-size:28px;letter-spacing:-.4px;color:var(--ink);margin-bottom:3px">Saúde da Prática</h2>
+    <p style="font-size:13px;color:var(--muted)">Sinais que ajudam você a cuidar melhor da sua prática.</p>
+  </div>
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
+    <div><div class="sec-lbl">Observações operacionais</div><div style="display:flex;flex-direction:column;gap:8px">
+      <div class="al al-am"><strong>3 pacientes com intervalos crescentes</strong>Rafael S., Paulo L. e Júlia O. — últimas 3 semanas. Pode ser interessante entrar em contato.</div>
+      <div class="al al-ro"><strong>Rafael S. — faltou 2 das últimas 5 sessões</strong>Pode ser útil conversar sobre continuidade.</div>
+      <div class="al al-te"><strong>Quintas de manhã com alta adesão</strong>Bom horário para agendamentos prioritários.</div>
+      <div class="al al-te"><strong>Maio foi seu melhor mês do ano</strong>38 sessões realizadas.</div>
+    </div></div>
+    <div><div class="sec-lbl">Resumo do mês</div><div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+      <div class="kpi"><div class="kpi-bar" style="background:var(--sage)"></div><div class="kpi-lbl">Confirmação</div><div class="kpi-val">81%</div><div class="kpi-d up">↑ 4pp</div></div>
+      <div class="kpi"><div class="kpi-bar" style="background:var(--rose)"></div><div class="kpi-lbl">Sem comparecimento</div><div class="kpi-val">9%</div><div class="kpi-d warn">atenção</div></div>
+      <div class="kpi"><div class="kpi-bar" style="background:var(--accent)"></div><div class="kpi-lbl">Pacientes ativos</div><div class="kpi-val">12</div><div class="kpi-d neu">estável</div></div>
+      <div class="kpi"><div class="kpi-bar" style="background:var(--amber)"></div><div class="kpi-lbl">Evasões no mês</div><div class="kpi-val">0</div><div class="kpi-d up">ótimo</div></div>
+    </div></div>
+  </div>
+</div>
+
+<!-- ══════════ AGENDA ══════════ -->
+<div class="page" id="page-agenda">
+  <div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:22px">
+    <div>
+      <h2 style="font-family:var(--f-display);font-weight:300;font-size:28px;letter-spacing:-.4px;color:var(--ink);margin-bottom:3px">Agenda</h2>
+      <p style="font-size:13px;color:var(--muted)">Semana de 20 a 24 de maio · 84% de ocupação · 2 horários disponíveis</p>
+    </div>
+    <div style="display:flex;gap:8px;align-items:center">
+      <div style="display:flex;gap:2px;background:var(--surface);border-radius:9px;padding:3px;border:1px solid var(--border)">
+        <button id="cal-tab-dia" onclick="setCalView('dia')" style="padding:5px 13px;border-radius:7px;font-size:12px;font-weight:500;background:transparent;color:var(--muted);border:none;cursor:pointer;font-family:inherit;transition:all .15s">Dia</button>
+        <button id="cal-tab-semana" onclick="setCalView('semana')" style="padding:5px 13px;border-radius:7px;font-size:12px;font-weight:500;background:var(--accent);color:#fff;border:none;cursor:pointer;font-family:inherit;transition:all .15s">Semana</button>
+        <button id="cal-tab-mes" onclick="setCalView('mes')" style="padding:5px 13px;border-radius:7px;font-size:12px;font-weight:500;background:transparent;color:var(--muted);border:none;cursor:pointer;font-family:inherit;transition:all .15s">Mês</button>
+      </div>
+      <button class="btn btn-prim btn-sm" onclick="openModal()">+ Sessão</button>
+    </div>
+  </div>
+
+  <!-- Visão semana — default -->
+  <div id="cal-semana" style="display:block">
+    <div style="background:var(--card);border:1px solid var(--border);border-radius:var(--r);overflow:hidden;box-shadow:var(--sh)">
+      <div style="display:grid;grid-template-columns:56px repeat(5,1fr);border-bottom:1px solid var(--border)">
+        <div style="padding:12px 8px"></div>
+        <div style="padding:12px 14px;border-left:1px solid var(--border)"><div style="font-size:10px;color:var(--faint);text-transform:uppercase;letter-spacing:1px">Seg</div><div style="font-size:15px;font-weight:500;color:var(--muted)">20</div></div>
+        <div style="padding:12px 14px;border-left:1px solid var(--border)"><div style="font-size:10px;color:var(--faint);text-transform:uppercase;letter-spacing:1px">Ter</div><div style="font-size:15px;font-weight:500;color:var(--muted)">21</div></div>
+        <div style="padding:12px 14px;border-left:1px solid var(--border)"><div style="font-size:10px;color:var(--faint);text-transform:uppercase;letter-spacing:1px">Qua</div><div style="font-size:15px;font-weight:500;color:var(--muted)">22</div></div>
+        <div style="padding:12px 14px;border-left:1px solid var(--border);background:var(--accent-lo)"><div style="font-size:10px;color:var(--accent);text-transform:uppercase;letter-spacing:1px;font-weight:500">Qui</div><div style="font-size:15px;font-weight:600;color:var(--accent)">23</div></div>
+        <div style="padding:12px 14px;border-left:1px solid var(--border)"><div style="font-size:10px;color:var(--faint);text-transform:uppercase;letter-spacing:1px">Sex</div><div style="font-size:15px;font-weight:500;color:var(--muted)">24</div></div>
+      </div>
+      <div style="max-height:460px;overflow-y:auto">
+        <div style="display:grid;grid-template-columns:56px repeat(5,1fr);border-bottom:1px solid rgba(26,24,37,.04)">
+          <div style="padding:10px 8px;font-size:11px;color:var(--faint)">09:00</div>
+          <div style="border-left:1px solid rgba(26,24,37,.04);padding:6px 8px"><div class="cal-block" style="background:var(--sage-lo);border-left:2.5px solid var(--sage)" onclick="showToast('Ana P.')"><div class="cal-block-name">Ana P.</div><div class="cal-block-meta">09h · Online</div><div><span class="cal-tag-green">PIX ✓</span></div></div></div>
+          <div style="border-left:1px solid rgba(26,24,37,.04);padding:6px 8px"></div>
+          <div style="border-left:1px solid rgba(26,24,37,.04);padding:6px 8px"><div class="cal-block" style="background:var(--sage-lo);border-left:2.5px solid var(--sage)" onclick="showToast('Lucas M.')"><div class="cal-block-name">Lucas M.</div><div class="cal-block-meta">09h · Presencial</div><div><span class="cal-tag-green">PIX ✓</span></div></div></div>
+          <div style="border-left:1px solid rgba(26,24,37,.04);padding:6px 8px;background:var(--accent-lo)"><div class="cal-block" style="background:rgba(107,79,207,.08);border-left:2.5px solid var(--accent)" onclick="showToast('Fernanda K.')"><div class="cal-block-name">Fernanda K.</div><div class="cal-block-meta">Sessão 8 · Online</div><div><span class="cal-tag-purple">PIX ✓</span></div></div></div>
+          <div style="border-left:1px solid rgba(26,24,37,.04);padding:6px 8px"></div>
+        </div>
+        <div style="display:grid;grid-template-columns:56px repeat(5,1fr);border-bottom:1px solid rgba(26,24,37,.04)">
+          <div style="padding:10px 8px;font-size:11px;color:var(--faint)">10:30</div>
+          <div style="border-left:1px solid rgba(26,24,37,.04);padding:6px 8px"></div>
+          <div style="border-left:1px solid rgba(26,24,37,.04);padding:6px 8px"></div>
+          <div style="border-left:1px solid rgba(26,24,37,.04);padding:6px 8px"><div class="cal-block" style="background:rgba(107,79,207,.08);border-left:2.5px solid var(--accent)" onclick="enterPresence()"><div class="cal-block-name">Fernanda K. <span style="font-size:9px;background:rgba(107,79,207,.15);color:var(--accent);padding:1px 5px;border-radius:3px">● ao vivo</span></div><div class="cal-block-meta">Sessão 7 · 10:30</div><div><span class="cal-tag-purple">PIX ✓</span></div></div></div>
+          <div style="border-left:1px solid rgba(26,24,37,.04);padding:6px 8px;background:var(--accent-lo)"><div class="cal-block" style="background:var(--sage-lo);border-left:2.5px solid var(--sage)" onclick="showToast('Marina C.')"><div class="cal-block-name">Marina C.</div><div class="cal-block-meta">10h · Online</div></div></div>
+          <div style="border-left:1px solid rgba(26,24,37,.04);padding:6px 8px"></div>
+        </div>
+        <div style="display:grid;grid-template-columns:56px repeat(5,1fr);border-bottom:1px solid rgba(26,24,37,.04)">
+          <div style="padding:10px 8px;font-size:11px;color:var(--faint)">14:00</div>
+          <div style="border-left:1px solid rgba(26,24,37,.04);padding:6px 8px"></div>
+          <div style="border-left:1px solid rgba(26,24,37,.04);padding:6px 8px"><div class="cal-block" style="background:var(--sage-lo);border-left:2.5px solid var(--sage)" onclick="showToast('Paulo L.')"><div class="cal-block-name">Paulo L.</div><div class="cal-block-meta">14h · Online</div></div></div>
+          <div style="border-left:1px solid rgba(26,24,37,.04);padding:6px 8px"><div class="cal-slot-free" onclick="openModal()"><span style="font-size:11px;color:rgba(107,79,207,.4)">+ encaixe</span></div></div>
+          <div style="border-left:1px solid rgba(26,24,37,.04);padding:6px 8px;background:var(--accent-lo)"><div class="cal-block" style="background:rgba(107,79,207,.08);border-left:2.5px solid var(--accent)" onclick="showToast('Rafael S.')"><div class="cal-block-name">Rafael S.</div><div class="cal-block-meta">14h · Online</div></div></div>
+          <div style="border-left:1px solid rgba(26,24,37,.04);padding:6px 8px"></div>
+        </div>
+        <div style="display:grid;grid-template-columns:56px repeat(5,1fr)">
+          <div style="padding:10px 8px;font-size:11px;color:var(--faint)">16:00</div>
+          <div style="border-left:1px solid rgba(26,24,37,.04);padding:6px 8px"></div>
+          <div style="border-left:1px solid rgba(26,24,37,.04);padding:6px 8px"></div>
+          <div style="border-left:1px solid rgba(26,24,37,.04);padding:6px 8px"><div class="cal-block" style="background:rgba(196,96,122,.07);border-left:2.5px solid var(--rose)" onclick="showToast('Ana P. · S3')"><div class="cal-block-name">Ana P.</div><div class="cal-block-meta">16h · Online</div></div></div>
+          <div style="border-left:1px solid rgba(26,24,37,.04);padding:6px 8px;background:var(--accent-lo)"><div class="cal-slot-free" onclick="openModal()"><span style="font-size:11px;color:rgba(107,79,207,.4)">+ encaixe</span></div></div>
+          <div style="border-left:1px solid rgba(26,24,37,.04);padding:6px 8px"></div>
+        </div>
+      </div>
+    </div>
+    <!-- Insight bar — discreta -->
+    <div style="margin-top:12px;background:rgba(107,79,207,.04);border:1px solid rgba(107,79,207,.1);border-radius:10px;padding:12px 18px;display:flex;align-items:center;gap:20px;flex-wrap:wrap">
+      <span style="font-size:11px;color:var(--faint)">Esta semana</span>
+      <span style="font-size:12.5px;color:var(--muted)">Quintas concentram <strong style="color:var(--ink-soft)">37% da receita</strong></span>
+      <span style="color:var(--border-md);font-size:14px">·</span>
+      <span style="font-size:12.5px;color:var(--muted)">Quinta é seu dia de maior carga</span>
+      <span style="color:var(--border-md);font-size:14px">·</span>
+      <span style="font-size:12.5px;color:var(--muted)"><strong style="color:var(--sage)">0 faltas</strong> até agora</span>
+    </div>
+  </div>
+  <div id="cal-dia" style="display:none">
+    <!-- Cabeçalho do dia -->
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">
+      <div style="display:flex;align-items:center;gap:12px">
+        <button onclick="showToast('← Dia anterior')" style="width:32px;height:32px;border:1px solid var(--border-md);border-radius:8px;background:transparent;cursor:pointer;color:var(--muted);font-size:14px;display:flex;align-items:center;justify-content:center">‹</button>
+        <div>
+          <div style="font-size:16px;font-weight:500;color:var(--ink-soft)">Quinta-feira, 23 de maio</div>
+          <div style="font-size:12px;color:var(--muted)">4 sessões · 84% do dia</div>
+        </div>
+        <button onclick="showToast('Próximo dia →')" style="width:32px;height:32px;border:1px solid var(--border-md);border-radius:8px;background:transparent;cursor:pointer;color:var(--muted);font-size:14px;display:flex;align-items:center;justify-content:center">›</button>
+      </div>
+      <button onclick="showToast('Hoje')" class="btn btn-ghost btn-sm">Hoje</button>
+    </div>
+
+    <!-- Timeline do dia -->
+    <div style="background:var(--card);border:1px solid var(--border);border-radius:var(--r);overflow:hidden;box-shadow:var(--sh)">
+      <!-- Hora por hora -->
+      <div style="display:grid;grid-template-columns:60px 1fr;max-height:580px;overflow-y:auto">
+
+        <!-- 08:00 — vazio -->
+        <div style="padding:14px 12px 0;font-size:11px;color:var(--faint);border-right:1px solid var(--border);border-bottom:1px solid rgba(26,24,37,.04)">08:00</div>
+        <div style="padding:8px 12px;border-bottom:1px solid rgba(26,24,37,.04);min-height:56px">
+          <div class="cal-slot-free" style="height:38px" onclick="openModal()"><span style="font-size:11px;color:rgba(106,78,200,.35)">+ sessão</span></div>
+        </div>
+
+        <!-- 09:00 — Fernanda K. -->
+        <div style="padding:14px 12px 0;font-size:11px;color:var(--faint);border-right:1px solid var(--border);border-bottom:1px solid rgba(26,24,37,.04)">09:00</div>
+        <div style="padding:8px 12px;border-bottom:1px solid rgba(26,24,37,.04);min-height:80px">
+          <div style="background:linear-gradient(135deg,rgba(106,78,200,.07),rgba(106,78,200,.04));border-left:3px solid var(--accent);border-radius:0 9px 9px 0;padding:12px 14px;cursor:pointer;transition:all .18s" onclick="enterPresence()" onmouseover="this.style.background='rgba(106,78,200,.1)'" onmouseout="this.style.background='linear-gradient(135deg,rgba(106,78,200,.07),rgba(106,78,200,.04))'">
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px">
+              <div style="font-size:13px;font-weight:500;color:var(--ink-soft)">Fernanda K.</div>
+              <span class="tag t-info" style="font-size:10px">● Sessão 8</span>
+            </div>
+            <div style="font-size:11.5px;color:var(--muted)">09:00 – 09:50 · Online</div>
+            <div style="display:flex;gap:5px;margin-top:6px"><span class="cal-tag-purple">PIX ✓</span><span class="cal-tag-purple">Online</span></div>
+          </div>
+        </div>
+
+        <!-- 10:00 -->
+        <div style="padding:14px 12px 0;font-size:11px;color:var(--faint);border-right:1px solid var(--border);border-bottom:1px solid rgba(26,24,37,.04)">10:00</div>
+        <div style="padding:8px 12px;border-bottom:1px solid rgba(26,24,37,.04);min-height:56px">
+          <div class="cal-slot-free" style="height:38px" onclick="openModal()"><span style="font-size:11px;color:rgba(106,78,200,.35)">+ sessão</span></div>
+        </div>
+
+        <!-- 10:30 — Marina C. -->
+        <div style="padding:14px 12px 0;font-size:11px;color:var(--faint);border-right:1px solid var(--border);border-bottom:1px solid rgba(26,24,37,.04)">10:30</div>
+        <div style="padding:8px 12px;border-bottom:1px solid rgba(26,24,37,.04);min-height:80px">
+          <div style="background:rgba(92,157,136,.07);border-left:3px solid var(--sage);border-radius:0 9px 9px 0;padding:12px 14px;cursor:pointer;transition:all .18s" onclick="showToast('📋 Marina C.')" onmouseover="this.style.background='rgba(92,157,136,.12)'" onmouseout="this.style.background='rgba(92,157,136,.07)'">
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px">
+              <div style="font-size:13px;font-weight:500;color:var(--ink-soft)">Marina C.</div>
+              <span class="tag t-ok" style="font-size:10px">Sessão 5</span>
+            </div>
+            <div style="font-size:11.5px;color:var(--muted)">10:30 – 11:20 · Online</div>
+            <div style="display:flex;gap:5px;margin-top:6px"><span class="cal-tag-green">PIX ✓</span></div>
+          </div>
+        </div>
+
+        <!-- 12:00 — almoço -->
+        <div style="padding:14px 12px 0;font-size:11px;color:var(--faint);border-right:1px solid var(--border);border-bottom:1px solid rgba(26,24,37,.04)">12:00</div>
+        <div style="padding:8px 12px;border-bottom:1px solid rgba(26,24,37,.04);min-height:56px;background:rgba(26,24,37,.01)">
+          <div style="font-size:11px;color:var(--faint);padding:10px 0">Intervalo</div>
+        </div>
+
+        <!-- 14:00 — Rafael S. -->
+        <div style="padding:14px 12px 0;font-size:11px;color:var(--faint);border-right:1px solid var(--border);border-bottom:1px solid rgba(26,24,37,.04)">14:00</div>
+        <div style="padding:8px 12px;border-bottom:1px solid rgba(26,24,37,.04);min-height:80px">
+          <div style="background:rgba(168,120,64,.07);border-left:3px solid var(--amber);border-radius:0 9px 9px 0;padding:12px 14px;cursor:pointer;transition:all .18s" onclick="showToast('📋 Rafael S.')" onmouseover="this.style.background='rgba(168,120,64,.12)'" onmouseout="this.style.background='rgba(168,120,64,.07)'">
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px">
+              <div style="font-size:13px;font-weight:500;color:var(--ink-soft)">Rafael S.</div>
+              <span class="tag t-warn" style="font-size:10px">Aguardando</span>
+            </div>
+            <div style="font-size:11.5px;color:var(--muted)">14:00 – 14:50 · Online</div>
+            <div style="display:flex;gap:5px;margin-top:6px"><span class="cal-tag-amber" style="background:rgba(168,120,64,.1);color:#6e4a18;font-size:9px;font-weight:500;padding:1px 5px;border-radius:4px">PIX pendente</span></div>
+          </div>
+        </div>
+
+        <!-- 16:00 — slot livre -->
+        <div style="padding:14px 12px 0;font-size:11px;color:var(--faint);border-right:1px solid var(--border);border-bottom:1px solid rgba(26,24,37,.04)">16:00</div>
+        <div style="padding:8px 12px;border-bottom:1px solid rgba(26,24,37,.04);min-height:56px">
+          <div class="cal-slot-free" style="height:38px" onclick="openModal()"><span style="font-size:11px;color:rgba(106,78,200,.35)">+ sessão</span></div>
+        </div>
+
+        <!-- 18:00 -->
+        <div style="padding:14px 12px 0;font-size:11px;color:var(--faint);border-right:1px solid var(--border)">18:00</div>
+        <div style="padding:8px 12px;min-height:40px"></div>
+      </div>
+    </div>
+
+    <!-- Insight do dia -->
+    <div style="margin-top:10px;padding:11px 18px;background:rgba(106,78,200,.04);border:1px solid rgba(106,78,200,.09);border-radius:10px;display:flex;align-items:center;gap:20px;flex-wrap:wrap">
+      <span style="font-size:11px;color:var(--faint)">Hoje</span>
+      <span style="font-size:12.5px;color:var(--muted)"><strong style="color:var(--sage)">3 sessões confirmadas</strong> · 1 aguardando pagamento</span>
+      <span style="color:var(--border-md)">·</span>
+      <span style="font-size:12.5px;color:var(--muted)">Próxima: Fernanda K. às 09:00</span>
+    </div>
+  </div>
+
+  <div id="cal-mes" style="display:none">
+    <!-- Cabeçalho do mês -->
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">
+      <div style="display:flex;align-items:center;gap:12px">
+        <button onclick="showToast('← Mês anterior')" style="width:32px;height:32px;border:1px solid var(--border-md);border-radius:8px;background:transparent;cursor:pointer;color:var(--muted);font-size:14px;display:flex;align-items:center;justify-content:center">‹</button>
+        <div style="font-size:16px;font-weight:500;color:var(--ink-soft)">Maio 2025</div>
+        <button onclick="showToast('Próximo mês →')" style="width:32px;height:32px;border:1px solid var(--border-md);border-radius:8px;background:transparent;cursor:pointer;color:var(--muted);font-size:14px;display:flex;align-items:center;justify-content:center">›</button>
+      </div>
+      <button onclick="showToast('Hoje')" class="btn btn-ghost btn-sm">Hoje</button>
+    </div>
+
+    <div style="background:var(--card);border:1px solid var(--border);border-radius:var(--r);overflow:hidden;box-shadow:var(--sh)">
+      <!-- Cabeçalho dias da semana -->
+      <div style="display:grid;grid-template-columns:repeat(7,1fr);border-bottom:1px solid var(--border)">
+        <div style="padding:10px 0;text-align:center;font-size:10px;font-weight:500;color:var(--faint);letter-spacing:1px">SEG</div>
+        <div style="padding:10px 0;text-align:center;font-size:10px;font-weight:500;color:var(--faint);letter-spacing:1px">TER</div>
+        <div style="padding:10px 0;text-align:center;font-size:10px;font-weight:500;color:var(--faint);letter-spacing:1px">QUA</div>
+        <div style="padding:10px 0;text-align:center;font-size:10px;font-weight:500;color:var(--faint);letter-spacing:1px">QUI</div>
+        <div style="padding:10px 0;text-align:center;font-size:10px;font-weight:500;color:var(--faint);letter-spacing:1px">SEX</div>
+        <div style="padding:10px 0;text-align:center;font-size:10px;font-weight:500;color:var(--faint);letter-spacing:1px">SAB</div>
+        <div style="padding:10px 0;text-align:center;font-size:10px;font-weight:500;color:var(--faint);letter-spacing:1px">DOM</div>
+      </div>
+
+      <!-- Semana 1 — 1 a 4 (maio começa na quinta) -->
+      <div style="display:grid;grid-template-columns:repeat(7,1fr);border-bottom:1px solid var(--border)">
+        <div style="padding:10px;min-height:90px;border-right:1px solid var(--border);background:rgba(26,24,37,.02)"></div>
+        <div style="padding:10px;min-height:90px;border-right:1px solid var(--border);background:rgba(26,24,37,.02)"></div>
+        <div style="padding:10px;min-height:90px;border-right:1px solid var(--border);background:rgba(26,24,37,.02)"></div>
+        <div style="padding:10px;min-height:90px;border-right:1px solid var(--border)">
+          <div style="font-size:12px;font-weight:500;color:var(--muted);margin-bottom:6px">1</div>
+          <div style="background:rgba(92,157,136,.12);border-radius:4px;padding:2px 6px;font-size:10px;color:#2e5a4e;margin-bottom:3px;cursor:pointer" onclick="showToast('Lucas M. 09h')">Lucas M.</div>
+          <div style="background:rgba(106,78,200,.1);border-radius:4px;padding:2px 6px;font-size:10px;color:var(--accent);cursor:pointer" onclick="showToast('Ana P. 14h')">Ana P.</div>
+        </div>
+        <div style="padding:10px;min-height:90px;border-right:1px solid var(--border)">
+          <div style="font-size:12px;font-weight:500;color:var(--muted);margin-bottom:6px">2</div>
+          <div style="background:rgba(92,157,136,.12);border-radius:4px;padding:2px 6px;font-size:10px;color:#2e5a4e;margin-bottom:3px;cursor:pointer" onclick="showToast('Rafael S.')">Rafael S.</div>
+        </div>
+        <div style="padding:10px;min-height:90px;border-right:1px solid var(--border);background:rgba(26,24,37,.015)"><div style="font-size:12px;color:var(--faint);margin-bottom:6px">3</div></div>
+        <div style="padding:10px;min-height:90px;background:rgba(26,24,37,.015)"><div style="font-size:12px;color:var(--faint);margin-bottom:6px">4</div></div>
+      </div>
+
+      <!-- Semana 2 — 5 a 11 -->
+      <div style="display:grid;grid-template-columns:repeat(7,1fr);border-bottom:1px solid var(--border)">
+        <div style="padding:10px;min-height:90px;border-right:1px solid var(--border)">
+          <div style="font-size:12px;font-weight:500;color:var(--muted);margin-bottom:6px">5</div>
+          <div style="background:rgba(92,157,136,.12);border-radius:4px;padding:2px 6px;font-size:10px;color:#2e5a4e;margin-bottom:3px">Lucas M.</div>
+          <div style="background:rgba(168,120,64,.12);border-radius:4px;padding:2px 6px;font-size:10px;color:#6e4a18">Paulo L.</div>
+        </div>
+        <div style="padding:10px;min-height:90px;border-right:1px solid var(--border)"><div style="font-size:12px;color:var(--muted);margin-bottom:6px">6</div><div style="background:rgba(92,157,136,.12);border-radius:4px;padding:2px 6px;font-size:10px;color:#2e5a4e">Marina C.</div></div>
+        <div style="padding:10px;min-height:90px;border-right:1px solid var(--border)"><div style="font-size:12px;color:var(--muted);margin-bottom:6px">7</div></div>
+        <div style="padding:10px;min-height:90px;border-right:1px solid var(--border);background:rgba(106,78,200,.03)">
+          <div style="font-size:12px;font-weight:600;color:var(--accent);margin-bottom:6px">8</div>
+          <div style="background:rgba(106,78,200,.1);border-radius:4px;padding:2px 6px;font-size:10px;color:var(--accent);margin-bottom:3px">Fernanda K.</div>
+          <div style="background:rgba(92,157,136,.12);border-radius:4px;padding:2px 6px;font-size:10px;color:#2e5a4e;margin-bottom:3px">Ana P.</div>
+          <div style="background:rgba(106,78,200,.1);border-radius:4px;padding:2px 6px;font-size:10px;color:var(--accent)">Rafael S.</div>
+        </div>
+        <div style="padding:10px;min-height:90px;border-right:1px solid var(--border)"><div style="font-size:12px;color:var(--muted);margin-bottom:6px">9</div><div style="background:rgba(92,157,136,.12);border-radius:4px;padding:2px 6px;font-size:10px;color:#2e5a4e">Paulo L.</div></div>
+        <div style="padding:10px;min-height:90px;border-right:1px solid var(--border);background:rgba(26,24,37,.015)"><div style="font-size:12px;color:var(--faint);margin-bottom:6px">10</div></div>
+        <div style="padding:10px;min-height:90px;background:rgba(26,24,37,.015)"><div style="font-size:12px;color:var(--faint);margin-bottom:6px">11</div></div>
+      </div>
+
+      <!-- Semana 3 — 12 a 18 -->
+      <div style="display:grid;grid-template-columns:repeat(7,1fr);border-bottom:1px solid var(--border)">
+        <div style="padding:10px;min-height:90px;border-right:1px solid var(--border)"><div style="font-size:12px;color:var(--muted);margin-bottom:6px">12</div><div style="background:rgba(92,157,136,.12);border-radius:4px;padding:2px 6px;font-size:10px;color:#2e5a4e">Lucas M.</div></div>
+        <div style="padding:10px;min-height:90px;border-right:1px solid var(--border)"><div style="font-size:12px;color:var(--muted);margin-bottom:6px">13</div></div>
+        <div style="padding:10px;min-height:90px;border-right:1px solid var(--border)"><div style="font-size:12px;color:var(--muted);margin-bottom:6px">14</div><div style="background:rgba(106,78,200,.1);border-radius:4px;padding:2px 6px;font-size:10px;color:var(--accent)">Marina C.</div></div>
+        <div style="padding:10px;min-height:90px;border-right:1px solid var(--border);background:rgba(106,78,200,.03)">
+          <div style="font-size:12px;font-weight:600;color:var(--accent);margin-bottom:6px">15</div>
+          <div style="background:rgba(106,78,200,.1);border-radius:4px;padding:2px 6px;font-size:10px;color:var(--accent);margin-bottom:3px">Fernanda K.</div>
+          <div style="background:rgba(168,120,64,.12);border-radius:4px;padding:2px 6px;font-size:10px;color:#6e4a18">Rafael S.</div>
+        </div>
+        <div style="padding:10px;min-height:90px;border-right:1px solid var(--border)"><div style="font-size:12px;color:var(--muted);margin-bottom:6px">16</div></div>
+        <div style="padding:10px;min-height:90px;border-right:1px solid var(--border);background:rgba(26,24,37,.015)"><div style="font-size:12px;color:var(--faint);margin-bottom:6px">17</div></div>
+        <div style="padding:10px;min-height:90px;background:rgba(26,24,37,.015)"><div style="font-size:12px;color:var(--faint);margin-bottom:6px">18</div></div>
+      </div>
+
+      <!-- Semana 4 — 19 a 25 (hoje = 23) -->
+      <div style="display:grid;grid-template-columns:repeat(7,1fr);border-bottom:1px solid var(--border)">
+        <div style="padding:10px;min-height:90px;border-right:1px solid var(--border)"><div style="font-size:12px;color:var(--muted);margin-bottom:6px">19</div><div style="background:rgba(92,157,136,.12);border-radius:4px;padding:2px 6px;font-size:10px;color:#2e5a4e">Lucas M.</div></div>
+        <div style="padding:10px;min-height:90px;border-right:1px solid var(--border)"><div style="font-size:12px;color:var(--muted);margin-bottom:6px">20</div><div style="background:rgba(92,157,136,.12);border-radius:4px;padding:2px 6px;font-size:10px;color:#2e5a4e">Ana P.</div></div>
+        <div style="padding:10px;min-height:90px;border-right:1px solid var(--border)"><div style="font-size:12px;color:var(--muted);margin-bottom:6px">21</div></div>
+        <div style="padding:10px;min-height:90px;border-right:1px solid var(--border);background:rgba(106,78,200,.05);border:2px solid rgba(106,78,200,.15);border-radius:0">
+          <div style="display:flex;align-items:center;gap:6px;margin-bottom:6px">
+            <div style="font-size:12px;font-weight:700;color:var(--accent)">22</div>
+            <span style="font-size:9px;background:var(--accent);color:#fff;padding:1px 6px;border-radius:3px">Hoje</span>
+          </div>
+          <div style="background:rgba(106,78,200,.12);border-radius:4px;padding:2px 6px;font-size:10px;color:var(--accent);margin-bottom:3px;cursor:pointer" onclick="enterPresence()">Fernanda K. ●</div>
+          <div style="background:rgba(92,157,136,.12);border-radius:4px;padding:2px 6px;font-size:10px;color:#2e5a4e;margin-bottom:3px">Lucas M.</div>
+          <div style="background:rgba(168,120,64,.12);border-radius:4px;padding:2px 6px;font-size:10px;color:#6e4a18;margin-bottom:3px">Rafael S.</div>
+          <div style="background:rgba(92,157,136,.12);border-radius:4px;padding:2px 6px;font-size:10px;color:#2e5a4e">Ana P.</div>
+        </div>
+        <div style="padding:10px;min-height:90px;border-right:1px solid var(--border)"><div style="font-size:12px;color:var(--muted);margin-bottom:6px">23</div><div style="background:rgba(92,157,136,.12);border-radius:4px;padding:2px 6px;font-size:10px;color:#2e5a4e">Paulo L.</div></div>
+        <div style="padding:10px;min-height:90px;border-right:1px solid var(--border);background:rgba(26,24,37,.015)"><div style="font-size:12px;color:var(--faint);margin-bottom:6px">24</div></div>
+        <div style="padding:10px;min-height:90px;background:rgba(26,24,37,.015)"><div style="font-size:12px;color:var(--faint);margin-bottom:6px">25</div></div>
+      </div>
+
+      <!-- Semana 5 — 26 a 31 -->
+      <div style="display:grid;grid-template-columns:repeat(7,1fr)">
+        <div style="padding:10px;min-height:90px;border-right:1px solid var(--border)"><div style="font-size:12px;color:var(--muted);margin-bottom:6px">26</div><div style="background:rgba(92,157,136,.12);border-radius:4px;padding:2px 6px;font-size:10px;color:#2e5a4e">Lucas M.</div></div>
+        <div style="padding:10px;min-height:90px;border-right:1px solid var(--border)"><div style="font-size:12px;color:var(--muted);margin-bottom:6px">27</div></div>
+        <div style="padding:10px;min-height:90px;border-right:1px solid var(--border)"><div style="font-size:12px;color:var(--muted);margin-bottom:6px">28</div><div style="background:rgba(106,78,200,.1);border-radius:4px;padding:2px 6px;font-size:10px;color:var(--accent)">Marina C.</div></div>
+        <div style="padding:10px;min-height:90px;border-right:1px solid var(--border);background:rgba(106,78,200,.03)">
+          <div style="font-size:12px;font-weight:600;color:var(--accent);margin-bottom:6px">29</div>
+          <div style="background:rgba(106,78,200,.1);border-radius:4px;padding:2px 6px;font-size:10px;color:var(--accent);margin-bottom:3px">Fernanda K.</div>
+          <div style="background:rgba(92,157,136,.12);border-radius:4px;padding:2px 6px;font-size:10px;color:#2e5a4e">Rafael S.</div>
+        </div>
+        <div style="padding:10px;min-height:90px;border-right:1px solid var(--border)"><div style="font-size:12px;color:var(--muted);margin-bottom:6px">30</div></div>
+        <div style="padding:10px;min-height:90px;border-right:1px solid var(--border);background:rgba(26,24,37,.015)"><div style="font-size:12px;color:var(--faint);margin-bottom:6px">31</div></div>
+        <div style="padding:10px;min-height:90px;background:rgba(26,24,37,.015)"></div>
+      </div>
+    </div>
+
+    <!-- Legenda e insight -->
+    <div style="margin-top:10px;display:flex;gap:12px;align-items:center;flex-wrap:wrap">
+      <div style="padding:10px 16px;background:rgba(106,78,200,.04);border:1px solid rgba(106,78,200,.09);border-radius:10px;font-size:12.5px;color:var(--muted);flex:1">
+        <strong style="color:var(--ink-soft)">38 sessões</strong> realizadas · <strong style="color:var(--sage)">Maio melhor mês do ano</strong> · 5 sessões ainda agendadas
+      </div>
+      <button class="btn btn-ghost btn-sm" onclick="openModal()">+ Nova sessão</button>
+    </div>
+  </div>
+</div>
+
+</div><!-- /main -->
+
+<!-- ══════ SELETOR PACIENTE ══════ -->
+<div class="pt-drop-ov" id="pt-drop-ov" onclick="closePtDrop(event)">
+  <div class="pt-drop-panel" onclick="event.stopPropagation()">
+    <div class="pt-drop-hd"><h3>Selecionar paciente</h3><button class="pt-drop-cls" onclick="closePtDrop()">✕</button></div>
+    <div class="pt-search-wrap"><input class="pt-search" type="text" placeholder="Buscar por nome…" oninput="filterPt(this.value)"></div>
+    <div class="pt-list" id="pt-list">
+      <div class="pt-opt sel" onclick="selPt(this,'FK','Fernanda K.','7 sessões · mar 2025 · semanal · online','linear-gradient(135deg,#6b4fcf,#a080f8)')"><div class="pt-opt-av" style="background:linear-gradient(135deg,#6b4fcf,#a080f8)">FK</div><div><div class="pt-opt-name">Fernanda K.</div><div class="pt-opt-meta">7 sessões · desde mar 2025</div></div><div class="pt-opt-tags"><span class="tag t-info" style="font-size:10px">Online</span></div></div>
+      <div class="pt-opt" onclick="selPt(this,'LM','Lucas M.','12 sessões · jan 2025 · semanal · presencial','linear-gradient(135deg,#2060a0,#60a0e0)')"><div class="pt-opt-av" style="background:linear-gradient(135deg,#2060a0,#60a0e0)">LM</div><div><div class="pt-opt-name">Lucas M.</div><div class="pt-opt-meta">12 sessões · desde jan 2025</div></div></div>
+      <div class="pt-opt" onclick="selPt(this,'RS','Rafael S.','19 sessões · out 2024 · semanal · online','linear-gradient(135deg,#c04080,#f090b0)')"><div class="pt-opt-av" style="background:linear-gradient(135deg,#c04080,#f090b0)">RS</div><div><div class="pt-opt-name">Rafael S.</div><div class="pt-opt-meta">19 sessões · desde out 2024</div></div><div class="pt-opt-tags"><span class="tag t-warn" style="font-size:10px">Espaçando</span></div></div>
+      <div class="pt-opt" onclick="selPt(this,'AP','Ana P.','3 sessões · mar 2025 · online','linear-gradient(135deg,#409060,#80c0a0)')"><div class="pt-opt-av" style="background:linear-gradient(135deg,#409060,#80c0a0)">AP</div><div><div class="pt-opt-name">Ana P.</div><div class="pt-opt-meta">3 sessões · desde mar 2025</div></div></div>
+      <div class="pt-opt" onclick="selPt(this,'MC','Marina C.','5 sessões · abr 2025 · online','linear-gradient(135deg,#805020,#c08040)')"><div class="pt-opt-av" style="background:linear-gradient(135deg,#805020,#c08040)">MC</div><div><div class="pt-opt-name">Marina C.</div><div class="pt-opt-meta">5 sessões · desde abr 2025</div></div></div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════ MODAL NOVA SESSÃO ══════ -->
+<div class="ov" id="modal-ov" onclick="closeMdl(event)">
+  <div class="modal" onclick="event.stopPropagation()">
+    <div class="modal-hd"><div><h3>Nova sessão</h3><p>Agendar e preparar o espaço clínico</p></div><button class="mcls" onclick="closeMdl()">✕</button></div>
+    <div class="modal-b">
+      <div class="f-row"><label class="f-lbl">Paciente</label><input class="f-inp" value="Fernanda K." readonly></div>
+      <div class="f-g2"><div class="f-row" style="margin-bottom:0"><label class="f-lbl">Data</label><input class="f-inp" value="Hoje"></div><div class="f-row" style="margin-bottom:0"><label class="f-lbl">Horário</label><input class="f-inp" value="10:30"></div></div>
+      <div class="f-row" style="margin-top:13px"><label class="f-lbl">Modalidade</label><div class="mode-opts"><div class="mode-o sel" onclick="selMd(this)">Online</div><div class="mode-o" onclick="selMd(this)">Presencial</div></div></div>
+      <div style="margin:14px 0;padding:12px 14px;background:var(--surface);border-radius:var(--rsm);font-size:12.5px;color:var(--muted);line-height:1.6">Sessão 6: abertura emocional presente · registro assinado · sem pendências.</div>
+    </div>
+    <div class="modal-ft">
+      <div style="display:flex;align-items:center;gap:6px;padding:9px 12px;background:var(--sage-lo);border:1px solid rgba(90,158,138,.18);border-radius:9px;font-size:12px;font-weight:500;color:#3a6e60;margin-bottom:12px">✦ Tudo preparado.</div>
+      <button class="start-btn" onclick="startSess()">Iniciar sessão</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══════ MODAL NOVO PACIENTE ══════ -->
+<div class="ov" id="novo-pt-ov" onclick="closeNovoPt(event)">
+  <div class="modal" onclick="event.stopPropagation()" style="width:460px">
+    <div class="modal-hd"><div><h3>Novo paciente</h3><p>Após salvar, boas-vindas enviadas via WhatsApp.</p></div><button class="mcls" onclick="closeNovoPt()">✕</button></div>
+    <div class="modal-b">
+      <div class="f-row"><label class="f-lbl">Nome completo *</label><input class="f-inp" id="npt-nome" type="text" placeholder="Ex.: Fernanda Kowalski" autocomplete="off"></div>
+      <div class="f-row"><label class="f-lbl">WhatsApp *</label><div style="position:relative"><div style="position:absolute;left:13px;top:50%;transform:translateY(-50%);font-size:12px;color:var(--muted);pointer-events:none">🇧🇷 +55</div><input class="f-inp" id="npt-tel" type="tel" placeholder="(11) 99999-9999" style="padding-left:70px" oninput="formatTel(this)"></div></div>
+      <div class="f-row" style="margin-bottom:0"><label class="f-lbl">E-mail <span style="font-size:11px;color:var(--faint);font-weight:400">(opcional)</span></label><input class="f-inp" id="npt-email" type="email" placeholder="paciente@email.com"></div>
+      <div class="npt-wa-preview">
+        <div class="npt-wa-hd">
+          <div style="width:28px;height:28px;border-radius:50%;background:linear-gradient(135deg,var(--accent),var(--sage));display:flex;align-items:center;justify-content:center;flex-shrink:0">
+            <svg width="15" height="15" viewBox="0 0 50 50" fill="none">
+              <path d="M 25 38 C 25 38 14 38 14 27 C 14 16 25 16 25 16" stroke="rgba(255,255,255,.5)" stroke-width="3.5" stroke-linecap="round" fill="none"/>
+              <path d="M 25 16 C 25 16 36 16 36 27 C 36 38 25 44 12 42" stroke="rgba(255,255,255,.72)" stroke-width="3.5" stroke-linecap="round" fill="none"/>
+              <path d="M 12 42 C 4 40 4 28 4 24 C 4 12 14 6 26 6 C 38 6 46 14 46 26" stroke="white" stroke-width="3.5" stroke-linecap="round" fill="none"/>
+              <circle cx="46" cy="26" r="4" fill="white"/>
+            </svg>
+          </div>
+          <div><div style="font-size:12px;color:rgba(255,255,255,.7);font-weight:500">Auren Care</div><div style="font-size:10px;color:rgba(255,255,255,.3)">assistente</div></div>
+        </div>
+        <div class="npt-wa-msg">Olá, <span id="npt-preview-nome" style="color:#c8b0ff">nome do paciente</span>! 👋<br><br>Sou a assistente da <strong style="color:rgba(255,255,255,.9)">Dra. Camila</strong>. Sua primeira sessão está sendo preparada.<br><br>Em breve você recebe todos os detalhes. 🌿</div>
+        <div class="npt-wa-time">agora · ✓✓</div>
+      </div>
+    </div>
+    <div style="padding:0 22px 22px;display:flex;flex-direction:column;gap:8px">
+      <button onclick="salvarNovoPt()" style="width:100%;padding:12px;background:#25D366;color:#fff;border:none;border-radius:11px;font-size:13.5px;font-weight:500;font-family:inherit;cursor:pointer;box-shadow:0 2px 12px rgba(37,211,102,.22);display:flex;align-items:center;justify-content:center;gap:6px">💬 Salvar e enviar boas-vindas</button>
+      <button onclick="salvarNovoPtSemWa()" style="width:100%;padding:9px;border:1px solid var(--border-md);border-radius:10px;background:transparent;color:var(--muted);font-size:12.5px;font-weight:500;font-family:inherit;cursor:pointer;transition:all .15s" onmouseover="this.style.background='var(--surface)'" onmouseout="this.style.background='transparent'">Salvar sem enviar agora</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══════ PÓS-SESSÃO ══════ -->
+<div class="ov" id="postsess-ov" onclick="closePostSess(event)">
+  <div class="modal" onclick="event.stopPropagation()" style="border-radius:22px">
+    <div class="post-sess-grad" style="padding:28px 24px 20px;text-align:center">
+      <div style="width:48px;height:48px;border-radius:50%;background:linear-gradient(145deg,var(--accent),var(--sage));display:flex;align-items:center;justify-content:center;margin:0 auto 14px;box-shadow:0 4px 16px rgba(107,79,207,.2)">
+        <svg width="26" height="26" viewBox="0 0 50 50" fill="none">
+          <path d="M 25 38 C 25 38 14 38 14 27 C 14 16 25 16 25 16" stroke="rgba(255,255,255,.5)" stroke-width="3" stroke-linecap="round" fill="none"/>
+          <path d="M 25 16 C 25 16 36 16 36 27 C 36 38 25 44 12 42" stroke="rgba(255,255,255,.75)" stroke-width="3" stroke-linecap="round" fill="none"/>
+          <path d="M 12 42 C 4 40 4 28 4 24 C 4 12 14 6 26 6 C 38 6 46 14 46 26" stroke="white" stroke-width="3" stroke-linecap="round" fill="none"/>
+          <circle cx="46" cy="26" r="3.5" fill="white"/>
+        </svg>
+      </div>
+      <h2 style="font-family:var(--f-display);font-weight:300;font-size:22px;letter-spacing:-.3px;color:var(--ink);margin-bottom:4px">Sessão encerrada.</h2>
+      <p style="font-size:12.5px;color:var(--muted)">Fernanda K. · Sessão 7 · 51 min · Online</p>
+    </div>
+    <div style="padding:20px 22px">
+      <div class="sec-lbl" style="margin-bottom:10px">Resumo do registro</div>
+      <div style="font-size:13px;color:var(--muted);line-height:1.7;padding:12px 14px;background:var(--surface);border-radius:var(--rsm);margin-bottom:18px">Sessão focada em episódio no trabalho. Paciente trouxe reação ao gestor. Tema familiar surgiu brevemente. Tom aberto ao final.</div>
+      <div class="sec-lbl" style="margin-bottom:9px">Próximos passos</div>
+      <div style="display:flex;align-items:center;gap:10px;padding:9px 0;border-bottom:1px solid var(--border);font-size:13px"><span style="font-size:14px;opacity:.5">📝</span><span style="flex:1;color:var(--muted)">Registro clínico</span><span style="font-size:12px;color:var(--accent);cursor:pointer" onclick="showToast('📝 Registro aberto')">Abrir →</span></div>
+      <div style="display:flex;align-items:center;gap:10px;padding:9px 0;border-bottom:1px solid var(--border);font-size:13px"><span style="font-size:14px;opacity:.5">✍️</span><span style="flex:1;color:var(--muted)">Assinar documento</span><span style="font-size:12px;color:var(--accent);cursor:pointer" onclick="showToast('✍️ Assinatura')">Assinar →</span></div>
+      <div style="display:flex;align-items:center;gap:10px;padding:9px 0;border-bottom:1px solid var(--border);font-size:13px"><span style="font-size:14px;opacity:.5">💳</span><span style="flex:1;color:var(--muted)">Pagamento</span><span style="font-size:12px;color:var(--sage)">✓ Confirmado</span></div>
+      <div style="display:flex;align-items:center;gap:10px;padding:9px 0;font-size:13px"><span style="font-size:14px;opacity:.5">📅</span><span style="flex:1;color:var(--muted)">Próxima: 29 mai · 10h30</span><span style="font-size:12px;color:var(--accent);cursor:pointer" onclick="showToast('📅 Confirmado')">Confirmar →</span></div>
+    </div>
+    <div style="padding:0 22px 22px;display:flex;flex-direction:column;gap:8px">
+      <button class="start-btn" onclick="closePostSessOk()">Abrir registro clínico</button>
+      <button class="btn btn-ghost" style="width:100%;justify-content:center" onclick="closePostSessOk()">Está tudo ok — fechar</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"><span id="toast-msg"></span></div>
+
+<script>
+/* ─── NAVIGATION ─────────────────────────────────── */
+const LABELS = {
+  home:'Início', sessao:'Apoio à Sessão', grafo:'Temas Recorrentes',
+  longitudinal:'Evolução Registrada', continuidade:'Objetivos e Progresso',
+  pacientes:'Pacientes', negocio:'Financeiro',
+  agenda:'Agenda', saude:'Saúde da Prática'
+};
+function go(id, world) {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  const pg = document.getElementById('page-'+id);
+  if(pg) pg.classList.add('active');
+  document.querySelectorAll('.ni').forEach(n => {
+    n.classList.remove('active');
+    if(n.getAttribute('onclick')?.includes("'"+id+"'")) n.classList.add('active');
+  });
+  document.getElementById('tp-path').innerHTML = '<strong>'+(LABELS[id]||id)+'</strong>';
+  window.scrollTo(0,0);
+  if(id==='grafo') setTimeout(()=>{initGrafo();renderTopCorr();},80);
+  if(id==='longitudinal') setTimeout(initGrafoSide,50);
+}
+
+/* ─── SIDEBAR ────────────────────────────────────── */
+function toggleSb(){const sb=document.getElementById('sb');sb.classList.toggle('col');document.getElementById('sb-tog').textContent=sb.classList.contains('col')?'›':'‹';}
+
+/* ─── PRESENCE ───────────────────────────────────── */
+function enterPresence(){go('sessao','cli');document.body.classList.add('presence');}
+function exitPresence(){document.body.classList.remove('presence');go('home','cli');}
+function togglePanel(id){const p=document.querySelector('[data-panel="'+id+'"]');if(!p)return;const body=p.querySelector('.trans-body');if(body) body.style.display=body.style.display==='none'?'':'none';}
+
+/* ─── PÓS-SESSÃO ─────────────────────────────────── */
+function openPostSess(){exitPresence();document.getElementById('postsess-ov').classList.add('open');}
+function closePostSess(e){if(!e||e.target===document.getElementById('postsess-ov'))document.getElementById('postsess-ov').classList.remove('open');}
+function closePostSessOk(){document.getElementById('postsess-ov').classList.remove('open');showToast('✓ Sessão registrada');}
+
+/* ─── MODAL ──────────────────────────────────────── */
+function openModal(){document.getElementById('modal-ov').classList.add('open');}
+function closeMdl(e){if(!e||e.target===document.getElementById('modal-ov'))document.getElementById('modal-ov').classList.remove('open');}
+function selMd(el){el.parentElement.querySelectorAll('.mode-o').forEach(o=>o.classList.remove('sel'));el.classList.add('sel');}
+function startSess(){closeMdl();enterPresence();showToast('Sessão iniciada');}
+
+/* ─── PATIENT SELECTOR ───────────────────────────── */
+function openPtDrop(){document.getElementById('pt-drop-ov').classList.add('open');}
+function closePtDrop(e){if(!e||e.target===document.getElementById('pt-drop-ov'))document.getElementById('pt-drop-ov').classList.remove('open');}
+function selPt(el,ini,name,meta,grad){
+  document.querySelectorAll('.pt-opt').forEach(o=>o.classList.remove('sel'));el.classList.add('sel');
+  ['grafo-av','long-av','cont-av'].forEach(id=>{const e=document.getElementById(id);if(e){e.textContent=ini;e.style.background=grad;}});
+  ['grafo-name','long-name','cont-name'].forEach(id=>{const e=document.getElementById(id);if(e)e.textContent=name;});
+  ['grafo-meta','long-meta','cont-meta'].forEach(id=>{const e=document.getElementById(id);if(e)e.textContent=meta;});
+  ['grafo-chat-name'].forEach(id=>{const e=document.getElementById(id);if(e)e.textContent=name;});
+  closePtDrop();showToast('📋 '+name+' selecionada');
+}
+function filterPt(v){document.querySelectorAll('.pt-opt').forEach(o=>{o.style.display=o.querySelector('.pt-opt-name').textContent.toLowerCase().includes(v.toLowerCase())?'':'none';});}
+
+/* ─── EXPAND ─────────────────────────────────────── */
+function toggleEx(id,lblId){const el=document.getElementById(id),lb=document.getElementById(lblId);el.classList.toggle('open');lb.textContent=el.classList.contains('open')?'↑ Fechar':'↓ Observações da semana';}
+
+/* ─── TOAST ──────────────────────────────────────── */
+let tt;
+function showToast(msg){clearTimeout(tt);const t=document.getElementById('toast');document.getElementById('toast-msg').textContent=msg;t.classList.add('show');tt=setTimeout(()=>t.classList.remove('show'),3000);}
+
+/* ─── TIMERS ─────────────────────────────────────── */
+let pSec=47*60+18;
+setInterval(()=>{pSec++;const el=document.getElementById('p-timer');if(el)el.textContent=String(Math.floor(pSec/60)).padStart(2,'0')+':'+String(pSec%60).padStart(2,'0');},1000);
+const tb=document.getElementById('trans-body');if(tb)setTimeout(()=>tb.scrollTop=tb.scrollHeight,100);
+
+/* ─── SESSION WIDGETS ────────────────────────────── */
+(function initSessionWidgets(){
+  /* Ritmo · click para rebalancear */
+  function setRhythm(psi){
+    const pac=100-psi;
+    const psiBar=document.querySelector('.rh-bar.psic > span');
+    const pacBar=document.querySelector('.rh-bar.pac > span');
+    const psiPct=document.getElementById('rh-psi');
+    const pacPct=document.getElementById('rh-pac');
+    if(psiBar)psiBar.style.width=psi+'%'; if(pacBar)pacBar.style.width=pac+'%';
+    if(psiPct)psiPct.textContent=psi+'%'; if(pacPct)pacPct.textContent=pac+'%';
+  }
+  document.querySelectorAll('.rh-bar').forEach(bar=>{
+    bar.addEventListener('click',e=>{
+      const rect=bar.getBoundingClientRect();
+      const pct=Math.round(((e.clientX-rect.left)/rect.width)*100);
+      setRhythm(bar.classList.contains('psic')?pct:100-pct);
+    });
+  });
+
+  /* Marcação de segmentos */
+  const tagsRow=document.getElementById('seg-tags');
+  let armedBtn=null;
+  function updateCount(tag){
+    const btn=tagsRow&&[...tagsRow.querySelectorAll('.seg-btn')].find(b=>b.dataset.tag===tag);
+    if(!btn)return;
+    const cnt=document.querySelectorAll('.turn[data-mark="'+tag+'"]').length;
+    const el=btn.querySelector('.seg-cnt');if(el)el.textContent=cnt;
+  }
+  function bindTagBtn(btn){
+    btn.addEventListener('click',()=>{
+      if(armedBtn===btn){armedBtn.classList.remove('armed');armedBtn=null;return;}
+      if(armedBtn)armedBtn.classList.remove('armed');
+      armedBtn=btn;btn.classList.add('armed');
+    });
+  }
+  if(tagsRow)tagsRow.querySelectorAll('.seg-btn').forEach(bindTagBtn);
+  document.querySelectorAll('.turn.armable').forEach(turn=>{
+    turn.addEventListener('click',()=>{
+      if(!armedBtn)return;
+      const prev=turn.dataset.mark; if(prev)updateCount(prev);
+      if(prev===armedBtn.dataset.tag){
+        delete turn.dataset.mark;
+        const chip=turn.querySelector('.mark-chip');if(chip)chip.remove();
+      } else {
+        turn.dataset.mark=armedBtn.dataset.tag;
+        let chip=turn.querySelector('.mark-chip');
+        if(!chip){chip=document.createElement('div');chip.className='mark-chip';turn.prepend(chip);}
+        chip.textContent=armedBtn.querySelector('.seg-lbl').textContent;
+      }
+      updateCount(armedBtn.dataset.tag);
+    });
+  });
+
+  /* Risco · ciclagem */
+  const summaryEl=document.getElementById('risk-summary');
+  function recompute(){
+    let mx=0;
+    document.querySelectorAll('.risk-row').forEach(row=>{
+      const on=row.querySelector('.risk-pill.on');if(!on)return;
+      const lvl=on.classList.contains('hi')?2:on.classList.contains('md')?1:0;
+      if(lvl>mx)mx=lvl;
+    });
+    if(summaryEl){
+      summaryEl.textContent=['Baixa preocupação','Atenção moderada','Atenção elevada'][mx];
+      summaryEl.style.color=['#3a6e60','#7a5520','var(--rose)'][mx];
+    }
+  }
+  document.querySelectorAll('.risk-row').forEach(row=>{
+    const pills=row.querySelectorAll('.risk-pill');
+    pills.forEach(p=>p.addEventListener('click',()=>{pills.forEach(x=>x.classList.remove('on'));p.classList.add('on');recompute();}));
+  });
+  recompute();
+
+  /* Estado emocional · slider */
+  const emoRange=document.getElementById('emo-range');
+  const emoThumb=document.getElementById('emo-thumb');
+  const emoVal=document.getElementById('emo-val');
+  const emoLabels={'-5':'Extremamente desagradável','-4':'Muito desagradável','-3':'Desagradável','-2':'Levemente desagradável','-1':'Pouco desagradável','0':'Neutro','1':'Pouco agradável','2':'Levemente agradável','3':'Agradável','4':'Muito agradável','5':'Extremamente agradável'};
+  const emoColors={'-5':'var(--accent)','-4':'#7a5fd0','-3':'#8a72d4','-2':'#a895e0','-1':'#c0b1e8','0':'#7fb3ac','1':'#cfc09a','2':'#cdb586','3':'var(--amber)','4':'#a07535','5':'#8c652b'};
+  function updateEmo(){
+    if(!emoRange)return;
+    const v=parseInt(emoRange.value);
+    const pct=((v+5)/10)*100;
+    if(emoThumb){emoThumb.style.left=pct+'%';emoThumb.style.borderColor=emoColors[v];}
+    if(emoVal){emoVal.textContent=emoLabels[v];emoVal.style.color=v===0?'var(--ink-soft)':emoColors[v];}
+  }
+  if(emoRange)emoRange.addEventListener('input',updateEmo);
+  updateEmo();
+
+  /* Intensidade · dots */
+  document.querySelectorAll('.intensity-dots').forEach(group=>{
+    const buttons=group.querySelectorAll('button');
+    const lbl=group.parentElement.querySelector('.intensity-lbl');
+    buttons.forEach((b,i)=>{
+      b.addEventListener('click',()=>{
+        const cur=parseInt(group.dataset.int||'0');
+        const target=(cur===i+1)?0:i+1;
+        buttons.forEach((x,j)=>x.classList.toggle('on',j<target));
+        group.dataset.int=target;
+        if(lbl)lbl.textContent=target?'Intensidade · '+target:'Sem intensidade';
+      });
+    });
+  });
+
+  /* F/I/D sliders */
+  const maps={
+    freq:[[0,'Nunca'],[20,'Algumas vezes'],[40,'Diariamente'],[60,'Muitas vezes ao dia'],[85,'O tempo todo']],
+    int: [[0,'Nenhum'],[25,'Leve'],[50,'Moderado'],[75,'Forte'],[90,'Extremo']],
+    dur: [[0,'Sem humor'],[15,'1h ou menos'],[35,'2–4 horas'],[55,'8–12 horas'],[75,'1–2 dias'],[90,'7 dias']]
+  };
+  document.querySelectorAll('.scale').forEach(scale=>{
+    const input=scale.querySelector('input[type=range]');
+    const fill=scale.querySelector('.sc-fill');
+    const thumb=scale.querySelector('.sc-thumb');
+    const val=scale.querySelector('.sc-val');
+    const m=maps[scale.dataset.scale];
+    if(!input||!m)return;
+    input.addEventListener('input',()=>{
+      const v=+input.value;
+      if(fill)fill.style.width=v+'%'; if(thumb)thumb.style.left=v+'%';
+      let label=m[0][1];
+      for(const[t,l]of m)if(v>=t)label=l;
+      if(val)val.textContent=label;
+    });
+  });
+
+  /* Drag to reorder widgets */
+  const grid=document.getElementById('session-grid');
+  if(!grid)return;
+  let draggedCard=null;
+  grid.querySelectorAll('[data-widget-id]').forEach(card=>{
+    const grip=card.querySelector('.widget-grip');if(!grip)return;
+    grip.addEventListener('mousedown',e=>{
+      e.preventDefault();draggedCard=card;
+      card.style.opacity='.55';card.style.zIndex='10';
+      document.body.style.userSelect='none';
+    });
+  });
+  document.addEventListener('mousemove',e=>{
+    if(!draggedCard)return;
+    const els=[...grid.querySelectorAll('[data-widget-id]')].filter(c=>c!==draggedCard);
+    const closest=els.reduce((acc,el)=>{
+      const r=el.getBoundingClientRect();
+      const d=Math.abs(e.clientY-(r.top+r.height/2));
+      return d<acc.d?{el,d}:acc;
+    },{el:null,d:Infinity});
+    if(closest.el){
+      const r=closest.el.getBoundingClientRect();
+      if(e.clientY<r.top+r.height/2)grid.insertBefore(draggedCard,closest.el);
+      else grid.insertBefore(draggedCard,closest.el.nextSibling);
+    }
+  });
+  document.addEventListener('mouseup',()=>{
+    if(!draggedCard)return;
+    draggedCard.style.opacity='';draggedCard.style.zIndex='';
+    document.body.style.userSelect='';draggedCard=null;
+  });
+})();
+
+/* ─── LIVE GRAPH (mini) ──────────────────────────── */
+(function(){
+  const c=document.getElementById('liveGC');if(!c)return;
+  const ctx=c.getContext('2d');
+  const N=[{id:'trabalho',x:.5,y:.28,r:15,col:'#6a4ec8'},{id:'medo',x:.72,y:.55,r:12,col:'#6a4ec8'},{id:'família',x:.2,y:.28,r:7,col:'#c05e78'},{id:'sentir',x:.5,y:.7,r:9,col:'#a87840'}];
+  const E=[['trabalho','medo',5],['família','medo',2],['medo','sentir',4]];
+  let t=0;
+  function draw(){const W=c.parentElement.offsetWidth||220;c.width=W;c.height=170;
+    ctx.fillStyle='#faf9f6';ctx.fillRect(0,0,W,170);
+    E.forEach(([a,b,w])=>{const na=N.find(n=>n.id===a),nb=N.find(n=>n.id===b);ctx.beginPath();ctx.moveTo(na.x*W,na.y*170);ctx.lineTo(nb.x*W,nb.y*170);ctx.strokeStyle=`rgba(106,78,200,${w*.038})`;ctx.lineWidth=w*.55;ctx.stroke();});
+    N.forEach(n=>{ctx.beginPath();ctx.arc(n.x*W,n.y*170,n.r,0,Math.PI*2);ctx.fillStyle=n.col+'14';ctx.fill();ctx.strokeStyle=n.col+'58';ctx.lineWidth=1.4;ctx.stroke();ctx.fillStyle=n.col+'d0';ctx.font=`${Math.max(9,n.r*.52)}px DM Sans,sans-serif`;ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText(n.id,n.x*W,n.y*170);});}
+  function anim(){t+=.004;N.forEach((n,i)=>{n.x+=Math.sin(t+i)*.00013;n.y+=Math.cos(t+i*.9)*.00013;});draw();requestAnimationFrame(anim);}
+  anim();
+})();
+
+/* ─── GRAFO PRINCIPAL ────────────────────────────── */
+const GRAPH_DATA={
+  nodes:[
+    {id:'medo',label:'medo',cluster:'emocional',freq:14,sessions:[4,5,6,7],cx:0,cy:0,vx:0,vy:0,r:28},
+    {id:'ansiedade',label:'ansiedade',cluster:'emocional',freq:8,sessions:[5,6,7],cx:0,cy:0,vx:0,vy:0,r:22},
+    {id:'panico',label:'pânico',cluster:'emocional',freq:5,sessions:[4,7],cx:0,cy:0,vx:0,vy:0,r:16},
+    {id:'abandono',label:'abandono',cluster:'relacional',freq:4,sessions:[4,5,7],cx:0,cy:0,vx:0,vy:0,r:22},
+    {id:'mae',label:'mãe',cluster:'relacional',freq:9,sessions:[4,5,6],cx:0,cy:0,vx:0,vy:0,r:24},
+    {id:'chefe',label:'chefe',cluster:'relacional',freq:7,sessions:[6,7],cx:0,cy:0,vx:0,vy:0,r:20},
+    {id:'trabalho',label:'trabalho',cluster:'situacional',freq:11,sessions:[6,7],cx:0,cy:0,vx:0,vy:0,r:26},
+    {id:'familia',label:'família',cluster:'situacional',freq:4,sessions:[4,5,6,7],cx:0,cy:0,vx:0,vy:0,r:18},
+    {id:'controle',label:'controle',cluster:'cognitivo',freq:9,sessions:[5,6,7],cx:0,cy:0,vx:0,vy:0,r:24},
+    {id:'ruminar',label:'ruminar',cluster:'cognitivo',freq:5,sessions:[5,6,7],cx:0,cy:0,vx:0,vy:0,r:16},
+  ],
+  edges:[
+    {source:'medo',target:'abandono',weight:.92,label:'Aparecem juntos em 4 sessões.'},
+    {source:'medo',target:'mae',weight:.85,label:'"Mãe" surge em 87% das vezes que "medo" aparece.'},
+    {source:'medo',target:'trabalho',weight:.65,label:'Conexão crescente — surgiu na S7.'},
+    {source:'abandono',target:'mae',weight:.88,label:'Presentes juntos com consistência ao longo do processo.'},
+    {source:'abandono',target:'chefe',weight:.71,label:'Nova conexão observada na S7.'},
+    {source:'ansiedade',target:'trabalho',weight:.82,label:'"Ansiedade" presente em 91% dos trechos sobre trabalho.'},
+    {source:'mae',target:'familia',weight:.90,label:'Presença central na rede de temas familiares.'},
+    {source:'chefe',target:'trabalho',weight:.94,label:'Aparecem juntos em 94% dos registros.'},
+    {source:'controle',target:'ruminar',weight:.72,label:'Conexão observada ao longo do processo.'},
+  ]
+};
+
+const CLUSTER_COLORS={
+  emocional:'#6b4fcf', relacional:'#c4607a',
+  situacional:'#5a9e8a', cognitivo:'#b07d40'
+};
+let grafoCanvas,grafoCtx,grafoW,grafoH,nodes,activeCluster='all',selectedNode=null,filterSess='all',dragNode=null,animFrame=null;
+
+function initGrafo(){
+  grafoCanvas=document.getElementById('grafo-canvas');if(!grafoCanvas)return;
+  grafoCtx=grafoCanvas.getContext('2d');
+  const container=document.getElementById('graph-container');
+  grafoW=container.offsetWidth;grafoH=Math.max(460,window.innerHeight-260);
+  grafoCanvas.width=grafoW;grafoCanvas.height=grafoH;grafoCanvas.style.height=grafoH+'px';
+  nodes=JSON.parse(JSON.stringify(GRAPH_DATA.nodes));
+  const cx=grafoW/2,cy=grafoH/2;
+  nodes.forEach((n,i)=>{const angle=(i/nodes.length)*Math.PI*2,rad=130+Math.random()*70;n.cx=cx+Math.cos(angle)*rad;n.cy=cy+Math.sin(angle)*rad;n.vx=(Math.random()-.5)*.3;n.vy=(Math.random()-.5)*.3;});
+  grafoCanvas.onmousedown=onMD;grafoCanvas.onmousemove=onMM;grafoCanvas.onmouseup=()=>{dragNode=null;grafoCanvas.style.cursor='default';};
+  grafoCanvas.onclick=onCC;
+  if(animFrame)cancelAnimationFrame(animFrame);
+  animateGrafo();
+}
+
+function visibleNodes(){return nodes.filter(n=>(activeCluster==='all'||n.cluster===activeCluster)&&(filterSess==='all'||n.sessions.includes(parseInt(filterSess))));}
+function visibleEdges(vn){const ids=new Set(vn.map(n=>n.id));return GRAPH_DATA.edges.filter(e=>ids.has(e.source)&&ids.has(e.target));}
+
+function animateGrafo(){
+  const vn=visibleNodes(),ve=visibleEdges(vn);
+  vn.forEach(n=>{let fx=0,fy=0;
+    vn.forEach(m=>{if(m.id===n.id)return;const dx=n.cx-m.cx,dy=n.cy-m.cy,d=Math.sqrt(dx*dx+dy*dy)||1,repel=2800/(d*d);fx+=dx/d*repel;fy+=dy/d*repel;});
+    ve.filter(e=>e.source===n.id||e.target===n.id).forEach(e=>{const m=vn.find(x=>x.id===(e.source===n.id?e.target:e.source));if(!m)return;const dx=m.cx-n.cx,dy=m.cy-n.cy,d=Math.sqrt(dx*dx+dy*dy)||1,spring=(d-110)*0.004;fx+=dx/d*spring;fy+=dy/d*spring;});
+    fx+=(grafoW/2-n.cx)*.003;fy+=(grafoH/2-n.cy)*.003;
+    if(dragNode!==n){n.vx=(n.vx+fx)*.82;n.vy=(n.vy+fy)*.82;n.cx+=n.vx;n.cy+=n.vy;n.cx=Math.max(n.r+10,Math.min(grafoW-n.r-10,n.cx));n.cy=Math.max(n.r+10,Math.min(grafoH-n.r-10,n.cy));}
+  });
+  drawGrafo(vn,ve);
+  animFrame=requestAnimationFrame(animateGrafo);
+}
+
+function drawGrafo(vn,ve){
+  grafoCtx.clearRect(0,0,grafoW,grafoH);
+  // Fundo orgânico com gradiente radial
+  const bgGrad=grafoCtx.createRadialGradient(grafoW*.32,grafoH*.38,0,grafoW*.5,grafoH*.5,grafoW*.7);
+  bgGrad.addColorStop(0,'#1e1830');bgGrad.addColorStop(.5,'#141022');bgGrad.addColorStop(1,'#0e0c18');
+  grafoCtx.fillStyle=bgGrad;grafoCtx.fillRect(0,0,grafoW,grafoH);
+  ve.forEach(e=>{const na=vn.find(n=>n.id===e.source),nb=vn.find(n=>n.id===e.target);if(!na||!nb)return;
+    const sel=selectedNode&&(selectedNode.id===na.id||selectedNode.id===nb.id);
+    grafoCtx.beginPath();grafoCtx.moveTo(na.cx,na.cy);grafoCtx.lineTo(nb.cx,nb.cy);
+    grafoCtx.strokeStyle=sel?`rgba(255,255,255,.4)`:`rgba(255,255,255,${e.weight*.07})`;
+    grafoCtx.lineWidth=sel?e.weight*1.6:e.weight*1.1;grafoCtx.stroke();
+  });
+  vn.forEach(n=>{const col=CLUSTER_COLORS[n.cluster],isSel=selectedNode&&selectedNode.id===n.id;
+    // Bloom glow sutil no nó selecionado
+    if(isSel){
+      const glow=grafoCtx.createRadialGradient(n.cx,n.cy,0,n.cx,n.cy,n.r+18);
+      glow.addColorStop(0,col+'28');glow.addColorStop(1,'transparent');
+      grafoCtx.beginPath();grafoCtx.arc(n.cx,n.cy,n.r+18,0,Math.PI*2);grafoCtx.fillStyle=glow;grafoCtx.fill();
+    }
+    // Gradiente orgânico no nó
+    const g=grafoCtx.createRadialGradient(n.cx-n.r*.22,n.cy-n.r*.22,0,n.cx,n.cy,n.r);
+    g.addColorStop(0,col+'c0');g.addColorStop(1,col+'72');
+    grafoCtx.beginPath();grafoCtx.arc(n.cx,n.cy,n.r,0,Math.PI*2);grafoCtx.fillStyle=g;grafoCtx.fill();
+    if(isSel){grafoCtx.strokeStyle='rgba(255,255,255,.5)';grafoCtx.lineWidth=1.5;grafoCtx.stroke();}
+    grafoCtx.fillStyle='rgba(255,255,255,.88)';
+    grafoCtx.font=`${Math.max(9.5,n.r*.5)}px DM Sans,sans-serif`;
+    grafoCtx.textAlign='center';grafoCtx.textBaseline='middle';
+    grafoCtx.fillText(n.label,n.cx,n.cy);
+  });
+}
+
+function onMD(e){const rect=grafoCanvas.getBoundingClientRect(),mx=e.clientX-rect.left,my=e.clientY-rect.top;const vn=visibleNodes();dragNode=vn.find(n=>Math.hypot(n.cx-mx,n.cy-my)<n.r);if(dragNode)grafoCanvas.style.cursor='grabbing';}
+function onMM(e){if(!dragNode)return;const rect=grafoCanvas.getBoundingClientRect();dragNode.cx=e.clientX-rect.left;dragNode.cy=e.clientY-rect.top;dragNode.vx=0;dragNode.vy=0;}
+function onCC(e){if(dragNode){dragNode=null;return;}
+  const rect=grafoCanvas.getBoundingClientRect(),mx=e.clientX-rect.left,my=e.clientY-rect.top;
+  const vn=visibleNodes(),clicked=vn.find(n=>Math.hypot(n.cx-mx,n.cy-my)<n.r);
+  selectedNode=clicked||null;
+  if(clicked) showNodeDetail(clicked);
+  else{document.getElementById('node-detail').style.display='none';document.getElementById('node-placeholder').style.display='block';}
+}
+function showNodeDetail(n){
+  const col=CLUSTER_COLORS[n.cluster];
+  document.getElementById('node-placeholder').style.display='none';
+  document.getElementById('node-detail').style.display='block';
+  document.getElementById('node-dot').style.background=col;
+  document.getElementById('node-word').textContent=n.label;
+  document.getElementById('node-meta').textContent=`${n.cluster} · ×${n.freq} · sessões ${n.sessions.join(',')}`;
+  const edges=GRAPH_DATA.edges.filter(e=>e.source===n.id||e.target===n.id);
+  document.getElementById('node-edges').innerHTML=edges.map(e=>{
+    const other=nodes.find(x=>x.id===(e.source===n.id?e.target:e.source));
+    const oc=CLUSTER_COLORS[other?.cluster]||'#999';
+    return `<div style="display:flex;align-items:flex-start;gap:8px;padding:8px 10px;border-radius:9px;background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.06)"><div style="width:7px;height:7px;border-radius:50%;background:${oc};flex-shrink:0;margin-top:3px"></div><div style="flex:1"><div style="font-size:12.5px;font-weight:500;color:var(--ink-soft)">${other?.label||''}</div><div style="font-size:11px;color:var(--muted);line-height:1.5;margin-top:2px">${e.label}</div></div><span style="font-size:11px;font-weight:500;color:${col}">${Math.round(e.weight*100)}%</span></div>`;
+  }).join('');
+  document.getElementById('node-summary').textContent=`"${n.label}" esteve presente ×${n.freq} ao longo de ${n.sessions.length} sessões. ${edges.length>0?'Conecta-se principalmente com '+edges.slice(0,2).map(e=>`"${e.source===n.id?e.target:e.source}"`).join(' e ')+'.':''}`;
+}
+function setCluster(btn,c){document.querySelectorAll('.ftab').forEach(t=>t.classList.remove('active'));btn.classList.add('active');activeCluster=c;selectedNode=null;document.getElementById('node-detail').style.display='none';document.getElementById('node-placeholder').style.display='block';}
+function filterGrafo(v){filterSess=v;selectedNode=null;}
+function resetGrafo(){if(!grafoW)return;const cx=grafoW/2,cy=grafoH/2;nodes.forEach((n,i)=>{const a=(i/nodes.length)*Math.PI*2,r=130+Math.random()*70;n.cx=cx+Math.cos(a)*r;n.cy=cy+Math.sin(a)*r;n.vx=(Math.random()-.5)*.3;n.vy=(Math.random()-.5)*.3;});}
+function initGrafoSide(){}
+
+function renderTopCorr(){
+  const el=document.getElementById('top-correlacoes');if(!el)return;
+  const sorted=[...GRAPH_DATA.edges].sort((a,b)=>b.weight-a.weight).slice(0,5);
+  el.innerHTML=sorted.map(e=>`<div style="display:flex;align-items:center;gap:8px"><div style="flex:1"><span style="font-size:12.5px;font-weight:500;color:var(--ink-soft)">${e.source}</span><span style="font-size:12px;color:var(--muted)"> e ${e.target}</span></div><div style="width:60px"><div style="height:3px;background:var(--surface);border-radius:3px;overflow:hidden"><div style="width:${e.weight*100}%;height:100%;background:var(--accent)"></div></div></div><span style="font-size:11px;font-weight:500;color:var(--accent);width:28px;text-align:right">${Math.round(e.weight*100)}%</span></div>`).join('');
+}
+
+/* ─── AI CHAT ────────────────────────────────────── */
+const PATIENT_CTX=`Você apoia a continuidade clínica de psicólogos, organizando observações de sessões de psicoterapia.
+
+HISTÓRICO — Fernanda K., 7 sessões, março–maio 2025:
+- "trabalho" e "medo" presentes juntos em 6 das 7 sessões, com frequência crescente
+- "família" surge brevemente em 3 sessões recentes, sem aprofundamento no mesmo encontro
+- "controle" com frequência decrescente: de 15× (S1–S3) para 9× (S5–S7) — redução de 40%
+- Tom aberto cresceu de 15% (S1) para 65% (S7)
+- Sessão 7 em andamento: episódio no trabalho, reação ao gestor, tema familiar surgiu
+
+ORIENTAÇÃO: organize observações de continuidade. Use linguagem descritiva e de registro — nunca diagnóstica. Sem interpretações clínicas profundas. A decisão pertence ao psicólogo. Máx. 150 palavras. Português brasileiro.`;
+
+let chatHistory=[];
+async function sendMsg(){const inp=document.getElementById('ai-input');const text=inp.value.trim();if(!text)return;inp.value='';appendMsg('user',text);chatHistory.push({role:'user',content:text});await callAI('ai-msgs',chatHistory);}
+function sendQuick(btn){const text=btn.textContent;appendMsg('user',text,'ai-msgs');chatHistory.push({role:'user',content:text});callAI('ai-msgs',chatHistory);}
+
+const GRAFO_CTX=`Você apoia psicólogos a entender conexões entre temas observados nas sessões.
+
+DADOS — Fernanda K., 7 sessões:
+Clusters: Emocional (medo×14, ansiedade×8, pânico×5), Relacional (abandono×4, mãe×9, chefe×7), Situacional (trabalho×11, família×4), Cognitivo (controle×9, ruminar×5).
+Conexões: medo↔abandono (92%), medo↔mãe (85%), chefe↔trabalho (94%), medo↔trabalho (65%).
+
+Use linguagem de registro e observação. Nunca diagnóstica. Máx. 150 palavras. Português.`;
+
+let grafoHistory=[];
+async function sendGrafoMsg(){const inp=document.getElementById('grafo-input');const text=inp.value.trim();if(!text)return;inp.value='';appendMsg('user',text,'grafo-msgs');grafoHistory.push({role:'user',content:text});await callAI('grafo-msgs',grafoHistory,GRAFO_CTX);}
+function sendGrafoQuick(btn){const text=btn.textContent;appendMsg('user',text,'grafo-msgs');grafoHistory.push({role:'user',content:text});callAI('grafo-msgs',grafoHistory,GRAFO_CTX);}
+
+function appendMsg(role,text,container='ai-msgs'){
+  const msgs=document.getElementById(container);if(!msgs)return;
+  const div=document.createElement('div');div.className=role==='user'?'ai-msg-user':'ai-msg-ai';div.textContent=text;msgs.appendChild(div);msgs.scrollTop=msgs.scrollHeight;return div;
+}
+function appendTyping(container){const msgs=document.getElementById(container);const div=document.createElement('div');div.className='ai-typing';div.id=container+'-typing';div.textContent='…';msgs.appendChild(div);msgs.scrollTop=msgs.scrollHeight;return div;}
+async function callAI(container,history,systemOverride){
+  const typing=appendTyping(container);
+  try{
+    const res=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({model:'claude-sonnet-4-20250514',max_tokens:1000,system:systemOverride||PATIENT_CTX,messages:history.slice(-8)})});
+    const data=await res.json();const txt=data?.content?.[0]?.text||'Não foi possível obter resposta.';
+    typing.remove();const div=appendMsg('assistant','',container);div.textContent=txt;
+    history.push({role:'assistant',content:txt});
+  }catch(e){typing.textContent='Erro ao conectar.';typing.id='';}
+}
+
+/* ─── CALENDAR ───────────────────────────────────── */
+function setCalView(v){
+  ['dia','semana','mes'].forEach(id=>{
+    const el=document.getElementById('cal-'+id);
+    const tab=document.getElementById('cal-tab-'+id);
+    if(el) el.style.display=(id===v)?'block':'none';
+    if(tab){
+      tab.style.background=id===v?'var(--accent)':'transparent';
+      tab.style.color=id===v?'#fff':'var(--muted)';
+    }
+  });
+  const sub=document.querySelector('#page-agenda p');
+  if(sub){
+    const t={
+      dia:'Quinta-feira, 22 de maio · 4 sessões · 84% do dia',
+      semana:'Semana de 20 a 24 de maio · 84% de ocupação · 2 horários disponíveis',
+      mes:'Maio 2025 · 38 sessões realizadas · 12 pacientes ativos'
+    };
+    sub.textContent=t[v]||t.semana;
+  }
+}
+
+/* ─── NOVO PACIENTE ──────────────────────────────── */
+function openNovoPt(){
+  document.getElementById('npt-nome').value='';document.getElementById('npt-tel').value='';document.getElementById('npt-email').value='';
+  document.getElementById('npt-preview-nome').textContent='nome do paciente';
+  document.getElementById('novo-pt-ov').classList.add('open');
+  setTimeout(()=>document.getElementById('npt-nome').focus(),100);
+}
+function closeNovoPt(e){if(!e||e.target===document.getElementById('novo-pt-ov'))document.getElementById('novo-pt-ov').classList.remove('open');}
+function salvarNovoPt(){const nome=document.getElementById('npt-nome').value.trim();const tel=document.getElementById('npt-tel').value.trim();if(!nome||!tel){showToast('Nome e WhatsApp são obrigatórios');return;}document.getElementById('novo-pt-ov').classList.remove('open');showToast('✓ '+nome+' — boas-vindas enviadas 💬');}
+function salvarNovoPtSemWa(){const nome=document.getElementById('npt-nome').value.trim();if(!nome){showToast('Nome é obrigatório');return;}document.getElementById('novo-pt-ov').classList.remove('open');showToast('✓ '+nome+' cadastrado');}
+function formatTel(el){let v=el.value.replace(/\D/g,'').slice(0,11);if(v.length>6)v=`(${v.slice(0,2)}) ${v.slice(2,7)}-${v.slice(7)}`;else if(v.length>2)v=`(${v.slice(0,2)}) ${v.slice(2)}`;el.value=v;}
+document.addEventListener('input',e=>{if(e.target.id==='npt-nome'){const prev=document.getElementById('npt-preview-nome');if(prev)prev.textContent=e.target.value.trim().split(' ')[0]||'nome do paciente';}});
+
+/* ─── PATIENT FILTER ─────────────────────────────── */
+function setPtFilter(btn,filter){document.querySelectorAll('.ftab').forEach(t=>t.classList.remove('active'));btn.classList.add('active');document.querySelectorAll('#pt-cards-grid .ptc').forEach(c=>{const f=c.dataset.filter||'normal';c.style.display=(filter==='todos'||f.includes(filter))?'':'none';});}
+function filterPtList(val){const v=val.toLowerCase();document.querySelectorAll('#pt-cards-grid .ptc').forEach(c=>{const nameEl=c.querySelector('[style*="font-size:13.5px"]');c.style.display=!v||(nameEl&&nameEl.textContent.toLowerCase().includes(v))?'':'none';});}
+</script>
+</body>
+</html>

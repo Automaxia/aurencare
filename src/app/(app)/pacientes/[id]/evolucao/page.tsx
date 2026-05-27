@@ -1,6 +1,7 @@
 import Link from 'next/link'
 import { redirect, notFound } from 'next/navigation'
 import { PageHeader } from '@/components/PageHeader'
+import { PatientSelector } from '@/components/PatientSelector'
 import { requirePsicologo } from '@/server/lib/auth'
 import { db } from '@/server/db/pool'
 import { tryDecrypt } from '@/server/lib/crypto'
@@ -28,7 +29,12 @@ export default async function EvolucaoPage({ params }: { params: { id: string } 
 
   return (
     <div>
-      <PageHeader title="Evolução Registrada" subtitle={`Continuidade clínica · ${paciente.nome}`} withCfp />
+      <PageHeader title="Evolução Registrada" subtitle="Continuidade clínica" withCfp />
+      <PatientSelector
+        current={{ id: paciente.id, nome: paciente.nome, meta: `${sessoes.length} ${sessoes.length === 1 ? 'sessão assinada' : 'sessões assinadas'}` }}
+        basePath="/pacientes"
+        segment="evolucao"
+      />
 
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 360px', gap: 16 }}>
         <div>

@@ -1,5 +1,6 @@
 import { redirect, notFound } from 'next/navigation'
 import { PageHeader } from '@/components/PageHeader'
+import { PatientSelector } from '@/components/PatientSelector'
 import { requirePsicologo } from '@/server/lib/auth'
 import { db } from '@/server/db/pool'
 import { listarObjetivos } from '@/server/services/objetivos'
@@ -19,7 +20,12 @@ export default async function ObjetivosPage({ params }: { params: { id: string }
   const objetivos = await listarObjetivos(params.id)
   return (
     <div>
-      <PageHeader title="Objetivos e Progresso" subtitle={paciente.nome} withCfp />
+      <PageHeader title="Objetivos e Progresso" subtitle="Continuidade terapêutica" withCfp />
+      <PatientSelector
+        current={{ id: paciente.id, nome: paciente.nome, meta: `${objetivos.length} ${objetivos.length === 1 ? 'objetivo' : 'objetivos'}` }}
+        basePath="/pacientes"
+        segment="objetivos"
+      />
       <ObjetivosView pacienteId={params.id} initial={objetivos} />
     </div>
   )

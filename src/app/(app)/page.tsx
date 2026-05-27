@@ -1,5 +1,6 @@
 import Link from 'next/link'
 import { PageHeader } from '@/components/PageHeader'
+import { SpiralWatermark } from '@/components/brand/SpiralWatermark'
 import { requirePsicologo } from '@/server/lib/auth'
 import {
   proximaSessao, listarSessoesEntre, sessoesPendentesAssinatura,
@@ -39,7 +40,8 @@ export default async function InicioPage() {
   const atencao = pacientes.filter(p => p.badge?.label === 'Atenção').length
 
   return (
-    <div>
+    <div style={{ position: 'relative' }}>
+      <SpiralWatermark />
       <PageHeader title={greeting(user.name)} subtitle={formatDateBR(new Date().toISOString())} />
 
       {/* ── Nível 1 — Foco imediato ─────────────────────────── */}

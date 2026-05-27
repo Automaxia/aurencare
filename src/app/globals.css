@@ -3,31 +3,61 @@
 @tailwind utilities;
 
 /* ────────────────────────────────────────────────────────────────────────
-   DESIGN SYSTEM TOKENS  ·  CLAUDE.md §4
+   DESIGN SYSTEM TOKENS  ·  alinhado ao protótipo v12.5
    ──────────────────────────────────────────────────────────────────────── */
 :root {
+  /* ── superfícies ── */
+  --page:      #f9f8f5;
+  --surface:   #f1efe9;
+  --card:      #ffffff;
+  --card-warm: #fefcf8;
+  --sb-bg:     #f0eef9;
+
+  /* ── tinta ── */
+  --ink:       #1a1825;
+  --ink-soft:  #3d3852;
+  --muted:     #7a7590;
+  --faint:     #a8a4be;
+
+  /* ── acentos ── */
   --accent:    #6a4ec8;
   --sage:      #5a9e8a;
   --rose:      #c4607a;
   --amber:     #b07d40;
 
-  --page:      #f9f8f5;
-  --surface:   #f1efe9;
-  --card:      #ffffff;
+  /* ── escalas de opacidade (lo/md/hi) ── */
+  --accent-lo: rgba(106, 78,200,.065);
+  --accent-md: rgba(106, 78,200,.11);
+  --accent-hi: rgba(107, 79,207,.22);
+  --sage-lo:   rgba( 90,158,138,.07);
+  --rose-lo:   rgba(196, 96,122,.07);
+  --amber-lo:  rgba(176,125, 64,.08);
 
-  --ink:       #1a1825;
-  --ink-soft:  #38324e;
-  --muted:     #7a7590;
-  --faint:     #b0acc4;
-
-  --sb-bg:     #f0eef9;
+  /* ── bordas ── */
   --border:    rgba(26,24,37,.055);
+  --border-md: rgba(26,24,37,.09);
 
-  /* lo-opacity variants para highlights de turno */
-  --accent-lo: rgba(106, 78, 200, .10);
-  --sage-lo:   rgba( 90,158,138, .10);
-  --rose-lo:   rgba(196, 96,122, .10);
-  --amber-lo:  rgba(176,125, 64, .10);
+  /* ── sombras ── */
+  --sh:    0 1px 3px rgba(26,24,37,.04), 0 4px 16px rgba(26,24,37,.04);
+  --sh-m:  0 2px 8px rgba(26,24,37,.06), 0 8px 28px rgba(26,24,37,.07);
+  --sh-lg: 0 4px 20px rgba(26,24,37,.08), 0 20px 60px rgba(26,24,37,.08);
+
+  /* ── raios ── */
+  --r:    16px;
+  --rsm:  10px;
+  --rlg:  22px;
+
+  /* ── sidebar ── */
+  --sw: 228px;   /* expanded width */
+  --sc: 52px;    /* collapsed width */
+
+  /* ── easings ── */
+  --ease:     cubic-bezier(.4,0,.2,1);
+  --ease-out: cubic-bezier(0,.8,.4,1);
+
+  /* ── fontes (aliases) ── */
+  --f-display: var(--font-display), Georgia, serif;
+  --f-body:    var(--font-sans), system-ui, sans-serif;
 }
 
 /* ────────────────────────────────────────────────────────────────────────
@@ -62,11 +92,11 @@ input, textarea, select { font-family: inherit; font-size: inherit; }
    ──────────────────────────────────────────────────────────────────────── */
 .app-shell {
   display: grid;
-  grid-template-columns: 228px 1fr;
+  grid-template-columns: var(--sw) 1fr;
   min-height: 100vh;
-  transition: grid-template-columns .22s ease;
+  transition: grid-template-columns .22s var(--ease);
 }
-.app-shell[data-collapsed="true"] { grid-template-columns: 52px 1fr; }
+.app-shell[data-collapsed="true"] { grid-template-columns: var(--sc) 1fr; }
 .app-main { display: flex; flex-direction: column; min-width: 0; }
 .app-content { padding: 28px 32px 64px; max-width: 1240px; width: 100%; margin: 0 auto; }
 
@@ -138,30 +168,85 @@ input, textarea, select { font-family: inherit; font-size: inherit; }
    CARDS, BUTTONS, PILLS
    ──────────────────────────────────────────────────────────────────────── */
 .card {
-  background: var(--card); border: 1px solid var(--border); border-radius: 12px;
-  padding: 18px;
+  background: var(--card); border: 1px solid var(--border);
+  border-radius: var(--r); padding: 18px; box-shadow: var(--sh);
 }
+.card-warm {
+  background: var(--card-warm); border: 1px solid var(--border);
+  border-radius: var(--r); padding: 18px; box-shadow: var(--sh);
+}
+.card-h {
+  display: flex; align-items: center; justify-content: space-between;
+  padding-bottom: 12px; margin-bottom: 12px;
+  border-bottom: 1px solid var(--border);
+}
+.card-title {
+  font-size: 11px; letter-spacing: .06em; text-transform: uppercase;
+  color: var(--muted); font-weight: 500;
+}
+.card-act {
+  background: transparent; border: 0; color: var(--accent);
+  font-size: 12px; font-weight: 500; cursor: pointer;
+}
+.card-act:hover { color: #5a40b0; }
+.sec-lbl {
+  font-size: 11px; letter-spacing: .06em; text-transform: uppercase;
+  color: var(--muted); font-weight: 500;
+}
+.sec-lbl-sm {
+  font-size: 10px; letter-spacing: .08em; text-transform: uppercase;
+  color: var(--faint); font-weight: 500;
+}
+
 .btn {
   display: inline-flex; align-items: center; gap: 6px;
-  padding: 8px 14px; border-radius: 8px; border: 1px solid var(--border);
+  padding: 8px 14px; border-radius: var(--rsm); border: 1px solid var(--border);
   background: var(--card); color: var(--ink-soft);
-  font-weight: 500; font-size: 13px; transition: background .12s, transform .12s;
+  font-weight: 500; font-size: 13px;
+  transition: background .12s var(--ease), transform .12s var(--ease);
 }
 .btn:hover { background: var(--surface); }
 .btn.primary { background: var(--accent); color: white; border-color: transparent; }
 .btn.primary:hover { background: #5a40b0; }
 .btn.ghost { background: transparent; border-color: transparent; color: var(--muted); }
 .btn.ghost:hover { color: var(--ink); background: rgba(0,0,0,.03); }
+.btn.sm { padding: 4px 10px; font-size: 12px; }
 
+/* ── Sistema de TAGS (alinhado ao mockup v12.5) ──
+   .tag.t-info  = roxo (em andamento, neutro destacado)
+   .tag.t-ok    = sage (confirmado, sucesso)
+   .tag.t-warn  = amber (aguardando, atenção)
+   .tag.t-alert = rose (problema, urgência)
+   .tag.t-mute  = cinza (informativo) */
+.tag {
+  display: inline-flex; align-items: center; gap: 4px;
+  padding: 2px 8px; border-radius: 999px;
+  font-size: 11px; font-weight: 500; line-height: 1.4;
+}
+.tag.t-info  { background: var(--accent-md); color: #4a3299; }
+.tag.t-ok    { background: rgba( 90,158,138,.13); color: #3a6e60; }
+.tag.t-warn  { background: rgba(176,125, 64,.13); color: #7a5520; }
+.tag.t-alert { background: rgba(196, 96,122,.13); color: #823045; }
+.tag.t-mute  { background: rgba(122,117,144,.10); color: var(--muted); }
+
+/* Aliases — .badge mantém compatibilidade com código antigo */
 .badge {
   display: inline-flex; align-items: center; gap: 4px;
   padding: 2px 8px; border-radius: 999px; font-size: 11px; font-weight: 500;
 }
 .badge.rose  { background: rgba(196,96,122,.13); color: #823045; }
-.badge.amber { background: rgba(176,125,64,.13); color: #7a5520; }
-.badge.sage  { background: rgba(90,158,138,.13); color: #3a6e60; }
-.badge.info  { background: rgba(106,78,200,.10); color: #4a3299; }
+.badge.amber { background: rgba(176,125, 64,.13); color: #7a5520; }
+.badge.sage  { background: rgba( 90,158,138,.13); color: #3a6e60; }
+.badge.info  { background: var(--accent-md); color: #4a3299; }
 .badge.muted { background: rgba(122,117,144,.10); color: var(--muted); }
+
+/* ── PIP — bolinha colorida + texto (usado no header do dashboard) ── */
+.pip {
+  display: inline-flex; align-items: center; gap: 6px;
+  font-size: 12px; color: var(--ink-soft); font-weight: 400;
+  margin-right: 16px;
+}
+.pip-d { display: inline-block; width: 6px; height: 6px; border-radius: 50%; }
 
 /* ────────────────────────────────────────────────────────────────────────
    CFP BADGE  ·  §9
@@ -200,10 +285,34 @@ input, textarea, select { font-family: inherit; font-size: inherit; }
 }
 .sess-right > .wide { grid-column: 1 / -1; }
 
+/* ── Pt-selector (recorrente em grafo/evolução/objetivos) ── */
+.pt-selector {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 12px 16px; background: var(--card-warm);
+  border: 1px solid var(--border); border-radius: var(--r);
+  box-shadow: var(--sh); margin-bottom: 16px;
+}
+.pts-cur { display: flex; align-items: center; gap: 12px; cursor: pointer; }
+.pts-av {
+  width: 38px; height: 38px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 13px; font-weight: 500; color: white;
+  background: linear-gradient(135deg, #6b4fcf, #a080f8);
+  flex-shrink: 0;
+}
+.pts-name { font-family: var(--f-display); font-weight: 400; font-size: 17px; color: var(--ink); line-height: 1.1; }
+.pts-meta { font-size: 11px; color: var(--muted); margin-top: 2px; }
+.pts-chg {
+  font-size: 12px; color: var(--accent); cursor: pointer;
+  padding: 6px 10px; border-radius: var(--rsm);
+}
+.pts-chg:hover { background: var(--accent-lo); }
+
 /* Widgets */
 .widget {
-  background: var(--card); border: 1px solid var(--border); border-radius: 10px;
-  padding: 14px; position: relative;
+  background: var(--card); border: 1px solid var(--border);
+  border-radius: var(--r); padding: 14px; position: relative;
+  box-shadow: var(--sh);
 }
 .widget-title {
   font-size: 11px; letter-spacing: .06em; text-transform: uppercase;
