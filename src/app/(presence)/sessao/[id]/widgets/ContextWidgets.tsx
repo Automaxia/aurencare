@@ -3,7 +3,14 @@
 import { useEffect, useState } from 'react'
 
 type UltimaSessao = { id: string; numero: number; dataHora: string; bullets: string[] }
-type Condicoes = { cid?: string[]; medicacoes?: { nome: string; dose?: string }[]; alertas?: string[]; observacoes?: string }
+type Condicoes = {
+  cid?: string[]
+  diagnosticos?: { nome: string; cid?: string }[]
+  condicoes_clinicas?: string[]
+  medicacoes?: { nome: string; dose?: string }[]
+  alertas?: string[]
+  observacoes?: string
+}
 type Ctx = { ultima: UltimaSessao | null; condicoes: Condicoes | null; topicos: string[] }
 
 export function useContexto(sessaoId: string) {
@@ -22,24 +29,15 @@ export function useContexto(sessaoId: string) {
 
 export function UltimaSessaoWidget({ ctx, loading }: { ctx: Ctx | null; loading: boolean }) {
   return (
-    <div className="widget wide" data-widget-id="ultima">
-      <div className="widget-grip" aria-hidden="true">⠿</div>
-      <div className="widget-title">Última sessão</div>
+    <div className="sp" data-widget-id="ultima">
+      <div className="widget-grip" title="Arraste para reorganizar">⠿</div>
+      <div className="sp-t">Última sessão</div>
       {loading ? <Skeleton lines={3} /> : !ctx?.ultima ? (
-        <Empty>Primeira sessão do paciente.</Empty>
+        <div className="sp-li" style={{ color: 'var(--faint)' }}>primeira sessão deste paciente</div>
+      ) : ctx.ultima.bullets.length === 0 ? (
+        <div className="sp-li" style={{ color: 'var(--faint)' }}>sessão sem bullets extraíveis</div>
       ) : (
-        <>
-          <div style={{ fontSize: 11, color: 'var(--muted)', marginBottom: 6 }}>
-            Sessão #{ctx.ultima.numero} · {new Date(ctx.ultima.dataHora).toLocaleDateString('pt-BR')}
-          </div>
-          {ctx.ultima.bullets.length === 0 ? (
-            <Empty>Sessão sem bullets extraíveis.</Empty>
-          ) : (
-            <ul style={{ margin: 0, paddingLeft: 18, fontSize: 12, color: 'var(--ink-soft)', lineHeight: 1.5 }}>
-              {ctx.ultima.bullets.map((b, i) => <li key={i} style={{ marginBottom: 4 }}>{b}</li>)}
-            </ul>
-          )}
-        </>
+        ctx.ultima.bullets.map((b, i) => <div key={i} className="sp-li">{b}</div>)
       )}
     </div>
   )
@@ -47,15 +45,13 @@ export function UltimaSessaoWidget({ ctx, loading }: { ctx: Ctx | null; loading:
 
 export function TopicosWidget({ ctx, loading }: { ctx: Ctx | null; loading: boolean }) {
   return (
-    <div className="widget" data-widget-id="topicos">
-      <div className="widget-grip" aria-hidden="true">⠿</div>
-      <div className="widget-title">Tópicos em aberto</div>
-      {loading ? <Skeleton lines={3} /> : !ctx?.topicos?.length ? (
-        <Empty>Sem tópicos extraídos.</Empty>
+    <div className="sp" data-widget-id="topicos">
+      <div className="widget-grip" title="Arraste para reorganizar">⠿</div>
+      <div className="sp-t">Tópicos em aberto</div>
+      {loading ? <Skeleton lines={2} /> : !ctx?.topicos?.length ? (
+        <div className="sp-li" style={{ color: 'var(--faint)' }}>sem tópicos extraídos</div>
       ) : (
-        <ul style={{ margin: 0, paddingLeft: 18, fontSize: 12, color: 'var(--ink-soft)', lineHeight: 1.5 }}>
-          {ctx.topicos.map((t, i) => <li key={i} style={{ marginBottom: 4 }}>{t}</li>)}
-        </ul>
+        ctx.topicos.map((t, i) => <div key={i} className="sp-li">{t}</div>)
       )}
     </div>
   )
@@ -63,44 +59,71 @@ export function TopicosWidget({ ctx, loading }: { ctx: Ctx | null; loading: bool
 
 export function InfoPacienteWidget({ ctx, loading, pacienteId }: { ctx: Ctx | null; loading: boolean; pacienteId: string }) {
   const c = ctx?.condicoes
+  const condicoes = c?.condicoes_clinicas ?? []
+  const diagnosticos = c?.diagnosticos ?? (c?.cid ?? []).map(code => ({ nome: code, cid: undefined as string | undefined }))
+  const meds = c?.medicacoes ?? []
+  const alertas = c?.alertas ?? []
+
   return (
-    <div className="widget" data-widget-id="info">
-      <div className="widget-grip" aria-hidden="true">⠿</div>
-      <div className="widget-title">
-        Informações do paciente
-        <a href={`/pacientes/${pacienteId}`} style={{ float: 'right', fontSize: 10, color: 'var(--muted)' }}>editar</a>
+    <div className="sp wide" data-widget-id="info">
+      <div className="widget-grip" title="Arraste para reorganizar">⠿</div>
+      <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: 11 }}>
+        <div className="sp-t" style={{ margin: 0 }}>Informações do paciente</div>
+        <a href={`/pacientes/${pacienteId}`} style={{ fontSize: 9, color: 'var(--faint)', letterSpacing: '.6px', textTransform: 'uppercase' }}>prontuário ↗</a>
       </div>
-      {loading ? <Skeleton lines={3} /> : !c ? (
-        <Empty>Sem condições registradas. <a href={`/pacientes/${pacienteId}`} style={{ color: 'var(--accent)' }}>preencher</a></Empty>
+
+      {loading ? <Skeleton lines={4} /> : !c || (condicoes.length === 0 && diagnosticos.length === 0 && meds.length === 0 && alertas.length === 0) ? (
+        <div className="sp-li" style={{ color: 'var(--faint)' }}>
+          sem condições registradas · <a href={`/pacientes/${pacienteId}`} style={{ color: 'var(--accent)' }}>preencher</a>
+        </div>
       ) : (
-        <div style={{ fontSize: 12, color: 'var(--ink-soft)', lineHeight: 1.5 }}>
-          {c.cid && c.cid.length > 0 && <KV k="CID" v={c.cid.join(', ')} />}
-          {c.medicacoes && c.medicacoes.length > 0 && (
-            <KV k="Medicação" v={c.medicacoes.map(m => `${m.nome}${m.dose ? ' ' + m.dose : ''}`).join(', ')} />
-          )}
-          {c.alertas && c.alertas.length > 0 && (
-            <div style={{ marginTop: 6, padding: '6px 10px', background: 'var(--rose-lo)', borderRadius: 6, fontSize: 11, color: 'var(--rose)' }}>
-              ⚠ {c.alertas.join(' · ')}
-            </div>
-          )}
-          {c.observacoes && <p style={{ marginTop: 8, fontSize: 11, color: 'var(--muted)' }}>{c.observacoes}</p>}
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
+          <div>
+            {condicoes.length > 0 && (
+              <div className="info-block">
+                <div className="sp-t" style={{ marginBottom: 6 }}>Condições</div>
+                <div className="info-pills">
+                  {condicoes.map((c, i) => <span key={i} className="info-pill">{c}</span>)}
+                </div>
+              </div>
+            )}
+            {diagnosticos.length > 0 && (
+              <div className="info-block">
+                <div className="sp-t" style={{ marginBottom: 6 }}>Diagnósticos clínicos</div>
+                <ul className="info-list">
+                  {diagnosticos.map((d, i) => (
+                    <li key={i}><span>{d.nome}</span>{d.cid && <span className="sub">{d.cid}</span>}</li>
+                  ))}
+                </ul>
+              </div>
+            )}
+          </div>
+          <div>
+            {meds.length > 0 && (
+              <div className="info-block">
+                <div className="sp-t" style={{ marginBottom: 6 }}>Medicações em uso</div>
+                <ul className="info-list">
+                  {meds.map((m, i) => (
+                    <li key={i}><span>{m.nome}</span>{m.dose && <span className="sub">{m.dose}</span>}</li>
+                  ))}
+                </ul>
+              </div>
+            )}
+            {alertas.length > 0 && (
+              <div className="info-block">
+                <div className="sp-t" style={{ marginBottom: 6 }}>Alertas</div>
+                <div className="info-pills">
+                  {alertas.map((a, i) => <span key={i} className="info-pill alert">{a}</span>)}
+                </div>
+              </div>
+            )}
+          </div>
         </div>
       )}
     </div>
   )
 }
 
-function KV({ k, v }: { k: string; v: string }) {
-  return (
-    <div style={{ display: 'flex', gap: 6, padding: '2px 0' }}>
-      <span style={{ color: 'var(--muted)', minWidth: 64 }}>{k}</span>
-      <span>{v}</span>
-    </div>
-  )
-}
-function Empty({ children }: { children: React.ReactNode }) {
-  return <div style={{ fontSize: 12, color: 'var(--muted)' }}>{children}</div>
-}
 function Skeleton({ lines = 2 }: { lines?: number }) {
   return (
     <div>

@@ -1,6 +1,7 @@
 'use client'
 
 export type TurnMark = 'insight' | 'comportamento' | 'avanco'
+export type TurnTone = 'calm' | 'tense' | 'open' | 'closed' | 'anxious' | 'acolhedor' | null
 
 export type Turno = {
   id: string
@@ -8,6 +9,7 @@ export type Turno = {
   texto: string
   ts: string
   mark: TurnMark | null
+  tone?: TurnTone
 }
 
 type Props = {
@@ -17,72 +19,73 @@ type Props = {
   setArmed: (m: TurnMark | null) => void
   onMark: (turnoId: string) => void
   onToggleWho?: (turnoId: string) => void
+  recording: boolean
 }
 
 const MARK_LABEL: Record<TurnMark, string> = {
-  insight: 'Insight relevante',
-  comportamento: 'Comportamento problema',
-  avanco: 'Avanço terapêutico',
-}
-const MARK_COLOR: Record<TurnMark, 'accent' | 'rose' | 'sage'> = {
-  insight: 'accent',
-  comportamento: 'rose',
-  avanco: 'sage',
+  insight: 'insight',
+  comportamento: 'comportamento',
+  avanco: 'avanço',
 }
 
-export function TranscriptionCard({ turnos, interim, armed, setArmed, onMark, onToggleWho }: Props) {
+const TONE_LABEL: Record<NonNullable<TurnTone>, string> = {
+  calm: 'calmo', tense: 'tenso', open: 'aberto',
+  closed: 'fechado', anxious: 'ansioso', acolhedor: 'acolhedor',
+}
+
+export function TranscriptionCard({ turnos, interim, armed: _armed, setArmed: _setArmed, onMark, onToggleWho, recording }: Props) {
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
-      <div style={{ display: 'flex', gap: 4, marginBottom: 8 }}>
-        {(Object.keys(MARK_LABEL) as TurnMark[]).map(m => (
-          <button
-            key={m}
-            className={`seg-btn${armed === m ? ' armed' : ''}`}
-            data-color={MARK_COLOR[m]}
-            onClick={() => setArmed(armed === m ? null : m)}
-            type="button"
-          >
-            {MARK_LABEL[m]}
-          </button>
-        ))}
+    <div className="trans-card">
+      <div className="trans-head">
+        <div style={{ display: 'flex', alignItems: 'center', gap: 9 }}>
+          <span style={{ cursor: 'grab', fontSize: 12, color: 'var(--faint)', userSelect: 'none' }}>⠿</span>
+          <span style={{ fontSize: 13, fontWeight: 500, color: 'var(--ink-soft)' }}>Registro assistido</span>
+        </div>
+        {recording && (
+          <div className="live-pill">
+            <div className="live-d" />
+            Presente
+          </div>
+        )}
       </div>
 
-      <div className="talk-card" style={{ flex: 1 }}>
+      <div className="trans-body">
         {turnos.length === 0 && !interim ? (
-          <p style={{ color: 'var(--muted)', fontSize: 12 }}>
-            Aguardando o registro começar… (clique em &quot;Iniciar registro&quot; na barra superior)
+          <p style={{ color: 'var(--muted)', fontSize: 13 }}>
+            {recording
+              ? 'Escutando… as falas aparecerão aqui conforme você e o paciente conversarem.'
+              : 'Aguardando o registro começar… clique em "Iniciar registro" na barra superior.'}
           </p>
         ) : (
           <>
             {turnos.map(t => (
               <div
                 key={t.id}
-                className="turn"
+                className={`turn armable${t.who === 'psicologo' ? ' psic' : ''}`}
                 data-mark={t.mark ?? undefined}
                 onClick={() => onMark(t.id)}
-                title={armed ? `Marcar como ${MARK_LABEL[armed]}` : 'Selecione um tipo de marcação acima'}
               >
-                <button
-                  type="button"
-                  className="who"
-                  data-who={t.who}
-                  onClick={(ev) => { ev.stopPropagation(); onToggleWho?.(t.id) }}
-                  title="Alternar falante"
-                  style={{ background: 'transparent', border: 'none', padding: 0, cursor: 'pointer', font: 'inherit', color: 'inherit' }}
-                >
-                  {t.who === 'psicologo' ? 'P' : 'C'}:
-                </button>{' '}
-                {t.texto}
-                {t.mark && (
-                  <span className="turn-chip" style={{ background: `var(--${MARK_COLOR[t.mark]}-lo)`, color: `var(--${MARK_COLOR[t.mark]})` }}>
-                    {MARK_LABEL[t.mark]}
-                  </span>
-                )}
+                {t.mark && <div className="mark-chip">{MARK_LABEL[t.mark]}</div>}
+                <div className="turn-top">
+                  <button
+                    type="button" className="t-sp"
+                    onClick={(ev) => { ev.stopPropagation(); onToggleWho?.(t.id) }}
+                    title="Alternar falante"
+                  >
+                    {t.who === 'psicologo' ? 'Psicóloga' : 'Paciente'}
+                  </button>
+                  <span className="t-time">{formatTime(t.ts)}</span>
+                  {t.tone && <span className={`t-tone tn-${t.tone}`}>{TONE_LABEL[t.tone] ?? t.tone}</span>}
+                </div>
+                <div className="turn-txt">{t.texto}</div>
               </div>
             ))}
             {interim && (
-              <div className="turn" style={{ opacity: .55, fontStyle: 'italic' }}>
-                <span className="who">…</span>{' '}{interim}
+              <div className="turn" style={{ opacity: .45 }}>
+                <div className="turn-top">
+                  <span className="t-sp" style={{ color: 'var(--faint)' }}>…</span>
+                </div>
+                <div className="turn-txt" style={{ fontStyle: 'italic' }}>{interim}</div>
               </div>
             )}
           </>
@@ -90,4 +93,8 @@ export function TranscriptionCard({ turnos, interim, armed, setArmed, onMark, on
       </div>
     </div>
   )
+}
+
+function formatTime(iso: string): string {
+  return new Date(iso).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
 }
