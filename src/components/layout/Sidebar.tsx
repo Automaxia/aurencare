@@ -18,7 +18,7 @@ export function Sidebar() {
   return (
     <aside className="sidebar" data-collapsed={collapsed ? 'true' : 'false'}>
       <div className="sb-logo">
-        {collapsed ? <LogoMark size={28} /> : <Logo size={28} />}
+        {collapsed ? <LogoMark size={28} /> : <Logo size={28} tagline />}
       </div>
 
       <Group label="Mundo Clínico" items={CLINICO} active={active} mundo="clinico" collapsed={collapsed} />

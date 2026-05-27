@@ -23,8 +23,8 @@ export default async function OnboardPage({ params }: { params: { token: string 
       background: 'linear-gradient(180deg, var(--page) 0%, var(--surface) 100%)',
     }}>
       <div className="card" style={{ maxWidth: 520, width: '100%', padding: 32 }}>
-        <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 18 }}>
-          <Logo size={36} />
+        <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 22 }}>
+          <Logo size={40} layout="stack" tagline />
         </div>
 
         {!paciente ? (

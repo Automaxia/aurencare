@@ -61,38 +61,82 @@ type LogoProps = {
   size?: number
   className?: string
   showWordmark?: boolean
+  tagline?: boolean | string
+  /** 'row' = mark + wordmark lado a lado · 'stack' = mark em cima, wordmark embaixo */
+  layout?: 'row' | 'stack'
 }
 
-export function Logo({ size = 32, className, showWordmark = true }: LogoProps) {
+export const TAGLINE = 'Sistema Operacional da Prática Clínica'
+
+export function Logo({
+  size = 32,
+  className,
+  showWordmark = true,
+  tagline = false,
+  layout = 'row',
+}: LogoProps) {
+  const wordmark = showWordmark && (
+    <span
+      className="font-display"
+      style={{
+        fontFamily: 'var(--font-display), Georgia, serif',
+        fontSize: size * 0.66,
+        lineHeight: 1,
+        letterSpacing: '-.01em',
+      }}
+    >
+      <span style={{ fontWeight: 300, color: '#291860' }}>Auren</span>
+      <span
+        style={{
+          fontWeight: 500,
+          marginLeft: 4,
+          background: 'linear-gradient(90deg, #6a4ec8, #5c9d88)',
+          WebkitBackgroundClip: 'text',
+          WebkitTextFillColor: 'transparent',
+          backgroundClip: 'text',
+          color: 'transparent',
+        }}
+      >
+        Care
+      </span>
+    </span>
+  )
+
+  const taglineText = tagline === true ? TAGLINE : tagline === false ? null : tagline
+  const taglineEl = taglineText && (
+    <span
+      style={{
+        fontFamily: 'var(--font-display), Georgia, serif',
+        fontStyle: 'italic',
+        fontWeight: 300,
+        color: 'var(--muted)',
+        fontSize: Math.max(11, size * 0.34),
+        lineHeight: 1.3,
+        letterSpacing: '.01em',
+        marginTop: 4,
+      }}
+    >
+      {taglineText}
+    </span>
+  )
+
+  if (layout === 'stack') {
+    return (
+      <div className={clsx('inline-flex flex-col items-center text-center', className)} style={{ display: 'inline-flex', flexDirection: 'column', alignItems: 'center', gap: 8 }}>
+        <LogoMark size={size} />
+        {wordmark}
+        {taglineEl}
+      </div>
+    )
+  }
+
   return (
-    <div className={clsx('inline-flex items-center gap-3', className)}>
-      <LogoMark size={size} />
-      {showWordmark && (
-        <span
-          className="font-display"
-          style={{
-            fontFamily: 'var(--font-display), Georgia, serif',
-            fontSize: size * 0.66,
-            lineHeight: 1,
-            letterSpacing: '-.01em',
-          }}
-        >
-          <span style={{ fontWeight: 300, color: '#291860' }}>Auren</span>
-          <span
-            style={{
-              fontWeight: 500,
-              marginLeft: 4,
-              background: 'linear-gradient(90deg, #6a4ec8, #5c9d88)',
-              WebkitBackgroundClip: 'text',
-              WebkitTextFillColor: 'transparent',
-              backgroundClip: 'text',
-              color: 'transparent',
-            }}
-          >
-            Care
-          </span>
-        </span>
-      )}
+    <div className={clsx('inline-flex flex-col', className)} style={{ display: 'inline-flex', flexDirection: 'column' }}>
+      <span style={{ display: 'inline-flex', alignItems: 'center', gap: 12 }}>
+        <LogoMark size={size} />
+        {wordmark}
+      </span>
+      {taglineEl}
     </div>
   )
 }

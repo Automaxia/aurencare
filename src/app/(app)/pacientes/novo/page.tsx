@@ -1,10 +1,18 @@
-import { PageHeader, EmptyState } from '@/components/PageHeader'
+import { PageHeader } from '@/components/PageHeader'
+import { requirePsicologo } from '@/server/lib/auth'
+import { NewPatientForm } from './form'
 
-export default function NovoPacientePage() {
+export const dynamic = 'force-dynamic'
+
+export default async function NovoPacientePage() {
+  const user = await requirePsicologo()
   return (
     <div>
-      <PageHeader title="Novo paciente" subtitle="Cadastro mínimo + preview WhatsApp." />
-      <EmptyState>Formulário e disparo do Fluxo 1 — Fase B.1.</EmptyState>
+      <PageHeader
+        title="Novo paciente"
+        subtitle="Cadastro mínimo. Será enviado um WhatsApp com link de consentimento."
+      />
+      <NewPatientForm psicologoNome={user.name ?? 'sua psicóloga'} />
     </div>
   )
 }

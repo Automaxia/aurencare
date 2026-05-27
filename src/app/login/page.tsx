@@ -30,13 +30,10 @@ export default function LoginPage() {
       background: 'linear-gradient(180deg, var(--page) 0%, var(--surface) 100%)',
     }}>
       <div className="card" style={{ width: 360, padding: 28 }}>
-        <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 18 }}>
-          <Logo size={32} />
+        <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 20 }}>
+          <Logo size={40} layout="stack" tagline />
         </div>
-        <h2 style={{ textAlign: 'center', marginBottom: 4 }}>Entrar</h2>
-        <p style={{ textAlign: 'center', color: 'var(--muted)', fontSize: 12, marginBottom: 20 }}>
-          Sistema operacional da prática clínica.
-        </p>
+        <h2 style={{ textAlign: 'center', marginBottom: 16 }}>Entrar</h2>
 
         <form onSubmit={onSubmit} style={{ display: 'grid', gap: 12 }}>
           <Field label="Email">

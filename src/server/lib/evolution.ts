@@ -1,0 +1,91 @@
+import 'server-only'
+import axios from 'axios'
+import { env, integrationStatus } from './env'
+import { log } from './log'
+
+/**
+ * Cliente Evolution API (Baileys). §10.
+ * Quando placeholder, registra a mensagem no log e segue (não interrompe fluxos).
+ */
+
+function toJid(telefone: string): string {
+  const digits = telefone.replace(/\D/g, '')
+  const withCountry = digits.startsWith('55') ? digits : `55${digits}`
+  return `${withCountry}@s.whatsapp.net`
+}
+
+export async function enviarWA(telefone: string, texto: string): Promise<void> {
+  const jid = toJid(telefone)
+  if (!integrationStatus.evolution) {
+    log.warn('evolution', `[mock] → ${telefone}: ${texto.slice(0, 80).replace(/\n/g, ' ')}…`)
+    return
+  }
+  try {
+    await axios.post(
+      `${env.evolutionUrl}/message/sendText/${env.evolutionInstance}`,
+      { number: jid, textMessage: { text: texto } },
+      { headers: { apikey: env.evolutionKey!, 'Content-Type': 'application/json' }, timeout: 12_000 },
+    )
+    log.ok('evolution', `→ ${telefone} (${texto.length} chars)`)
+  } catch (err) {
+    log.err('evolution', `falha ao enviar para ${telefone}`, err instanceof Error ? err.message : err)
+  }
+}
+
+/**
+ * Templates de mensagem dos 6 fluxos. §10.
+ */
+export const WA_TEMPLATES = {
+  fluxo1_boasVindas: (nomePaciente: string, link: string, psicologa: string) =>
+    `Olá, ${nomePaciente.split(' ')[0]}! Sou da equipe de ${psicologa}.
+
+Para começar, leia e aceite os termos no link:
+${link}
+
+Qualquer dúvida, é só responder por aqui.`,
+
+  fluxo2_perguntarMetodo: (dataHora: string, valor: number) =>
+    `Sua sessão de ${dataHora} está reservada (R$ ${valor.toFixed(2)}).
+
+Como prefere pagar?
+• Responda *PIX* (1x via QR Code)
+• Responda *CREDITO* (até 6x no cartão)
+• Responda *DEBITO* (à vista no débito)`,
+
+  fluxo2_pix: (qrcodeUrl: string, valor: number) =>
+    `Aqui está seu QR Code PIX (R$ ${valor.toFixed(2)}).
+
+${qrcodeUrl}
+
+⏳ Expira em 30 minutos. Após o pagamento, sua sessão será confirmada automaticamente.`,
+
+  fluxo2_checkout: (url: string, metodo: 'credito' | 'debito', valor: number) =>
+    `Aqui está o link para pagamento ${metodo === 'credito' ? 'no cartão de crédito (até 6x)' : 'no débito'} de R$ ${valor.toFixed(2)}:
+
+${url}
+
+⏳ Expira em 2 horas.`,
+
+  fluxo2_confirmado: (dataHora: string) =>
+    `✅ Pagamento confirmado. Sua sessão de ${dataHora} está confirmada.`,
+
+  fluxo3_lembrete24h: (dataHora: string) =>
+    `Lembrete: você tem sessão amanhã, ${dataHora}.
+
+Responda *CONFIRMAR* ou *CANCELAR*.`,
+
+  fluxo3_lembrete2h: (dataHora: string) =>
+    `Sua sessão é em 2h (${dataHora}). Até daqui a pouco!`,
+
+  fluxo5_canceladaComReembolso: () =>
+    `Sessão cancelada. O reembolso foi solicitado e deve cair em até 5 dias úteis.`,
+
+  fluxo5_canceladaSemReembolso: () =>
+    `Sessão cancelada. Como o cancelamento foi feito em menos de 24h da sessão, não há reembolso conforme acordo.`,
+
+  fluxo6_posSessao: (numero: number) =>
+    `Obrigada pela sessão de hoje (#${numero}). Cuide-se bem. Até a próxima.`,
+
+  fluxoFallback: () =>
+    `Recebi sua mensagem. Vou avisar sua psicóloga — em breve te respondem por aqui.`,
+}
