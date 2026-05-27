@@ -69,9 +69,38 @@ async function main() {
       return `v1:${iv.toString('base64')}:${e.toString('base64')}:${tag.toString('base64')}`
     }
 
+    const transcS5 = `P: Como foi a semana com seu chefe?
+C: Tensa. Toda reunião eu sinto ansiedade antes, e depois fico ruminando o que poderia ter dito de outra forma.
+P: Notou alguma situação específica?
+C: A apresentação de quinta. Meu chefe interrompeu duas vezes, e em vez de responder, fiquei calado. Saí com vergonha e raiva.
+P: Esse padrão de evitação aparece em outros relacionamentos?
+C: Com meu pai também. Sempre que tem conflito eu evito, depois rumino por dias.
+P: O que você acha que sustenta essa evitação?
+C: Medo de não ser bom o suficiente. Pensamento de que se eu não responder bem, vão me julgar.
+P: Você consegue notar uma diferença em relação ao mês passado?
+C: Sim. Antes nem aceitava reuniões. Hoje vou, mesmo com ansiedade.`
+    const transcS4 = `P: O que ficou marcante da sessão passada?
+C: A consciência de que o padrão com meu chefe espelha o padrão com meu pai. Trabalho e família estão conectados.
+P: Você tentou alguma estratégia nesta semana?
+C: Sim, na reunião de terça respirei antes de falar. Consegui colocar minha ideia, mesmo com o coração acelerado.
+P: O que você notou em seu corpo nesse momento?
+C: Tensão nos ombros, mas também um certo orgulho depois.
+P: Sua família percebeu alguma mudança?
+C: Minha esposa elogiou. Disse que pareço menos rumiando à noite.`
+    const transcS6 = `P: Como foi a apresentação?
+C: Fui. Tinha medo, mas fiz. O chefe inclusive elogiou.
+P: O que mudou desde a primeira sessão?
+C: Antes a evitação dominava. Agora eu noto a ansiedade chegando e ainda assim escolho responder.
+P: Você consegue nomear esse padrão de evitação?
+C: Medo de julgamento. Aparece no trabalho, com meu pai, e às vezes com minha esposa.
+P: E a ruminação?
+C: Diminuiu muito. Antes ficava acordado pensando, agora consigo dormir.`
+
     const seeds = [
       { pacIdx: 0, num: 7, deltaH: 2,           status: 'agendada',   pag: 'pendente',  metodo: null,       valor: 220 },
-      { pacIdx: 0, num: 6, deltaH: -3 * 24,     status: 'concluida',  pag: 'pago',      metodo: 'pix',      valor: 220, assinada: true,  resumo: 'Trabalhou padrão de evitação em contexto profissional. Frequência crescente de auto-observação.', transcricao: 'P: Como foi a semana?\nC: Tive a apresentação que vinha adiando.' },
+      { pacIdx: 0, num: 6, deltaH: -3 * 24,     status: 'concluida',  pag: 'pago',      metodo: 'pix',      valor: 220, assinada: true,  resumo: 'Sessão #6 com Fernanda K. — observa-se redução da ruminação noturna e frequência crescente de respostas assertivas em contextos profissionais. Padrão de evitação ainda presente, porém com menor intensidade que nas sessões #1-#3.', transcricao: transcS6 },
+      { pacIdx: 0, num: 5, deltaH: -10 * 24,    status: 'concluida',  pag: 'pago',      metodo: 'pix',      valor: 220, assinada: true,  resumo: 'Sessão #5 com Fernanda K. — articulação consciente entre padrão profissional e familiar. Frequência crescente de uso de respiração antes de responder em situações tensas.', transcricao: transcS5 },
+      { pacIdx: 0, num: 4, deltaH: -17 * 24,    status: 'concluida',  pag: 'pago',      metodo: 'pix',      valor: 220, assinada: true,  resumo: 'Sessão #4 com Fernanda K. — tentativa concreta de estratégia em reunião de trabalho. Co-ocorrência observada entre tensão corporal e exposição.', transcricao: transcS4 },
       { pacIdx: 1, num: 4, deltaH: 1 * 24 + 5,  status: 'confirmada', pag: 'pago',      metodo: 'credito', valor: 220 },
       { pacIdx: 1, num: 3, deltaH: -7 * 24,     status: 'concluida',  pag: 'pago',      metodo: 'credito', valor: 220, assinada: false },
       { pacIdx: 2, num: 1, deltaH: 4 * 24,      status: 'aguardando_metodo', pag: 'pendente', metodo: null, valor: 220 },
