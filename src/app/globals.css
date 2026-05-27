@@ -64,6 +64,7 @@ input, textarea, select { font-family: inherit; font-size: inherit; }
   display: grid;
   grid-template-columns: 228px 1fr;
   min-height: 100vh;
+  transition: grid-template-columns .22s ease;
 }
 .app-shell[data-collapsed="true"] { grid-template-columns: 52px 1fr; }
 .app-main { display: flex; flex-direction: column; min-width: 0; }

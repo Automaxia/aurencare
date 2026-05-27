@@ -1,5 +1,6 @@
 import { Sidebar } from '@/components/layout/Sidebar'
 import { Topbar } from '@/components/layout/Topbar'
+import { AppShell } from '@/components/layout/AppShell'
 import { getServerSession } from 'next-auth/next'
 import { authOptions } from '@/server/auth/options'
 import { redirect } from 'next/navigation'
@@ -14,12 +15,12 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   const activeSession = null
 
   return (
-    <div className="app-shell">
+    <AppShell>
       <Sidebar />
       <div className="app-main">
         <Topbar activeSession={activeSession} />
         <main className="app-content">{children}</main>
       </div>
-    </div>
+    </AppShell>
   )
 }
