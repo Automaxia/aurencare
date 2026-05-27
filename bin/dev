@@ -1,0 +1,118 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+cd "$ROOT_DIR"
+
+info() { printf "\033[36m▸\033[0m %s\n" "$*"; }
+warn() { printf "\033[33m!\033[0m %s\n" "$*"; }
+err()  { printf "\033[31m✗\033[0m %s\n" "$*" >&2; }
+
+# ────────────────────────────────────────────────────────────────────────────
+# Pré-requisitos
+# ────────────────────────────────────────────────────────────────────────────
+if ! command -v docker >/dev/null 2>&1; then
+  err "docker não encontrado. Instale Docker Desktop/Engine antes de continuar."
+  exit 1
+fi
+
+if ! command -v node >/dev/null 2>&1; then
+  err "node não encontrado. Instale Node 20+ antes de continuar."
+  exit 1
+fi
+
+# ────────────────────────────────────────────────────────────────────────────
+# Postgres via docker compose
+# ────────────────────────────────────────────────────────────────────────────
+info "subindo Postgres via docker compose..."
+docker compose up -d postgres >/dev/null
+
+info "aguardando Postgres aceitar conexões..."
+ready=0
+for _ in $(seq 1 30); do
+  if docker compose exec -T postgres pg_isready -U aurencare -d aurencare >/dev/null 2>&1; then
+    ready=1
+    break
+  fi
+  sleep 1
+done
+
+if [[ "$ready" -ne 1 ]]; then
+  err "Postgres não respondeu em 30s. Olhe 'docker compose logs postgres'."
+  exit 1
+fi
+
+# ────────────────────────────────────────────────────────────────────────────
+# Geração de secrets (idempotente — não sobrescreve .env existente)
+# ────────────────────────────────────────────────────────────────────────────
+gen_secret() {
+  if command -v openssl >/dev/null 2>&1; then
+    openssl rand -hex 32
+  else
+    LC_ALL=C tr -dc 'a-f0-9' </dev/urandom | head -c 64
+    echo
+  fi
+}
+
+# substituição cross-platform (BSD/GNU sed)
+replace_line() {
+  local file="$1" key="$2" value="$3"
+  sed -i.bak "s|^${key}=.*|${key}=${value}|" "$file"
+  rm -f "${file}.bak"
+}
+
+INTERNAL_TOKEN=""
+
+if [[ ! -f server/.env ]]; then
+  info "criando server/.env (com INTERNAL_API_TOKEN gerado)..."
+  cp server/.env.example server/.env
+  INTERNAL_TOKEN="$(gen_secret)"
+  replace_line server/.env INTERNAL_API_TOKEN "$INTERNAL_TOKEN"
+else
+  INTERNAL_TOKEN="$(grep '^INTERNAL_API_TOKEN=' server/.env | cut -d= -f2- || true)"
+  if [[ -z "$INTERNAL_TOKEN" || "$INTERNAL_TOKEN" == "change-me-to-a-long-random-string" ]]; then
+    warn "INTERNAL_API_TOKEN parece estar com placeholder em server/.env — atualize antes de subir em produção."
+  fi
+fi
+
+if [[ ! -f .env.local ]]; then
+  info "criando .env.local (com NEXTAUTH_SECRET gerado, INTERNAL_API_TOKEN sincronizado)..."
+  cp .env.example .env.local
+  replace_line .env.local NEXTAUTH_SECRET "$(gen_secret)"
+  replace_line .env.local INTERNAL_API_TOKEN "$INTERNAL_TOKEN"
+fi
+
+# ────────────────────────────────────────────────────────────────────────────
+# Dependências
+# ────────────────────────────────────────────────────────────────────────────
+if [[ ! -d node_modules ]]; then
+  info "instalando deps do frontend..."
+  npm install
+fi
+
+if [[ ! -d server/node_modules ]]; then
+  info "instalando deps do backend..."
+  (cd server && npm install)
+fi
+
+# ────────────────────────────────────────────────────────────────────────────
+# Migrations + seed
+# ────────────────────────────────────────────────────────────────────────────
+info "rodando migrations..."
+(cd server && npm run --silent migrate)
+
+info "garantindo usuário demo (ana@aurencare.com / auren123)..."
+(cd server && npm run --silent seed)
+
+# ────────────────────────────────────────────────────────────────────────────
+# Dev servers (backend + frontend em paralelo)
+# ────────────────────────────────────────────────────────────────────────────
+info "iniciando backend (http://localhost:4000) e frontend (http://localhost:3000)..."
+info "Login demo: ana@aurencare.com / auren123"
+info "Ctrl-C encerra ambos."
+
+trap 'kill 0' EXIT INT TERM
+
+(cd server && npm run dev) &
+npm run dev &
+wait
