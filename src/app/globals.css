@@ -252,23 +252,80 @@ input, textarea, select { font-family: inherit; font-size: inherit; }
 }
 .btn-ico:hover { background: var(--card); color: var(--ink); box-shadow: var(--sh); }
 
-/* Sessão ativa — sage, conforme mockup v12.5 */
+/* Animação do sino — toca quando chega nova notificação */
+.btn-ico.is-shaking {
+  color: var(--amber);
+  border-color: rgba(176,125,64,.42);
+  background: rgba(176,125,64,.06);
+}
+.btn-ico.is-shaking svg {
+  transform-origin: 50% 18%;
+  animation: bellShake 1.4s var(--ease) 1;
+}
+@keyframes bellShake {
+  0%   { transform: rotate(0deg); }
+  10%  { transform: rotate(-14deg); }
+  22%  { transform: rotate(12deg); }
+  34%  { transform: rotate(-10deg); }
+  46%  { transform: rotate(8deg); }
+  58%  { transform: rotate(-6deg); }
+  70%  { transform: rotate(4deg); }
+  82%  { transform: rotate(-2deg); }
+  100% { transform: rotate(0deg); }
+}
+
+/* Badge contador no canto do sino */
+.bell-badge {
+  position: absolute; top: -3px; right: -3px;
+  min-width: 16px; height: 16px; padding: 0 4px;
+  border-radius: 8px;
+  background: var(--amber); color: white;
+  font-size: 9.5px; font-weight: 600;
+  display: flex; align-items: center; justify-content: center;
+  border: 1.5px solid var(--page);
+  box-shadow: 0 1px 3px rgba(176,125,64,.4);
+  line-height: 1;
+}
+
+/* Sessão ativa — pill SAGE mais aceso quando há sessão em andamento */
 .sess-pill {
-  display: inline-flex; align-items: center; gap: 6px;
-  padding: 5px 12px 5px 10px;
-  background: rgba(90,158,138,.08);
-  border: 1px solid rgba(90,158,138,.18);
+  display: inline-flex; align-items: center; gap: 7px;
+  padding: 6px 14px 6px 12px;
+  background: rgba(90,158,138,.10);
+  border: 1px solid rgba(90,158,138,.22);
   border-radius: 20px; cursor: pointer;
-  transition: background .2s var(--ease);
+  transition: all .2s var(--ease);
   font-size: 12px; font-weight: 500; color: var(--sage);
   text-decoration: none;
+  position: relative;
 }
-.sess-pill:hover { background: rgba(90,158,138,.14); }
+.sess-pill:hover { background: rgba(90,158,138,.18); transform: translateY(-1px); }
+
+/* Quando há sessão ativa: pill mais brilhante + dot maior + ring pulsante externo */
+.sess-pill.is-live {
+  background: rgba(90,158,138,.18);
+  border-color: rgba(90,158,138,.45);
+  color: #2a6456;
+  font-weight: 600;
+  box-shadow: 0 0 0 0 rgba(90,158,138,.45);
+  animation: liveRing 2.2s var(--ease) infinite;
+}
+.sess-pill.is-live .rp {
+  width: 8px; height: 8px;
+  background: var(--sage);
+  box-shadow: 0 0 8px rgba(90,158,138,.6);
+}
+@keyframes liveRing {
+  0%   { box-shadow: 0 0 0 0 rgba(90,158,138,.42); }
+  70%  { box-shadow: 0 0 0 8px rgba(90,158,138,0); }
+  100% { box-shadow: 0 0 0 0 rgba(90,158,138,0); }
+}
+
 .sess-pill .rp {
   width: 6px; height: 6px; border-radius: 50%; background: var(--sage); flex-shrink: 0;
   animation: rp 3.8s ease infinite;
 }
-@keyframes rp { 0%, 100% { opacity: 1; transform: scale(1); } 50% { opacity: .3; transform: scale(.75); } }
+@keyframes rp { 0%, 100% { opacity: 1; transform: scale(1); } 50% { opacity: .35; transform: scale(.75); } }
 .rp-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--sage); }
 .animate-pulse { animation: pulse 2.4s ease-in-out infinite; }
 @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: .35; } }

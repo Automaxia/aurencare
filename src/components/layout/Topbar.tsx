@@ -2,9 +2,9 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { Bell, X } from 'lucide-react'
-import { NAV, mundoFromPath, activeHref } from '@/lib/nav'
+import { NAV, mundoFromPath } from '@/lib/nav'
 
 type SessaoAtiva = { id: string; pacienteNome: string; numero: number; iniciadaEm: string | null }
 type Pendencia = { id: string; tipo: 'registrar' | 'cobranca' | 'consentimento'; label: string; href: string; data?: string }
@@ -20,6 +20,22 @@ const PEND_ICON: Record<Pendencia['tipo'], string> = {
   consentimento: '✋',
 }
 
+const SEEN_KEY = 'auren.notifs.seen'
+
+function readSeen(): Set<string> {
+  if (typeof window === 'undefined') return new Set()
+  try {
+    const raw = localStorage.getItem(SEEN_KEY)
+    if (!raw) return new Set()
+    const arr = JSON.parse(raw)
+    return new Set(Array.isArray(arr) ? arr : [])
+  } catch { return new Set() }
+}
+function writeSeen(s: Set<string>) {
+  if (typeof window === 'undefined') return
+  try { localStorage.setItem(SEEN_KEY, JSON.stringify(Array.from(s))) } catch { /* */ }
+}
+
 export function Topbar({ initialSessaoAtiva, initialPendencias }: Props) {
   const pathname = usePathname() ?? '/'
   const mundo = mundoFromPath(pathname)
@@ -29,7 +45,49 @@ export function Topbar({ initialSessaoAtiva, initialPendencias }: Props) {
   const [pendencias, setPendencias] = useState<Pendencia[]>(initialPendencias ?? [])
   const [bellOpen, setBellOpen] = useState(false)
 
-  // Atualiza ao receber eventos do SSE — sessão começa/encerra ou pagamento confirma
+  // IDs já vistos (após abrir o popover) — persiste em localStorage
+  const [seenIds, setSeenIds] = useState<Set<string>>(new Set())
+  useEffect(() => { setSeenIds(readSeen()) }, [])
+
+  // Limpa do "seen" IDs que não estão mais em pendencias (já resolvidos)
+  useEffect(() => {
+    const ativeIds = new Set(pendencias.map(p => p.id))
+    let changed = false
+    const cleaned = new Set<string>()
+    seenIds.forEach(id => {
+      if (ativeIds.has(id)) cleaned.add(id)
+      else changed = true
+    })
+    if (changed) { setSeenIds(cleaned); writeSeen(cleaned) }
+  }, [pendencias])  // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Pendências NÃO-vistas (novas desde a última abertura do popover)
+  const unseen = useMemo(
+    () => pendencias.filter(p => !seenIds.has(p.id)),
+    [pendencias, seenIds],
+  )
+
+  // Animação do sino — toca quando chega UMA nova pendência (não-vista) que ainda não estava
+  const prevUnseenCount = useRef(unseen.length)
+  const [bellShake, setBellShake] = useState(false)
+  useEffect(() => {
+    if (unseen.length > prevUnseenCount.current) {
+      setBellShake(true)
+      const t = setTimeout(() => setBellShake(false), 1400)
+      return () => clearTimeout(t)
+    }
+    prevUnseenCount.current = unseen.length
+  }, [unseen.length])
+
+  // Marca todas como vistas ao abrir o popover
+  function openBell() {
+    setBellOpen(true)
+    const next = new Set(seenIds)
+    pendencias.forEach(p => next.add(p.id))
+    setSeenIds(next); writeSeen(next)
+  }
+
+  // Atualiza ao receber eventos do SSE
   useEffect(() => {
     if (typeof window === 'undefined' || typeof EventSource === 'undefined') return
     const es = new EventSource('/api/eventos')
@@ -41,7 +99,8 @@ export function Topbar({ initialSessaoAtiva, initialPendencias }: Props) {
           data.type === 'sessao.iniciada' ||
           data.type === 'sessao.encerrada' ||
           data.type === 'sessao.confirmada' ||
-          data.type === 'pagamento.recebido'
+          data.type === 'pagamento.recebido' ||
+          data.type === 'paciente.consentiu'
         ) {
           const res = await fetch('/api/atalhos')
           if (res.ok) {
@@ -67,9 +126,13 @@ export function Topbar({ initialSessaoAtiva, initialPendencias }: Props) {
       </div>
 
       <div className="tp-r">
-        {/* Sessão ativa */}
+        {/* Sessão ativa — pill aceso/destacado durante a sessão */}
         {sessaoAtiva && (
-          <Link href={`/sessao/${sessaoAtiva.id}`} className="sess-pill" title="Voltar para a sessão em andamento">
+          <Link
+            href={`/sessao/${sessaoAtiva.id}`}
+            className="sess-pill is-live"
+            title="Voltar para a sessão em andamento"
+          >
             <span className="rp" />
             <span>{sessaoAtiva.pacienteNome} · em andamento</span>
           </Link>
@@ -77,18 +140,25 @@ export function Topbar({ initialSessaoAtiva, initialPendencias }: Props) {
 
         {/* Notificações */}
         <div style={{ position: 'relative' }}>
-          <button className="btn-ico" onClick={() => setBellOpen(o => !o)} title="Notificações" aria-label="Notificações">
+          <button
+            className={`btn-ico${bellShake ? ' is-shaking' : ''}`}
+            onClick={() => bellOpen ? setBellOpen(false) : openBell()}
+            title={unseen.length > 0 ? `${unseen.length} novas notificações` : 'Notificações'}
+            aria-label="Notificações"
+          >
             <Bell size={16} />
-            {pendencias.length > 0 && (
-              <span style={{
-                position: 'absolute', top: 7, right: 7,
-                width: 6, height: 6, borderRadius: '50%',
-                background: 'var(--amber)', border: '1.5px solid var(--page)',
-              }} />
+            {unseen.length > 0 && (
+              <span className="bell-badge" aria-hidden="true">
+                {unseen.length > 9 ? '9+' : unseen.length}
+              </span>
             )}
           </button>
           {bellOpen && (
-            <NotificationsPopover pendencias={pendencias} onClose={() => setBellOpen(false)} />
+            <NotificationsPopover
+              pendencias={pendencias}
+              unseenIds={new Set(unseen.map(p => p.id))}
+              onClose={() => setBellOpen(false)}
+            />
           )}
         </div>
 
@@ -98,7 +168,7 @@ export function Topbar({ initialSessaoAtiva, initialPendencias }: Props) {
         {/* Nova sessão */}
         <Link href="/agenda/nova" className="btn primary sm">+ Sessão</Link>
 
-        {/* Pill de contexto (mantida — mais compacta agora à direita) */}
+        {/* Pill de contexto (compacto) */}
         <span className="ctx-pill" data-world={mundo} style={{ marginLeft: 4 }} title={mundo === 'clinico' ? 'Mundo clínico' : 'Mundo prática'}>
           <span className="ctx-dot" />
         </span>
@@ -107,7 +177,7 @@ export function Topbar({ initialSessaoAtiva, initialPendencias }: Props) {
   )
 }
 
-function NotificationsPopover({ pendencias, onClose }: { pendencias: Pendencia[]; onClose: () => void }) {
+function NotificationsPopover({ pendencias, unseenIds, onClose }: { pendencias: Pendencia[]; unseenIds: Set<string>; onClose: () => void }) {
   return (
     <>
       {/* clicar fora fecha */}
@@ -127,13 +197,33 @@ function NotificationsPopover({ pendencias, onClose }: { pendencias: Pendencia[]
               ✓ Tudo em dia.
             </div>
           ) : (
-            pendencias.map(p => (
-              <Link key={p.id} href={p.href} onClick={onClose} className="pend-row" style={{ padding: '12px 16px', borderRadius: 0 }}>
-                <span className="pend-ico">{PEND_ICON[p.tipo]}</span>
-                <span className="pend-lbl">{p.label}</span>
-                <span className="pend-act">→</span>
-              </Link>
-            ))
+            pendencias.map(p => {
+              const isNew = unseenIds.has(p.id)
+              return (
+                <Link
+                  key={p.id}
+                  href={p.href}
+                  onClick={onClose}
+                  className="pend-row"
+                  style={{
+                    padding: '12px 16px', borderRadius: 0,
+                    background: isNew ? 'rgba(176,125,64,.045)' : undefined,
+                  }}
+                >
+                  <span className="pend-ico">{PEND_ICON[p.tipo]}</span>
+                  <span className="pend-lbl">{p.label}</span>
+                  {isNew && (
+                    <span style={{
+                      fontSize: 9, color: 'var(--amber)', letterSpacing: '.6px',
+                      textTransform: 'uppercase', fontWeight: 500, marginRight: 6,
+                    }}>
+                      Nova
+                    </span>
+                  )}
+                  <span className="pend-act">→</span>
+                </Link>
+              )
+            })
           )}
         </div>
       </div>
@@ -142,7 +232,6 @@ function NotificationsPopover({ pendencias, onClose }: { pendencias: Pendencia[]
 }
 
 function breadcrumbFor(pathname: string): { label: string; sub?: string } {
-  // Especiais primeiro
   if (pathname === '/' || pathname === '') return { label: 'Início' }
   if (pathname.startsWith('/login')) return { label: 'Entrar' }
   if (pathname.startsWith('/sessao/')) return { label: 'Sessão', sub: 'modo presença' }
@@ -156,7 +245,6 @@ function breadcrumbFor(pathname: string): { label: string; sub?: string } {
   if (pathname === '/agenda') return { label: 'Agenda' }
   if (pathname === '/financeiro') return { label: 'Financeiro' }
   if (pathname === '/saude') return { label: 'Saúde da Prática' }
-  // Fallback: tenta match com NAV
   const hit = NAV.find(n => n.href === pathname)
   if (hit) return { label: hit.label }
   return { label: 'Auren Care' }
