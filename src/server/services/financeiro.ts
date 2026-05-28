@@ -62,11 +62,20 @@ export async function lerFinanceiro(psicologoId: string, mesIso: string): Promis
 export type SaudePratica = {
   sessoesSemana: number
   sessoesMes: number
+  /** Sessões que deveriam ter acontecido (data passada, não-pendente). */
+  sessoesPassadas90d: number
+  /** Sessões que de fato aconteceram (status concluida). */
+  sessoesConcluidas90d: number
+  noShows90d: number
+  cancelamentos90d: number
+  /** concluidas / passadas. 0..100 */
   taxaComparecimentoPct: number
+  /** (no_show + cancelada) / passadas. 0..100 */
   taxaCancelamentoPct: number
   ticketMedio: number
   retencaoPct: number
   pacientesAtivos: number
+  pacientesComRecente30d: number
 }
 
 export async function lerSaude(psicologoId: string): Promise<SaudePratica> {
@@ -80,18 +89,35 @@ export async function lerSaude(psicologoId: string): Promise<SaudePratica> {
       WHERE psicologo_id = $1 AND data_hora >= $2`, [psicologoId, inicio90.toISOString()],
   )
 
+  const agora = Date.now()
   const dentroSemana = s.filter(x => +new Date(x.data_hora) >= +inicioSem)
   const dentroMes    = s.filter(x => +new Date(x.data_hora) >= +inicioMes)
-  const completas    = s.filter(x => x.status === 'concluida')
-  const noShows      = s.filter(x => x.status === 'no_show')
-  const cancelaram   = s.filter(x => x.status === 'cancelada')
-  const passadas     = s.filter(x => +new Date(x.data_hora) < Date.now() && x.status !== 'agendada' && x.status !== 'aguardando_metodo' && x.status !== 'aguardando_pagamento' && x.status !== 'confirmada')
 
-  const valoresPagos = s.filter(x => x.status === 'concluida').map(x => parseFloat(x.valor ?? 0))
-  const ticket = valoresPagos.length ? valoresPagos.reduce((a,b) => a + b, 0) / valoresPagos.length : 0
+  // ── Universo "que deveria ter acontecido" — apenas sessões cuja DATA já passou ──
+  const passadas = s.filter(x => +new Date(x.data_hora) < agora)
 
-  const taxaComp = passadas.length ? (completas.length / passadas.length) * 100 : 0
-  const taxaCanc = passadas.length ? ((noShows.length + cancelaram.length) / passadas.length) * 100 : 0
+  // Concluídas/falhas só dentro do universo de passadas (numerador <= denominador sempre)
+  const concluidas = passadas.filter(x => x.status === 'concluida')
+  const noShows    = passadas.filter(x => x.status === 'no_show')
+  const cancelaram = passadas.filter(x => x.status === 'cancelada')
+
+  // Sessões que ainda estavam aguardando método/pagamento na data — não contam como "deveriam acontecer"
+  const passadasElegiveis = passadas.filter(x =>
+    x.status !== 'aguardando_metodo' && x.status !== 'aguardando_pagamento',
+  )
+
+  const taxaComp = passadasElegiveis.length
+    ? Math.min(100, (concluidas.length / passadasElegiveis.length) * 100)
+    : 0
+  const taxaCanc = passadasElegiveis.length
+    ? Math.min(100, ((noShows.length + cancelaram.length) / passadasElegiveis.length) * 100)
+    : 0
+
+  // Ticket médio = média do valor das sessões concluídas (no universo passado)
+  const valoresConcluidas = concluidas.map(x => parseFloat(x.valor ?? 0))
+  const ticket = valoresConcluidas.length
+    ? valoresConcluidas.reduce((a, b) => a + b, 0) / valoresConcluidas.length
+    : 0
 
   const { rows: ativos } = await db.query<{ n: number }>(
     `SELECT COUNT(*)::int AS n FROM pacientes WHERE psicologo_id = $1 AND status = 'ativo'`, [psicologoId])
@@ -106,10 +132,15 @@ export async function lerSaude(psicologoId: string): Promise<SaudePratica> {
   return {
     sessoesSemana: dentroSemana.length,
     sessoesMes: dentroMes.length,
+    sessoesPassadas90d: passadasElegiveis.length,
+    sessoesConcluidas90d: concluidas.length,
+    noShows90d: noShows.length,
+    cancelamentos90d: cancelaram.length,
     taxaComparecimentoPct: taxaComp,
     taxaCancelamentoPct: taxaCanc,
     ticketMedio: ticket,
-    retencaoPct: ativos[0].n > 0 ? (ret[0].n / ativos[0].n) * 100 : 0,
+    retencaoPct: ativos[0].n > 0 ? Math.min(100, (ret[0].n / ativos[0].n) * 100) : 0,
     pacientesAtivos: ativos[0].n,
+    pacientesComRecente30d: ret[0].n,
   }
 }
