@@ -141,25 +141,52 @@ input, textarea, select { font-family: inherit; font-size: inherit; }
    ──────────────────────────────────────────────────────────────────────── */
 .topbar {
   height: 54px; position: sticky; top: 0; z-index: 20;
-  background: rgba(249,248,245,.78); backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
+  background: rgba(250,249,247,.92); backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
   border-bottom: 1px solid var(--border);
-  display: flex; align-items: center; padding: 0 24px; gap: 16px;
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 0 28px;
 }
+.tp-l { display: flex; align-items: center; gap: 12px; }
+.tp-r { display: flex; align-items: center; gap: 8px; }
+.tp-crumb { font-size: 14px; color: var(--muted); display: flex; align-items: center; }
+.tp-crumb strong { color: var(--ink-soft); font-weight: 500; }
+
 .ctx-pill {
-  display: inline-flex; align-items: center; gap: 8px;
-  padding: 5px 12px; border-radius: 999px; font-size: 12px; font-weight: 500;
-  background: rgba(106,78,200,.08); color: #391d96;
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 4px 8px; border-radius: 999px; font-size: 11px; font-weight: 500;
+  background: var(--accent-md); color: #391d96;
 }
-.ctx-pill[data-world="pratica"]  { background: rgba(92,157,136,.10); color: #26614e; }
+.ctx-pill[data-world="pratica"]  { background: rgba(92,157,136,.13); color: #26614e; }
 .ctx-pill .ctx-dot { width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
 
-.sess-pill {
-  margin-left: auto;
-  display: inline-flex; align-items: center; gap: 8px;
-  padding: 6px 12px; border-radius: 999px; font-size: 12px; font-weight: 500;
-  background: var(--accent-lo); color: #391d96; cursor: pointer;
+/* Botão ícone (sino, etc) */
+.btn-ico {
+  width: 34px; height: 34px; padding: 0;
+  display: inline-flex; align-items: center; justify-content: center;
+  background: transparent; border: 1px solid var(--border-md);
+  border-radius: 10px; cursor: pointer; color: var(--muted);
+  transition: all .18s var(--ease); position: relative;
 }
+.btn-ico:hover { background: var(--card); color: var(--ink); box-shadow: var(--sh); }
+
+/* Sessão ativa — sage, conforme mockup v12.5 */
+.sess-pill {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 5px 12px 5px 10px;
+  background: rgba(90,158,138,.08);
+  border: 1px solid rgba(90,158,138,.18);
+  border-radius: 20px; cursor: pointer;
+  transition: background .2s var(--ease);
+  font-size: 12px; font-weight: 500; color: var(--sage);
+  text-decoration: none;
+}
+.sess-pill:hover { background: rgba(90,158,138,.14); }
+.sess-pill .rp {
+  width: 6px; height: 6px; border-radius: 50%; background: var(--sage); flex-shrink: 0;
+  animation: rp 3.8s ease infinite;
+}
+@keyframes rp { 0%, 100% { opacity: 1; transform: scale(1); } 50% { opacity: .3; transform: scale(.75); } }
 .rp-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--sage); }
 .animate-pulse { animation: pulse 2.4s ease-in-out infinite; }
 @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: .35; } }

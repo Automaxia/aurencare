@@ -5,20 +5,23 @@ import { getServerSession } from 'next-auth/next'
 import { authOptions } from '@/server/auth/options'
 import { redirect } from 'next/navigation'
 import { bootstrap } from '@/server/bootstrap'
+import { obterAtalhos } from '@/server/services/atalhos'
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   bootstrap()
   const session = await getServerSession(authOptions)
   if (!session) redirect('/login')
 
-  // TODO: buscar sessão ativa do psicólogo no Redis/DB.
-  const activeSession = null
+  const atalhos = await obterAtalhos((session.user as any).id)
 
   return (
     <AppShell>
       <Sidebar />
       <div className="app-main">
-        <Topbar activeSession={activeSession} />
+        <Topbar
+          initialSessaoAtiva={atalhos.sessaoAtiva}
+          initialPendencias={atalhos.pendencias}
+        />
         <main className="app-content">{children}</main>
       </div>
     </AppShell>
