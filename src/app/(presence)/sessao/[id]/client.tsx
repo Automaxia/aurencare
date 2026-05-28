@@ -12,6 +12,7 @@ import { useSpeech } from './useSpeech'
 import { useContexto, UltimaSessaoWidget, TopicosWidget, InfoPacienteWidget } from './widgets/ContextWidgets'
 import { SortableGrid } from './widgets/SortableGrid'
 import { WidgetGrip } from '@/components/WidgetGrip'
+import { LiveInsight } from './widgets/LiveInsight'
 
 type Props = {
   sessaoId: string
@@ -22,7 +23,8 @@ type Props = {
   pagamentoStatus: string
 }
 
-const DEFAULT_ORDER = ['ritmo', 'temas', 'humor', 'info', 'risco', 'ultima', 'topicos', 'nota']
+const DEFAULT_ORDER = ['live-insight', 'ritmo', 'temas', 'humor', 'info', 'risco', 'ultima', 'topicos', 'nota']
+const OBS_INTERVAL_TURNS = 5  // gera observação a cada N turnos novos
 
 export function PresenceClient(props: Props) {
   const router = useRouter()
@@ -39,8 +41,14 @@ export function PresenceClient(props: Props) {
   const [risco, setRisco] = useState<{ autolesao: 'lo'|'md'|'hi'; ideacao: 'lo'|'md'|'hi'; plano: 'lo'|'md'|'hi' }>({ autolesao: 'lo', ideacao: 'lo', plano: 'lo' })
   const [humor, setHumor] = useState<HumorState>(initialHumor)
   const [notaRapida, setNotaRapida] = useState('')
+  const [obsViva, setObsViva] = useState<string | null>(null)
+  const [obsLoading, setObsLoading] = useState(false)
 
   const startedRef = useRef(false)
+  // turnos onde o falante foi manualmente fixado (não sobreescrever via IA)
+  const manualWhoRef = useRef<Set<string>>(new Set())
+  // controle de quando rodar próxima observação ao vivo
+  const lastObsAtCountRef = useRef<number>(0)
 
   useEffect(() => {
     if (startedRef.current) return
@@ -61,21 +69,48 @@ export function PresenceClient(props: Props) {
       const id = crypto.randomUUID()
       setTurnos(prev => [...prev, { id, who: chunk.who, texto: chunk.texto, ts: chunk.ts, mark: null, tone: null }])
       setInterim('')
-      classificarTom(id, chunk.texto, chunk.who)
+      // IA classifica em paralelo: tom + falante (atribuição correta) — fire-and-forget
+      classificarTom(id, chunk.texto)
+      classificarFalante(id, chunk.texto)
     },
     onInterim: setInterim,
   })
 
-  async function classificarTom(turnoId: string, texto: string, who: 'psicologo' | 'paciente') {
+  async function classificarTom(turnoId: string, texto: string) {
     if (texto.length < 12) return
     try {
       const r = await fetch(`/api/sessao/${props.sessaoId}/ia/tom-turno`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ texto, who }),
+        body: JSON.stringify({ texto, who: 'paciente' }),
       })
       const json = await r.json()
       const tone = json?.tone as TurnTone | undefined
       if (tone) setTurnos(prev => prev.map(t => t.id === turnoId ? { ...t, tone } : t))
+    } catch { /* */ }
+  }
+
+  /**
+   * Classifica o falante via IA. Respeita override manual (turnos que o
+   * usuário clicou pra mudar P/C ficam fixos — não sobreescrevemos).
+   */
+  async function classificarFalante(turnoId: string, texto: string) {
+    if (texto.length < 6) return
+    // contexto: últimos 3 turnos já confirmados
+    const ctx = turnos.slice(-3).map(t => ({ who: t.who, texto: t.texto }))
+    try {
+      const r = await fetch(`/api/sessao/${props.sessaoId}/ia/falante`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ texto, contexto: ctx }),
+      })
+      const json = await r.json()
+      const who = json?.who as 'psicologo' | 'paciente' | undefined
+      if (!who) return
+      setTurnos(prev => prev.map(t => {
+        if (t.id !== turnoId) return t
+        if (manualWhoRef.current.has(turnoId)) return t   // não sobrescreve override manual
+        if (t.who === who) return t                       // já está certo
+        return { ...t, who }
+      }))
     } catch { /* */ }
   }
 
@@ -84,11 +119,34 @@ export function PresenceClient(props: Props) {
     setTurnos(prev => prev.map(t => t.id === id ? { ...t, mark: armed } : t))
   }
   function alternarFalante(id: string) {
+    manualWhoRef.current.add(id)   // bloqueia futuras reatribuições da IA
     setTurnos(prev => prev.map(t => t.id === id
       ? { ...t, who: t.who === 'psicologo' ? 'paciente' : 'psicologo' }
       : t,
     ))
   }
+
+  /**
+   * Observação ao vivo — regenera a cada OBS_INTERVAL_TURNS novos turnos.
+   */
+  useEffect(() => {
+    if (turnos.length === 0) {
+      setObsViva(null)
+      lastObsAtCountRef.current = 0
+      return
+    }
+    if (turnos.length - lastObsAtCountRef.current < OBS_INTERVAL_TURNS) return
+    lastObsAtCountRef.current = turnos.length
+    setObsLoading(true)
+    fetch(`/api/sessao/${props.sessaoId}/ia/observacao-viva`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ turnos: turnos.map(t => ({ who: t.who, texto: t.texto })) }),
+    })
+      .then(r => r.json())
+      .then(j => setObsViva(j?.text ?? null))
+      .catch(() => {})
+      .finally(() => setObsLoading(false))
+  }, [turnos.length, props.sessaoId])
 
   function transcricaoCompleta(): string {
     return turnos.map(t => `${t.who === 'psicologo' ? 'P' : 'C'}: ${t.texto}`).join('\n')
@@ -153,6 +211,7 @@ export function PresenceClient(props: Props) {
   }
 
   const widgets = [
+    <LiveInsight key="live-insight" text={obsViva} loading={obsLoading} numeroTurnos={turnos.length} />,
     <RhythmWidget key="ritmo" pctPsic={pctPsic} pctPac={pctPac} counts={counts} armed={armed} setArmed={setArmed} />,
     <div key="temas" className="themes-card" data-widget-id="temas">
       <WidgetGrip />
