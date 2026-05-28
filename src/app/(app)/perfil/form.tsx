@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { salvarPerfilAction, type SalvarInput } from './actions'
 
 type InitialPerfil = {
@@ -35,6 +35,21 @@ export function PerfilForm({ initial, emailAtual, waConectado }: Props) {
   const trocandoSenha = novaSenha.length > 0
   const trocandoEmail = email.toLowerCase().trim() !== emailAtual.toLowerCase().trim()
   const exigeSenhaAtual = trocandoSenha || trocandoEmail
+
+  // ── dirty state: habilita Salvar só quando há mudança real ──
+  const dirty = useMemo(() => {
+    const valorAtual = valorSessao === '' ? null : parseFloat(valorSessao.replace(',', '.'))
+    const telAtual = telefone.replace(/\D/g, '')
+    const telInit  = initial.telefone.replace(/\D/g, '')
+    return (
+      nome.trim() !== initial.nome ||
+      crp.trim() !== initial.crp ||
+      trocandoEmail ||
+      telAtual !== telInit ||
+      valorAtual !== initial.valorSessao ||
+      trocandoSenha
+    )
+  }, [nome, crp, email, telefone, valorSessao, novaSenha, initial, trocandoEmail, trocandoSenha])
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -120,8 +135,16 @@ export function PerfilForm({ initial, emailAtual, waConectado }: Props) {
         {erro && !erroCampo && <div style={{ color: 'var(--rose)', fontSize: 12 }}>{erro}</div>}
         {salvo && <div style={{ color: 'var(--sage)', fontSize: 13 }}>✓ Alterações salvas</div>}
 
-        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
-          <button type="submit" className="btn primary" disabled={salvando}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
+          <span style={{ fontSize: 11, color: 'var(--faint)' }}>
+            {dirty ? 'Você tem alterações não salvas' : 'Nenhuma alteração pendente'}
+          </span>
+          <button
+            type="submit"
+            className={dirty ? 'btn primary' : 'btn'}
+            disabled={salvando || !dirty}
+            title={!dirty ? 'Nada para salvar' : undefined}
+          >
             {salvando ? 'Salvando…' : 'Salvar alterações'}
           </button>
         </div>

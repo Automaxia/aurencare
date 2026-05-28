@@ -1,18 +1,34 @@
 'use client'
 
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { salvarCondicoesAction } from './actions'
 
 type Condicoes = { cid?: string[]; medicacoes?: { nome: string; dose?: string }[]; alertas?: string[]; observacoes?: string }
 
 export function PatientProfileForm({ pacienteId, initial }: { pacienteId: string; initial: Condicoes | null }) {
-  const [cidText, setCidText] = useState((initial?.cid ?? []).join(', '))
-  const [medsText, setMedsText] = useState((initial?.medicacoes ?? []).map(m => `${m.nome}${m.dose ? ' (' + m.dose + ')' : ''}`).join('\n'))
-  const [alertasText, setAlertasText] = useState((initial?.alertas ?? []).join('\n'))
-  const [obs, setObs] = useState(initial?.observacoes ?? '')
+  // Valores iniciais serializados em string — base pra comparação
+  const initialCid     = (initial?.cid ?? []).join(', ')
+  const initialMeds    = (initial?.medicacoes ?? []).map(m => `${m.nome}${m.dose ? ' (' + m.dose + ')' : ''}`).join('\n')
+  const initialAlertas = (initial?.alertas ?? []).join('\n')
+  const initialObs     = initial?.observacoes ?? ''
+
+  const [cidText, setCidText]         = useState(initialCid)
+  const [medsText, setMedsText]       = useState(initialMeds)
+  const [alertasText, setAlertasText] = useState(initialAlertas)
+  const [obs, setObs]                 = useState(initialObs)
   const [loading, setLoading] = useState(false)
   const [saved, setSaved] = useState(false)
   const [error, setError] = useState<string | null>(null)
+
+  // Habilita Salvar só quando algum campo mudou em relação ao inicial.
+  const dirty = useMemo(
+    () =>
+      cidText     !== initialCid ||
+      medsText    !== initialMeds ||
+      alertasText !== initialAlertas ||
+      obs         !== initialObs,
+    [cidText, medsText, alertasText, obs, initialCid, initialMeds, initialAlertas, initialObs],
+  )
 
   async function salvar() {
     setLoading(true); setError(null); setSaved(false)
@@ -59,8 +75,16 @@ export function PatientProfileForm({ pacienteId, initial }: { pacienteId: string
       {error && <div style={{ color: 'var(--rose)', fontSize: 12 }}>{error}</div>}
       {saved && <div style={{ color: 'var(--sage)', fontSize: 12 }}>✓ Salvo</div>}
 
-      <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
-        <button className="btn primary" onClick={salvar} disabled={loading}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
+        <span style={{ fontSize: 11, color: 'var(--faint)' }}>
+          {dirty ? 'Você tem alterações não salvas' : 'Nenhuma alteração pendente'}
+        </span>
+        <button
+          className={dirty ? 'btn primary' : 'btn'}
+          onClick={salvar}
+          disabled={loading || !dirty}
+          title={!dirty ? 'Nada para salvar' : undefined}
+        >
           {loading ? 'Salvando…' : 'Salvar'}
         </button>
       </div>
