@@ -10,6 +10,6 @@ export const config = {
    * /login · /onboard/* · /api/auth/* · /api/webhooks/* · assets internos.
    */
   matcher: [
-    '/((?!login|onboard|sala|api/auth|api/webhooks|api/sala|_next/static|_next/image|favicon.ico).*)',
+    '/((?!login|cadastro|onboard|sala|api/auth|api/webhooks|api/sala|_next/static|_next/image|favicon.ico).*)',
   ],
 }

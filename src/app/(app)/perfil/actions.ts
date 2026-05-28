@@ -8,8 +8,8 @@ export type SalvarInput = {
   nome: string
   crp: string
   email: string
+  telefone: string
   valorSessao: number | null
-  waInstancia: string | null
   novaSenha: string
   confirmarNovaSenha: string
   senhaAtual: string   // exigida quando muda senha OU email
@@ -25,7 +25,7 @@ export async function salvarPerfilAction(input: SalvarInput): Promise<SalvarResu
   const nome = input.nome.trim()
   const crp = input.crp.trim()
   const email = input.email.toLowerCase().trim()
-  const wa = input.waInstancia?.trim() || null
+  const telefone = input.telefone?.replace(/\D/g, '') || ''
   const valor = input.valorSessao
   const novaSenha = input.novaSenha
   const confirmar = input.confirmarNovaSenha
@@ -34,6 +34,9 @@ export async function salvarPerfilAction(input: SalvarInput): Promise<SalvarResu
   if (nome.length < 2)  return { ok: false, error: 'Informe seu nome completo.', campo: 'nome' }
   if (crp.length < 3)   return { ok: false, error: 'CRP inválido.', campo: 'crp' }
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return { ok: false, error: 'Email inválido.', campo: 'email' }
+  if (telefone && (telefone.length < 10 || telefone.length > 13)) {
+    return { ok: false, error: 'Telefone inválido (DDD + número).', campo: 'telefone' }
+  }
   if (valor !== null && valor < 0) return { ok: false, error: 'Valor não pode ser negativo.', campo: 'valorSessao' }
 
   const trocandoSenha = novaSenha.length > 0
@@ -58,8 +61,8 @@ export async function salvarPerfilAction(input: SalvarInput): Promise<SalvarResu
 
   const patch: PerfilPatch = {
     nome, crp, email,
+    telefone: telefone || null,
     valorSessao: valor,
-    waInstancia: wa,
   }
   if (trocandoSenha) patch.novaSenha = novaSenha
 

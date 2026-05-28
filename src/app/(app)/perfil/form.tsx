@@ -7,22 +7,22 @@ type InitialPerfil = {
   nome: string
   crp: string
   email: string
+  telefone: string
   valorSessao: number | null
-  waInstancia: string | null
 }
 
 type Props = {
   initial: InitialPerfil
   emailAtual: string
-  integrationStatus: { anthropic: boolean; evolution: boolean; pagarme: boolean; assembly: boolean }
+  waConectado: boolean
 }
 
-export function PerfilForm({ initial, emailAtual, integrationStatus }: Props) {
+export function PerfilForm({ initial, emailAtual, waConectado }: Props) {
   const [nome, setNome] = useState(initial.nome)
   const [crp, setCrp] = useState(initial.crp)
   const [email, setEmail] = useState(initial.email)
+  const [telefone, setTelefone] = useState(initial.telefone)
   const [valorSessao, setValor] = useState<string>(initial.valorSessao !== null ? String(initial.valorSessao) : '')
-  const [waInstancia, setWaInst] = useState(initial.waInstancia ?? '')
   const [novaSenha, setNovaSenha] = useState('')
   const [confirmarNovaSenha, setConfirmar] = useState('')
   const [senhaAtual, setSenhaAtual] = useState('')
@@ -40,9 +40,8 @@ export function PerfilForm({ initial, emailAtual, integrationStatus }: Props) {
     e.preventDefault()
     setSalvando(true); setErro(null); setErroCampo(null); setSalvo(false)
     const input: SalvarInput = {
-      nome, crp, email,
+      nome, crp, email, telefone,
       valorSessao: valorSessao === '' ? null : parseFloat(valorSessao.replace(',', '.')),
-      waInstancia: waInstancia.trim() || null,
       novaSenha, confirmarNovaSenha, senhaAtual,
     }
     const r = await salvarPerfilAction(input)
@@ -60,7 +59,7 @@ export function PerfilForm({ initial, emailAtual, integrationStatus }: Props) {
   return (
     <div style={{ display: 'grid', gridTemplateColumns: '1.4fr 1fr', gap: 20, alignItems: 'start' }}>
       <form onSubmit={onSubmit} className="card" style={{ display: 'grid', gap: 14 }}>
-        <div className="sec-lbl">Dados profissionais</div>
+        <div className="sec-lbl">Dados básicos</div>
 
         <Field label="Nome completo" error={erroCampo === 'nome' ? erro : undefined}>
           <input required value={nome} onChange={e => setNome(e.target.value)} />
@@ -86,9 +85,17 @@ export function PerfilForm({ initial, emailAtual, integrationStatus }: Props) {
           <input type="email" required value={email} onChange={e => setEmail(e.target.value)} />
         </Field>
 
-        <div className="sec-lbl" style={{ marginTop: 8 }}>Integração WhatsApp</div>
-        <Field label="Nome da instância Evolution" hint="o nome configurado no painel da Evolution API">
-          <input value={waInstancia} onChange={e => setWaInst(e.target.value)} placeholder="auren-care" />
+        <Field
+          label="Telefone WhatsApp"
+          hint="Número da prática. É por ele que pacientes mandam mensagem e marcam sessão."
+          error={erroCampo === 'telefone' ? erro : undefined}
+        >
+          <input
+            type="tel" value={telefone}
+            onChange={e => setTelefone(e.target.value.replace(/[^\d() -]/g, ''))}
+            placeholder="(11) 98765-4321"
+            inputMode="tel"
+          />
         </Field>
 
         <div className="sec-lbl" style={{ marginTop: 8 }}>Alterar senha (opcional)</div>
@@ -131,27 +138,46 @@ export function PerfilForm({ initial, emailAtual, integrationStatus }: Props) {
 
       <aside style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
         <div className="card">
-          <div className="sec-lbl" style={{ marginBottom: 10 }}>Integrações ativas</div>
-          <div style={{ display: 'grid', gap: 8 }}>
-            <Integ label="Anthropic (IA)" on={integrationStatus.anthropic} hint="apoia chat, observações, validação de termos" />
-            <Integ label="Evolution (WhatsApp)" on={integrationStatus.evolution} hint="envio e recebimento real de mensagens" />
-            <Integ label="Pagar.me" on={integrationStatus.pagarme} hint="PIX e cartão" />
-            <Integ label="AssemblyAI (transcrição)" on={integrationStatus.assembly} hint="transcrição streaming (fallback nativo do navegador)" />
+          <div className="sec-lbl" style={{ marginBottom: 10 }}>WhatsApp da prática</div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <span style={{
+              width: 10, height: 10, borderRadius: '50%',
+              background: waConectado ? 'var(--sage)' : 'var(--amber)',
+              boxShadow: waConectado ? '0 0 6px rgba(90,158,138,.5)' : undefined,
+            }} />
+            <div>
+              <div style={{ fontSize: 13, color: 'var(--ink-soft)', fontWeight: 500 }}>
+                {waConectado ? 'Conectado' : 'Configuração em andamento'}
+              </div>
+              <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 2 }}>
+                {telefone
+                  ? `Pacientes te mandam mensagem em ${formatPhone(telefone)}.`
+                  : 'Adicione um telefone WhatsApp ao lado pra ativar.'}
+              </div>
+            </div>
           </div>
-          <p style={{ fontSize: 11, color: 'var(--muted)', marginTop: 14, lineHeight: 1.55 }}>
-            Para ativar uma integração desligada, preencha a chave correspondente em <code style={{ background: 'var(--surface)', padding: '1px 5px', borderRadius: 4 }}>.env.local</code> e reinicie o servidor.
+          <p style={{ fontSize: 11, color: 'var(--faint)', marginTop: 14, lineHeight: 1.55 }}>
+            A conexão técnica é gerenciada pelo Auren. Se tiver problemas, fale com o suporte.
           </p>
         </div>
+
         <div className="card" style={{ background: 'var(--surface)' }}>
           <div className="sec-lbl" style={{ marginBottom: 8 }}>Segurança</div>
           <p style={{ fontSize: 12, color: 'var(--muted)', lineHeight: 1.6, margin: 0 }}>
-            Todas as transcrições, notas e resumos são criptografados em repouso (AES-256-GCM).
+            Todas as transcrições, notas e resumos ficam criptografados.
             Trocar email ou senha exige confirmação da senha atual.
           </p>
         </div>
       </aside>
     </div>
   )
+}
+
+function formatPhone(raw: string): string {
+  const d = raw.replace(/\D/g, '')
+  if (d.length === 11) return `(${d.slice(0, 2)}) ${d.slice(2, 7)}-${d.slice(7)}`
+  if (d.length === 10) return `(${d.slice(0, 2)}) ${d.slice(2, 6)}-${d.slice(6)}`
+  return raw
 }
 
 function Field({ label, hint, error, children }: { label: string; hint?: string; error?: string; children: React.ReactNode }) {
@@ -162,25 +188,5 @@ function Field({ label, hint, error, children }: { label: string; hint?: string;
       {hint && !error && <span style={{ fontSize: 11, color: 'var(--faint)' }}>{hint}</span>}
       {error && <span style={{ fontSize: 11, color: 'var(--rose)' }}>{error}</span>}
     </label>
-  )
-}
-
-function Integ({ label, on, hint }: { label: string; on: boolean; hint: string }) {
-  return (
-    <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10 }}>
-      <span style={{
-        width: 8, height: 8, borderRadius: '50%', marginTop: 6,
-        background: on ? 'var(--sage)' : 'var(--faint)', flexShrink: 0,
-        boxShadow: on ? '0 0 6px rgba(90,158,138,.5)' : undefined,
-      }} />
-      <div>
-        <div style={{ fontSize: 13, color: 'var(--ink-soft)' }}>{label}
-          <span style={{ fontSize: 10, color: on ? 'var(--sage)' : 'var(--faint)', marginLeft: 6, textTransform: 'uppercase', letterSpacing: '.6px' }}>
-            {on ? 'ativa' : 'desligada'}
-          </span>
-        </div>
-        <div style={{ fontSize: 11, color: 'var(--muted)' }}>{hint}</div>
-      </div>
-    </div>
   )
 }

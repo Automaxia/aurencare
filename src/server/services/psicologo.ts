@@ -7,7 +7,9 @@ export type PerfilPsicologo = {
   nome: string
   crp: string
   email: string
+  telefone: string | null
   valorSessao: number | null
+  /** Detalhe técnico — gerenciado pelo Auren, não exposto na UI. */
   waInstancia: string | null
   waConectado: boolean
   pagarmeRecipientId: string | null
@@ -20,6 +22,7 @@ function rowToPerfil(r: any): PerfilPsicologo {
     nome: r.nome,
     crp: r.crp,
     email: r.email,
+    telefone: r.telefone,
     valorSessao: r.valor_sessao !== null ? parseFloat(r.valor_sessao) : null,
     waInstancia: r.wa_instancia,
     waConectado: r.wa_conectado,
@@ -30,7 +33,7 @@ function rowToPerfil(r: any): PerfilPsicologo {
 
 export async function obterPerfil(psicologoId: string): Promise<PerfilPsicologo | null> {
   const { rows } = await db.query(
-    `SELECT id, nome, crp, email, valor_sessao, wa_instancia, wa_conectado, pagarme_recipient_id, created_at
+    `SELECT id, nome, crp, email, telefone, valor_sessao, wa_instancia, wa_conectado, pagarme_recipient_id, created_at
        FROM psicologos WHERE id = $1 LIMIT 1`,
     [psicologoId],
   )
@@ -41,7 +44,9 @@ export type PerfilPatch = {
   nome?: string
   crp?: string
   email?: string
+  telefone?: string | null
   valorSessao?: number | null
+  /** Detalhe técnico — gerenciado nos bastidores. Não vem da UI da psicóloga. */
   waInstancia?: string | null
   /** Se fornecido, troca a senha. Verificação de senha antiga deve acontecer ANTES. */
   novaSenha?: string
@@ -55,6 +60,7 @@ export async function atualizarPerfil(psicologoId: string, patch: PerfilPatch): 
   if (patch.nome !== undefined)        add('nome', patch.nome.trim())
   if (patch.crp !== undefined)         add('crp', patch.crp.trim())
   if (patch.email !== undefined)       add('email', patch.email.toLowerCase().trim())
+  if (patch.telefone !== undefined)    add('telefone', patch.telefone?.replace(/\D/g, '') || null)
   if (patch.valorSessao !== undefined) add('valor_sessao', patch.valorSessao)
   if (patch.waInstancia !== undefined) add('wa_instancia', patch.waInstancia)
   if (patch.novaSenha !== undefined && patch.novaSenha.length > 0) {
@@ -70,7 +76,7 @@ export async function atualizarPerfil(psicologoId: string, patch: PerfilPatch): 
 
   const { rows } = await db.query(
     `UPDATE psicologos SET ${sets.join(', ')} WHERE id = $1
-     RETURNING id, nome, crp, email, valor_sessao, wa_instancia, wa_conectado, pagarme_recipient_id, created_at`,
+     RETURNING id, nome, crp, email, telefone, valor_sessao, wa_instancia, wa_conectado, pagarme_recipient_id, created_at`,
     params,
   )
   return rowToPerfil(rows[0])

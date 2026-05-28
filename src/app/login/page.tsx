@@ -3,6 +3,7 @@
 import { signIn } from 'next-auth/react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { useState } from 'react'
+import Link from 'next/link'
 import { Logo } from '@/components/brand/Logo'
 
 export default function LoginPage() {
@@ -55,6 +56,10 @@ export default function LoginPage() {
             {loading ? 'Entrando…' : 'Entrar'}
           </button>
         </form>
+
+        <div style={{ marginTop: 18, textAlign: 'center', fontSize: 12, color: 'var(--muted)' }}>
+          Não tem conta? <Link href="/cadastro" style={{ color: 'var(--accent)' }}>Criar agora</Link>
+        </div>
       </div>
     </div>
   )

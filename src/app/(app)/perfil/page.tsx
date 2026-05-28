@@ -3,7 +3,6 @@ import { requirePsicologo } from '@/server/lib/auth'
 import { obterPerfil } from '@/server/services/psicologo'
 import { redirect } from 'next/navigation'
 import { PerfilForm } from './form'
-import { integrationStatus } from '@/server/lib/env'
 
 export const dynamic = 'force-dynamic'
 
@@ -16,23 +15,18 @@ export default async function PerfilPage() {
     <div>
       <PageHeader
         title="Perfil profissional"
-        subtitle="Seus dados de cadastro, valor da sessão e integrações."
+        subtitle="Seus dados básicos e valor da sessão."
       />
       <PerfilForm
         initial={{
           nome: perfil.nome,
           crp: perfil.crp,
           email: perfil.email,
+          telefone: perfil.telefone ?? '',
           valorSessao: perfil.valorSessao,
-          waInstancia: perfil.waInstancia,
         }}
         emailAtual={perfil.email}
-        integrationStatus={{
-          anthropic: integrationStatus.anthropic,
-          evolution: integrationStatus.evolution,
-          pagarme:   integrationStatus.pagarme,
-          assembly:  integrationStatus.assembly,
-        }}
+        waConectado={perfil.waConectado}
       />
     </div>
   )
