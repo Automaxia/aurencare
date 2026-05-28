@@ -21,19 +21,23 @@ const CLUSTERS: { key: string; label: string }[] = [
   { key: 'cognitivo',   label: 'Cognitivo' },
 ]
 
+type SessaoOpt = { id: string; numero: number; dataHora: string; assinada: boolean }
+
 type Props = {
   pacienteId: string
   pacienteNome: string
   initialGrafo: GrafoDados
+  sessoes: SessaoOpt[]
 }
 
-export function TemasView({ pacienteId, pacienteNome, initialGrafo }: Props) {
+export function TemasView({ pacienteId, pacienteNome, initialGrafo, sessoes }: Props) {
   const [grafo, setGrafo] = useState(initialGrafo)
   const [selecionado, setSelecionado] = useState<GrafoNode | null>(null)
   const [recalc, setRecalc] = useState(false)
   const [insight, setInsight] = useState<string | null>(null)
   const [insightLoading, setInsightLoading] = useState(false)
   const [activeCluster, setActiveCluster] = useState('all')
+  const [filterSessao, setFilterSessao] = useState<string>('all')
 
   async function fetchInsight() {
     if (grafo.nodes.length === 0) return
@@ -61,14 +65,16 @@ export function TemasView({ pacienteId, pacienteNome, initialGrafo }: Props) {
     }
   }
 
-  // Filtra localmente por cluster
-  const filteredGrafo: GrafoDados = activeCluster === 'all' ? grafo : {
-    nodes: grafo.nodes.filter(n => n.cluster === activeCluster),
-    edges: grafo.edges.filter(e => {
-      const a = grafo.nodes.find(n => n.palavra === e.a)
-      const b = grafo.nodes.find(n => n.palavra === e.b)
-      return a?.cluster === activeCluster && b?.cluster === activeCluster
-    }),
+  // Filtra localmente por cluster + sessão
+  const filteredNodes = grafo.nodes.filter(n => {
+    if (activeCluster !== 'all' && n.cluster !== activeCluster) return false
+    if (filterSessao !== 'all' && !(n.sessoesIds ?? []).includes(filterSessao)) return false
+    return true
+  })
+  const filteredSet = new Set(filteredNodes.map(n => n.palavra))
+  const filteredGrafo: GrafoDados = {
+    nodes: filteredNodes,
+    edges: grafo.edges.filter(e => filteredSet.has(e.a) && filteredSet.has(e.b)),
   }
 
   if (grafo.nodes.length === 0) {
@@ -96,8 +102,8 @@ export function TemasView({ pacienteId, pacienteNome, initialGrafo }: Props) {
       {/* Auto-insight banner */}
       <InsightCard text={insight} loading={insightLoading} />
 
-      {/* Filtros + recalcular */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', margin: '14px 0 14px' }}>
+      {/* Filtros + select de sessão + recalcular */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', margin: '14px 0 14px', gap: 12, flexWrap: 'wrap' }}>
         <div className="ftabs">
           {CLUSTERS.map(c => (
             <button
@@ -119,9 +125,29 @@ export function TemasView({ pacienteId, pacienteNome, initialGrafo }: Props) {
             </button>
           ))}
         </div>
-        <button className="btn ghost sm" onClick={recalcular} disabled={recalc} title="Recalcular grafo">
-          {recalc ? 'Recalculando…' : '↻ Recalcular'}
-        </button>
+
+        <div style={{ display: 'flex', gap: 7, alignItems: 'center' }}>
+          <select
+            value={filterSessao}
+            onChange={e => setFilterSessao(e.target.value)}
+            style={{
+              border: '1px solid var(--border-md)', borderRadius: 9,
+              padding: '6px 12px', fontSize: 12, fontFamily: 'inherit',
+              background: 'var(--card)', color: 'var(--ink-soft)',
+              cursor: 'pointer', outline: 'none',
+            }}
+          >
+            <option value="all">Todas as sessões</option>
+            {sessoes.map(s => (
+              <option key={s.id} value={s.id}>
+                Sessão {s.numero} · {new Date(s.dataHora).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' })}
+              </option>
+            ))}
+          </select>
+          <button className="btn ghost sm" onClick={recalcular} disabled={recalc} title="Recalcular grafo">
+            {recalc ? '…' : '↻'}
+          </button>
+        </div>
       </div>
 
       <div className="grafo-wrap">

@@ -129,7 +129,8 @@ input, textarea, select { font-family: inherit; font-size: inherit; }
 .sb-logo  { padding: 0 8px 18px; min-height: 38px; }
 [data-collapsed="true"] .sb-logo { padding: 0 0 18px; display: flex; justify-content: center; }
 
-.sb-nav { flex: 1; display: flex; flex-direction: column; gap: 18px; min-height: 0; }
+.sb-nav { flex: 1; display: flex; flex-direction: column; gap: 18px; min-height: 0; overflow-y: auto; }
+.sb-nav::-webkit-scrollbar { width: 0; }
 .sb-group { display: flex; flex-direction: column; gap: 2px; }
 .sb-label {
   font-size: 9px; letter-spacing: 2px; text-transform: uppercase;

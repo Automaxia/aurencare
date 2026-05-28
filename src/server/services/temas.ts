@@ -87,18 +87,24 @@ export async function extrairTemasDaSessao(opts: {
   try {
     await client.query('BEGIN')
 
-    // Upsert palavras (acumula frequência).
+    // Upsert palavras (acumula frequência + append sessao_id em sessoes_ids).
     for (const [palavra, freqLocal] of candidatas) {
       const cluster = inferirCluster(palavra)
       await client.query(
-        `INSERT INTO palavras_chave (paciente_id, palavra, cluster, frequencia, ultima_sessao_id, updated_at)
-         VALUES ($1, $2, $3, $4, $5, NOW())
+        `INSERT INTO palavras_chave (paciente_id, palavra, cluster, frequencia, ultima_sessao_id, sessoes_ids, updated_at)
+         VALUES ($1, $2, $3, $4, $5::uuid, jsonb_build_array($6::text), NOW())
          ON CONFLICT (paciente_id, palavra)
-         DO UPDATE SET frequencia = palavras_chave.frequencia + EXCLUDED.frequencia,
-                       cluster = EXCLUDED.cluster,
-                       ultima_sessao_id = EXCLUDED.ultima_sessao_id,
-                       updated_at = NOW()`,
-        [opts.pacienteId, palavra, cluster, freqLocal, opts.sessaoId],
+         DO UPDATE SET
+           frequencia = palavras_chave.frequencia + EXCLUDED.frequencia,
+           cluster = EXCLUDED.cluster,
+           ultima_sessao_id = EXCLUDED.ultima_sessao_id,
+           sessoes_ids = CASE
+             WHEN palavras_chave.sessoes_ids @> jsonb_build_array($6::text)
+               THEN palavras_chave.sessoes_ids
+             ELSE palavras_chave.sessoes_ids || jsonb_build_array($6::text)
+           END,
+           updated_at = NOW()`,
+        [opts.pacienteId, palavra, cluster, freqLocal, opts.sessaoId, opts.sessaoId],
       )
     }
 
@@ -132,19 +138,25 @@ function isSeed(palavra: string): boolean {
 }
 
 // ── Leitura agregada para o grafo ─────────────────────────────────────────
-export type GrafoNode  = { palavra: string; cluster: Cluster; frequencia: number }
+export type GrafoNode  = { palavra: string; cluster: Cluster; frequencia: number; sessoesIds: string[] }
 export type GrafoEdge  = { a: string; b: string; weight: number }
 export type GrafoDados = { nodes: GrafoNode[]; edges: GrafoEdge[] }
 
 export async function lerGrafo(pacienteId: string): Promise<GrafoDados> {
-  const { rows: nodes } = await db.query<GrafoNode>(
-    `SELECT palavra, cluster, frequencia
+  const { rows } = await db.query<{ palavra: string; cluster: Cluster; frequencia: number; sessoes_ids: string[] | null }>(
+    `SELECT palavra, cluster, frequencia, sessoes_ids
        FROM palavras_chave
       WHERE paciente_id = $1
       ORDER BY frequencia DESC
       LIMIT 60`,
     [pacienteId],
   )
+  const nodes: GrafoNode[] = rows.map(r => ({
+    palavra: r.palavra,
+    cluster: r.cluster,
+    frequencia: r.frequencia,
+    sessoesIds: Array.isArray(r.sessoes_ids) ? r.sessoes_ids : [],
+  }))
   if (nodes.length === 0) return { nodes: [], edges: [] }
   const palavraSet = new Set(nodes.map(n => n.palavra))
 
