@@ -1,0 +1,92 @@
+#!/usr/bin/env bash
+# Simula um paciente conversando via WhatsApp.
+# Uso:
+#   bin/wa-sim                       # roda fluxo completo de onboarding
+#   bin/wa-sim 11955554444 "oi"      # envia uma única msg como esse telefone
+#   bin/wa-sim --reset 11955554444   # apaga o estado da conversa pra recomeçar
+#
+# Mostra: status HTTP do webhook + última mensagem que o bot enviou (mock).
+
+set -euo pipefail
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+cd "$ROOT"
+
+BLUE='\033[36m'; GREEN='\033[32m'; YELLOW='\033[33m'; DIM='\033[90m'; BOLD='\033[1m'; NC='\033[0m'
+
+URL=${AUREN_URL:-http://localhost:3000}
+
+send() {
+  local tel="$1" texto="$2"
+  local jid="55${tel}@s.whatsapp.net"
+  local payload="{\"event\":\"messages.upsert\",\"data\":{\"key\":{\"remoteJid\":\"$jid\"},\"message\":{\"conversation\":$(printf '%s' "$texto" | jq -Rs .)}}}"
+
+  echo -e "${BOLD}${BLUE}── paciente $tel ──${NC}"
+  echo -e "${DIM}> $texto${NC}"
+
+  local code=$(curl -s -o /dev/null -w "%{http_code}" -X POST "$URL/api/webhooks/evolution" \
+    -H "Content-Type: application/json" -d "$payload")
+  echo -e "${DIM}webhook: $code${NC}"
+
+  # Espera o backend processar (IA leva ~1-2s pra gerar resposta)
+  sleep 2
+
+  # Lê última saída registrada no DB
+  local resposta=$(docker compose exec -T postgres psql -U aurencare -d aurencare -tAc \
+    "SELECT contexto->>'ultimaSaida' FROM wa_conversas WHERE telefone='$tel'" 2>/dev/null || true)
+
+  if [ -n "$resposta" ] && [ "$resposta" != "" ]; then
+    echo -e "${GREEN}bot >${NC} $resposta"
+  else
+    echo -e "${YELLOW}(sem resposta registrada — veja o terminal do dev server)${NC}"
+  fi
+  echo
+}
+
+mostrar_db() {
+  local tel="$1"
+  echo -e "${BOLD}── estado do banco ──${NC}"
+  docker compose exec -T postgres psql -U aurencare -d aurencare -c \
+    "SELECT estado, contexto->>'nomeColetado' AS nome, contexto->>'emailColetado' AS email,
+            paciente_id IS NOT NULL AS cadastrado
+       FROM wa_conversas WHERE telefone='$tel';" 2>/dev/null || true
+  echo
+  docker compose exec -T postgres psql -U aurencare -d aurencare -c \
+    "SELECT nome, telefone, email, consentimento_aceito
+       FROM pacientes WHERE telefone='$tel';" 2>/dev/null || true
+}
+
+reset_conversa() {
+  local tel="$1"
+  docker compose exec -T postgres psql -U aurencare -d aurencare -c \
+    "DELETE FROM wa_conversas WHERE telefone='$tel';
+     DELETE FROM consentimentos WHERE paciente_id IN (SELECT id FROM pacientes WHERE telefone='$tel');
+     DELETE FROM pacientes WHERE telefone='$tel';" >/dev/null
+  echo -e "${YELLOW}✓ estado apagado para $tel${NC}"
+}
+
+# ── modos ──
+if [ "${1:-}" = "--reset" ] && [ -n "${2:-}" ]; then
+  reset_conversa "$2"
+  exit 0
+fi
+
+if [ -n "${1:-}" ] && [ -n "${2:-}" ]; then
+  send "$1" "$2"
+  mostrar_db "$1"
+  exit 0
+fi
+
+# ── modo default: simula onboarding completo ──
+TEL="${1:-11955554444}"
+echo -e "${BOLD}Simulando onboarding via WhatsApp${NC} — telefone $TEL"
+echo -e "${DIM}(pra recomeçar, rode: bin/wa-sim --reset $TEL)${NC}"
+echo
+
+reset_conversa "$TEL" >/dev/null 2>&1 || true
+
+send "$TEL" "oi"
+send "$TEL" "Mariana Souza"
+send "$TEL" "mariana@exemplo.com"
+send "$TEL" "SIM"
+
+mostrar_db "$TEL"

@@ -200,7 +200,22 @@ input, textarea, select { font-family: inherit; font-size: inherit; }
 
 [data-collapsed="true"] .sb-user { padding: 4px; justify-content: center; }
 
-/* User menu dropdown */
+/* Wrap do user card + botão Sair (lado a lado, expandido) */
+.sb-user-wrap { display: flex; align-items: center; gap: 4px; }
+.sb-logout {
+  flex-shrink: 0;
+  width: 32px; height: 32px;
+  display: inline-flex; align-items: center; justify-content: center;
+  background: transparent; border: 0; cursor: pointer;
+  color: var(--muted); border-radius: 8px;
+  transition: all .14s var(--ease);
+}
+.sb-logout:hover {
+  background: rgba(196,96,122,.08);
+  color: var(--rose);
+}
+
+/* User menu dropdown (usado apenas em modo colapsado) */
 .sb-user-menu {
   position: absolute; bottom: calc(100% + 6px); left: 0; right: 0;
   background: var(--card); border: 1px solid var(--border);
@@ -215,8 +230,10 @@ input, textarea, select { font-family: inherit; font-size: inherit; }
   font-family: inherit; font-size: 13px; color: var(--ink-soft);
   transition: background .12s var(--ease);
   text-align: left;
+  text-decoration: none;
 }
-.sb-user-menu-item:hover { background: var(--surface); color: var(--rose); }
+.sb-user-menu-item:hover { background: var(--surface); }
+.sb-user-menu-item:last-child:hover { color: var(--rose); }
 
 /* ────────────────────────────────────────────────────────────────────────
    TOPBAR

@@ -4,7 +4,7 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { signOut, useSession } from 'next-auth/react'
 import { useState, useRef, useEffect } from 'react'
-import { ChevronLeft, ChevronRight, LogOut } from 'lucide-react'
+import { ChevronLeft, ChevronRight, LogOut, User } from 'lucide-react'
 import { Logo, LogoMark } from '../brand/Logo'
 import { NAV, activeHref, type Mundo } from '@/lib/nav'
 import { useSidebar } from './AppShell'
@@ -87,36 +87,75 @@ function UserCard({ collapsed, name, crp }: { collapsed: boolean; name: string; 
     return () => document.removeEventListener('mousedown', onClickOut)
   }, [open])
 
+  // Layout colapsado: só avatar com dropdown.
+  if (collapsed) {
+    return (
+      <div ref={wrapRef} style={{ position: 'relative' }}>
+        <button
+          type="button"
+          className="sb-user"
+          onClick={() => setOpen(o => !o)}
+          title={`${name} — abrir menu`}
+        >
+          <span className="u-av">{iniciais(name)}</span>
+        </button>
+        {open && (
+          <UserMenu onClose={() => setOpen(false)} />
+        )}
+      </div>
+    )
+  }
+
+  // Layout expandido: card do usuário (vai pra /perfil) + botão Sair visível.
   return (
-    <div ref={wrapRef} style={{ position: 'relative' }}>
-      <button
-        type="button"
+    <div ref={wrapRef} className="sb-user-wrap">
+      <Link
+        href="/perfil"
         className="sb-user"
-        onClick={() => setOpen(o => !o)}
-        title={collapsed ? `${name} — abrir menu` : 'Abrir menu'}
+        title="Editar perfil"
+        style={{ flex: 1, minWidth: 0 }}
       >
         <span className="u-av">{iniciais(name)}</span>
-        {!collapsed && (
-          <span className="u-meta">
-            <span className="u-name">{name}</span>
-            {crp && <span className="u-crp">{crp}</span>}
-          </span>
-        )}
+        <span className="u-meta">
+          <span className="u-name">{name}</span>
+          {crp && <span className="u-crp">{crp}</span>}
+        </span>
+      </Link>
+      <button
+        type="button"
+        className="sb-logout"
+        onClick={() => signOut({ callbackUrl: '/login' })}
+        title="Sair"
+        aria-label="Sair"
+      >
+        <LogOut size={15} />
       </button>
+    </div>
+  )
+}
 
-      {open && (
-        <div className="sb-user-menu" role="menu">
-          <button
-            type="button"
-            className="sb-user-menu-item"
-            onClick={() => signOut({ callbackUrl: '/login' })}
-            role="menuitem"
-          >
-            <LogOut size={14} />
-            <span>Sair</span>
-          </button>
-        </div>
-      )}
+function UserMenu({ onClose }: { onClose: () => void }) {
+  return (
+    <div className="sb-user-menu" role="menu">
+      <Link
+        href="/perfil"
+        className="sb-user-menu-item"
+        role="menuitem"
+        onClick={onClose}
+        style={{ textDecoration: 'none' }}
+      >
+        <User size={14} />
+        <span>Perfil</span>
+      </Link>
+      <button
+        type="button"
+        className="sb-user-menu-item"
+        onClick={() => signOut({ callbackUrl: '/login' })}
+        role="menuitem"
+      >
+        <LogOut size={14} />
+        <span>Sair</span>
+      </button>
     </div>
   )
 }
