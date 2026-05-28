@@ -42,6 +42,18 @@ export function GrafoCanvas({ grafo, selecionado, onSelect }: Props) {
       .filter((e): e is { ia: number; ib: number; w: number } => e.ia !== undefined && e.ib !== undefined)
   }, [nodes, grafo.edges])
 
+  /** Map palavra → Set de palavras vizinhas (acesso O(1) durante render). */
+  const neighbors = useMemo(() => {
+    const m = new Map<string, Set<string>>()
+    for (const e of grafo.edges) {
+      if (!m.has(e.a)) m.set(e.a, new Set())
+      if (!m.has(e.b)) m.set(e.b, new Set())
+      m.get(e.a)!.add(e.b)
+      m.get(e.b)!.add(e.a)
+    }
+    return m
+  }, [grafo.edges])
+
   useEffect(() => {
     const canvas = canvasRef.current
     const wrap = wrapRef.current
@@ -122,38 +134,77 @@ export function GrafoCanvas({ grafo, selecionado, onSelect }: Props) {
       ctx.setTransform(devicePixelRatio, 0, 0, devicePixelRatio, 0, 0)
       ctx.clearRect(0, 0, W, H)
 
-      // arestas
+      // ── Quando há nó selecionado, destacar rede de relações ──
+      // connected = selected + vizinhos diretos
+      const selNeighbors = selected ? (neighbors.get(selected) ?? new Set<string>()) : null
+      const isConnected = (palavra: string) =>
+        !selected || palavra === selected || selNeighbors!.has(palavra)
+      const edgeTouchesSelected = (a: string, b: string) =>
+        selected != null && (a === selected || b === selected)
+
+      // ── arestas ──
       for (const e of edgeIndex) {
         const a = nodes[e.ia], b = nodes[e.ib]
-        const alpha = 0.06 + (e.w / maxWeight) * 0.32
-        ctx.strokeStyle = `rgba(180, 170, 230, ${alpha})`
-        ctx.lineWidth = 0.5 + (e.w / maxWeight) * 1.5
+        const baseAlpha = 0.06 + (e.w / maxWeight) * 0.32
+
+        let strokeStyle: string
+        let lineWidth = 0.5 + (e.w / maxWeight) * 1.5
+        if (selected == null) {
+          strokeStyle = `rgba(180, 170, 230, ${baseAlpha})`
+        } else if (edgeTouchesSelected(a.palavra, b.palavra)) {
+          // aresta conectada ao selecionado — destaque
+          const other = a.palavra === selected ? b : a
+          const color = CLUSTER_COLORS[other.cluster] ?? '#aaa'
+          strokeStyle = color + 'cc'        // ~80% opacity
+          lineWidth = 1.4 + (e.w / maxWeight) * 2
+        } else {
+          // aresta não relacionada — fade out
+          strokeStyle = `rgba(180, 170, 230, ${baseAlpha * 0.2})`
+        }
+        ctx.strokeStyle = strokeStyle
+        ctx.lineWidth = lineWidth
         ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); ctx.stroke()
       }
 
-      // nodes
+      // ── nodes ──
       for (const n of nodes) {
         const color = CLUSTER_COLORS[n.cluster] ?? '#888'
         const isSel = selected === n.palavra
-        // glow
+        const isConn = isConnected(n.palavra)
+        const dim = selected != null && !isConn
+        const opacityMul = dim ? 0.18 : 1
+
+        // bloom glow no selecionado
         if (isSel) {
-          const grd = ctx.createRadialGradient(n.x, n.y, 0, n.x, n.y, n.r * 4)
-          grd.addColorStop(0, color + '88')
+          const grd = ctx.createRadialGradient(n.x, n.y, 0, n.x, n.y, n.r * 5)
+          grd.addColorStop(0, color + 'aa')
+          grd.addColorStop(.5, color + '44')
           grd.addColorStop(1, color + '00')
           ctx.fillStyle = grd
-          ctx.beginPath(); ctx.arc(n.x, n.y, n.r * 4, 0, Math.PI * 2); ctx.fill()
+          ctx.beginPath(); ctx.arc(n.x, n.y, n.r * 5, 0, Math.PI * 2); ctx.fill()
         }
-        // halo suave
+        // anel pra vizinhos diretos (não selecionado, mas connected)
+        if (selected != null && isConn && !isSel) {
+          ctx.strokeStyle = color + 'aa'
+          ctx.lineWidth = 1.5
+          ctx.beginPath(); ctx.arc(n.x, n.y, n.r + 4, 0, Math.PI * 2); ctx.stroke()
+        }
+
+        // halo suave + núcleo (com dim quando aplicável)
+        ctx.globalAlpha = opacityMul
         ctx.fillStyle = color + '33'
         ctx.beginPath(); ctx.arc(n.x, n.y, n.r + 5, 0, Math.PI * 2); ctx.fill()
-        // núcleo
         ctx.fillStyle = color
         ctx.beginPath(); ctx.arc(n.x, n.y, n.r, 0, Math.PI * 2); ctx.fill()
+
         // label
-        ctx.fillStyle = isSel ? 'rgba(255,255,255,.95)' : 'rgba(255,255,255,.62)'
-        ctx.font = `${isSel ? 13 : 11}px DM Sans, sans-serif`
+        const labelAlpha = dim ? 0.18 : (isSel ? 0.98 : isConn ? 0.85 : 0.62)
+        ctx.globalAlpha = labelAlpha
+        ctx.fillStyle = 'rgba(255,255,255,1)'
+        ctx.font = `${isSel ? 14 : isConn ? 12 : 11}px DM Sans, sans-serif`
         ctx.textAlign = 'center'
         ctx.fillText(n.palavra, n.x, n.y + n.r + 14)
+        ctx.globalAlpha = 1
       }
 
       rafRef.current = requestAnimationFrame(step)
@@ -164,7 +215,7 @@ export function GrafoCanvas({ grafo, selecionado, onSelect }: Props) {
       if (rafRef.current) cancelAnimationFrame(rafRef.current)
       window.removeEventListener('resize', resize)
     }
-  }, [nodes, edgeIndex, onSelect, selecionado])
+  }, [nodes, edgeIndex, neighbors, onSelect, selecionado])
 
   return (
     <div ref={wrapRef} style={{ position: 'absolute', inset: 0 }}>
