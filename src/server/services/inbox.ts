@@ -1,37 +1,238 @@
 import 'server-only'
+import { randomUUID } from 'node:crypto'
 import { db } from '@/server/db/pool'
-import {
-  gerarCobrancaPix, gerarCobrancaCartao, cancelarSessao, buscarSessao,
-} from './sessoes'
 import { enviarWA, WA_TEMPLATES } from '@/server/lib/evolution'
 import { log } from '@/server/lib/log'
+import { gerarCobrancaPix, gerarCobrancaCartao, cancelarSessao, buscarSessao } from './sessoes'
+import { obterConversa, atualizarConversa, registrarSaida, buscarPacientePorTelefone, resolverPsicologo, normalizar } from './wa-conversa'
+import { gerarMensagemSegura, type Intent } from './wa-voz'
+import { env } from '@/server/lib/env'
 
 /**
- * Processa mensagem recebida no WhatsApp.
- * Identifica o paciente pelo telefone e roteia o comando.
- * §10 Fluxo 4.
+ * Roteador de mensagens WhatsApp. §10.
+ *
+ * Decide próxima ação baseada em:
+ *  1. Comandos clássicos (PIX, CONFIRMAR…) — fluxo de pagamento (Fluxo 2/4)
+ *  2. Estado da conversa (wa_conversas) — onboarding inbound
+ *  3. Paciente já cadastrado ou não
  */
+type Inbound = { telefone: string; texto: string }
 
-type InboundMessage = {
-  telefone: string         // E164 sem '+' (ex: 5511999...)
-  texto: string
-}
+export async function processarMensagemRecebida(msg: Inbound): Promise<void> {
+  const tel = normalizar(msg.telefone)
+  const cmd = (msg.texto ?? '').trim()
+  const cmdUpper = cmd.toUpperCase()
 
-export async function processarMensagemRecebida(msg: InboundMessage): Promise<void> {
-  const cmd = (msg.texto ?? '').trim().toUpperCase()
-  const tel = msg.telefone.replace(/\D/g, '').replace(/^55/, '')
+  // ──────────────────────────────────────────────────────────────────
+  // 1) Comandos clássicos do fluxo de pagamento — independem do estado
+  //    (paciente já tem sessão aberta esperando método/confirmação)
+  // ──────────────────────────────────────────────────────────────────
+  if (['PIX', 'CREDITO', 'CRÉDITO', 'DEBITO', 'DÉBITO', 'CONFIRMAR', 'CANCELAR'].includes(cmdUpper)) {
+    return processarComandoPagamento({ telefone: tel, cmd: cmdUpper })
+  }
 
-  const { rows } = await db.query<{ id: string; psicologo_id: string }>(
-    'SELECT id, psicologo_id FROM pacientes WHERE right(telefone, 11) = right($1, 11) LIMIT 1',
-    [tel],
-  )
-  const paciente = rows[0]
-  if (!paciente) {
-    log.info('evolution.inbox', `mensagem de telefone desconhecido ${msg.telefone}`)
+  // ──────────────────────────────────────────────────────────────────
+  // 2) Roteador conversacional baseado em estado
+  // ──────────────────────────────────────────────────────────────────
+  const conversa = await obterConversa(tel)
+  const psicologo = await resolverPsicologo()
+  if (!psicologo) {
+    log.warn('wa.inbox', 'nenhuma psicóloga configurada — ignorando')
     return
   }
 
-  // Sessão ativa = última sessão aguardando algo (método ou pagamento), ou confirmada futura.
+  // Se conversa.psicologoId ainda não setado, seta agora
+  if (!conversa.psicologoId) {
+    await atualizarConversa(tel, { psicologoId: psicologo.id })
+  }
+
+  // Detecta paciente existente (pode já ter sido cadastrado pela psicóloga manualmente)
+  const pacienteExistente = await buscarPacientePorTelefone(tel)
+  if (pacienteExistente && !conversa.pacienteId) {
+    await atualizarConversa(tel, { pacienteId: pacienteExistente.id, estado: 'onboarded' })
+    conversa.pacienteId = pacienteExistente.id
+    conversa.estado = 'onboarded'
+  }
+
+  switch (conversa.estado) {
+    case 'inicio':
+      return iniciarConversa(tel, psicologo)
+
+    case 'coletando_nome':
+      return receberNome(tel, cmd, psicologo)
+
+    case 'coletando_email':
+      return receberEmail(tel, cmd, psicologo)
+
+    case 'aguardando_consent':
+      return receberConsent(tel, cmdUpper, psicologo)
+
+    case 'onboarded':
+    case 'livre':
+      return responderPacienteConhecido(tel, cmd, pacienteExistente ?? null)
+
+    default:
+      // Em estados intermediários de pagamento, se chegar algo não-comando,
+      // responde genérico.
+      const fallback = await gerarMensagemSegura({ kind: 'nao_entendi', contexto: {} })
+      await enviarERegistrar(tel, fallback)
+      return
+  }
+}
+
+// ──────────────────────────────────────────────────────────────────
+// Onboarding inbound
+// ──────────────────────────────────────────────────────────────────
+
+async function iniciarConversa(tel: string, psicologo: { id: string; nome: string }) {
+  const msg = await gerarMensagemSegura({
+    kind: 'saudacao_inicial',
+    contexto: { psicologoNome: psicologo.nome },
+  })
+  await enviarERegistrar(tel, msg)
+  await atualizarConversa(tel, { estado: 'coletando_nome' })
+}
+
+async function receberNome(tel: string, texto: string, psicologo: { id: string; nome: string }) {
+  const nome = limparNome(texto)
+  if (!nome) {
+    const msg = await gerarMensagemSegura({ kind: 'pedir_nome', contexto: { psicologoNome: psicologo.nome } })
+    await enviarERegistrar(tel, msg)
+    return
+  }
+  await atualizarConversa(tel, { contexto: { nomeColetado: nome } })
+  const ack = await gerarMensagemSegura({ kind: 'recebeu_nome', contexto: { primeiroNome: nome.split(' ')[0] } })
+  const ask = await gerarMensagemSegura({ kind: 'pedir_email', contexto: { primeiroNome: nome.split(' ')[0] } })
+  await enviarERegistrar(tel, `${ack}\n\n${ask}`)
+  await atualizarConversa(tel, { estado: 'coletando_email' })
+}
+
+async function receberEmail(tel: string, texto: string, psicologo: { id: string; nome: string }) {
+  const conv = await obterConversa(tel)
+  const primeiroNome = (conv.contexto.nomeColetado ?? '').split(' ')[0] || 'você'
+  const raw = texto.trim()
+  let email: string | null = null
+  if (!/^pular$/i.test(raw)) {
+    const m = raw.match(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/)
+    if (m) email = m[0].toLowerCase()
+    else {
+      // Não é "pular" nem email válido — pede de novo brevemente
+      const ask = await gerarMensagemSegura({ kind: 'pedir_email', contexto: { primeiroNome } })
+      await enviarERegistrar(tel, ask)
+      return
+    }
+  }
+  await atualizarConversa(tel, {
+    contexto: { emailColetado: email ?? undefined },
+    estado: 'aguardando_consent',
+  })
+  const msg = await gerarMensagemSegura({
+    kind: 'pedir_consentimento',
+    contexto: { primeiroNome, psicologoNome: psicologo.nome },
+  })
+  await enviarERegistrar(tel, msg)
+}
+
+async function receberConsent(tel: string, cmd: string, psicologo: { id: string; nome: string }) {
+  const conv = await obterConversa(tel)
+  const primeiroNome = (conv.contexto.nomeColetado ?? '').split(' ')[0] || 'você'
+  const SIM = ['SIM', 'S', 'CONCORDO', 'OK', 'ACEITO']
+  const NAO = ['NÃO', 'NAO', 'N', 'NEGO', 'RECUSO']
+
+  if (NAO.some(p => cmd === p || cmd.startsWith(p + ' '))) {
+    const msg = await gerarMensagemSegura({ kind: 'consent_recusado', contexto: { primeiroNome } })
+    await enviarERegistrar(tel, msg)
+    await atualizarConversa(tel, { estado: 'inicio' })   // permite recomeço futuro
+    return
+  }
+  if (!SIM.some(p => cmd === p || cmd.startsWith(p + ' '))) {
+    const msg = await gerarMensagemSegura({
+      kind: 'pedir_consentimento',
+      contexto: { primeiroNome, psicologoNome: psicologo.nome },
+    })
+    await enviarERegistrar(tel, msg)
+    return
+  }
+
+  // ── CONSENTIMENTO ACEITO → cria paciente no DB ──
+  const nome = conv.contexto.nomeColetado || primeiroNome
+  const email = conv.contexto.emailColetado ?? null
+  const token = randomUUID().replace(/-/g, '').slice(0, 24)
+
+  // Verifica se já existe (pode ter sido cadastrado manualmente em paralelo)
+  const existente = await buscarPacientePorTelefone(tel)
+  let pacienteId: string
+  if (existente) {
+    await db.query(
+      `UPDATE pacientes
+          SET nome = COALESCE($2, nome),
+              email = COALESCE($3, email),
+              consentimento_aceito = TRUE,
+              consentimento_timestamp = NOW(),
+              consentimento_token = COALESCE(consentimento_token, $4)
+        WHERE id = $1`,
+      [existente.id, nome, email, token],
+    )
+    pacienteId = existente.id
+  } else {
+    const ins = await db.query<{ id: string }>(
+      `INSERT INTO pacientes (psicologo_id, nome, telefone, email,
+         consentimento_aceito, consentimento_timestamp, consentimento_token)
+       VALUES ($1, $2, $3, $4, TRUE, NOW(), $5)
+       RETURNING id`,
+      [psicologo.id, nome, tel, email, token],
+    )
+    pacienteId = ins.rows[0].id
+  }
+
+  await db.query(
+    `INSERT INTO consentimentos (paciente_id, texto_versao, ip, user_agent)
+     VALUES ($1, 'lgpd-2026.05-wa', NULL, 'whatsapp')`,
+    [pacienteId],
+  )
+
+  await atualizarConversa(tel, { pacienteId, estado: 'onboarded' })
+
+  const msg = await gerarMensagemSegura({
+    kind: 'consent_aceito_onboarded',
+    contexto: { primeiroNome, psicologoNome: psicologo.nome },
+  })
+  await enviarERegistrar(tel, msg)
+  log.ok('wa.inbox', `paciente cadastrado via WhatsApp: ${nome} (${tel})`)
+}
+
+async function responderPacienteConhecido(
+  tel: string,
+  texto: string,
+  paciente: { id: string; psicologoId: string; nome: string } | null,
+) {
+  const primeiroNome = (paciente?.nome ?? '').split(' ')[0] || 'você'
+  const msg = await gerarMensagemSegura({
+    kind: 'paciente_reconhecido',
+    contexto: { primeiroNome },
+  })
+  await enviarERegistrar(tel, msg)
+  // TODO: futura WA.3 — entrar em "escolhendo_horario" se mensagem indicar intenção
+  log.info('wa.inbox', `paciente conhecido respondeu: ${tel} · "${texto.slice(0, 60)}"`)
+}
+
+// ──────────────────────────────────────────────────────────────────
+// Comandos clássicos de pagamento (mantém fluxo existente)
+// ──────────────────────────────────────────────────────────────────
+
+async function processarComandoPagamento(opts: { telefone: string; cmd: string }) {
+  const { telefone, cmd } = opts
+  const { rows: pRows } = await db.query<{ id: string }>(
+    `SELECT id FROM pacientes WHERE right(telefone, 11) = right($1, 11) LIMIT 1`,
+    [telefone],
+  )
+  const paciente = pRows[0]
+  if (!paciente) {
+    await enviarERegistrar(telefone, 'Não encontrei seu cadastro. Sua psicóloga foi avisada.')
+    log.warn('wa.inbox', `${telefone} respondeu ${cmd} mas não é cadastrado`)
+    return
+  }
+
   const { rows: sRows } = await db.query<{ id: string; status: string }>(
     `SELECT id, status FROM sessoes
       WHERE paciente_id = $1
@@ -42,10 +243,9 @@ export async function processarMensagemRecebida(msg: InboundMessage): Promise<vo
   )
   const sessao = sRows[0]
 
-  if (['PIX', 'CREDITO', 'DEBITO', 'CRÉDITO', 'DÉBITO'].includes(cmd)) {
+  if (['PIX', 'CREDITO', 'CRÉDITO', 'DEBITO', 'DÉBITO'].includes(cmd)) {
     if (!sessao) {
-      await enviarWA(msg.telefone, 'Não encontrei uma sessão aguardando pagamento. Sua psicóloga foi notificada.')
-      log.warn('evolution.inbox', `${msg.telefone} respondeu ${cmd} sem sessão ativa`)
+      await enviarERegistrar(telefone, 'Não encontrei uma sessão aguardando pagamento. Sua psicóloga foi avisada.')
       return
     }
     try {
@@ -53,32 +253,41 @@ export async function processarMensagemRecebida(msg: InboundMessage): Promise<vo
       else if (cmd === 'CREDITO' || cmd === 'CRÉDITO')      await gerarCobrancaCartao(sessao.id, 'credito')
       else                                                  await gerarCobrancaCartao(sessao.id, 'debito')
     } catch (err) {
-      log.err('evolution.inbox', 'falha ao gerar cobrança', err)
-      await enviarWA(msg.telefone, 'Tivemos um problema ao gerar a cobrança. Sua psicóloga foi notificada.')
+      log.err('wa.inbox', 'falha ao gerar cobrança', err)
+      await enviarERegistrar(telefone, 'Tivemos um problema ao gerar a cobrança. Sua psicóloga foi notificada.')
     }
     return
   }
 
-  if (cmd === 'CONFIRMAR') {
-    if (sessao) {
-      const full = await buscarSessao(sessao.id)
-      await enviarWA(msg.telefone, `✅ Confirmado. Até ${full ? formatPt(full.dataHora) : 'breve'}.`)
-    }
+  if (cmd === 'CONFIRMAR' && sessao) {
+    const full = await buscarSessao(sessao.id)
+    await enviarERegistrar(telefone, `Confirmado. Até ${full ? new Date(full.dataHora).toLocaleString('pt-BR') : 'breve'}.`)
     return
   }
 
-  if (cmd === 'CANCELAR') {
-    if (sessao) {
-      await cancelarSessao(sessao.id)
-    }
+  if (cmd === 'CANCELAR' && sessao) {
+    await cancelarSessao(sessao.id)
     return
   }
 
-  // Fallback — notificar psicóloga (notificação no painel via SSE poderia ir aqui).
-  await enviarWA(msg.telefone, WA_TEMPLATES.fluxoFallback())
-  log.info('evolution.inbox', `mensagem livre de ${msg.telefone}: ${msg.texto.slice(0, 60)}`)
+  await enviarERegistrar(telefone, WA_TEMPLATES.fluxoFallback())
 }
 
-function formatPt(iso: string) {
-  return new Date(iso).toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' })
+// ──────────────────────────────────────────────────────────────────
+// Helpers
+// ──────────────────────────────────────────────────────────────────
+
+async function enviarERegistrar(telefone: string, texto: string) {
+  await enviarWA(telefone, texto)
+  await registrarSaida(telefone, texto)
+}
+
+function limparNome(input: string): string | null {
+  const s = input.trim().replace(/\s+/g, ' ')
+  // Mínimo 2 letras, máx 80, sem símbolos estranhos
+  if (s.length < 2 || s.length > 80) return null
+  if (!/[a-záàâãéêíóôõúüç]/i.test(s)) return null
+  // Bloqueia comandos comuns que claramente não são nome
+  if (/^(oi|olá|ola|hello|hi|test|teste|email|nome|sim|nao|não|ok|pix|cancelar|confirmar)$/i.test(s)) return null
+  return s.split(' ').map(w => w[0]?.toUpperCase() + w.slice(1).toLowerCase()).join(' ')
 }
