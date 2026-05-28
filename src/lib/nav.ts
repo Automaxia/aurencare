@@ -20,11 +20,11 @@ export type NavItem = {
 
 export const NAV: NavItem[] = [
   // ── Mundo Clínico ──
-  { href: '/',           label: 'Início',     icon: '◈', mundo: 'clinico', sidebar: true },
-  { href: '/pacientes',  label: 'Pacientes',  icon: '◉', mundo: 'clinico', sidebar: true },
-  { href: '/pacientes/[id]/objetivos', label: 'Objetivos e Progresso', icon: '◬', mundo: 'clinico' },
-  { href: '/pacientes/[id]/temas',     label: 'Temas Recorrentes',     icon: '◍', mundo: 'clinico' },
-  { href: '/pacientes/[id]/evolucao',  label: 'Evolução Registrada',   icon: '◫', mundo: 'clinico' },
+  { href: '/',           label: 'Início',                  icon: '◈', mundo: 'clinico', sidebar: true },
+  { href: '/pacientes',  label: 'Pacientes',               icon: '◉', mundo: 'clinico', sidebar: true },
+  { href: '/objetivos',  label: 'Objetivos e Progresso',   icon: '◬', mundo: 'clinico', sidebar: true },
+  { href: '/temas',      label: 'Temas Recorrentes',       icon: '◍', mundo: 'clinico', sidebar: true },
+  { href: '/evolucao',   label: 'Evolução Registrada',     icon: '◫', mundo: 'clinico', sidebar: true },
 
   // ── Mundo Prática ──
   { href: '/financeiro', label: 'Financeiro',         icon: '◑', mundo: 'pratica', sidebar: true },
@@ -46,11 +46,16 @@ export function mundoFromPath(pathname: string): Mundo {
 }
 
 export function activeHref(pathname: string): string {
-  // Match exato; fallback para prefix.
+  // Match exato.
   const exact = NAV.find(n => n.href === pathname)
   if (exact) return exact.href
+  // /pacientes/[id]/objetivos → /objetivos (ativo no sidebar)
+  if (pathname.match(/^\/pacientes\/[^/]+\/objetivos/)) return '/objetivos'
+  if (pathname.match(/^\/pacientes\/[^/]+\/temas/))     return '/temas'
+  if (pathname.match(/^\/pacientes\/[^/]+\/evolucao/))  return '/evolucao'
+  // Fallback prefix.
   const prefix = NAV
-    .filter(n => n.href !== '/' && pathname.startsWith(n.href.replace(/\[id\].*/, '')))
+    .filter(n => n.href !== '/' && pathname.startsWith(n.href))
     .sort((a, b) => b.href.length - a.href.length)[0]
   return prefix?.href ?? '/'
 }

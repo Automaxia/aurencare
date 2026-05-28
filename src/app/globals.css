@@ -1250,3 +1250,56 @@ input, textarea, select { font-family: inherit; font-size: inherit; }
 
 /* Sparkline default */
 .spark-svg { width: 100%; overflow: visible; }
+
+/* ────────────────────────────────────────────────────────────────────────
+   PACIENTES — cards (.ptc) · v12.5
+   ──────────────────────────────────────────────────────────────────────── */
+.ptc {
+  background: var(--card); border: 1px solid var(--border);
+  border-radius: var(--r); box-shadow: var(--sh);
+  cursor: pointer; transition: all .22s var(--ease);
+  display: block; text-decoration: none; color: inherit;
+}
+.ptc:hover { box-shadow: var(--sh-m); transform: translateY(-1px); }
+.ptc-b { padding: 18px 19px; }
+.ptc-grid {
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 12px;
+}
+.ptc-head {
+  display: flex; align-items: center; justify-content: space-between;
+  margin-bottom: 14px;
+}
+.ptc-id { display: flex; align-items: center; gap: 11px; }
+.ptc-av {
+  width: 36px; height: 36px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 12px; font-weight: 500; color: #fff; flex-shrink: 0;
+}
+.ptc-name { font-size: 13.5px; font-weight: 500; color: var(--ink-soft); }
+.ptc-meta { font-size: 11.5px; color: var(--muted); }
+.ptc-rows { display: flex; flex-direction: column; gap: 0; }
+.ptc-row {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 7px 0; border-top: 1px solid var(--border);
+  font-size: 11.5px;
+}
+.ptc-row .k { color: var(--faint); }
+.ptc-row .v { font-size: 12.5px; font-weight: 500; color: var(--ink-soft); }
+.ptc-actions { display: flex; gap: 6px; margin-top: 13px; }
+.ptc-actions .btn { flex: 1; justify-content: center; }
+.ptc-dot {
+  width: 7px; height: 7px; border-radius: 50%; display: inline-block;
+}
+
+/* Caixa de busca em formato inline */
+.search-box {
+  display: flex; align-items: center; gap: 7px;
+  background: var(--card); border: 1px solid var(--border);
+  border-radius: 10px; padding: 7px 13px;
+}
+.search-box input {
+  border: none; outline: none; font-family: inherit;
+  font-size: 13px; color: var(--ink-soft); background: transparent; width: 150px;
+}
+.search-box input::placeholder { color: var(--faint); }

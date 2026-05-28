@@ -4,11 +4,10 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import { useState } from 'react'
 
 const FILTROS = [
-  { key: 'todos',     label: 'Todos' },
-  { key: 'ativos',    label: 'Ativos' },
-  { key: 'novos',     label: 'Novos' },
-  { key: 'espacando', label: 'Espaçando' },
-  { key: 'atencao',   label: 'Atenção' },
+  { key: 'todos',   label: 'Todos' },
+  { key: 'hoje',    label: 'Sessão hoje' },
+  { key: 'atencao', label: 'Atenção' },
+  { key: 'novos',   label: 'Novos' },
 ] as const
 
 type Counts = Record<typeof FILTROS[number]['key'], number>
@@ -26,35 +25,33 @@ export function PacientesFilter({ active, counts, busca }: { active: string; cou
   }
 
   return (
-    <div style={{ display: 'flex', gap: 8, marginBottom: 16, alignItems: 'center', flexWrap: 'wrap' }}>
-      {FILTROS.map(f => (
-        <button
-          key={f.key}
-          onClick={() => update({ filtro: f.key })}
-          className="btn"
-          style={{
-            background: active === f.key ? 'var(--accent-lo)' : undefined,
-            color: active === f.key ? '#391d96' : undefined,
-            borderColor: active === f.key ? 'transparent' : undefined,
-          }}
-        >
-          {f.label}
-          <span style={{ marginLeft: 6, fontSize: 11, color: 'var(--muted)' }}>{counts[f.key]}</span>
-        </button>
-      ))}
+    <div style={{ display: 'flex', gap: 8, marginBottom: 20, alignItems: 'center', flexWrap: 'wrap' }}>
+      <div className="ftabs">
+        {FILTROS.map(f => (
+          <button
+            key={f.key}
+            onClick={() => update({ filtro: f.key })}
+            className={`ftab${active === f.key ? ' active' : ''}`}
+          >
+            {f.label}
+            {counts[f.key] > 0 && (
+              <span style={{ marginLeft: 6, fontSize: 10, opacity: .7 }}>{counts[f.key]}</span>
+            )}
+          </button>
+        ))}
+      </div>
       <form
         onSubmit={e => { e.preventDefault(); update({ busca: q }) }}
-        style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 6 }}
+        style={{ marginLeft: 'auto' }}
       >
-        <input
-          value={q}
-          onChange={e => setQ(e.target.value)}
-          placeholder="Buscar por nome ou telefone…"
-          style={{
-            padding: '6px 12px', borderRadius: 8, border: '1px solid var(--border)',
-            background: 'white', fontSize: 13, width: 240,
-          }}
-        />
+        <div className="search-box">
+          <span style={{ fontSize: 13, color: 'var(--faint)' }}>⌕</span>
+          <input
+            value={q}
+            onChange={e => setQ(e.target.value)}
+            placeholder="Buscar paciente…"
+          />
+        </div>
       </form>
     </div>
   )
