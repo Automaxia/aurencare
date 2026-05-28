@@ -1,14 +1,31 @@
 import { PageHeader } from '@/components/PageHeader'
 import { requirePsicologo } from '@/server/lib/auth'
 import { lerSaude } from '@/server/services/financeiro'
+import { db } from '@/server/db/pool'
 import { formatBRL } from '@/lib/formatters'
 import { SaudeInsights } from './insights'
+import { SessoesTable, type SessaoRow } from './sessoes-table'
 
 export const dynamic = 'force-dynamic'
 
 export default async function SaudePage() {
   const user = await requirePsicologo()
   const s = await lerSaude(user.id)
+
+  // Sessões dos últimos 90 dias pra tabela filtrável
+  const { rows: sessoes } = await db.query<any>(
+    `SELECT s.id, s.numero, s.data_hora, s.status, s.modalidade, s.duracao_min, s.valor, s.assinada,
+            p.nome AS paciente_nome
+       FROM sessoes s JOIN pacientes p ON p.id = s.paciente_id
+      WHERE s.psicologo_id = $1 AND s.data_hora >= NOW() - INTERVAL '90 days'
+      ORDER BY s.data_hora DESC`,
+    [user.id],
+  )
+  const tabela: SessaoRow[] = sessoes.map(r => ({
+    id: r.id, numero: r.numero, dataHora: r.data_hora,
+    pacienteNome: r.paciente_nome, status: r.status, modalidade: r.modalidade,
+    duracaoMin: r.duracao_min, valor: parseFloat(r.valor ?? 0), assinada: r.assinada,
+  }))
 
   return (
     <div>
@@ -47,7 +64,15 @@ export default async function SaudePage() {
       </div>
 
       {/* Insights amigáveis da IA */}
-      <SaudeInsights />
+      <div style={{ marginBottom: 20 }}>
+        <SaudeInsights />
+      </div>
+
+      {/* Tabela detalhada de sessões (90 dias) com filtros */}
+      <section>
+        <div className="sec-lbl" style={{ marginBottom: 10 }}>Sessões — últimos 90 dias</div>
+        <SessoesTable sessoes={tabela} />
+      </section>
     </div>
   )
 }

@@ -20,9 +20,34 @@ export type Financeiro = {
   inadimplenciaPct: number
 }
 
-export async function lerFinanceiro(psicologoId: string, mesIso: string): Promise<Financeiro> {
-  const inicio = new Date(mesIso); inicio.setDate(1); inicio.setHours(0,0,0,0)
-  const fim = new Date(inicio.getFullYear(), inicio.getMonth() + 1, 0, 23, 59, 59, 999)
+export type Periodo = 'mes' | '30d' | '90d' | 'ano'
+
+export function rangeDoPeriodo(periodo: Periodo, anchor: Date = new Date()): { inicio: Date; fim: Date } {
+  const fim = new Date(anchor); fim.setHours(23, 59, 59, 999)
+  if (periodo === '30d') {
+    const inicio = new Date(anchor); inicio.setDate(anchor.getDate() - 30); inicio.setHours(0, 0, 0, 0)
+    return { inicio, fim }
+  }
+  if (periodo === '90d') {
+    const inicio = new Date(anchor); inicio.setDate(anchor.getDate() - 90); inicio.setHours(0, 0, 0, 0)
+    return { inicio, fim }
+  }
+  if (periodo === 'ano') {
+    const inicio = new Date(anchor.getFullYear(), 0, 1)
+    return { inicio, fim }
+  }
+  // mes (default)
+  const inicio = new Date(anchor.getFullYear(), anchor.getMonth(), 1)
+  const fimMes = new Date(anchor.getFullYear(), anchor.getMonth() + 1, 0, 23, 59, 59, 999)
+  return { inicio, fim: fimMes }
+}
+
+export async function lerFinanceiro(
+  psicologoId: string,
+  anchorIso: string,
+  periodo: Periodo = 'mes',
+): Promise<Financeiro> {
+  const { inicio, fim } = rangeDoPeriodo(periodo, new Date(anchorIso))
 
   const { rows } = await db.query<any>(
     `SELECT s.id, s.data_hora, s.valor, s.pagamento_status, s.pagamento_metodo,
