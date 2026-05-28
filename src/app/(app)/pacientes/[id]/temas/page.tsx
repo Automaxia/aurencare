@@ -32,7 +32,7 @@ export default async function TemasPage({ params }: { params: { id: string } }) 
         basePath="/pacientes"
         segment="temas"
       />
-      <TemasView pacienteId={params.id} initialGrafo={grafo} />
+      <TemasView pacienteId={params.id} pacienteNome={paciente.nome} initialGrafo={grafo} />
     </div>
   )
 }

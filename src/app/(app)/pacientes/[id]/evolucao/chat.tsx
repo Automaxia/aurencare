@@ -1,73 +1,24 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
-import { CfpBadge } from '@/components/brand/CfpBadge'
+import { AiChatPanel } from '@/components/AiChatPanel'
 
-type Msg = { role: 'user' | 'assistant'; content: string }
-
-export function EvolucaoChat({ pacienteId, pacienteNome }: { pacienteId: string; pacienteNome: string }) {
-  const [msgs, setMsgs] = useState<Msg[]>([])
-  const [draft, setDraft] = useState('')
-  const [loading, setLoading] = useState(false)
-  const scrollRef = useRef<HTMLDivElement>(null)
-
-  useEffect(() => {
-    scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: 'smooth' })
-  }, [msgs])
-
-  async function enviar() {
-    const text = draft.trim()
-    if (!text || loading) return
-    const next = [...msgs, { role: 'user' as const, content: text }]
-    setMsgs(next); setDraft(''); setLoading(true)
-    try {
-      const res = await fetch('/api/analise/chat', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ contexto: 'evolucao', pacienteId, messages: next }),
-      })
-      const json = await res.json()
-      setMsgs(m => [...m, { role: 'assistant', content: json.text ?? '[Sem resposta]' }])
-    } catch {
-      setMsgs(m => [...m, { role: 'assistant', content: '[Erro ao consultar IA]' }])
-    } finally {
-      setLoading(false)
-    }
-  }
-
+export function EvolucaoChat({ pacienteId, pacienteNome, totalSessoes }: { pacienteId: string; pacienteNome: string; totalSessoes: number }) {
+  const first = pacienteNome.split(/\s+/)[0]
   return (
-    <aside className="card" style={{ display: 'flex', flexDirection: 'column', minHeight: 420, position: 'sticky', top: 70, alignSelf: 'start' }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-        <div style={{ fontSize: 11, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '.06em' }}>
-          Apoio à reflexão
-        </div>
-        <CfpBadge />
-      </div>
-
-      <div ref={scrollRef} style={{ flex: 1, overflowY: 'auto', display: 'grid', gap: 8, paddingRight: 4 }}>
-        {msgs.length === 0 && (
-          <p style={{ fontSize: 12, color: 'var(--muted)' }}>
-            Pergunte sobre padrões, frequências e tendências observados em {pacienteNome.split(' ')[0]}. Esta IA não emite diagnóstico.
-          </p>
-        )}
-        {msgs.map((m, i) => (
-          <div key={i} style={{
-            alignSelf: m.role === 'user' ? 'flex-end' : 'flex-start',
-            background: m.role === 'user' ? 'var(--accent-lo)' : 'var(--surface)',
-            padding: '8px 12px', borderRadius: 10, fontSize: 13, maxWidth: '92%', whiteSpace: 'pre-wrap',
-          }}>{m.content}</div>
-        ))}
-        {loading && <div style={{ fontSize: 12, color: 'var(--muted)' }}>… analisando</div>}
-      </div>
-
-      <form onSubmit={e => { e.preventDefault(); enviar() }} style={{ display: 'flex', gap: 6, marginTop: 8 }}>
-        <input
-          value={draft} onChange={e => setDraft(e.target.value)}
-          placeholder="Perguntar sobre a continuidade…"
-          style={{ flex: 1, padding: '8px 12px', borderRadius: 8, border: '1px solid var(--border)', background: 'white', fontSize: 13, outline: 'none' }}
-        />
-        <button type="submit" className="btn primary" disabled={loading || !draft.trim()}>Enviar</button>
-      </form>
-    </aside>
+    <div style={{ position: 'sticky', top: 70, alignSelf: 'start' }}>
+      <AiChatPanel
+        endpoint="/api/analise/chat"
+        payload={{ contexto: 'evolucao', pacienteId }}
+        title="Memória do processo"
+        subtitle={`Pergunte sobre o histórico de ${first}. ${totalSessoes} ${totalSessoes === 1 ? 'sessão registrada' : 'sessões registradas'}.`}
+        initialMessage={`Registrei ${totalSessoes} ${totalSessoes === 1 ? 'sessão' : 'sessões'} de ${first}. Posso ajudar a organizar o que foi observado ao longo do processo — temas recorrentes, mudanças, continuidade entre sessões. O que quer explorar?`}
+        quickPrompts={[
+          'Como evoluiu entre a primeira e a última sessão?',
+          'O que mudou nas últimas sessões?',
+          'Quais padrões aparecem com mais frequência?',
+        ]}
+        placeholder={`Explore o histórico de ${first}…`}
+      />
+    </div>
   )
 }
