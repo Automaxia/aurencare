@@ -13,6 +13,8 @@ import { useContexto, UltimaSessaoWidget, TopicosWidget, InfoPacienteWidget } fr
 import { SortableGrid } from './widgets/SortableGrid'
 import { WidgetGrip } from '@/components/WidgetGrip'
 import { LiveInsight } from './widgets/LiveInsight'
+import { VideoCall } from '@/components/video/VideoCall'
+import { Video } from 'lucide-react'
 
 type Props = {
   sessaoId: string
@@ -43,6 +45,9 @@ export function PresenceClient(props: Props) {
   const [notaRapida, setNotaRapida] = useState('')
   const [obsViva, setObsViva] = useState<string | null>(null)
   const [obsLoading, setObsLoading] = useState(false)
+  const [chamada, setChamada] = useState<{ token: string; urlPaciente: string } | null>(null)
+  const [mostrarModalSala, setMostrarModalSala] = useState(false)
+  const [iniciandoChamada, setIniciandoChamada] = useState(false)
 
   const startedRef = useRef(false)
   // turnos onde o falante foi manualmente fixado (não sobreescrever via IA)
@@ -210,6 +215,22 @@ export function PresenceClient(props: Props) {
     setRisco({ autolesao: sugestaoRisco.autolesao, ideacao: sugestaoRisco.ideacao, plano: sugestaoRisco.plano })
   }
 
+  async function iniciarChamada() {
+    if (iniciandoChamada || chamada) { setMostrarModalSala(true); return }
+    setIniciandoChamada(true)
+    try {
+      const r = await fetch(`/api/sessao/${props.sessaoId}/sala`, { method: 'POST' })
+      if (!r.ok) throw new Error('sala falhou')
+      const j = await r.json()
+      setChamada({ token: j.token, urlPaciente: j.urlPaciente })
+      setMostrarModalSala(true)
+    } catch {
+      alert('Não foi possível abrir a chamada agora.')
+    } finally {
+      setIniciandoChamada(false)
+    }
+  }
+
   const widgets = [
     <LiveInsight key="live-insight" text={obsViva} loading={obsLoading} numeroTurnos={turnos.length} />,
     <RhythmWidget key="ritmo" pctPsic={pctPsic} pctPac={pctPac} counts={counts} armed={armed} setArmed={setArmed} />,
@@ -252,6 +273,15 @@ export function PresenceClient(props: Props) {
               <button className="btn ghost" onClick={() => setRecording(false)}>⏸</button>
             </>
           )}
+          <button
+            className={`btn${chamada ? ' primary' : ' ghost'}`}
+            onClick={iniciarChamada}
+            disabled={iniciandoChamada}
+            title={chamada ? 'Mostrar link da sala' : 'Abrir chamada online no Auren'}
+          >
+            <Video size={14} style={{ marginRight: 4 }} />
+            {chamada ? 'Sala online' : iniciandoChamada ? 'Abrindo…' : 'Chamada online'}
+          </button>
           <button className="btn primary" onClick={encerrar} disabled={encerrando}>
             {encerrando ? 'Encerrando…' : 'Encerrar'}
           </button>
@@ -286,6 +316,53 @@ export function PresenceClient(props: Props) {
           </SortableGrid>
         </div>
       </div>
+
+      {/* Modal pra mostrar URL pro paciente */}
+      {mostrarModalSala && chamada && (
+        <div role="dialog" aria-modal="true" style={{
+          position: 'fixed', inset: 0, background: 'rgba(20,16,38,.55)', display: 'grid', placeItems: 'center',
+          zIndex: 60, padding: 16, backdropFilter: 'blur(4px)',
+        }}>
+          <div className="card" style={{ maxWidth: 480, width: '100%', padding: 24 }}>
+            <h3 style={{ margin: '0 0 4px' }}>Sala da sessão</h3>
+            <p style={{ color: 'var(--muted)', fontSize: 13, marginTop: 0, marginBottom: 16 }}>
+              Envie este link pro paciente entrar. Sua chamada abre em uma janela embutida quando ambos estiverem na sala.
+            </p>
+            <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+              <input
+                value={chamada.urlPaciente}
+                readOnly
+                style={{
+                  flex: 1, padding: '8px 12px', borderRadius: 8,
+                  border: '1px solid var(--border)', background: 'var(--surface)',
+                  fontSize: 12, fontFamily: 'var(--font-mono), monospace',
+                }}
+              />
+              <button className="btn primary" onClick={() => navigator.clipboard?.writeText(chamada.urlPaciente)}>
+                Copiar
+              </button>
+            </div>
+            <div style={{ marginTop: 12, fontSize: 11, color: 'var(--faint)' }}>
+              Sala ativa por 4 horas. Quando você fechar a chamada, pode reabri-la aqui.
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 18 }}>
+              <button className="btn ghost" onClick={() => setMostrarModalSala(false)}>Fechar</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* VideoCall overlay quando chamada ativa */}
+      {chamada && (
+        <div style={{
+          position: 'fixed', right: 20, bottom: 20,
+          width: 360, height: 260, zIndex: 40,
+          boxShadow: 'var(--sh-lg)', borderRadius: 'var(--rsm)',
+          overflow: 'hidden',
+        }}>
+          <VideoCall token={chamada.token} role="psicologo" caller compact onEncerrar={() => setChamada(null)} />
+        </div>
+      )}
 
       {showPostModal && (
         <PostSessionModal
