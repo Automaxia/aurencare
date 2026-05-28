@@ -1,5 +1,7 @@
 'use client'
 
+import { WidgetGrip } from '@/components/WidgetGrip'
+
 type Level = 'lo' | 'md' | 'hi'
 type Risco = { autolesao: Level; ideacao: Level; plano: Level }
 
@@ -24,7 +26,7 @@ function nivelGeral(r: Risco): string {
 export function RiskAssessment({ value, onChange }: { value: Risco; onChange: (r: Risco) => void }) {
   return (
     <div className="talk-card" data-widget-id="risco">
-      <div className="widget-grip" title="Arraste para reorganizar">⠿</div>
+      <WidgetGrip />
       <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between' }}>
         <div className="sec-lbl" style={{ marginBottom: 2 }}>Avaliação de risco</div>
         <div style={{ fontSize: 9, color: 'var(--faint)', letterSpacing: .6 }}>agora</div>

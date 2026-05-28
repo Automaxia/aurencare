@@ -1,6 +1,7 @@
 'use client'
 
 import type { TurnMark } from './TranscriptionCard'
+import { WidgetGrip } from '@/components/WidgetGrip'
 
 const MARK_LABEL: Record<TurnMark, string> = {
   insight: 'Insight relevante',
@@ -26,7 +27,7 @@ type Props = {
 export function RhythmWidget({ pctPsic, pctPac, counts, armed, setArmed }: Props) {
   return (
     <div className="talk-card" data-widget-id="ritmo">
-      <div className="widget-grip" title="Arraste para reorganizar">⠿</div>
+      <WidgetGrip />
       <div className="sec-lbl" style={{ marginBottom: 2 }}>Ritmo da conversa</div>
 
       <div className="rhythm-bars">

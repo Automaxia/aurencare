@@ -74,6 +74,14 @@ export async function lerEvolucaoDados(pacienteId: string, pacienteNome: string)
     : 50
   const desde = sessoesA[0]?.data_hora ?? new Date().toISOString()
 
+  // sparklines — humor e ritmo por sessão (cronológico)
+  const sparkHumor: number[] = sessoesA
+    .map(s => s.indicadores?.humor?.estado)
+    .filter((v): v is number => typeof v === 'number')
+  const sparkRitmo: number[] = sessoesA
+    .map(s => s.indicadores?.ritmo?.paciente)
+    .filter((v): v is number => typeof v === 'number')
+
   const perfil = {
     avatar: iniciais(pacienteNome),
     nome: pacienteNome,
@@ -82,6 +90,8 @@ export async function lerEvolucaoDados(pacienteId: string, pacienteNome: string)
     desde,
     presenca,
     abertura,
+    sparkHumor,
+    sparkRitmo,
   }
 
   // 3) Temas descritivos + instrumentos (via IA — cache 24h)

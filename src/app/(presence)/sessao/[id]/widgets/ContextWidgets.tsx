@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { WidgetGrip } from '@/components/WidgetGrip'
 
 type UltimaSessao = { id: string; numero: number; dataHora: string; bullets: string[] }
 type Condicoes = {
@@ -30,7 +31,7 @@ export function useContexto(sessaoId: string) {
 export function UltimaSessaoWidget({ ctx, loading }: { ctx: Ctx | null; loading: boolean }) {
   return (
     <div className="sp" data-widget-id="ultima">
-      <div className="widget-grip" title="Arraste para reorganizar">⠿</div>
+      <WidgetGrip />
       <div className="sp-t">Última sessão</div>
       {loading ? <Skeleton lines={3} /> : !ctx?.ultima ? (
         <div className="sp-li" style={{ color: 'var(--faint)' }}>primeira sessão deste paciente</div>
@@ -46,7 +47,7 @@ export function UltimaSessaoWidget({ ctx, loading }: { ctx: Ctx | null; loading:
 export function TopicosWidget({ ctx, loading }: { ctx: Ctx | null; loading: boolean }) {
   return (
     <div className="sp" data-widget-id="topicos">
-      <div className="widget-grip" title="Arraste para reorganizar">⠿</div>
+      <WidgetGrip />
       <div className="sp-t">Tópicos em aberto</div>
       {loading ? <Skeleton lines={2} /> : !ctx?.topicos?.length ? (
         <div className="sp-li" style={{ color: 'var(--faint)' }}>sem tópicos extraídos</div>
@@ -66,7 +67,7 @@ export function InfoPacienteWidget({ ctx, loading, pacienteId }: { ctx: Ctx | nu
 
   return (
     <div className="sp wide" data-widget-id="info">
-      <div className="widget-grip" title="Arraste para reorganizar">⠿</div>
+      <WidgetGrip />
       <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: 11 }}>
         <div className="sp-t" style={{ margin: 0 }}>Informações do paciente</div>
         <a href={`/pacientes/${pacienteId}`} style={{ fontSize: 9, color: 'var(--faint)', letterSpacing: '.6px', textTransform: 'uppercase' }}>prontuário ↗</a>

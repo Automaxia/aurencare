@@ -15,20 +15,16 @@ export function ViewToggle({ view, ancora }: { view: 'dia' | 'semana' | 'mes'; a
 
   return (
     <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 16 }}>
-      <div style={{ display: 'inline-flex', borderRadius: 8, overflow: 'hidden', border: '1px solid var(--border)' }}>
+      <div className="cal-tabs">
         {(['dia','semana','mes'] as const).map(v => (
-          <button key={v} onClick={() => change(v)} className="btn ghost" style={{
-            borderRadius: 0, padding: '6px 14px', border: 'none',
-            background: view === v ? 'var(--accent-lo)' : 'transparent',
-            color: view === v ? '#391d96' : undefined, fontWeight: view === v ? 500 : 400,
-          }}>
+          <button key={v} onClick={() => change(v)} className={view === v ? 'active' : ''}>
             {v === 'dia' ? 'Dia' : v === 'semana' ? 'Semana' : 'Mês'}
           </button>
         ))}
       </div>
-      <button className="btn ghost" onClick={() => nav(-1)}>←</button>
-      <button className="btn ghost" onClick={() => router.push(`/agenda?view=${view}&data=${encodeURIComponent(new Date().toISOString())}`)}>Hoje</button>
-      <button className="btn ghost" onClick={() => nav(1)}>→</button>
+      <button className="btn ghost sm" onClick={() => nav(-1)}>←</button>
+      <button className="btn ghost sm" onClick={() => router.push(`/agenda?view=${view}&data=${encodeURIComponent(new Date().toISOString())}`)}>Hoje</button>
+      <button className="btn ghost sm" onClick={() => nav(1)}>→</button>
     </div>
   )
 }

@@ -1,6 +1,7 @@
 'use client'
 
 import { useMemo } from 'react'
+import { WidgetGrip } from '@/components/WidgetGrip'
 
 /**
  * Checagem de humor — rica. Mockup v12.5.
@@ -57,7 +58,7 @@ export function HumorCheck({ value, onChange }: Props) {
 
   return (
     <div className="talk-card wide" data-widget-id="humor">
-      <div className="widget-grip" title="Arraste para reorganizar">⠿</div>
+      <WidgetGrip />
       <div className="sec-lbl" style={{ marginBottom: 2 }}>Checagem de humor</div>
 
       {/* Estado emocional bipolar */}

@@ -11,6 +11,7 @@ import { PostSessionModal } from './widgets/PostSessionModal'
 import { useSpeech } from './useSpeech'
 import { useContexto, UltimaSessaoWidget, TopicosWidget, InfoPacienteWidget } from './widgets/ContextWidgets'
 import { SortableGrid } from './widgets/SortableGrid'
+import { WidgetGrip } from '@/components/WidgetGrip'
 
 type Props = {
   sessaoId: string
@@ -154,7 +155,7 @@ export function PresenceClient(props: Props) {
   const widgets = [
     <RhythmWidget key="ritmo" pctPsic={pctPsic} pctPac={pctPac} counts={counts} armed={armed} setArmed={setArmed} />,
     <div key="temas" className="themes-card" data-widget-id="temas">
-      <div className="widget-grip" title="Arraste para reorganizar">⠿</div>
+      <WidgetGrip />
       <div className="themes-head"><span className="ttl">Temas desta sessão</span><span className="sub">ao vivo</span></div>
       <div style={{ padding: 8 }}><ThemesCanvas turnos={turnos} /></div>
     </div>,
@@ -164,7 +165,7 @@ export function PresenceClient(props: Props) {
     <UltimaSessaoWidget key="ultima" ctx={ctx} loading={ctxLoading} />,
     <TopicosWidget key="topicos" ctx={ctx} loading={ctxLoading} />,
     <div key="nota" className="qnote wide" data-widget-id="nota">
-      <div className="widget-grip" title="Arraste para reorganizar">⠿</div>
+      <WidgetGrip />
       <div className="sp-t">Nota rápida</div>
       <textarea
         placeholder="Algo para lembrar depois…"

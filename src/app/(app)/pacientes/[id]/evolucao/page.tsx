@@ -1,6 +1,7 @@
 import { redirect, notFound } from 'next/navigation'
 import { PageHeader } from '@/components/PageHeader'
 import { PatientSelector } from '@/components/PatientSelector'
+import { Sparkline } from '@/components/Sparkline'
 import { requirePsicologo } from '@/server/lib/auth'
 import { db } from '@/server/db/pool'
 import { lerEvolucaoDados } from '@/server/services/evolucao'
@@ -23,7 +24,6 @@ export default async function EvolucaoPage({ params }: { params: { id: string } 
     <div>
       <PageHeader title="Evolução Registrada" subtitle="Continuidade clínica" />
 
-      {/* Disclaimer destacado */}
       <div className="disclaimer">
         <span style={{ fontSize: 16 }}>🧭</span>
         <div style={{ flex: 1 }}>
@@ -46,7 +46,6 @@ export default async function EvolucaoPage({ params }: { params: { id: string } 
 
       <div className="orient-grid">
         <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-          {/* Perfil + KPIs */}
           <ProfileCard
             avatar={dados.perfil.avatar}
             nome={dados.perfil.nome}
@@ -55,9 +54,10 @@ export default async function EvolucaoPage({ params }: { params: { id: string } 
             desde={dados.perfil.desde}
             presenca={dados.perfil.presenca}
             abertura={dados.perfil.abertura}
+            sparkHumor={dados.perfil.sparkHumor}
+            sparkRitmo={dados.perfil.sparkRitmo}
           />
 
-          {/* Histórico de temas recorrentes */}
           <div className="card" style={{ padding: 0 }}>
             <div className="card-h" style={{ padding: '14px 18px' }}>
               <span className="card-title">Histórico de temas recorrentes</span>
@@ -79,7 +79,6 @@ export default async function EvolucaoPage({ params }: { params: { id: string } 
             </div>
           </div>
 
-          {/* Instrumentos a considerar */}
           {dados.instrumentos.length > 0 && (
             <div className="card" style={{ padding: 0 }}>
               <div className="card-h" style={{ padding: '14px 18px' }}>
@@ -113,7 +112,19 @@ export default async function EvolucaoPage({ params }: { params: { id: string } 
   )
 }
 
-function ProfileCard(p: { avatar: string; nome: string; totalSessoes: number; minutosMedia: number; desde: string; presenca: number; abertura: number }) {
+type ProfileCardProps = {
+  avatar: string
+  nome: string
+  totalSessoes: number
+  minutosMedia: number
+  desde: string
+  presenca: number
+  abertura: number
+  sparkHumor: number[]
+  sparkRitmo: number[]
+}
+
+function ProfileCard(p: ProfileCardProps) {
   return (
     <div className="card">
       <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
@@ -137,8 +148,55 @@ function ProfileCard(p: { avatar: string; nome: string; totalSessoes: number; mi
           </div>
         </div>
       </div>
+
+      <SparksRow sparkHumor={p.sparkHumor ?? []} sparkRitmo={p.sparkRitmo ?? []} />
     </div>
   )
+}
+
+function SparksRow({ sparkHumor, sparkRitmo }: { sparkHumor: number[]; sparkRitmo: number[] }) {
+  if (sparkHumor.length < 2 && sparkRitmo.length < 2) return null
+  return (
+    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginTop: 16, paddingTop: 14, borderTop: '1px solid var(--border)' }}>
+      {sparkHumor.length >= 2 ? (
+        <SparkBlock
+          title="Humor ao longo do tempo"
+          hint={`últ.: ${formatEstadoLabel(sparkHumor[sparkHumor.length - 1])}`}
+          values={sparkHumor}
+          color="var(--accent)"
+          showDots
+        />
+      ) : <div />}
+      {sparkRitmo.length >= 2 ? (
+        <SparkBlock
+          title="Voz do paciente"
+          hint={`últ.: ${sparkRitmo[sparkRitmo.length - 1]}% do tempo`}
+          values={sparkRitmo}
+          color="var(--sage)"
+        />
+      ) : <div />}
+    </div>
+  )
+}
+
+function SparkBlock({ title, hint, values, color, showDots }: { title: string; hint: string; values: number[]; color: string; showDots?: boolean }) {
+  return (
+    <div>
+      <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: 6 }}>
+        <span style={{ fontSize: 10, color: 'var(--faint)', textTransform: 'uppercase', letterSpacing: 1.5, fontWeight: 500 }}>{title}</span>
+        <span style={{ fontSize: 11, color: 'var(--muted)' }}>{hint}</span>
+      </div>
+      <Sparkline values={values} width={180} height={32} color={color} showDots={showDots} ariaLabel={title} />
+    </div>
+  )
+}
+
+function formatEstadoLabel(estado: number): string {
+  if (estado >= 3) return 'agradável'
+  if (estado >= 1) return 'levemente agradável'
+  if (estado <= -3) return 'desagradável'
+  if (estado <= -1) return 'levemente desagradável'
+  return 'neutro'
 }
 
 function formatMesAno(iso: string): string {

@@ -1114,3 +1114,58 @@ input, textarea, select { font-family: inherit; font-size: inherit; }
 .instr-card.gad7 .instr-name { color: var(--amber); }
 .instr-body { font-size: 12.5px; color: var(--muted); line-height: 1.6; }
 
+
+/* ────────────────────────────────────────────────────────────────────────
+   AGENDA — cal-block + cal-tags · v12.5
+   ──────────────────────────────────────────────────────────────────────── */
+.cal-block {
+  padding: 5px 8px; border-radius: 7px;
+  cursor: pointer; transition: all .18s var(--ease);
+  text-decoration: none; color: inherit; display: block;
+}
+.cal-block:hover { filter: brightness(.97); transform: translateY(-1px); }
+.cal-block-name { font-size: 12px; font-weight: 500; color: var(--ink-soft); margin-bottom: 1px; }
+.cal-block-meta { font-size: 10px; color: var(--muted); margin-bottom: 4px; }
+.cal-slot-free {
+  border-radius: 7px; padding: 8px; text-align: center;
+  cursor: pointer; transition: background .18s var(--ease);
+  text-decoration: none; color: inherit; display: block;
+}
+.cal-slot-free:hover { background: rgba(107,79,207,.04); }
+.cal-tag-green {
+  background: rgba(90,158,138,.1); color: #3a6e60;
+  font-size: 9px; font-weight: 500; padding: 1px 5px; border-radius: 4px;
+}
+.cal-tag-purple {
+  background: rgba(107,79,207,.09); color: var(--accent);
+  font-size: 9px; font-weight: 500; padding: 1px 5px; border-radius: 4px;
+}
+.cal-tag-amber {
+  background: rgba(176,125,64,.1); color: #7a5520;
+  font-size: 9px; font-weight: 500; padding: 1px 5px; border-radius: 4px;
+}
+.cal-tag-rose {
+  background: rgba(196,96,122,.1); color: #823045;
+  font-size: 9px; font-weight: 500; padding: 1px 5px; border-radius: 4px;
+}
+.cal-live-badge {
+  font-size: 9px; background: rgba(107,79,207,.15); color: var(--accent);
+  padding: 1px 5px; border-radius: 3px; margin-left: 4px;
+  font-weight: 500;
+}
+
+/* Header dia/semana/mês toggle */
+.cal-tabs {
+  display: flex; gap: 2px; background: var(--surface);
+  border-radius: 9px; padding: 3px; border: 1px solid var(--border);
+}
+.cal-tabs button {
+  padding: 5px 13px; border-radius: 7px; font-size: 12px; font-weight: 500;
+  background: transparent; color: var(--muted);
+  border: none; cursor: pointer; font-family: inherit;
+  transition: all .15s var(--ease);
+}
+.cal-tabs button.active { background: var(--accent); color: #fff; }
+
+/* Sparkline default */
+.spark-svg { width: 100%; overflow: visible; }

@@ -9,6 +9,44 @@ export const dynamic = 'force-dynamic'
 
 type View = 'dia' | 'semana' | 'mes'
 
+const STATUS_COLOR: Record<string, string> = {
+  agendada:             'var(--muted)',
+  aguardando_metodo:    'var(--amber)',
+  aguardando_pagamento: 'var(--amber)',
+  confirmada:           'var(--sage)',
+  em_curso:             'var(--accent)',
+  concluida:            'var(--ink-soft)',
+  cancelada:            'var(--rose)',
+  no_show:              'var(--rose)',
+}
+
+/** Retorna background + border-left para o cal-block, baseado no status. */
+function blockStyles(status: string): { background: string; borderLeft: string } {
+  if (status === 'em_curso')             return { background: 'rgba(107,79,207,.08)', borderLeft: '2.5px solid var(--accent)' }
+  if (status === 'confirmada')           return { background: 'var(--sage-lo)',       borderLeft: '2.5px solid var(--sage)' }
+  if (status === 'aguardando_metodo' ||
+      status === 'aguardando_pagamento') return { background: 'var(--amber-lo)',      borderLeft: '2.5px solid var(--amber)' }
+  if (status === 'cancelada' ||
+      status === 'no_show')              return { background: 'rgba(196,96,122,.07)', borderLeft: '2.5px solid var(--rose)' }
+  if (status === 'concluida')            return { background: 'rgba(56,50,78,.04)',   borderLeft: '2.5px solid var(--ink-soft)' }
+  return { background: 'rgba(122,117,144,.06)', borderLeft: '2.5px solid var(--muted)' }
+}
+
+function pagamentoTag(s: { pagamentoStatus: string; pagamentoMetodo: string | null; status: string }): { klass: string; texto: string } | null {
+  if (s.pagamentoStatus === 'pago') {
+    const klass = s.status === 'em_curso' ? 'cal-tag-purple' : 'cal-tag-green'
+    return { klass, texto: `${(s.pagamentoMetodo ?? 'pago').toUpperCase()} ✓` }
+  }
+  if (s.pagamentoStatus === 'pendente' &&
+      (s.status === 'aguardando_metodo' || s.status === 'aguardando_pagamento')) {
+    return { klass: 'cal-tag-amber', texto: 'aguardando' }
+  }
+  if (s.status === 'cancelada' || s.status === 'no_show') {
+    return { klass: 'cal-tag-rose', texto: s.status === 'no_show' ? 'sem comparecimento' : 'cancelada' }
+  }
+  return null
+}
+
 export default async function AgendaPage({ searchParams }: { searchParams: { view?: View; data?: string } }) {
   const user = await requirePsicologo()
   const view: View = (searchParams?.view ?? 'semana') as View
@@ -53,44 +91,20 @@ function rangeFor(view: View, ancora: Date): { inicio: Date; fim: Date } {
     const fim = new Date(inicio); fim.setDate(inicio.getDate() + 6); fim.setHours(23, 59, 59, 999)
     return { inicio, fim }
   }
-  // mes
   const inicio = new Date(d.getFullYear(), d.getMonth(), 1)
   const fim = new Date(d.getFullYear(), d.getMonth() + 1, 0, 23, 59, 59, 999)
   return { inicio, fim }
 }
 
-const STATUS_COLOR: Record<string, string> = {
-  agendada:             'var(--muted)',
-  aguardando_metodo:    'var(--amber)',
-  aguardando_pagamento: 'var(--amber)',
-  confirmada:           'var(--sage)',
-  em_curso:             'var(--accent)',
-  concluida:            'var(--ink-soft)',
-  cancelada:            'var(--rose)',
-  no_show:              'var(--rose)',
-}
-
-function StatusDot({ status }: { status: string }) {
-  return (
-    <span
-      style={{
-        display: 'inline-block', width: 8, height: 8, borderRadius: '50%',
-        background: STATUS_COLOR[status] ?? 'var(--muted)',
-      }}
-      title={status}
-    />
-  )
-}
-
-function DayView({ sessoes }: { sessoes: { id: string; dataHora: string; pacienteNome: string; status: string; numero: number; valor: number; duracaoMin: number }[] }) {
-  const hours = Array.from({ length: 16 }, (_, i) => i + 7) // 7..22
+function DayView({ sessoes }: { sessoes: any[] }) {
+  const hours = Array.from({ length: 16 }, (_, i) => i + 7)
   return (
     <div className="card" style={{ padding: 0 }}>
-      <div style={{ display: 'grid', gridTemplateColumns: '52px 1fr', minHeight: 600 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: '56px 1fr', minHeight: 600 }}>
         <div>
           {hours.map(h => (
-            <div key={h} style={{ height: 60, borderTop: '1px solid var(--border)', padding: '2px 8px', fontSize: 11, color: 'var(--muted)' }}>
-              {h.toString().padStart(2, '0')}h
+            <div key={h} style={{ height: 60, borderTop: '1px solid var(--border)', padding: '4px 10px', fontSize: 11, color: 'var(--faint)', fontVariantNumeric: 'tabular-nums' }}>
+              {h.toString().padStart(2, '0')}:00
             </div>
           ))}
         </div>
@@ -98,26 +112,28 @@ function DayView({ sessoes }: { sessoes: { id: string; dataHora: string; pacient
           {hours.map(h => (
             <div key={h} style={{ height: 60, borderTop: '1px solid var(--border)' }} />
           ))}
-          {sessoes.map(s => {
+          {sessoes.map((s: any) => {
             const dt = new Date(s.dataHora)
             const top = (dt.getHours() - 7) * 60 + dt.getMinutes()
             const height = Math.max(36, s.duracaoMin)
+            const blockS = blockStyles(s.status)
+            const pTag = pagamentoTag(s)
             return (
               <Link
-                key={s.id}
-                href={`/sessao/${s.id}`}
+                key={s.id} href={`/sessao/${s.id}`} className="cal-block"
                 style={{
-                  position: 'absolute', left: 8, right: 8, top, height,
-                  background: 'var(--accent-lo)', borderLeft: `3px solid ${STATUS_COLOR[s.status]}`,
-                  borderRadius: 6, padding: '6px 10px', overflow: 'hidden',
+                  position: 'absolute', left: 8, right: 8, top, minHeight: height,
+                  padding: '8px 10px', ...blockS,
                 }}
               >
-                <div style={{ fontSize: 12, fontWeight: 500, color: '#391d96' }}>
-                  {formatTimeBR(s.dataHora)} · {s.pacienteNome}
+                <div className="cal-block-name">
+                  {s.pacienteNome}
+                  {s.status === 'em_curso' && <span className="cal-live-badge">● ao vivo</span>}
                 </div>
-                <div style={{ fontSize: 11, color: 'var(--muted)' }}>
-                  Sessão #{s.numero} · {s.duracaoMin}min · R$ {s.valor.toFixed(2)}
+                <div className="cal-block-meta">
+                  Sessão {s.numero} · {s.modalidade === 'online' ? 'Online' : 'Presencial'} · {s.duracaoMin}min
                 </div>
+                {pTag && <span className={pTag.klass}>{pTag.texto}</span>}
               </Link>
             )
           })}
@@ -132,26 +148,48 @@ function WeekView({ inicio, sessoes }: { inicio: Date; sessoes: any[] }) {
     const d = new Date(inicio); d.setDate(inicio.getDate() + i); return d
   })
   const labels = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb']
+  const hoje = new Date().toDateString()
+
   return (
-    <div className="card" style={{ padding: 0 }}>
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)' }}>
-        {dias.map((d, i) => (
-          <div key={i} style={{ padding: 10, borderRight: i < 6 ? '1px solid var(--border)' : undefined, minHeight: 360 }}>
-            <div style={{ fontSize: 11, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '.06em', marginBottom: 8 }}>
-              {labels[i]} <span style={{ color: 'var(--ink)' }}>{d.getDate()}</span>
+    <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', borderBottom: '1px solid var(--border)' }}>
+        {dias.map((d, i) => {
+          const isToday = d.toDateString() === hoje
+          return (
+            <div key={i} style={{
+              padding: '12px 14px',
+              borderLeft: i > 0 ? '1px solid var(--border)' : undefined,
+              background: isToday ? 'var(--accent-lo)' : 'transparent',
+            }}>
+              <div style={{ fontSize: 10, color: isToday ? 'var(--accent)' : 'var(--faint)', textTransform: 'uppercase', letterSpacing: 1, fontWeight: isToday ? 500 : 400 }}>{labels[i]}</div>
+              <div style={{ fontSize: 15, fontWeight: isToday ? 600 : 500, color: isToday ? 'var(--accent)' : 'var(--muted)' }}>{d.getDate()}</div>
             </div>
+          )
+        })}
+      </div>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', minHeight: 360 }}>
+        {dias.map((d, i) => (
+          <div key={i} style={{
+            borderLeft: i > 0 ? '1px solid var(--border)' : undefined,
+            padding: 6,
+            background: d.toDateString() === hoje ? 'var(--accent-lo)' : 'transparent',
+          }}>
             {sessoes
-              .filter(s => new Date(s.dataHora).toDateString() === d.toDateString())
-              .map(s => (
-                <Link key={s.id} href={`/sessao/${s.id}`} style={{
-                  display: 'block', padding: '6px 8px', marginBottom: 4,
-                  background: 'var(--accent-lo)', borderLeft: `3px solid ${STATUS_COLOR[s.status]}`,
-                  borderRadius: 4, fontSize: 11,
-                }}>
-                  <div style={{ fontWeight: 500, color: '#391d96' }}>{formatTimeBR(s.dataHora)} · {s.pacienteNome}</div>
-                  <div style={{ color: 'var(--muted)' }}><StatusDot status={s.status} /> {s.status}</div>
-                </Link>
-              ))}
+              .filter((s: any) => new Date(s.dataHora).toDateString() === d.toDateString())
+              .sort((a: any, b: any) => +new Date(a.dataHora) - +new Date(b.dataHora))
+              .map((s: any) => {
+                const pTag = pagamentoTag(s)
+                return (
+                  <Link key={s.id} href={`/sessao/${s.id}`} className="cal-block" style={{ marginBottom: 4, ...blockStyles(s.status) }}>
+                    <div className="cal-block-name">
+                      {s.pacienteNome.split(' ')[0]}
+                      {s.status === 'em_curso' && <span className="cal-live-badge">● ao vivo</span>}
+                    </div>
+                    <div className="cal-block-meta">{formatTimeBR(s.dataHora)} · {s.modalidade === 'online' ? 'Online' : 'Presencial'}</div>
+                    {pTag && <span className={pTag.klass}>{pTag.texto}</span>}
+                  </Link>
+                )
+              })}
           </div>
         ))}
       </div>
@@ -160,36 +198,41 @@ function WeekView({ inicio, sessoes }: { inicio: Date; sessoes: any[] }) {
 }
 
 function MonthView({ inicio, sessoes }: { inicio: Date; sessoes: any[] }) {
-  const dias = []
+  const dias: (Date | null)[] = []
   const offsetIni = new Date(inicio.getFullYear(), inicio.getMonth(), 1).getDay()
   const totalDias = new Date(inicio.getFullYear(), inicio.getMonth() + 1, 0).getDate()
   for (let i = 0; i < offsetIni; i++) dias.push(null)
   for (let d = 1; d <= totalDias; d++) dias.push(new Date(inicio.getFullYear(), inicio.getMonth(), d))
+  const hoje = new Date().toDateString()
 
   return (
-    <div className="card" style={{ padding: 0 }}>
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)' }}>
-        {['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'].map(l => (
-          <div key={l} style={{ padding: 8, fontSize: 11, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '.06em' }}>{l}</div>
+    <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', borderBottom: '1px solid var(--border)' }}>
+        {['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'].map((l, i) => (
+          <div key={l} style={{ padding: 10, fontSize: 10, color: 'var(--faint)', textTransform: 'uppercase', letterSpacing: 1, borderLeft: i > 0 ? '1px solid var(--border)' : undefined }}>{l}</div>
         ))}
+      </div>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)' }}>
         {dias.map((d, i) => {
-          if (!d) return <div key={i} style={{ borderTop: '1px solid var(--border)', minHeight: 80 }} />
-          const dssns = sessoes.filter(s => new Date(s.dataHora).toDateString() === d.toDateString())
+          if (!d) return <div key={i} style={{ borderTop: '1px solid var(--border)', minHeight: 88, borderLeft: i % 7 ? '1px solid var(--border)' : undefined }} />
+          const isToday = d.toDateString() === hoje
+          const dssns = sessoes.filter((s: any) => new Date(s.dataHora).toDateString() === d.toDateString())
           return (
-            <div key={i} style={{ borderTop: '1px solid var(--border)', borderLeft: i % 7 ? '1px solid var(--border)' : undefined, padding: 6, minHeight: 80 }}>
-              <div style={{ fontSize: 12, marginBottom: 4 }}>{d.getDate()}</div>
-              {dssns.slice(0, 3).map(s => (
-                <Link key={s.id} href={`/sessao/${s.id}`} style={{
-                  display: 'flex', alignItems: 'center', gap: 4, fontSize: 10,
-                  color: 'var(--ink-soft)', marginBottom: 2,
-                }}>
-                  <StatusDot status={s.status} />
-                  <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+            <div key={i} style={{
+              borderTop: '1px solid var(--border)',
+              borderLeft: i % 7 ? '1px solid var(--border)' : undefined,
+              padding: 6, minHeight: 88,
+              background: isToday ? 'var(--accent-lo)' : 'transparent',
+            }}>
+              <div style={{ fontSize: 12, marginBottom: 4, fontWeight: isToday ? 600 : 400, color: isToday ? 'var(--accent)' : 'var(--ink-soft)' }}>{d.getDate()}</div>
+              {dssns.slice(0, 3).map((s: any) => (
+                <Link key={s.id} href={`/sessao/${s.id}`} className="cal-block" style={{ padding: '3px 6px', marginBottom: 2, ...blockStyles(s.status) }}>
+                  <div style={{ fontSize: 10, fontWeight: 500, color: 'var(--ink-soft)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                     {formatTimeBR(s.dataHora)} {s.pacienteNome.split(' ')[0]}
-                  </span>
+                  </div>
                 </Link>
               ))}
-              {dssns.length > 3 && <div style={{ fontSize: 10, color: 'var(--muted)' }}>+{dssns.length - 3}</div>}
+              {dssns.length > 3 && <div style={{ fontSize: 10, color: 'var(--muted)', paddingLeft: 6 }}>+{dssns.length - 3}</div>}
             </div>
           )
         })}

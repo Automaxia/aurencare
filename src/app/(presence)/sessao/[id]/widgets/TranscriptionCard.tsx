@@ -1,5 +1,7 @@
 'use client'
 
+import { WidgetGrip } from '@/components/WidgetGrip'
+
 export type TurnMark = 'insight' | 'comportamento' | 'avanco'
 export type TurnTone = 'calm' | 'tense' | 'open' | 'closed' | 'anxious' | 'acolhedor' | null
 
@@ -38,7 +40,7 @@ export function TranscriptionCard({ turnos, interim, armed: _armed, setArmed: _s
     <div className="trans-card">
       <div className="trans-head">
         <div style={{ display: 'flex', alignItems: 'center', gap: 9 }}>
-          <span style={{ cursor: 'grab', fontSize: 12, color: 'var(--faint)', userSelect: 'none' }}>⠿</span>
+          <WidgetGrip size={11} />
           <span style={{ fontSize: 13, fontWeight: 500, color: 'var(--ink-soft)' }}>Registro assistido</span>
         </div>
         {recording && (
