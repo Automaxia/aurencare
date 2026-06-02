@@ -1,0 +1,48 @@
+# ──────────────────────────────────────────────────────────────────────────
+# Job de migrations — Auren Care
+#
+# Reaproveita a MESMA imagem do app (que já traz tsx + pg + src/server/db) e as
+# variáveis do secret `aurencare-secrets`. O script é idempotente: rastreia o que
+# já rodou na tabela _migrations, então pode ser reaplicado à vontade.
+#
+# Rodar:
+#   kubectl apply -f k8s/migrate-job.yaml
+#   kubectl logs -f job/aurencare-migrate -n aurencare
+#
+# Reaplicar (Jobs são imutáveis — apague antes):
+#   kubectl delete job aurencare-migrate -n aurencare --ignore-not-found
+#   kubectl apply -f k8s/migrate-job.yaml
+# ──────────────────────────────────────────────────────────────────────────
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: aurencare-migrate
+  namespace: aurencare
+spec:
+  backoffLimit: 3
+  ttlSecondsAfterFinished: 600   # auto-limpa 10min após concluir
+  template:
+    metadata:
+      labels:
+        app: aurencare-migrate
+    spec:
+      restartPolicy: Never
+      imagePullSecrets:
+        - name: automaxia-secreto-docker
+      containers:
+        - name: migrate
+          image: wesleyromualdo/aurencare-web:latest
+          # Runner em JS puro (só usa pg) — sem tsx/esbuild, que vêm
+          # incompletos na imagem por causa do COPY seletivo do node_modules.
+          # As envs (DATABASE_URL etc.) vêm do secret via envFrom.
+          command: ["node", "src/server/db/migrate.mjs"]
+          envFrom:
+            - secretRef:
+                name: aurencare-secrets
+          resources:
+            requests:
+              memory: "256Mi"
+              cpu: "250m"
+            limits:
+              memory: "512Mi"
+              cpu: "500m"

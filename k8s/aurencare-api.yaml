@@ -1,74 +1,9 @@
-apiVersion: apps/v1
-kind: Deployment
-metadata:
-  name: aurencare-api
-  namespace: aurencare
-spec:
-  replicas: 1
-  strategy:
-    type: RollingUpdate
-    rollingUpdate:
-      maxUnavailable: 1
-      maxSurge: 1
-  selector:
-    matchLabels:
-      app: aurencare-api
-  template:
-    metadata:
-      labels:
-        app: aurencare-api
-      annotations:
-        recreatePod: "{{.Release.Time.Seconds}}"
-    spec:
-      restartPolicy: Always
-      containers:
-      - name: aurencare-api
-        image: wesleyromualdo/aurencare-api:latest
-        ports:
-        - containerPort: 3000
-        envFrom:
-          - secretRef:
-              name: aurencare-secrets
-        readinessProbe:
-          httpGet:
-            path: /api/health
-            port: 3000
-          initialDelaySeconds: 45
-          periodSeconds: 10
-          timeoutSeconds: 5
-          successThreshold: 1
-          failureThreshold: 5
-        livenessProbe:
-          httpGet:
-            path: /api/health
-            port: 3000
-          initialDelaySeconds: 60
-          periodSeconds: 15
-          timeoutSeconds: 5
-          failureThreshold: 5
-        resources:
-          requests:
-            memory: "1Gi"
-            cpu: "750m"
-          limits:
-            memory: "2Gi"
-            cpu: "1500m"
-      imagePullSecrets:
-      - name: automaxia-secreto-docker
----
-apiVersion: v1
-kind: Service
-metadata:
-  name: aurencare-api-service
-  namespace: aurencare
-spec:
-  selector:
-    app: aurencare-api
-  ports:
-    - protocol: TCP
-      port: 80
-      targetPort: 3000
----
+# ──────────────────────────────────────────────────────────────────────────
+# Auren Care é um monolito Next.js: frontend e API são o MESMO app/imagem.
+# Não há deployment de API separado — este arquivo mantém apenas o Ingress
+# do host `api.aurencare.ia.br`, roteado para o mesmo Service do web.
+# (Útil p/ ter um hostname dedicado a webhooks/API sem duplicar pods.)
+# ──────────────────────────────────────────────────────────────────────────
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
@@ -99,6 +34,6 @@ spec:
         pathType: Prefix
         backend:
           service:
-            name: aurencare-api-service
+            name: aurencare-web-service   # mesmo Service do web (monolito)
             port:
               number: 80
