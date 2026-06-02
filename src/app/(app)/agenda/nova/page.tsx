@@ -1,12 +1,17 @@
 import { PageHeader, EmptyState } from '@/components/PageHeader'
 import { requirePsicologo } from '@/server/lib/auth'
 import { listarPacientes } from '@/server/services/pacientes'
+import { lerStatusOnboarding } from '@/server/services/onboardingPagamento'
+import { redirect } from 'next/navigation'
 import { NewSessionForm } from './form'
 
 export const dynamic = 'force-dynamic'
 
 export default async function NovaSessaoPage() {
   const user = await requirePsicologo()
+  const onboarding = await lerStatusOnboarding(user.id)
+  if (!onboarding.completo) redirect('/onboarding/recebimentos')
+
   const pacientes = await listarPacientes(user.id)
   const elegiveis = pacientes.filter(p => p.consentimentoAceito)
 

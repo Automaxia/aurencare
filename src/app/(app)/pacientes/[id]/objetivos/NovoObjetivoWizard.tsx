@@ -1,0 +1,586 @@
+'use client'
+
+import { useState } from 'react'
+import type { Objetivo, MetricaTipo, MetricaDirecao } from '@/server/services/objetivos'
+import { criarObjetivoAction } from './actions'
+
+/**
+ * Wizard de criação de objetivo no padrão SMART, inspirado em planejadores
+ * clínicos (estilo Daniel Versiani — TCC/produtividade). Cada passo tem uma
+ * "tip clínica" com perguntas-guia que ajudam o(a) psicólogo(a) a redigir
+ * com qualidade.
+ *
+ * Passos:
+ *   0. Tipo de métrica (absoluta vs GAS)
+ *   1. S — Específico (título)
+ *   2. R — Relevante (contexto clínico)
+ *   3. M — Mensurável (unidade + baseline + alvo)  [oculto em GAS]
+ *   4. A — Atingível (sub-passos, recursos, obstáculos)
+ *   5. T — Temporal (prazo)
+ *   6. Revisão final
+ */
+
+type Props = {
+  pacienteId: string
+  onCriado: (o: Objetivo) => void
+  onCancelar: () => void
+}
+
+type Step = 'tipo' | 's' | 'r' | 'm' | 'a' | 't' | 'revisao'
+
+export function NovoObjetivoWizard({ pacienteId, onCriado, onCancelar }: Props) {
+  // ── Estado dos campos ────────────────────────────────────────────
+  const [tipo, setTipo]           = useState<MetricaTipo>('absoluta')
+  const [titulo, setTitulo]       = useState('')
+  const [descricao, setDescricao] = useState('')   // R — relevância clínica
+  const [unidade, setUnidade]     = useState('')
+  const [baseline, setBaseline]   = useState('')
+  const [alvo, setAlvo]           = useState('')
+  const [subPassos, setSubPassos] = useState('')   // A — sub-passos/recursos/obstáculos (texto livre)
+  const [prazo, setPrazo]         = useState('')
+
+  // ── Wizard state ─────────────────────────────────────────────────
+  const [step, setStep]           = useState<Step>('tipo')
+  const [erro, setErro]           = useState<string | null>(null)
+  const [salvando, setSalvando]   = useState(false)
+
+  // Passos a percorrer (varia conforme tipo)
+  const sequencia: Step[] = tipo === 'gas'
+    ? ['tipo', 's', 'r', 'a', 't', 'revisao']
+    : ['tipo', 's', 'r', 'm', 'a', 't', 'revisao']
+  const idx       = sequencia.indexOf(step)
+  const primeiro  = idx === 0
+  const ultimo    = step === 'revisao'
+
+  // ── Direção sugerida (Métrica absoluta) ──────────────────────────
+  const baselineN = parseFloat(baseline.replace(',', '.'))
+  const alvoN     = parseFloat(alvo.replace(',', '.'))
+  const direcao: MetricaDirecao =
+    !isNaN(baselineN) && !isNaN(alvoN) && baselineN !== alvoN
+      ? (alvoN > baselineN ? 'aumentar' : 'diminuir')
+      : 'aumentar'
+
+  // ── Validação por passo ──────────────────────────────────────────
+  function validarAtual(): boolean {
+    setErro(null)
+    switch (step) {
+      case 's':
+        if (titulo.trim().length < 4) { setErro('Descreva o objetivo de forma específica (mínimo 4 caracteres).'); return false }
+        return true
+      case 'r':
+        // Descricao opcional, mas recomendada — não bloqueia
+        return true
+      case 'm':
+        if (tipo === 'absoluta') {
+          if (!unidade.trim()) { setErro('Defina a unidade que vai medir (ex: ataques/semana, min/dia).'); return false }
+          if (isNaN(baselineN)) { setErro('Informe o valor de partida (baseline).'); return false }
+          if (isNaN(alvoN)) { setErro('Informe o valor alvo.'); return false }
+          if (baselineN === alvoN) { setErro('Baseline e alvo precisam ser diferentes.'); return false }
+        }
+        return true
+      case 'a':
+        // Texto livre opcional
+        return true
+      case 't':
+        if (!prazo) { setErro('Defina um prazo realista.'); return false }
+        return true
+      default: return true
+    }
+  }
+
+  function avancar() {
+    if (!validarAtual()) return
+    const prox = sequencia[idx + 1]
+    if (prox) setStep(prox)
+  }
+
+  function voltar() {
+    setErro(null)
+    const ant = sequencia[idx - 1]
+    if (ant) setStep(ant)
+  }
+
+  async function salvar() {
+    setErro(null); setSalvando(true)
+    const r = await criarObjetivoAction(pacienteId, {
+      titulo: titulo.trim(),
+      descricao: (descricao.trim() + (subPassos.trim() ? `\n\nPlano de ação:\n${subPassos.trim()}` : '')) || null,
+      metricaTipo: tipo,
+      metricaUnidade: tipo === 'absoluta' ? unidade.trim() : null,
+      metricaBaseline: tipo === 'absoluta' ? baselineN : null,
+      metricaAlvo: tipo === 'absoluta' ? alvoN : null,
+      metricaDirecao: tipo === 'absoluta' ? direcao : 'aumentar',
+      prazoEm: prazo || null,
+    })
+    setSalvando(false)
+    if (r) onCriado(r)
+    else setErro('Não foi possível criar agora.')
+  }
+
+  // ── Render ───────────────────────────────────────────────────────
+  return (
+    <div className="card" style={{ display: 'grid', gap: 18, marginBottom: 16, padding: 22 }}>
+      <Stepper sequencia={sequencia} atual={step} />
+
+      {step === 'tipo'    && <PassoTipo   tipo={tipo} onChange={setTipo} />}
+      {step === 's'       && <PassoS      titulo={titulo} onChange={setTitulo} />}
+      {step === 'r'       && <PassoR      descricao={descricao} onChange={setDescricao} />}
+      {step === 'm'       && <PassoM      tipo={tipo} unidade={unidade} setUnidade={setUnidade} baseline={baseline} setBaseline={setBaseline} alvo={alvo} setAlvo={setAlvo} direcaoSugerida={!isNaN(baselineN) && !isNaN(alvoN) && baselineN !== alvoN ? direcao : null} />}
+      {step === 'a'       && <PassoA      subPassos={subPassos} onChange={setSubPassos} />}
+      {step === 't'       && <PassoT      prazo={prazo} onChange={setPrazo} />}
+      {step === 'revisao' && <Revisao     {...{ tipo, titulo, descricao, unidade, baseline, alvo, direcao, subPassos, prazo }} />}
+
+      {erro && <div style={{ color: 'var(--rose)', fontSize: 12 }}>{erro}</div>}
+
+      {/* Navegação */}
+      <div style={{ display: 'flex', gap: 8, justifyContent: 'space-between', alignItems: 'center', marginTop: 4 }}>
+        <button type="button" className="btn ghost" onClick={onCancelar} disabled={salvando}>
+          Cancelar
+        </button>
+        <div style={{ display: 'flex', gap: 8 }}>
+          {!primeiro && (
+            <button type="button" className="btn ghost" onClick={voltar} disabled={salvando}>
+              ← Voltar
+            </button>
+          )}
+          {!ultimo ? (
+            <button type="button" className="btn primary" onClick={avancar}>
+              Continuar →
+            </button>
+          ) : (
+            <button type="button" className="btn primary" onClick={salvar} disabled={salvando}>
+              {salvando ? 'Criando…' : '✓ Criar objetivo'}
+            </button>
+          )}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ─── Stepper visual ─────────────────────────────────────────────────────
+
+const STEP_LABELS: Record<Step, string> = {
+  tipo:    'Métrica',
+  s:       'Específico',
+  r:       'Relevante',
+  m:       'Mensurável',
+  a:       'Atingível',
+  t:       'Temporal',
+  revisao: 'Revisão',
+}
+
+function Stepper({ sequencia, atual }: { sequencia: Step[]; atual: Step }) {
+  const idx = sequencia.indexOf(atual)
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+      {sequencia.map((s, i) => {
+        const ativo = i === idx
+        const feito = i < idx
+        return (
+          <div key={s} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            <span style={{
+              minWidth: 22, height: 22, padding: '0 8px', borderRadius: 999,
+              background: feito ? 'var(--sage)' : ativo ? 'var(--accent)' : 'var(--surface)',
+              color: feito || ativo ? 'white' : 'var(--muted)',
+              fontSize: 11, fontWeight: 500,
+              display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 4,
+              border: ativo || feito ? 'none' : '1px solid var(--border)',
+              transition: 'all .15s var(--ease)',
+            }}>
+              {feito ? '✓' : <strong>{s === 'tipo' || s === 'revisao' ? '·' : s.toUpperCase()}</strong>}
+              {!feito && <span style={{ fontWeight: 400, fontSize: 10.5 }}>{STEP_LABELS[s]}</span>}
+            </span>
+            {i < sequencia.length - 1 && <span style={{ color: 'var(--faint)', fontSize: 10 }}>→</span>}
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
+// ─── Tip Banner ─────────────────────────────────────────────────────────
+
+function Tip({ titulo, perguntas, exemplo, cor = 'accent' }: {
+  titulo: string
+  perguntas: string[]
+  exemplo?: string
+  cor?: 'accent' | 'sage' | 'amber'
+}) {
+  const bg = cor === 'sage' ? 'rgba(90,158,138,.08)'
+           : cor === 'amber' ? 'rgba(176,125,64,.08)'
+           : 'rgba(106,78,200,.07)'
+  const border = cor === 'sage' ? 'rgba(90,158,138,.22)'
+              : cor === 'amber' ? 'rgba(176,125,64,.22)'
+              : 'rgba(106,78,200,.22)'
+  const acento = cor === 'sage' ? 'var(--sage)' : cor === 'amber' ? 'var(--amber)' : 'var(--accent)'
+
+  return (
+    <div style={{
+      padding: '14px 16px', borderRadius: 10,
+      background: bg, border: `1px solid ${border}`,
+    }}>
+      <div style={{
+        display: 'flex', alignItems: 'center', gap: 8,
+        fontSize: 11, color: acento, textTransform: 'uppercase',
+        letterSpacing: '.06em', fontWeight: 600, marginBottom: 8,
+      }}>
+        <span>💡</span> {titulo}
+      </div>
+      <ul style={{ margin: 0, padding: 0, listStyle: 'none', display: 'grid', gap: 4 }}>
+        {perguntas.map((p, i) => (
+          <li key={i} style={{ fontSize: 13, color: 'var(--ink-soft)', lineHeight: 1.55 }}>
+            <span style={{ color: 'var(--muted)', marginRight: 6 }}>›</span>{p}
+          </li>
+        ))}
+      </ul>
+      {exemplo && (
+        <div style={{
+          marginTop: 10, padding: '8px 10px', borderRadius: 6,
+          background: 'rgba(0,0,0,.025)', fontSize: 12, color: 'var(--muted)',
+          fontStyle: 'italic', lineHeight: 1.55,
+        }}>
+          <strong style={{ fontStyle: 'normal', color: 'var(--ink-soft)' }}>Exemplo:</strong> {exemplo}
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ─── Passos ────────────────────────────────────────────────────────────
+
+function HeaderPasso({ letra, titulo, sub }: { letra: string; titulo: string; sub: string }) {
+  return (
+    <div style={{ display: 'flex', gap: 14, alignItems: 'flex-start' }}>
+      <span style={{
+        width: 36, height: 36, borderRadius: 10,
+        background: 'rgba(106,78,200,.12)', color: '#391d96',
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        fontSize: 14, fontWeight: 700, flexShrink: 0,
+      }}>{letra}</span>
+      <div>
+        <h3 style={{
+          fontFamily: 'var(--font-display)', fontSize: 24, fontWeight: 400,
+          margin: 0, color: 'var(--ink)',
+        }}>{titulo}</h3>
+        <p style={{ fontSize: 12, color: 'var(--muted)', margin: '4px 0 0', lineHeight: 1.55 }}>{sub}</p>
+      </div>
+    </div>
+  )
+}
+
+function PassoTipo({ tipo, onChange }: { tipo: MetricaTipo; onChange: (t: MetricaTipo) => void }) {
+  return (
+    <div style={{ display: 'grid', gap: 14 }}>
+      <HeaderPasso letra="·" titulo="Como vamos medir esse objetivo?" sub="O modo de medição muda o que você preenche nos próximos passos." />
+      <div style={{ display: 'grid', gap: 10 }}>
+        <OpcaoCard
+          ativo={tipo === 'absoluta'}
+          onClick={() => onChange('absoluta')}
+          titulo="Métrica absoluta"
+          corpo="O objetivo tem uma unidade clara que pode ser contada (ex: ataques por semana, minutos de respiração por dia, horas de sono). Use para metas com baseline e alvo numéricos definidos."
+        />
+        <OpcaoCard
+          ativo={tipo === 'gas'}
+          onClick={() => onChange('gas')}
+          titulo="GAS — Goal Attainment Scale (−2 a +2)"
+          corpo="Escala padronizada quando a meta é subjetiva ou sem unidade clara (ex: reduzir senso de culpa, melhorar relação com chefe). 0 = baseline, +2 = muito melhor que esperado, −2 = muito pior."
+        />
+      </div>
+    </div>
+  )
+}
+
+function OpcaoCard({ ativo, onClick, titulo, corpo }: { ativo: boolean; onClick: () => void; titulo: string; corpo: string }) {
+  return (
+    <button
+      type="button" onClick={onClick}
+      style={{
+        textAlign: 'left', padding: 16, borderRadius: 10,
+        background: ativo ? 'rgba(106,78,200,.06)' : 'var(--card)',
+        border: `1.5px solid ${ativo ? 'var(--accent)' : 'var(--border)'}`,
+        cursor: 'pointer', fontFamily: 'inherit',
+        transition: 'all .15s var(--ease)',
+        display: 'grid', gap: 4,
+      }}
+    >
+      <div style={{ fontSize: 14, fontWeight: 500, color: 'var(--ink)' }}>{titulo}</div>
+      <div style={{ fontSize: 12, color: 'var(--muted)', lineHeight: 1.55 }}>{corpo}</div>
+    </button>
+  )
+}
+
+function PassoS({ titulo, onChange }: { titulo: string; onChange: (v: string) => void }) {
+  return (
+    <div style={{ display: 'grid', gap: 14 }}>
+      <HeaderPasso letra="S" titulo="Específico" sub="O que muda de forma clara e observável?" />
+      <Tip
+        titulo="Perguntas que ajudam a refinar"
+        perguntas={[
+          'O que muda de forma observável no comportamento ou na experiência?',
+          'Como você (ou o paciente) reconhece que isso está acontecendo?',
+          'Está escrito como ação concreta — ou como sentimento abstrato?',
+        ]}
+        exemplo="Reduzir frequência de ataques de pânico fora de casa."
+      />
+      <input
+        autoFocus
+        value={titulo}
+        onChange={e => onChange(e.target.value)}
+        placeholder="Escreva o objetivo de forma específica"
+        className="inp-lg"
+      />
+      <style jsx>{`
+        .inp-lg {
+          width: 100%; padding: 13px 16px; border-radius: 10px;
+          border: 1px solid var(--border); background: white;
+          font-size: 15px; font-family: inherit; color: var(--ink); outline: none;
+          transition: border-color .15s var(--ease);
+        }
+        .inp-lg:focus { border-color: var(--accent); }
+      `}</style>
+    </div>
+  )
+}
+
+function PassoR({ descricao, onChange }: { descricao: string; onChange: (v: string) => void }) {
+  return (
+    <div style={{ display: 'grid', gap: 14 }}>
+      <HeaderPasso letra="R" titulo="Relevante" sub="Por que esse objetivo importa agora? Qual a conexão com a queixa principal?" />
+      <Tip
+        cor="sage"
+        titulo="Justificativa clínica"
+        perguntas={[
+          'Como isso se conecta com a queixa principal trazida pelo paciente?',
+          'Quais áreas da vida ficam afetadas se este objetivo não for atingido?',
+          'O paciente está engajado nesse objetivo, ou foi proposta sua?',
+        ]}
+        exemplo="Os ataques têm impedido a paciente de sair pra trabalhar, gerando risco de demissão e isolamento social."
+      />
+      <textarea
+        autoFocus
+        rows={4}
+        value={descricao}
+        onChange={e => onChange(e.target.value)}
+        placeholder="Descreva o contexto clínico e a relevância (opcional, mas recomendado)"
+        className="inp-lg"
+      />
+      <style jsx>{`
+        .inp-lg {
+          width: 100%; padding: 12px 16px; border-radius: 10px;
+          border: 1px solid var(--border); background: white;
+          font-size: 14px; font-family: inherit; color: var(--ink); outline: none;
+          resize: vertical; line-height: 1.55;
+        }
+        .inp-lg:focus { border-color: var(--accent); }
+      `}</style>
+    </div>
+  )
+}
+
+function PassoM({ tipo, unidade, setUnidade, baseline, setBaseline, alvo, setAlvo, direcaoSugerida }: {
+  tipo: MetricaTipo
+  unidade: string; setUnidade: (v: string) => void
+  baseline: string; setBaseline: (v: string) => void
+  alvo: string; setAlvo: (v: string) => void
+  direcaoSugerida: MetricaDirecao | null
+}) {
+  if (tipo === 'gas') {
+    return (
+      <div style={{ display: 'grid', gap: 14 }}>
+        <HeaderPasso letra="M+A" titulo="Goal Attainment Scale" sub="Escala padrão (−2 a +2). Em GAS você não precisa definir baseline/alvo — eles são fixos pela própria escala." />
+        <Tip
+          titulo="Como interpretar cada nível"
+          perguntas={[
+            '+2 — muito melhor que o esperado',
+            '+1 — melhor que o esperado',
+            ' 0 — baseline (sem mudança)',
+            '−1 — pior que o esperado',
+            '−2 — muito pior que o esperado',
+          ]}
+        />
+      </div>
+    )
+  }
+  return (
+    <div style={{ display: 'grid', gap: 14 }}>
+      <HeaderPasso letra="M" titulo="Mensurável" sub="O que e em que unidade você vai medir?" />
+      <Tip
+        titulo="Critérios pra uma boa métrica"
+        perguntas={[
+          'Existe uma unidade clara que dá pra contar (semanal, diária, escala 0-10)?',
+          'Você consegue medir esse valor SEM IA, sem instrumento caro?',
+          'O paciente pode reportar com facilidade (entre sessões)?',
+        ]}
+        exemplo="ataques/semana · min de respiração diafragmática/dia · horas de sono por noite"
+      />
+
+      <Field label="Unidade">
+        <input value={unidade} onChange={e => setUnidade(e.target.value)} placeholder="ex: ataques/semana" />
+      </Field>
+
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+        <Field label="Baseline (valor atual)">
+          <input value={baseline} onChange={e => setBaseline(e.target.value)} placeholder="ex: 3" inputMode="decimal" />
+        </Field>
+        <Field label="Alvo">
+          <input value={alvo} onChange={e => setAlvo(e.target.value)} placeholder="ex: 0" inputMode="decimal" />
+        </Field>
+      </div>
+
+      {direcaoSugerida && (
+        <div style={{
+          padding: '10px 12px', borderRadius: 8,
+          background: 'rgba(90,158,138,.08)', fontSize: 12, color: 'var(--ink-soft)', lineHeight: 1.55,
+        }}>
+          Direção do progresso: <strong>{direcaoSugerida === 'aumentar' ? 'aumentar' : 'reduzir'}</strong> {unidade || 'a métrica'}
+          {' '}— isto é, progredir significa {direcaoSugerida === 'aumentar' ? 'subir' : 'descer'} em direção ao alvo.
+        </div>
+      )}
+    </div>
+  )
+}
+
+function PassoA({ subPassos, onChange }: { subPassos: string; onChange: (v: string) => void }) {
+  return (
+    <div style={{ display: 'grid', gap: 14 }}>
+      <HeaderPasso letra="A" titulo="Atingível" sub="Esse objetivo é realista pra esse paciente, neste momento?" />
+      <Tip
+        cor="amber"
+        titulo="Mapear o caminho até o alvo"
+        perguntas={[
+          'Que sub-passos compõem esse objetivo? (quebrar em pedaços pequenos)',
+          'Quais recursos o paciente já tem (rede de apoio, habilidades, tempo)?',
+          'Que obstáculos previsíveis podem aparecer e como antecipar?',
+          'O salto entre baseline e alvo é ambicioso ou desproporcional?',
+        ]}
+        exemplo="1) Mapear gatilhos de saída • 2) Praticar respiração antes de sair • 3) Sair acompanhada uma vez por semana • Obstáculo: dia de chuva piora ansiedade."
+      />
+      <textarea
+        autoFocus
+        rows={5}
+        value={subPassos}
+        onChange={e => onChange(e.target.value)}
+        placeholder="Plano de ação, sub-passos, recursos disponíveis, possíveis obstáculos (opcional)"
+        className="inp-lg"
+      />
+      <style jsx>{`
+        .inp-lg {
+          width: 100%; padding: 12px 16px; border-radius: 10px;
+          border: 1px solid var(--border); background: white;
+          font-size: 14px; font-family: inherit; color: var(--ink); outline: none;
+          resize: vertical; line-height: 1.55;
+        }
+        .inp-lg:focus { border-color: var(--accent); }
+      `}</style>
+    </div>
+  )
+}
+
+function PassoT({ prazo, onChange }: { prazo: string; onChange: (v: string) => void }) {
+  return (
+    <div style={{ display: 'grid', gap: 14 }}>
+      <HeaderPasso letra="T" titulo="Temporal" sub="Em quanto tempo você espera atingir esse objetivo?" />
+      <Tip
+        titulo="Definir um prazo realista"
+        perguntas={[
+          'O prazo é compatível com o ritmo terapêutico desse paciente?',
+          'Curto demais (gera frustração) ou longo demais (perde tração)?',
+          'Quantas sessões cabem nesse período?',
+        ]}
+        exemplo="Prazo de 8–12 semanas costuma cobrir 1 ciclo terapêutico breve. Pra mudanças estruturais, considerar 4–6 meses."
+      />
+      <Field label="Data alvo">
+        <input type="date" value={prazo} onChange={e => onChange(e.target.value)} className="inp-lg" />
+      </Field>
+      <style jsx>{`
+        .inp-lg {
+          width: 100%; padding: 12px 16px; border-radius: 10px;
+          border: 1px solid var(--border); background: white;
+          font-size: 14px; font-family: inherit; color: var(--ink); outline: none;
+        }
+        .inp-lg:focus { border-color: var(--accent); }
+      `}</style>
+    </div>
+  )
+}
+
+function Revisao(p: {
+  tipo: MetricaTipo
+  titulo: string
+  descricao: string
+  unidade: string
+  baseline: string
+  alvo: string
+  direcao: MetricaDirecao
+  subPassos: string
+  prazo: string
+}) {
+  return (
+    <div style={{ display: 'grid', gap: 14 }}>
+      <HeaderPasso letra="✓" titulo="Revisão" sub="Confira antes de criar. Você poderá editar e registrar medições depois." />
+
+      <div style={{
+        padding: '18px 20px', borderRadius: 10,
+        background: 'var(--surface)', display: 'grid', gap: 14,
+      }}>
+        <RevisaoLinha letra="S" titulo="Específico" valor={p.titulo || '—'} />
+        {p.descricao && <RevisaoLinha letra="R" titulo="Relevante" valor={p.descricao} multiLinha />}
+        {p.tipo === 'absoluta' ? (
+          <RevisaoLinha
+            letra="M"
+            titulo="Mensurável"
+            valor={`${p.unidade || '—'} · de ${p.baseline || '—'} para ${p.alvo || '—'} (${p.direcao === 'aumentar' ? 'aumentar' : 'reduzir'})`}
+          />
+        ) : (
+          <RevisaoLinha letra="M+A" titulo="Métrica" valor="GAS — Goal Attainment Scale (−2 a +2)" />
+        )}
+        {p.subPassos && <RevisaoLinha letra="A" titulo="Atingível · plano" valor={p.subPassos} multiLinha />}
+        <RevisaoLinha letra="T" titulo="Temporal" valor={p.prazo ? formatPrazo(p.prazo) : '—'} />
+      </div>
+    </div>
+  )
+}
+
+function RevisaoLinha({ letra, titulo, valor, multiLinha }: { letra: string; titulo: string; valor: string; multiLinha?: boolean }) {
+  return (
+    <div style={{ display: 'grid', gap: 6, gridTemplateColumns: '36px 1fr', alignItems: 'start' }}>
+      <span style={{
+        width: 28, height: 28, borderRadius: 999,
+        background: 'rgba(106,78,200,.12)', color: '#391d96',
+        display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+        fontSize: 11, fontWeight: 700,
+      }}>{letra}</span>
+      <div>
+        <div style={{ fontSize: 11, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '.06em', marginBottom: 3 }}>{titulo}</div>
+        <div style={{
+          fontSize: 13, color: 'var(--ink)', lineHeight: 1.55,
+          whiteSpace: multiLinha ? 'pre-wrap' : 'normal',
+        }}>{valor}</div>
+      </div>
+    </div>
+  )
+}
+
+function Field({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <label style={{ display: 'grid', gap: 4 }}>
+      <span style={{ fontSize: 11, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '.06em' }}>{label}</span>
+      {children}
+      <style jsx>{`
+        :global(input) {
+          width: 100%; padding: 11px 14px; border-radius: 10px;
+          border: 1px solid var(--border); background: white;
+          font-size: 14px; font-family: inherit; color: var(--ink); outline: none;
+        }
+        :global(input:focus) { border-color: var(--accent); }
+      `}</style>
+    </label>
+  )
+}
+
+function formatPrazo(d: string): string {
+  return new Date(d + 'T00:00:00').toLocaleDateString('pt-BR', {
+    day: '2-digit', month: 'long', year: 'numeric',
+  })
+}

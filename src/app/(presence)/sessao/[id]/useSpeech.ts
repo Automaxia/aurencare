@@ -6,13 +6,19 @@ import { useEffect, useRef, useState } from 'react'
  * Transcrição streaming via Web Speech API nativa.
  * Chrome/Edge ótimo · Safari ok · Firefox não suporta.
  *
- * Diarização heurística: alterna P↔C em pausa >2s ou turno >25s.
- * Psicóloga corrige clicando no "P:"/"C:" do turno.
+ * Diarização: mic local capta apenas a psicóloga, então todo final
+ * vem com who='psicologo'. O paciente entra por outro canal (WebRTC
+ * + AssemblyAI em useRemoteTranscribe). Se o áudio do paciente vazar
+ * pelo alto-falante, a deduplicação por similaridade em client.tsx
+ * descarta o eco antes de virar turno.
+ *
+ * Override manual: ainda existe — psicóloga pode reatribuir clicando
+ * em "Psicóloga"/"Paciente" no turno.
  */
 
 export type SpeechFinalChunk = {
   texto: string
-  who: 'psicologo' | 'paciente'
+  who: 'psicologo'
   ts: string
 }
 
@@ -31,10 +37,6 @@ export function useSpeech({ enabled, onFinal, onInterim }: Options) {
   const onInterimRef = useRef(onInterim)
   useEffect(() => { onFinalRef.current = onFinal }, [onFinal])
   useEffect(() => { onInterimRef.current = onInterim }, [onInterim])
-
-  const lastEndRef = useRef<number>(0)
-  const lastWhoRef = useRef<'psicologo' | 'paciente'>('paciente')
-  const turnStartRef = useRef<number>(Date.now())
 
   const [supported, setSupported] = useState<boolean | null>(null)
   const [active, setActive] = useState(false)
@@ -74,16 +76,8 @@ export function useSpeech({ enabled, onFinal, onInterim }: Options) {
         const res = ev.results[i]
         const txt = res[0]?.transcript ?? ''
         if (res.isFinal) {
-          const now = Date.now()
-          const pausa = now - lastEndRef.current
-          const turno = now - turnStartRef.current
-          if (lastEndRef.current && (pausa > 2000 || turno > 25_000)) {
-            lastWhoRef.current = lastWhoRef.current === 'paciente' ? 'psicologo' : 'paciente'
-            turnStartRef.current = now
-          }
-          lastEndRef.current = now
           const clean = txt.trim()
-          if (clean) onFinalRef.current?.({ texto: clean, who: lastWhoRef.current, ts: new Date(now).toISOString() })
+          if (clean) onFinalRef.current?.({ texto: clean, who: 'psicologo', ts: new Date().toISOString() })
         } else {
           interim += txt
         }
@@ -139,10 +133,5 @@ export function useSpeech({ enabled, onFinal, onInterim }: Options) {
     }
   }, [enabled, supported])
 
-  function forceSpeakerToggle() {
-    lastWhoRef.current = lastWhoRef.current === 'paciente' ? 'psicologo' : 'paciente'
-    turnStartRef.current = Date.now()
-  }
-
-  return { supported, active, error, forceSpeakerToggle }
+  return { supported, active, error }
 }

@@ -9,6 +9,7 @@ import { HumorCheck, initialHumor, type HumorState } from './widgets/HumorCheck'
 import { RiskAssessment } from './widgets/RiskAssessment'
 import { PostSessionModal } from './widgets/PostSessionModal'
 import { useSpeech } from './useSpeech'
+import { useRemoteTranscribe } from './useRemoteTranscribe'
 import { useContexto, UltimaSessaoWidget, TopicosWidget, InfoPacienteWidget } from './widgets/ContextWidgets'
 import { SortableGrid } from './widgets/SortableGrid'
 import { WidgetGrip } from '@/components/WidgetGrip'
@@ -48,12 +49,15 @@ export function PresenceClient(props: Props) {
   const [chamada, setChamada] = useState<{ token: string; urlPaciente: string } | null>(null)
   const [mostrarModalSala, setMostrarModalSala] = useState(false)
   const [iniciandoChamada, setIniciandoChamada] = useState(false)
+  const [remoteStream, setRemoteStream] = useState<MediaStream | null>(null)
+  const [pacienteInterim, setPacienteInterim] = useState('')
+  const [linkCopiado, setLinkCopiado] = useState(false)
 
   const startedRef = useRef(false)
-  // turnos onde o falante foi manualmente fixado (não sobreescrever via IA)
-  const manualWhoRef = useRef<Set<string>>(new Set())
   // controle de quando rodar próxima observação ao vivo
   const lastObsAtCountRef = useRef<number>(0)
+  // últimos finais do mic local (psicóloga) — janela curta pra dedupe contra eco do alto-falante
+  const recentLocalRef = useRef<Array<{ id: string; texto: string; ts: number }>>([])
 
   useEffect(() => {
     if (startedRef.current) return
@@ -68,17 +72,47 @@ export function PresenceClient(props: Props) {
 
   const { ctx, loading: ctxLoading } = useContexto(props.sessaoId)
 
-  const { supported, active, error, forceSpeakerToggle } = useSpeech({
+  const { supported, active, error } = useSpeech({
     enabled: recording,
     onFinal: chunk => {
       const id = crypto.randomUUID()
-      setTurnos(prev => [...prev, { id, who: chunk.who, texto: chunk.texto, ts: chunk.ts, mark: null, tone: null }])
+      const tsMs = Date.parse(chunk.ts) || Date.now()
+      // memoriza últimos 8 finais locais (janela ~6s) pra dedup vs eco
+      const win = recentLocalRef.current.filter(r => tsMs - r.ts < 6000)
+      win.push({ id, texto: chunk.texto, ts: tsMs })
+      recentLocalRef.current = win.slice(-8)
+      setTurnos(prev => [...prev, { id, who: 'psicologo', texto: chunk.texto, ts: chunk.ts, mark: null, tone: null }])
       setInterim('')
-      // IA classifica em paralelo: tom + falante (atribuição correta) — fire-and-forget
       classificarTom(id, chunk.texto)
-      classificarFalante(id, chunk.texto)
     },
     onInterim: setInterim,
+  })
+
+  // STT do paciente — pega o áudio remoto do WebRTC e manda direto pra AssemblyAI.
+  // Turnos do paciente entram já com who='paciente' fixo.
+  // Dedup: se o áudio do paciente vazar pelo alto-falante, o mic local também
+  // transcreveu. Quando chega o turno "real" do remoteSTT, descartamos qualquer
+  // turno local recente com texto muito parecido (era eco, não a psicóloga).
+  const remoteSTT = useRemoteTranscribe({
+    enabled: recording && !!remoteStream,
+    stream: remoteStream,
+    onFinal: (texto, ts) => {
+      const tsMs = Date.parse(ts) || Date.now()
+      const win = recentLocalRef.current.filter(r => tsMs - r.ts < 6000)
+      recentLocalRef.current = win
+      const echoIds = new Set(
+        win.filter(r => similarity(r.texto, texto) >= 0.7).map(r => r.id),
+      )
+      const id = crypto.randomUUID()
+      setTurnos(prev => {
+        const limpo = echoIds.size ? prev.filter(t => !echoIds.has(t.id)) : prev
+        return [...limpo, { id, who: 'paciente', texto, ts, mark: null, tone: null }]
+      })
+      if (echoIds.size) recentLocalRef.current = win.filter(r => !echoIds.has(r.id))
+      setPacienteInterim('')
+      classificarTom(id, texto)
+    },
+    onInterim: setPacienteInterim,
   })
 
   async function classificarTom(turnoId: string, texto: string) {
@@ -94,37 +128,11 @@ export function PresenceClient(props: Props) {
     } catch { /* */ }
   }
 
-  /**
-   * Classifica o falante via IA. Respeita override manual (turnos que o
-   * usuário clicou pra mudar P/C ficam fixos — não sobreescrevemos).
-   */
-  async function classificarFalante(turnoId: string, texto: string) {
-    if (texto.length < 6) return
-    // contexto: últimos 3 turnos já confirmados
-    const ctx = turnos.slice(-3).map(t => ({ who: t.who, texto: t.texto }))
-    try {
-      const r = await fetch(`/api/sessao/${props.sessaoId}/ia/falante`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ texto, contexto: ctx }),
-      })
-      const json = await r.json()
-      const who = json?.who as 'psicologo' | 'paciente' | undefined
-      if (!who) return
-      setTurnos(prev => prev.map(t => {
-        if (t.id !== turnoId) return t
-        if (manualWhoRef.current.has(turnoId)) return t   // não sobrescreve override manual
-        if (t.who === who) return t                       // já está certo
-        return { ...t, who }
-      }))
-    } catch { /* */ }
-  }
-
   function marcarTurno(id: string) {
     if (!armed) return
     setTurnos(prev => prev.map(t => t.id === id ? { ...t, mark: armed } : t))
   }
   function alternarFalante(id: string) {
-    manualWhoRef.current.add(id)   // bloqueia futuras reatribuições da IA
     setTurnos(prev => prev.map(t => t.id === id
       ? { ...t, who: t.who === 'psicologo' ? 'paciente' : 'psicologo' }
       : t,
@@ -268,10 +276,7 @@ export function PresenceClient(props: Props) {
           {!recording ? (
             <button className="btn" onClick={() => setRecording(true)}>● Iniciar registro</button>
           ) : (
-            <>
-              <button className="btn ghost" onClick={forceSpeakerToggle} title="Forçar troca de falante no próximo turno">↺ P/C</button>
-              <button className="btn ghost" onClick={() => setRecording(false)}>⏸</button>
-            </>
+            <button className="btn ghost" onClick={() => setRecording(false)}>⏸</button>
           )}
           <button
             className={`btn${chamada ? ' primary' : ' ghost'}`}
@@ -299,11 +304,16 @@ export function PresenceClient(props: Props) {
           Reconhecimento: {error}
         </div>
       )}
+      {remoteSTT.error && (
+        <div style={{ background: 'rgba(176,125,64,.10)', color: 'var(--amber)', padding: '8px 16px', fontSize: 12 }}>
+          Transcrição do paciente: {remoteSTT.error}
+        </div>
+      )}
 
       <div className="sess-wrap">
         <TranscriptionCard
           turnos={turnos}
-          interim={interim}
+          interim={pacienteInterim || interim}
           armed={armed} setArmed={setArmed}
           onMark={marcarTurno}
           onToggleWho={alternarFalante}
@@ -338,15 +348,25 @@ export function PresenceClient(props: Props) {
                   fontSize: 12, fontFamily: 'var(--font-mono), monospace',
                 }}
               />
-              <button className="btn primary" onClick={() => navigator.clipboard?.writeText(chamada.urlPaciente)}>
-                Copiar
+              <button
+                className={`btn ${linkCopiado ? 'sage' : 'primary'}`}
+                onClick={async () => {
+                  try {
+                    await navigator.clipboard?.writeText(chamada.urlPaciente)
+                    setLinkCopiado(true)
+                    setTimeout(() => setLinkCopiado(false), 2000)
+                  } catch { /* clipboard bloqueado — ignora silenciosamente */ }
+                }}
+                style={{ minWidth: 96, justifyContent: 'center' }}
+              >
+                {linkCopiado ? '✓ Copiado' : 'Copiar'}
               </button>
             </div>
             <div style={{ marginTop: 12, fontSize: 11, color: 'var(--faint)' }}>
               Sala ativa por 4 horas. Quando você fechar a chamada, pode reabri-la aqui.
             </div>
             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 18 }}>
-              <button className="btn ghost" onClick={() => setMostrarModalSala(false)}>Fechar</button>
+              <button className="btn ghost" onClick={() => { setMostrarModalSala(false); setLinkCopiado(false) }}>Fechar</button>
             </div>
           </div>
         </div>
@@ -360,7 +380,14 @@ export function PresenceClient(props: Props) {
           boxShadow: 'var(--sh-lg)', borderRadius: 'var(--rsm)',
           overflow: 'hidden',
         }}>
-          <VideoCall token={chamada.token} role="psicologo" caller compact onEncerrar={() => setChamada(null)} />
+          <VideoCall
+            token={chamada.token}
+            role="psicologo"
+            caller
+            compact
+            onEncerrar={() => { setChamada(null); setRemoteStream(null) }}
+            onRemoteStream={setRemoteStream}
+          />
         </div>
       )}
 
@@ -386,4 +413,27 @@ function fmtTime(s: number) {
   const m = Math.floor(s / 60)
   const ss = s % 60
   return `${String(m).padStart(2, '0')}:${String(ss).padStart(2, '0')}`
+}
+
+/**
+ * Similaridade de Jaccard sobre palavras normalizadas (≥3 letras).
+ * Web Speech e AssemblyAI transcrevem a mesma fala com pequenas
+ * diferenças (pontuação, acentos, eufônicos); Jaccard é tolerante
+ * o suficiente sem precisar de Levenshtein. Threshold 0.7 acerta
+ * eco e ignora frases coincidentemente parecidas.
+ */
+const COMBINING_MARKS = /[̀-ͯ]/g
+function similarity(a: string, b: string): number {
+  const tok = (s: string) => new Set(
+    s.toLowerCase()
+      .normalize('NFD').replace(COMBINING_MARKS, '')
+      .replace(/[^a-z0-9\s]/g, ' ')
+      .split(/\s+/)
+      .filter(w => w.length >= 3),
+  )
+  const A = tok(a), B = tok(b)
+  if (A.size === 0 || B.size === 0) return 0
+  let inter = 0
+  for (const w of A) if (B.has(w)) inter++
+  return inter / (A.size + B.size - inter)
 }

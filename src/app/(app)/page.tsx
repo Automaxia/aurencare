@@ -59,11 +59,16 @@ export default async function InicioPage() {
     ? Math.round(((semanaRecebido - semanaAntRecebido) / semanaAntRecebido) * 100)
     : null
 
+  const sessaoEmAndamento = sessoesHoje.find(s => s.status === 'em_curso')
   const sessoesEmAndamento = sessoesHoje.filter(s => s.status === 'em_curso').length
   const cobrancasPendentes = sessoesSemana.filter(s =>
     s.pagamentoStatus === 'pendente' && (s.status === 'aguardando_metodo' || s.status === 'aguardando_pagamento'),
   ).length
   const pendenciasCount = pendentes.length + cobrancasPendentes
+  // Destino contextual da pílula "pendências": sessão pra assinar > financeiro
+  const pendenciasHref = pendentes.length > 0
+    ? `/sessao/${pendentes[0].id}`
+    : cobrancasPendentes > 0 ? '/financeiro' : '/'
 
   const ativos = pacientes.filter(p => p.status === 'ativo').length
 
@@ -84,12 +89,21 @@ export default async function InicioPage() {
         <div className="date">{capitalize(formatLongDate(hoje))}</div>
         <h1>{greeting()}, <em>{firstName(user.name)}</em>.</h1>
         <div className="sub">
-          <span className="pip"><span className="pip-d" style={{ background: 'var(--sage)' }} />{sessoesHoje.length} {sessoesHoje.length === 1 ? 'sessão hoje' : 'sessões hoje'}</span>
-          {sessoesEmAndamento > 0 && (
-            <span className="pip"><span className="pip-d" style={{ background: 'var(--accent)' }} />{sessoesEmAndamento} em andamento</span>
+          <Link href="/agenda" className="pip">
+            <span className="pip-d" style={{ background: 'var(--sage)' }} />
+            {sessoesHoje.length} {sessoesHoje.length === 1 ? 'sessão hoje' : 'sessões hoje'}
+          </Link>
+          {sessaoEmAndamento && (
+            <Link href={`/sessao/${sessaoEmAndamento.id}`} className="pip">
+              <span className="pip-d" style={{ background: 'var(--accent)' }} />
+              {sessoesEmAndamento === 1 ? 'sessão em andamento' : `${sessoesEmAndamento} em andamento`}
+            </Link>
           )}
           {pendenciasCount > 0 && (
-            <span className="pip"><span className="pip-d" style={{ background: 'var(--amber)' }} />{pendenciasCount} {pendenciasCount === 1 ? 'pendência' : 'pendências'}</span>
+            <Link href={pendenciasHref} className="pip">
+              <span className="pip-d" style={{ background: 'var(--amber)' }} />
+              {pendenciasCount} {pendenciasCount === 1 ? 'pendência' : 'pendências'}
+            </Link>
           )}
         </div>
       </div>

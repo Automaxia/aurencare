@@ -1,19 +1,23 @@
 import { NextResponse } from 'next/server'
 import { requirePsicologo } from '@/server/lib/auth'
 import { chat, type ChatMessage } from '@/server/lib/anthropic'
+import { CLINICAL_VOICE } from '@/server/lib/clinicalVoice'
 import { db } from '@/server/db/pool'
 import { tryDecrypt } from '@/server/lib/crypto'
 
-const SYS_TEMAS = `Você analisa o mapa de correlações de palavras extraído de transcrições de sessões.
-Responda sobre frequências, co-ocorrências e tendências.
-NÃO interprete clinicamente. NÃO emita diagnósticos.
-Máx. 140 palavras. Português brasileiro.`
+const SYS_TEMAS = `${CLINICAL_VOICE}
 
-const SYS_EVOLUCAO = `Você apoia a continuidade clínica de psicólogos, organizando observações de sessões.
-Use APENAS linguagem de frequência e observação factual.
-NUNCA: diagnóstico, interpretação clínica, "a paciente tem", "esquema de", "transferência".
-USE: "frequência crescente", "co-ocorre em X sessões", "padrão observado", "tendência de redução".
-Máx. 140 palavras. Português brasileiro.`
+CONTEXTO: você está conversando com a psicóloga sobre o mapa de temas (palavras com cluster, frequência e co-ocorrências) extraído das transcrições.
+Responda sobre frequências, co-ocorrências, tendências longitudinais, cruzamentos entre clusters.
+Se ela pedir algo que beire diagnóstico, devolva a pergunta em chave observacional ('o que se observa no mapa é…').
+Máx. 140 palavras por resposta. UM parágrafo.`
+
+const SYS_EVOLUCAO = `${CLINICAL_VOICE}
+
+CONTEXTO: você está conversando com a psicóloga sobre a evolução longitudinal do(a) paciente — resumos das sessões assinadas.
+Compare sessões pelo número, aponte continuidades e mudanças, frequências, espaçamento.
+Quando ela perguntar 'o que está acontecendo', responda em chave de OBSERVAÇÃO da fala, não de interpretação clínica.
+Máx. 140 palavras por resposta. UM parágrafo, sem listas numeradas.`
 
 export const runtime = 'nodejs'
 

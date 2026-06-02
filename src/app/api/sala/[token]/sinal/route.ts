@@ -23,7 +23,8 @@ export async function POST(req: Request, { params }: { params: { token: string }
     return NextResponse.json({ error: 'payload inválido' }, { status: 400 })
   }
   message.ts = Date.now()
-  message.from = role
+  // 'ping' não tem campo 'from' (tipo união); os demais variantes têm.
+  if (message.type !== 'ping') message.from = role
   publish(params.token, role, message)
   return NextResponse.json({ ok: true })
 }

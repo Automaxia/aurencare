@@ -1,0 +1,99 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: aurencare-web
+  namespace: aurencare
+  annotations:
+    prometheus.io/scrape: "true"
+    prometheus.io/path: "/metrics"
+    prometheus.io/port: "3000"
+spec:
+  replicas: 1
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 1
+      maxSurge: 1
+  selector:
+    matchLabels:
+      app: aurencare-web
+  template:
+    metadata:
+      labels:
+        app: aurencare-web
+      annotations:
+        recreatePod: "{{.Release.Time.Seconds}}"
+        prometheus.io/scrape: "true"
+        prometheus.io/path: "/metrics"
+        prometheus.io/port: "3000"
+    spec:
+      restartPolicy: Always
+      containers:
+        - name: aurencare-web
+          image: wesleyromualdo/aurencare-web:latest
+          ports:
+            - containerPort: 3000
+          envFrom:
+            - secretRef:
+                name: aurencare-secrets
+          resources:
+            requests:
+              memory: "512Mi"
+              cpu: "500m"
+            limits:
+              memory: "1Gi"
+              cpu: "1"
+      imagePullSecrets:
+        - name: automaxia-secreto-docker
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: aurencare-web-service
+  namespace: aurencare
+  annotations:
+    prometheus.io/scrape: "true"
+    prometheus.io/path: "/metrics"
+    prometheus.io/port: "80"
+spec:
+  selector:
+    app: aurencare-web
+  ports:
+    - protocol: TCP
+      port: 80
+      targetPort: 3000
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: aurencare-web-ingress
+  namespace: aurencare
+  annotations:
+    kubernetes.io/ingress.class: "nginx"
+    cert-manager.io/cluster-issuer: "letsencrypt-prod-cluster"
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/force-ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/enable-cors: "true"
+    nginx.ingress.kubernetes.io/use-regex: "true"
+    nginx.ingress.kubernetes.io/proxy-body-size: "20m"
+spec:
+  # Classe do ingress obrigatória
+  ingressClassName: "nginx"
+  # Configuração TLS/SSL
+  tls:
+  - hosts:
+    - app.aurencare.ia.br
+    secretName: aurencare-web-tls-cert
+  rules:
+  - host: app.aurencare.ia.br
+    http:
+      paths:
+
+      # Rota principal para o frontend (SEM rewrite)
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: aurencare-web-service
+            port:
+              number: 80

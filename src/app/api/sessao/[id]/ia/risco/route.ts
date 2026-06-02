@@ -1,25 +1,30 @@
 import { NextResponse } from 'next/server'
 import { requirePsicologo } from '@/server/lib/auth'
 import { chat } from '@/server/lib/anthropic'
+import { CLINICAL_VOICE } from '@/server/lib/clinicalVoice'
 
 export const runtime = 'nodejs'
 
-const SYS = `Você avalia uma transcrição de psicoterapia para sugerir níveis de risco em 3 dimensões:
-- autolesao  (Baixo/Médio/Alto)
-- ideacao    (Baixo/Médio/Alto)  — ideação suicida
-- plano      (Baixo/Médio/Alto)  — plano específico
+const SYS = `${CLINICAL_VOICE}
 
-Critérios:
-- Baixo  = sem menção explícita ou indícios mínimos
-- Médio  = menção indireta, ideias passivas ("não queria mais existir"), histórico mencionado
-- Alto   = relato direto, frequência atual, especificidade de plano/método/data
+TAREFA: graduar o nível de risco observado em 3 dimensões, ancorando-se SEMPRE na evidência textual da transcrição.
 
-NÃO emita diagnóstico. NÃO use jargão clínico. Use linguagem observacional.
+DIMENSÕES:
+- autolesao  — relatos de ferir-se, machucar o corpo, queimar, cortar, atos com intenção de dor física
+- ideacao    — pensamentos sobre morrer, deixar de existir, não querer continuar, desaparecer
+- plano      — especificidade de método, local, data, acesso a meios, recado-despedida, organização de pendências
+
+CRITÉRIOS:
+- Baixo (lo)  — sem menção textual; ausência ativa do tema na fala
+- Médio (md)  — menção indireta ou passiva ('às vezes queria sumir'), histórico verbal, ambivalência sustentada
+- Alto (hi)   — relato direto, frequência atual descrita, especificidade observável
+
+REGRAS DE CONSERVADORISMO:
+- Na dúvida entre dois níveis, fique com o MAIOR (vigilância clínica > falso conforto).
+- Se houver indício textual claro de Alto em qualquer dimensão, "justificativa" DEVE citar o trecho entre aspas.
 
 Retorne EXCLUSIVAMENTE JSON válido (sem prosa, sem markdown):
-{"autolesao":"lo|md|hi","ideacao":"lo|md|hi","plano":"lo|md|hi","justificativa":"até 30 palavras"}
-
-Onde lo=Baixo, md=Médio, hi=Alto.`
+{"autolesao":"lo|md|hi","ideacao":"lo|md|hi","plano":"lo|md|hi","justificativa":"até 30 palavras, citando trecho se houver"}`
 
 export async function POST(req: Request, { params }: { params: { id: string } }) {
   await requirePsicologo()

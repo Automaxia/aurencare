@@ -2,6 +2,8 @@ import { NextResponse } from 'next/server'
 import { requirePsicologo } from '@/server/lib/auth'
 import { encerrarSessao, salvarResumoIA, buscarSessao } from '@/server/services/sessoes'
 import { gerarResumoSessao } from '@/server/lib/anthropic'
+import { enviarConfirmacaoPosSessao } from '@/server/services/confirmacaoSessao'
+import { log } from '@/server/lib/log'
 
 export const runtime = 'nodejs'
 
@@ -13,6 +15,12 @@ export async function POST(req: Request, { params }: { params: { id: string } })
   const indicadores = body?.indicadores ?? null
 
   await encerrarSessao(params.id, { transcricao, indicadores })
+
+  // Confirmação pós-sessão pelo paciente (proteção §10).
+  // Fire-and-forget — falha aqui não pode quebrar o encerramento.
+  enviarConfirmacaoPosSessao(params.id).catch(err =>
+    log.err('encerrar', 'falha ao disparar confirmação', err),
+  )
 
   // Gera rascunho de resumo automaticamente (Anthropic + aiGuard).
   const sessao = await buscarSessao(params.id)

@@ -25,7 +25,7 @@ export function NewPatientForm({ psicologoNome }: { psicologoNome: string }) {
   const preview = `Olá, ${previewName}! Sou da equipe de ${psicologoNome}.
 
 Para começar, leia e aceite os termos no link:
-https://aurencare.app/onboard/…
+https://aurencare.ia.br/onboard/…
 
 Qualquer dúvida, é só responder por aqui.`
 

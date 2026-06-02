@@ -1,14 +1,16 @@
 import Link from 'next/link'
 import { PageHeader, EmptyState } from '@/components/PageHeader'
 import { requirePsicologo } from '@/server/lib/auth'
+import { db } from '@/server/db/pool'
 import { listarPacientes } from '@/server/services/pacientes'
 import { formatTimeBR, formatDateBR } from '@/lib/formatters'
-import { PacientesFilter } from './filter'
+import { PacientesFilter, type OrdenacaoKey, type VisualizacaoKey } from './filter'
 import { PatientCard, type PatientCardData } from './PatientCard'
+import { PatientRow } from './PatientRow'
 
 export const dynamic = 'force-dynamic'
 
-type FilterKey = 'todos' | 'hoje' | 'atencao' | 'novos'
+type FilterKey = 'todos' | 'hoje' | 'atencao' | 'novos' | 'arquivados'
 
 const AV_GRADIENTS = [
   'linear-gradient(135deg, #6b4fcf, #a080f8)',
@@ -63,12 +65,28 @@ function pickPrincipalCta(p: any): { label: string; href: string } {
   return { label: '+ Sessão', href: `/agenda/nova` }
 }
 
-export default async function PacientesPage({ searchParams }: { searchParams: { filtro?: FilterKey; busca?: string } }) {
+const ORDENACOES_VALIDAS: OrdenacaoKey[] = ['proxima', 'nome', 'recente']
+const VIS_VALIDAS: VisualizacaoKey[] = ['grid', 'lista']
+
+export default async function PacientesPage({ searchParams }: { searchParams: { filtro?: FilterKey; busca?: string; ord?: string; vis?: string } }) {
   const user = await requirePsicologo()
   const filtro = (searchParams?.filtro ?? 'todos') as FilterKey
   const busca = (searchParams?.busca ?? '').toLowerCase().trim()
+  const ordenacao = (ORDENACOES_VALIDAS.includes(searchParams?.ord as OrdenacaoKey)
+    ? searchParams!.ord
+    : 'proxima') as OrdenacaoKey
+  const visualizacao = (VIS_VALIDAS.includes(searchParams?.vis as VisualizacaoKey)
+    ? searchParams!.vis
+    : 'grid') as VisualizacaoKey
 
-  const all = await listarPacientes(user.id)
+  const apenasArquivados = filtro === 'arquivados'
+  const [all, totalArquivados] = await Promise.all([
+    listarPacientes(user.id, { apenasArquivados }),
+    db.query<{ n: number }>(
+      `SELECT count(*)::int AS n FROM pacientes WHERE psicologo_id = $1 AND status = 'inativo'`,
+      [user.id],
+    ).then(r => r.rows[0]?.n ?? 0),
+  ])
   const hojeStr = new Date().toDateString()
 
   const isToday = (iso: string | null | undefined) =>
@@ -82,11 +100,23 @@ export default async function PacientesPage({ searchParams }: { searchParams: { 
     return true
   })
 
+  // Ordenação
+  filtered.sort((a, b) => {
+    if (ordenacao === 'nome') return a.nome.localeCompare(b.nome, 'pt-BR', { sensitivity: 'base' })
+    if (ordenacao === 'recente') return +new Date(b.createdAt) - +new Date(a.createdAt)
+    // 'proxima': próxima sessão crescente; quem não tem vai pro fim
+    const ai = a.proximaSessao?.dataHora ? +new Date(a.proximaSessao.dataHora) : Infinity
+    const bi = b.proximaSessao?.dataHora ? +new Date(b.proximaSessao.dataHora) : Infinity
+    if (ai !== bi) return ai - bi
+    return a.nome.localeCompare(b.nome, 'pt-BR', { sensitivity: 'base' })
+  })
+
   const counts = {
-    todos:   all.length,
-    hoje:    all.filter(p => isToday(p.proximaSessao?.dataHora)).length,
-    atencao: all.filter(p => ['Atenção','Registrar','Espaçando'].includes(p.badge?.label ?? '')).length,
-    novos:   all.filter(p => p.badge?.label === 'Nova').length,
+    todos:      apenasArquivados ? 0 : all.length,
+    hoje:       apenasArquivados ? 0 : all.filter(p => isToday(p.proximaSessao?.dataHora)).length,
+    atencao:    apenasArquivados ? 0 : all.filter(p => ['Atenção','Registrar','Espaçando'].includes(p.badge?.label ?? '')).length,
+    novos:      apenasArquivados ? 0 : all.filter(p => p.badge?.label === 'Nova').length,
+    arquivados: totalArquivados,
   }
 
   // Calcula intervalo médio de sessões por paciente para frequência
@@ -129,7 +159,13 @@ export default async function PacientesPage({ searchParams }: { searchParams: { 
         actions={<Link className="btn primary" href="/pacientes/novo">+ Novo paciente</Link>}
       />
 
-      <PacientesFilter active={filtro} counts={counts} busca={busca} />
+      <PacientesFilter
+        active={filtro}
+        counts={counts}
+        busca={busca}
+        ordenacao={ordenacao}
+        visualizacao={visualizacao}
+      />
 
       {cards.length === 0 ? (
         <EmptyState>
@@ -137,6 +173,10 @@ export default async function PacientesPage({ searchParams }: { searchParams: { 
             ? 'Você ainda não tem pacientes. Comece adicionando um.'
             : 'Nenhum paciente bate com esse filtro.'}
         </EmptyState>
+      ) : visualizacao === 'lista' ? (
+        <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
+          {cards.map(c => <PatientRow key={c.id} p={c} />)}
+        </div>
       ) : (
         <div className="ptc-grid">
           {cards.map(c => <PatientCard key={c.id} p={c} />)}

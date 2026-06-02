@@ -9,6 +9,8 @@ export type SalaVideo = {
   criadaEm: string
   ativaAte: string
   encerradaEm: string | null
+  aceiteTermoEm: string | null
+  aceiteTermoVersao: string | null
 }
 
 function rowToSala(r: any): SalaVideo {
@@ -19,7 +21,25 @@ function rowToSala(r: any): SalaVideo {
     criadaEm: r.criada_em,
     ativaAte: r.ativa_ate,
     encerradaEm: r.encerrada_em,
+    aceiteTermoEm: r.aceite_termo_em ?? null,
+    aceiteTermoVersao: r.aceite_termo_versao ?? null,
   }
+}
+
+/** Versão atual do termo. Bumpar quando o texto for alterado materialmente. */
+export const TERMO_VIDEO_VERSAO = '2026-05'
+
+export async function registrarAceiteTermo(token: string, evidencia: { ip: string | null; ua: string | null }): Promise<boolean> {
+  const { rowCount } = await db.query(
+    `UPDATE salas_video SET
+        aceite_termo_em = NOW(),
+        aceite_termo_ip = $2,
+        aceite_termo_ua = $3,
+        aceite_termo_versao = $4
+      WHERE token = $1 AND encerrada_em IS NULL`,
+    [token, evidencia.ip, evidencia.ua, TERMO_VIDEO_VERSAO],
+  )
+  return (rowCount ?? 0) > 0
 }
 
 /**

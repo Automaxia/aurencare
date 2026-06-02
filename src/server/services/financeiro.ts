@@ -1,6 +1,29 @@
 import 'server-only'
 import { db } from '@/server/db/pool'
 
+/**
+ * Taxas estimadas Pagar.me (tabela padrão maio 2026).
+ * Valores reais variam por contrato — usados como estimativa visual no painel.
+ * Exibidos como "estimado" na UI; o líquido real chega via webhook.
+ */
+const TAXA_PIX        = 0.0099    // ~1%
+const TAXA_DEBITO     = 0.0199    // ~2%
+const TAXA_CREDITO_1X = 0.0399    // ~4%
+const TAXA_CREDITO_PARC = 0.0499  // ~5% em parcelado
+
+/**
+ * Janela de liquidação (cai na conta) em dias úteis aproximados após pagamento.
+ * Defaults Pagar.me: PIX D+1, débito D+2, crédito D+30.
+ */
+const LIQUIDACAO_DIAS: Record<string, number> = {
+  pix: 1,
+  debito: 2,
+  credito: 30,
+}
+
+export type StatusConfirmacao = 'aguardando' | 'sim' | 'contestou' | 'silencio' | null
+export type StatusNf = 'pendente' | 'emitida' | 'dispensada'
+
 export type Cobranca = {
   id: string
   dataHora: string
@@ -8,13 +31,43 @@ export type Cobranca = {
   valor: number
   pagamentoStatus: string
   pagamentoMetodo: string | null
+  pagamentoParcelas: number
   pagarmeOrderId: string | null
   pagarmeCheckoutUrl: string | null
+  /** Taxa estimada da Pagar.me (centavos). 0 se ainda não pago. */
+  taxaEstimada: number
+  /** ETA de liquidação na conta da psicóloga (ISO). Null se ainda não pago. */
+  caiEm: string | null
+  /** Status da confirmação pós-sessão (Fluxo 7). */
+  confirmacao: StatusConfirmacao
+  /** Status da Nota Fiscal — pendente (default p/ pagas), emitida ou dispensada. */
+  nfStatus: StatusNf
+  /** Número da NF (texto livre informado pela psicóloga). */
+  nfNumero: string | null
+  /** Quando a NF foi marcada como emitida. */
+  nfEmitidaEm: string | null
+}
+
+export type QuebraMetodo = {
+  metodo: 'pix' | 'credito' | 'debito'
+  total: number   // soma em R$
+  count: number   // quantidade de cobranças
+  pct: number     // % do total recebido
 }
 
 export type Financeiro = {
   cobrancas: Cobranca[]
   totaisMes: { recebido: number; pendente: number; reembolsado: number }
+  /** Recebido bruto separado por método (período). */
+  recebidoPorMetodo: { pix: number; credito: number; debito: number }
+  /** Taxas Pagar.me estimadas no período. */
+  taxasEstimadas: number
+  /** Recebido líquido estimado (bruto - taxas) — chega na conta. */
+  liquidoEstimado: number
+  /** Total pago mas ainda em janela de liquidação (cai nos próximos N dias). */
+  aReceber30d: number
+  /** % de cada método no recebido — pra barra visual. */
+  quebraMetodo: QuebraMetodo[]
   valorMedioSessao: number
   ticketMedioMes: number
   inadimplenciaPct: number
@@ -48,10 +101,16 @@ export async function lerFinanceiro(
   periodo: Periodo = 'mes',
 ): Promise<Financeiro> {
   const { inicio, fim } = rangeDoPeriodo(periodo, new Date(anchorIso))
+  const agora = new Date(anchorIso)
 
   const { rows } = await db.query<any>(
     `SELECT s.id, s.data_hora, s.valor, s.pagamento_status, s.pagamento_metodo,
-            s.pagarme_order_id, s.pagarme_checkout_url, p.nome AS paciente_nome
+            s.pagamento_parcelas, s.pagarme_order_id, s.pagarme_checkout_url,
+            s.pago_em,
+            s.confirmacao_resposta, s.confirmacao_janela_expira_em,
+            s.confirmacao_enviada_em,
+            s.nf_status, s.nf_numero, s.nf_emitida_em,
+            p.nome AS paciente_nome
        FROM sessoes s JOIN pacientes p ON p.id = s.paciente_id
       WHERE s.psicologo_id = $1
         AND s.data_hora BETWEEN $2 AND $3
@@ -59,29 +118,123 @@ export async function lerFinanceiro(
     [psicologoId, inicio.toISOString(), fim.toISOString()],
   )
 
-  const cobrancas: Cobranca[] = rows.map(r => ({
-    id: r.id, dataHora: r.data_hora, pacienteNome: r.paciente_nome,
-    valor: parseFloat(r.valor ?? 0),
-    pagamentoStatus: r.pagamento_status, pagamentoMetodo: r.pagamento_metodo,
-    pagarmeOrderId: r.pagarme_order_id, pagarmeCheckoutUrl: r.pagarme_checkout_url,
-  }))
+  const cobrancas: Cobranca[] = rows.map(r => {
+    const valor = parseFloat(r.valor ?? 0)
+    const metodo = r.pagamento_metodo as string | null
+    const parcelas = parseInt(r.pagamento_parcelas ?? 1, 10) || 1
+    const pago = r.pagamento_status === 'pago'
+    // pago_em real do webhook tem prioridade; fallback é a data da sessão.
+    const baseLiquidacao = r.pago_em ? new Date(r.pago_em) : new Date(r.data_hora)
+    return {
+      id: r.id,
+      dataHora: r.data_hora,
+      pacienteNome: r.paciente_nome,
+      valor,
+      pagamentoStatus: r.pagamento_status,
+      pagamentoMetodo: metodo,
+      pagamentoParcelas: parcelas,
+      pagarmeOrderId: r.pagarme_order_id,
+      pagarmeCheckoutUrl: r.pagarme_checkout_url,
+      taxaEstimada: pago ? Math.round(valor * taxaDe(metodo, parcelas) * 100) / 100 : 0,
+      caiEm: pago ? prevLiquidacao(baseLiquidacao, metodo) : null,
+      confirmacao: classificarConfirmacao(r, agora),
+      nfStatus: classificarNf(r, pago),
+      nfNumero: r.nf_numero,
+      nfEmitidaEm: r.nf_emitida_em,
+    }
+  })
 
-  const recebido     = cobrancas.filter(c => c.pagamentoStatus === 'pago').reduce((a, b) => a + b.valor, 0)
-  const pendente     = cobrancas.filter(c => c.pagamentoStatus === 'pendente').reduce((a, b) => a + b.valor, 0)
-  const reembolsado  = cobrancas.filter(c => c.pagamentoStatus === 'reembolsado').reduce((a, b) => a + b.valor, 0)
+  const pagas = cobrancas.filter(c => c.pagamentoStatus === 'pago')
+  const recebido    = pagas.reduce((a, b) => a + b.valor, 0)
+  const pendente    = cobrancas.filter(c => c.pagamentoStatus === 'pendente').reduce((a, b) => a + b.valor, 0)
+  const reembolsado = cobrancas.filter(c => c.pagamentoStatus === 'reembolsado').reduce((a, b) => a + b.valor, 0)
 
-  const valoresPagos = cobrancas.filter(c => c.pagamentoStatus === 'pago').map(c => c.valor)
-  const valorMedio = valoresPagos.length ? valoresPagos.reduce((a,b) => a + b, 0) / valoresPagos.length : 0
+  const recebidoPorMetodo = {
+    pix:     pagas.filter(c => c.pagamentoMetodo === 'pix').reduce((a, b) => a + b.valor, 0),
+    credito: pagas.filter(c => c.pagamentoMetodo === 'credito').reduce((a, b) => a + b.valor, 0),
+    debito:  pagas.filter(c => c.pagamentoMetodo === 'debito').reduce((a, b) => a + b.valor, 0),
+  }
+
+  const taxasEstimadas  = pagas.reduce((a, b) => a + b.taxaEstimada, 0)
+  const liquidoEstimado = recebido - taxasEstimadas
+
+  // A receber: cobranças pagas com caiEm no futuro
+  const aReceber30d = pagas
+    .filter(c => c.caiEm && new Date(c.caiEm) > agora)
+    .reduce((a, b) => a + (b.valor - b.taxaEstimada), 0)
+
+  const quebraMetodo: QuebraMetodo[] = (['pix', 'credito', 'debito'] as const).map(m => {
+    const cobs = pagas.filter(c => c.pagamentoMetodo === m)
+    const total = cobs.reduce((a, b) => a + b.valor, 0)
+    return {
+      metodo: m,
+      total,
+      count: cobs.length,
+      pct: recebido > 0 ? (total / recebido) * 100 : 0,
+    }
+  }).filter(q => q.count > 0)
+
+  const valorMedio = pagas.length ? recebido / pagas.length : 0
   const total = recebido + pendente
   const inad = total > 0 ? (pendente / total) * 100 : 0
 
   return {
     cobrancas,
     totaisMes: { recebido, pendente, reembolsado },
+    recebidoPorMetodo,
+    taxasEstimadas,
+    liquidoEstimado,
+    aReceber30d,
+    quebraMetodo,
     valorMedioSessao: valorMedio,
     ticketMedioMes: valorMedio,
     inadimplenciaPct: inad,
   }
+}
+
+/**
+ * Taxa estimada Pagar.me. PIX/débito não têm parcelas — crédito 2+ vezes
+ * cai na faixa "parcelado".
+ */
+function taxaDe(metodo: string | null, parcelas: number): number {
+  if (metodo === 'pix') return TAXA_PIX
+  if (metodo === 'debito') return TAXA_DEBITO
+  if (metodo === 'credito') return parcelas > 1 ? TAXA_CREDITO_PARC : TAXA_CREDITO_1X
+  return 0
+}
+
+/**
+ * Previsão de liquidação (ISO). Recebe pago_em real do webhook quando
+ * disponível; em sessões antigas (antes da migration 009) cai pra data_hora.
+ */
+function prevLiquidacao(quandoPaga: Date, metodo: string | null): string {
+  const dias = LIQUIDACAO_DIAS[metodo ?? ''] ?? 1
+  const d = new Date(quandoPaga)
+  d.setDate(d.getDate() + dias)
+  return d.toISOString()
+}
+
+function classificarConfirmacao(r: any, agora: Date): StatusConfirmacao {
+  const resp = r.confirmacao_resposta as string | null
+  if (resp === 'sim' || resp === 'contestou' || resp === 'silencio') return resp
+  if (r.confirmacao_enviada_em && r.confirmacao_janela_expira_em) {
+    return new Date(r.confirmacao_janela_expira_em) > agora ? 'aguardando' : 'silencio'
+  }
+  return null
+}
+
+/**
+ * Status da NF na visão do front:
+ *  · emitida    — psi marcou explicitamente
+ *  · dispensada — psi marcou que não emite
+ *  · pendente   — pago mas ainda não marcado
+ *  Cobranças não pagas devolvem 'pendente' por default; a UI escolhe esconder.
+ */
+function classificarNf(r: any, pago: boolean): StatusNf {
+  const v = r.nf_status as string | null
+  if (v === 'emitida' || v === 'dispensada') return v
+  if (pago) return 'pendente'
+  return 'pendente'
 }
 
 export type SaudePratica = {

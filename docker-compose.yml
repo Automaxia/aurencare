@@ -11,6 +11,7 @@ services:
       - "5432:5432"
     volumes:
       - aurencare-pg:/var/lib/postgresql/data
+      - ./bin/postgres-init.sh:/docker-entrypoint-initdb.d/00-create-evolution-db.sh:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U aurencare -d aurencare"]
       interval: 5s
@@ -31,13 +32,73 @@ services:
       timeout: 3s
       retries: 10
 
+  evolution:
+    image: atendai/evolution-api:v2.2.3
+    container_name: aurencare-evolution
+    restart: unless-stopped
+    profiles: [whatsapp]
+    ports:
+      - "8080:8080"
+    environment:
+      # ── Core ──────────────────────────────────────────
+      SERVER_URL: http://localhost:8080
+      AUTHENTICATION_API_KEY: ${EVOLUTION_API_KEY:-change-me-evolution-master-key}
+      AUTHENTICATION_EXPOSE_IN_FETCH_INSTANCES: "true"
+      LANGUAGE: pt-BR
+      DEL_INSTANCE: "false"
+      LOG_LEVEL: ERROR,WARN,INFO
+      LOG_COLOR: "true"
+
+      # ── Banco (PostgreSQL compartilhado, db separado 'evolution') ──
+      DATABASE_ENABLED: "true"
+      DATABASE_PROVIDER: postgresql
+      DATABASE_CONNECTION_URI: postgresql://aurencare:aurencare@postgres:5432/evolution
+      DATABASE_CONNECTION_CLIENT_NAME: evolution_exchange
+      DATABASE_SAVE_DATA_INSTANCE: "true"
+      DATABASE_SAVE_DATA_NEW_MESSAGE: "true"
+      DATABASE_SAVE_MESSAGE_UPDATE: "true"
+      DATABASE_SAVE_DATA_CONTACTS: "true"
+      DATABASE_SAVE_DATA_CHATS: "true"
+
+      # ── Cache (Redis compartilhado, db 1) ──
+      CACHE_REDIS_ENABLED: "true"
+      CACHE_REDIS_URI: redis://redis:6379/1
+      CACHE_REDIS_PREFIX_KEY: evolution
+      CACHE_LOCAL_ENABLED: "false"
+
+      # ── Webhook global → Auren ──
+      # host.docker.internal aponta pro Mac que está rodando o `next dev` :3000
+      WEBHOOK_GLOBAL_URL: http://host.docker.internal:3000/api/webhooks/evolution
+      WEBHOOK_GLOBAL_ENABLED: "true"
+      WEBHOOK_GLOBAL_WEBHOOK_BY_EVENTS: "false"
+      WEBHOOK_EVENTS_MESSAGES_UPSERT: "true"
+      WEBHOOK_EVENTS_MESSAGES_UPDATE: "false"
+      WEBHOOK_EVENTS_CONNECTION_UPDATE: "true"
+      WEBHOOK_EVENTS_QRCODE_UPDATED: "true"
+
+      # ── Pareamento WhatsApp travando em jun/2026 (instâncias ficam em
+      # "connecting" sem gerar QR). Suspeita: Baileys embutido no Evolution
+      # com versão WA Web defasada, rejeitada silenciosamente. Próximas
+      # tentativas: upgrade Evolution quando lançar > v2.2.3, ou migrar
+      # pra serviço hospedado.
+      CONFIG_SESSION_PHONE_CLIENT: AurenCare
+      CONFIG_SESSION_PHONE_NAME: Chrome
+    extra_hosts:
+      # garante que host.docker.internal funcione em Linux também
+      - "host.docker.internal:host-gateway"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
   adminer:
     image: adminer:latest
     container_name: aurencare-adminer
     restart: unless-stopped
     profiles: [tools]
     ports:
-      - "8080:8080"
+      - "8081:8080"
     depends_on:
       postgres:
         condition: service_healthy

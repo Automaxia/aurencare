@@ -5,6 +5,10 @@ import { criarOrderPix, criarCheckoutCartao, reembolsar } from '@/server/lib/pag
 import { publish } from '@/server/lib/sse'
 import { encrypt, decrypt, tryDecrypt } from '@/server/lib/crypto'
 import { log } from '@/server/lib/log'
+import { enviarEmailPacientePorSessao, enviarEmailPacientePorId } from '@/server/lib/emailPaciente'
+import {
+  tplSessaoConfirmada, tplSessaoCancelada, tplSerieAgendada,
+} from '@/server/lib/emailTemplates'
 import { formatDateTimeBR } from '@/lib/formatters'
 
 export type SessaoStatus =
@@ -36,6 +40,9 @@ export type Sessao = {
   resumoIa: string | null
   transcricao: string | null
   notaClinica: string | null
+  serieId: string | null
+  /** Posição na série (1-based) e total. Só preenchido em listarSessoesEntre. */
+  seriePosicao: { posicao: number; total: number } | null
 }
 
 function rowToSessao(r: any): Sessao {
@@ -52,6 +59,10 @@ function rowToSessao(r: any): Sessao {
     resumoIa: tryDecrypt(r.resumo_ia),
     transcricao: tryDecrypt(r.transcricao_texto),
     notaClinica: tryDecrypt(r.nota_clinica),
+    serieId: r.serie_id ?? null,
+    seriePosicao: r.serie_posicao && r.serie_total
+      ? { posicao: parseInt(r.serie_posicao, 10), total: parseInt(r.serie_total, 10) }
+      : null,
   }
 }
 
@@ -70,8 +81,32 @@ export async function buscarSessao(id: string): Promise<Sessao | null> {
 }
 
 export async function listarSessoesEntre(psicologoId: string, inicioIso: string, fimIso: string): Promise<Sessao[]> {
+  // CTE serie_stats: pra cada serie_id que aparece no range, computa posição
+  // (ordenada por data_hora) e total da série. LEFT JOIN devolve null pras
+  // avulsas (sem serie_id), que é o comportamento esperado.
   const { rows } = await db.query(
-    `${SELECT_SESSAO_BASE}
+    `WITH range_series AS (
+       SELECT DISTINCT serie_id FROM sessoes
+        WHERE psicologo_id = $1
+          AND data_hora >= $2 AND data_hora <= $3
+          AND serie_id IS NOT NULL
+     ),
+     serie_stats AS (
+       SELECT s.id, s.serie_id,
+              row_number() OVER (PARTITION BY s.serie_id ORDER BY s.data_hora) AS serie_posicao,
+              count(*) OVER (PARTITION BY s.serie_id) AS serie_total
+         FROM sessoes s
+        WHERE s.serie_id IN (SELECT serie_id FROM range_series)
+     )
+     SELECT s.*,
+            p.nome AS paciente_nome,
+            p.telefone AS paciente_telefone,
+            p.email AS paciente_email,
+            ss.serie_posicao,
+            ss.serie_total
+       FROM sessoes s
+       JOIN pacientes p ON p.id = s.paciente_id
+       LEFT JOIN serie_stats ss ON ss.id = s.id
       WHERE s.psicologo_id = $1
         AND s.data_hora >= $2 AND s.data_hora <= $3
       ORDER BY s.data_hora ASC`,
@@ -124,8 +159,8 @@ export async function criarSessao(input: CriarSessaoInput): Promise<Sessao> {
   const numero = count[0].n
 
   const { rows } = await db.query(
-    `INSERT INTO sessoes (psicologo_id, paciente_id, numero, data_hora, duracao_min, modalidade, status, valor)
-     VALUES ($1,$2,$3,$4,$5,$6,'aguardando_metodo',$7)
+    `INSERT INTO sessoes (psicologo_id, paciente_id, numero, data_hora, duracao_min, modalidade, status, valor, wa_pergunta_metodo_em)
+     VALUES ($1,$2,$3,$4,$5,$6,'aguardando_metodo',$7, NOW())
      RETURNING id`,
     [input.psicologoId, input.pacienteId, numero, input.dataHora, input.duracaoMin ?? 50, input.modalidade ?? 'online', input.valor],
   )
@@ -138,6 +173,146 @@ export async function criarSessao(input: CriarSessaoInput): Promise<Sessao> {
   )
 
   return sessao
+}
+
+// ── Séries recorrentes ────────────────────────────────────────────────────
+export type FrequenciaSerie = 'semanal' | 'quinzenal'
+
+export type CriarSerieInput = {
+  psicologoId: string
+  pacienteId: string
+  /** Data/hora da primeira sessão (ISO). */
+  primeiraSessaoIso: string
+  frequencia: FrequenciaSerie
+  quantidade: number
+  duracaoMin?: number
+  modalidade?: string
+  valor: number
+}
+
+export type CriarSerieResult = {
+  serieId: string
+  sessoesIds: string[]
+  datas: string[]    // ISO de todas as sessões geradas
+}
+
+/**
+ * Gera as datas ISO de uma série a partir da primeira.
+ * Pure function — testável. Semanal = +7d; Quinzenal = +14d.
+ */
+export function gerarDatasSerie(primeiraIso: string, freq: FrequenciaSerie, qtd: number): string[] {
+  const passoDias = freq === 'semanal' ? 7 : 14
+  const inicio = new Date(primeiraIso)
+  const out: string[] = []
+  for (let i = 0; i < qtd; i++) {
+    const d = new Date(inicio)
+    d.setDate(inicio.getDate() + i * passoDias)
+    out.push(d.toISOString())
+  }
+  return out
+}
+
+/**
+ * Detecta sessões já existentes do mesmo psicólogo em ±5min de cada data.
+ * Devolve um Set de ISOs que têm conflito. Útil pra UI marcar antes de enviar.
+ */
+export async function detectarConflitosSerie(
+  psicologoId: string, datas: string[],
+): Promise<Set<string>> {
+  if (datas.length === 0) return new Set()
+  const placeholders = datas.map((_, i) => `$${i + 2}::timestamptz`).join(',')
+  const { rows } = await db.query<{ data_hora: string }>(
+    `SELECT data_hora FROM sessoes
+      WHERE psicologo_id = $1
+        AND status NOT IN ('cancelada', 'no_show')
+        AND data_hora IN (${placeholders})`,
+    [psicologoId, ...datas],
+  )
+  return new Set(rows.map(r => new Date(r.data_hora).toISOString()))
+}
+
+/**
+ * Cria N sessões da série. Pula Fluxo 2 individual — manda 1 mensagem
+ * informativa única. Cron /api/cron/perguntar-metodo dispara Fluxo 2
+ * 48h antes de cada sessão.
+ */
+export async function criarSerie(input: CriarSerieInput): Promise<CriarSerieResult> {
+  if (input.quantidade < 2) throw new Error('serie_minimo_2_sessoes')
+  if (input.quantidade > 52) throw new Error('serie_maximo_52_sessoes')
+
+  const datas = gerarDatasSerie(input.primeiraSessaoIso, input.frequencia, input.quantidade)
+
+  // próximo número de sessão pra esse paciente
+  const { rows: count } = await db.query<{ n: number }>(
+    `SELECT COALESCE(MAX(numero), 0) + 1 AS n FROM sessoes WHERE paciente_id = $1`,
+    [input.pacienteId],
+  )
+  let proxNumero = count[0].n
+
+  // Transação: insere todas ou nenhuma
+  const cliente = await db.connect()
+  let serieId = ''
+  const sessoesIds: string[] = []
+  try {
+    await cliente.query('BEGIN')
+    const r = await cliente.query<{ id: string }>(`SELECT gen_random_uuid() AS id`)
+    serieId = r.rows[0].id
+
+    for (const dataIso of datas) {
+      const { rows } = await cliente.query<{ id: string }>(
+        `INSERT INTO sessoes (psicologo_id, paciente_id, numero, data_hora, duracao_min, modalidade, status, valor, serie_id)
+         VALUES ($1,$2,$3,$4,$5,$6,'aguardando_metodo',$7,$8)
+         RETURNING id`,
+        [
+          input.psicologoId, input.pacienteId, proxNumero++,
+          dataIso, input.duracaoMin ?? 50, input.modalidade ?? 'online',
+          input.valor, serieId,
+        ],
+      )
+      sessoesIds.push(rows[0].id)
+    }
+    await cliente.query('COMMIT')
+  } catch (err) {
+    await cliente.query('ROLLBACK').catch(() => {})
+    log.err('criarSerie', 'transação falhou', err)
+    throw err
+  } finally {
+    cliente.release()
+  }
+
+  // Notificação ao paciente nos dois canais — depois do COMMIT.
+  const { rows: pac } = await db.query<{ nome: string; telefone: string }>(
+    `SELECT nome, telefone FROM pacientes WHERE id = $1`, [input.pacienteId],
+  )
+  const { rows: psiS } = await db.query<{ nome: string; email: string }>(
+    `SELECT nome, email FROM psicologos WHERE id = $1 LIMIT 1`, [input.psicologoId])
+  if (pac[0]) {
+    const datasFormatadas = datas.map(d => formatDateTimeBR(d))
+    await Promise.all([
+      enviarWA(
+        pac[0].telefone,
+        WA_TEMPLATES.fluxo2_serieInformativa({
+          nome: pac[0].nome,
+          datas: datasFormatadas,
+          valor: input.valor,
+        }),
+      ).catch(err => log.err('criarSerie', 'falha WA', err)),
+      psiS[0] ? enviarEmailPacientePorId(
+        input.pacienteId,
+        tplSerieAgendada({
+          nomePaciente: pac[0].nome,
+          psicologoNome: psiS[0].nome,
+          psicologoEmail: psiS[0].email,
+          datas: datasFormatadas,
+          valor: input.valor,
+        }),
+        'criarSerie',
+      ) : Promise.resolve(),
+    ])
+  }
+
+  log.ok('criarSerie', `${sessoesIds.length} sessões serie=${serieId} paciente=${input.pacienteId}`)
+  return { serieId, sessoesIds, datas }
 }
 
 // ── Métodos de pagamento (Pagar.me) ───────────────────────────────────────
@@ -205,12 +380,31 @@ export async function marcarPagamentoConfirmado(pagarmeOrderId: string): Promise
   if (sessao.pagamentoStatus === 'pago') return
 
   await db.query(
-    `UPDATE sessoes SET pagamento_status='pago', status='confirmada' WHERE id = $1`,
+    `UPDATE sessoes SET pagamento_status='pago', status='confirmada', pago_em = NOW() WHERE id = $1`,
     [sessao.id],
   )
   publish({ type: 'sessao.confirmada', sessaoId: sessao.id, pacienteId: sessao.pacienteId })
   publish({ type: 'pagamento.recebido', sessaoId: sessao.id, valor: sessao.valor })
-  await enviarWA(sessao.pacienteTelefone, WA_TEMPLATES.fluxo2_confirmado(formatDateTimeBR(sessao.dataHora)))
+
+  // Notificação ao paciente nos dois canais — falhas isoladas não bloqueiam.
+  const { rows: psis } = await db.query<{ nome: string; email: string }>(
+    `SELECT nome, email FROM psicologos WHERE id = $1 LIMIT 1`, [sessao.psicologoId])
+  await Promise.all([
+    enviarWA(sessao.pacienteTelefone, WA_TEMPLATES.fluxo2_confirmado(formatDateTimeBR(sessao.dataHora)))
+      .catch(err => log.err('pagamento.confirmado', 'falha WA', err)),
+    psis[0] ? enviarEmailPacientePorSessao(
+      sessao.id,
+      tplSessaoConfirmada({
+        nomePaciente: sessao.pacienteNome,
+        psicologoNome: psis[0].nome,
+        psicologoEmail: psis[0].email,
+        dataHora: formatDateTimeBR(sessao.dataHora),
+        modalidade: sessao.modalidade,
+      }),
+      'pagamento.confirmado',
+    ) : Promise.resolve(),
+  ])
+
   log.ok('pagarme.webhook', `sessão ${sessao.id} confirmada`)
 }
 
@@ -239,10 +433,25 @@ export async function cancelarSessao(sessaoId: string): Promise<{ reembolsada: b
     [s.id, reembolsada],
   )
 
-  await enviarWA(
-    s.pacienteTelefone,
-    reembolsada ? WA_TEMPLATES.fluxo5_canceladaComReembolso() : WA_TEMPLATES.fluxo5_canceladaSemReembolso(),
-  )
+  const { rows: psisC } = await db.query<{ nome: string; email: string }>(
+    `SELECT nome, email FROM psicologos WHERE id = $1 LIMIT 1`, [s.psicologoId])
+  await Promise.all([
+    enviarWA(
+      s.pacienteTelefone,
+      reembolsada ? WA_TEMPLATES.fluxo5_canceladaComReembolso() : WA_TEMPLATES.fluxo5_canceladaSemReembolso(),
+    ).catch(err => log.err('sessao.cancelar', 'falha WA', err)),
+    psisC[0] ? enviarEmailPacientePorSessao(
+      s.id,
+      tplSessaoCancelada({
+        nomePaciente: s.pacienteNome,
+        psicologoNome: psisC[0].nome,
+        psicologoEmail: psisC[0].email,
+        dataHora: formatDateTimeBR(s.dataHora),
+        comReembolso: reembolsada,
+      }),
+      'sessao.cancelar',
+    ) : Promise.resolve(),
+  ])
 
   return { reembolsada }
 }

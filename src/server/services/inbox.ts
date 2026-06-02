@@ -7,6 +7,7 @@ import { gerarCobrancaPix, gerarCobrancaCartao, cancelarSessao, buscarSessao } f
 import { obterConversa, atualizarConversa, registrarSaida, buscarPacientePorTelefone, resolverPsicologo, normalizar } from './wa-conversa'
 import { gerarMensagemSegura, type Intent } from './wa-voz'
 import { env } from '@/server/lib/env'
+import { processarResposta, acharSessaoPendentePorTelefone, type RespostaPaciente } from './confirmacaoSessao'
 
 /**
  * Roteador de mensagens WhatsApp. §10.
@@ -22,6 +23,18 @@ export async function processarMensagemRecebida(msg: Inbound): Promise<void> {
   const tel = normalizar(msg.telefone)
   const cmd = (msg.texto ?? '').trim()
   const cmdUpper = cmd.toUpperCase()
+
+  // ──────────────────────────────────────────────────────────────────
+  // 0) Confirmação pós-sessão (Fluxo 7) — SIM/NAO/NÃO
+  //    Só consome a mensagem se há sessão pendente. Senão, deixa cair
+  //    no fluxo normal (evita interceptar "sim" de outra conversa).
+  // ──────────────────────────────────────────────────────────────────
+  const respConfirmacao = parseRespostaConfirmacao(cmdUpper)
+  if (respConfirmacao) {
+    const sessaoId = await acharSessaoPendentePorTelefone(tel)
+    if (sessaoId) return processarConfirmacaoPosSessao(tel, sessaoId, respConfirmacao)
+    // sem pendência → segue pro fluxo padrão
+  }
 
   // ──────────────────────────────────────────────────────────────────
   // 1) Comandos clássicos do fluxo de pagamento — independem do estado
@@ -290,4 +303,27 @@ function limparNome(input: string): string | null {
   // Bloqueia comandos comuns que claramente não são nome
   if (/^(oi|olá|ola|hello|hi|test|teste|email|nome|sim|nao|não|ok|pix|cancelar|confirmar)$/i.test(s)) return null
   return s.split(' ').map(w => w[0]?.toUpperCase() + w.slice(1).toLowerCase()).join(' ')
+}
+
+/**
+ * Reconhece SIM/NAO em variações comuns. Devolve null se não bate.
+ */
+function parseRespostaConfirmacao(cmdUpper: string): RespostaPaciente | null {
+  const t = cmdUpper.trim()
+  if (['SIM', 'SIM!', 'OK', 'CONFIRMO'].includes(t)) return 'sim'
+  if (['NAO', 'NÃO', 'N', 'CONTESTAR', 'CONTESTO'].includes(t)) return 'contestou'
+  return null
+}
+
+async function processarConfirmacaoPosSessao(telefone: string, sessaoId: string, resposta: RespostaPaciente) {
+  const r = await processarResposta({ sessaoId }, resposta, { canal: 'whatsapp' })
+  if (!r.ok) {
+    log.warn('wa.inbox', `confirmacao falhou sessao=${sessaoId} razao=${r.razao}`)
+    return
+  }
+  if (r.jaRespondida) return  // silencioso pra evitar duplicar mensagem
+  await enviarERegistrar(
+    telefone,
+    resposta === 'sim' ? WA_TEMPLATES.fluxo7_confirmado() : WA_TEMPLATES.fluxo7_contestado(),
+  )
 }

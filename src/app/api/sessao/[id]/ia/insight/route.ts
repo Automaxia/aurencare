@@ -3,20 +3,24 @@ import { requirePsicologo } from '@/server/lib/auth'
 import { db } from '@/server/db/pool'
 import { tryDecrypt } from '@/server/lib/crypto'
 import { chat } from '@/server/lib/anthropic'
+import { CLINICAL_VOICE } from '@/server/lib/clinicalVoice'
 import { redis } from '@/server/lib/redis'
 
 export const runtime = 'nodejs'
 
-const SYS = `Você analisa UMA sessão de psicoterapia em relação ao histórico do paciente.
-Em ATÉ 120 PALAVRAS, gere um insight contextual que compare:
-- O que se manteve consistente com sessões anteriores
-- O que mudou (avanço, retrocesso, novo tema)
-- Padrões observáveis em frequência ou intensidade
+const SYS = `${CLINICAL_VOICE}
 
-NÃO interprete clinicamente. NÃO emita diagnóstico. Use linguagem observacional
-("observa-se", "co-ocorre", "frequência maior que sessão #X", "primeiro relato de").
+TAREFA: gerar uma leitura contextual da sessão atual em relação ao histórico do(a) paciente.
 
-Português brasileiro. Um único parágrafo conciso, sem listas.`
+Em ATÉ 120 PALAVRAS, em UM parágrafo (sem listas):
+- Continuidade: o que persiste das sessões anteriores, e desde quando (cite sessão #N).
+- Mudança: o que apareceu pela primeira vez, o que reduziu, o que se intensificou.
+- Padrão: alguma co-ocorrência ou variação de frequência/intensidade que mereça observação.
+
+REGRAS:
+- Cite NÚMERO da sessão sempre que comparar ('em relação à sessão #4').
+- Quando uma observação for fina, ancore em pista textual breve.
+- Encerre com uma frase orientadora (NÃO prescritiva): 'pode ser útil observar X na próxima escuta'.`
 
 export async function GET(_req: Request, { params }: { params: { id: string } }) {
   const user = await requirePsicologo()

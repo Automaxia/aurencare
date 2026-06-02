@@ -5,27 +5,12 @@ import { PatientSelector } from '@/components/PatientSelector'
 import { requirePsicologo } from '@/server/lib/auth'
 import { db } from '@/server/db/pool'
 import { listarObjetivos } from '@/server/services/objetivos'
-import { lerMarcos, type Marco } from '@/server/services/marcos'
 import { tryDecrypt } from '@/server/lib/crypto'
 import { formatDateBR } from '@/lib/formatters'
 import { ObjetivosView } from './view'
+import { MarcosCliente } from './MarcosCliente'
 
 export const dynamic = 'force-dynamic'
-
-const TIPO_LABEL: Record<Marco['tipo'], string> = {
-  inicio:     'início',
-  insight:    'insight',
-  avanco:     'avanço',
-  mudanca:    'mudança',
-  observacao: 'observação',
-}
-const TIPO_COLOR: Record<Marco['tipo'], string> = {
-  inicio:     'var(--muted)',
-  insight:    'var(--accent)',
-  avanco:     'var(--sage)',
-  mudanca:    'var(--amber)',
-  observacao: 'var(--faint)',
-}
 
 export default async function ObjetivosPage({ params }: { params: { id: string } }) {
   const user = await requirePsicologo()
@@ -36,9 +21,8 @@ export default async function ObjetivosPage({ params }: { params: { id: string }
   if (!paciente) notFound()
   if (paciente.psicologo_id !== user.id) redirect('/pacientes')
 
-  const [objetivos, marcos, historico] = await Promise.all([
+  const [objetivos, historico] = await Promise.all([
     listarObjetivos(params.id),
-    lerMarcos(params.id),
     db.query<{ id: string; numero: number; data_hora: string; status: string; assinada: boolean; resumo_ia: string | null }>(
       `SELECT id, numero, data_hora, status, assinada, resumo_ia
          FROM sessoes WHERE paciente_id = $1
@@ -98,44 +82,8 @@ export default async function ObjetivosPage({ params }: { params: { id: string }
           )}
         </section>
 
-        {/* ───── Bloco 3: Marcos do processo (IA) ───── */}
-        <section>
-          <div className="sec-lbl" style={{ marginBottom: 10, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-            <span>Marcos do processo</span>
-            <span style={{ fontSize: 10, color: 'var(--faint)' }}>extraído por IA</span>
-          </div>
-          {marcos.length === 0 ? (
-            <div className="empty">
-              Marcos aparecem após pelo menos 2 sessões assinadas com resumo.
-            </div>
-          ) : (
-            <div className="card" style={{ position: 'relative', padding: '18px 20px 18px 28px' }}>
-              <div style={{ position: 'absolute', left: 14, top: 18, bottom: 18, width: 2, background: 'var(--border)' }} />
-              <ol style={{ margin: 0, padding: 0, listStyle: 'none', display: 'grid', gap: 16 }}>
-                {marcos.map((m, i) => (
-                  <li key={i} style={{ position: 'relative', paddingLeft: 14 }}>
-                    <span style={{
-                      position: 'absolute', left: -8, top: 6,
-                      width: 10, height: 10, borderRadius: '50%',
-                      background: TIPO_COLOR[m.tipo], border: '2px solid var(--card)',
-                      boxShadow: '0 0 0 1px var(--border)',
-                    }} />
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 8 }}>
-                      <div style={{ fontSize: 13, fontWeight: 500, color: 'var(--ink-soft)' }}>{m.titulo}</div>
-                      <span style={{ fontSize: 10, color: TIPO_COLOR[m.tipo], textTransform: 'uppercase', letterSpacing: '.6px' }}>
-                        {TIPO_LABEL[m.tipo]}
-                      </span>
-                    </div>
-                    <div style={{ fontSize: 11, color: 'var(--faint)', marginTop: 2 }}>
-                      Sessão #{m.numero} · {formatDateBR(m.data)}
-                    </div>
-                    <p style={{ margin: '6px 0 0', fontSize: 12.5, color: 'var(--muted)', lineHeight: 1.55 }}>{m.descricao}</p>
-                  </li>
-                ))}
-              </ol>
-            </div>
-          )}
-        </section>
+        {/* ───── Bloco 3: Marcos do processo (IA, lazy) ───── */}
+        <MarcosCliente pacienteId={params.id} />
       </div>
     </div>
   )

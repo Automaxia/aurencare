@@ -2,7 +2,10 @@ import 'server-only'
 import { randomUUID } from 'node:crypto'
 import { db } from '@/server/db/pool'
 import { enviarWA, WA_TEMPLATES } from '@/server/lib/evolution'
+import { enviarEmail } from '@/server/lib/email'
+import { tplPacienteBoasVindas } from '@/server/lib/emailTemplates'
 import { env } from '@/server/lib/env'
+import { log } from '@/server/lib/log'
 
 export type Paciente = {
   id: string
@@ -52,9 +55,22 @@ export function calcularBadge(args: {
   return null
 }
 
-export async function listarPacientes(psicologoId: string): Promise<PacienteComBadge[]> {
+export type ListarPacientesOpts = {
+  /** Inclui arquivados (status='inativo') no resultado. Default false. */
+  incluirArquivados?: boolean
+  /** Devolve APENAS arquivados (ignora ativos). */
+  apenasArquivados?: boolean
+}
+
+export async function listarPacientes(
+  psicologoId: string, opts: ListarPacientesOpts = {},
+): Promise<PacienteComBadge[]> {
   const { rows: pacientes } = await db.query(
-    `SELECT * FROM pacientes WHERE psicologo_id = $1 ORDER BY nome ASC`,
+    `SELECT * FROM pacientes
+       WHERE psicologo_id = $1
+         ${opts.apenasArquivados ? "AND status = 'inativo'" : ''}
+         ${!opts.apenasArquivados && !opts.incluirArquivados ? "AND status = 'ativo'" : ''}
+      ORDER BY nome ASC`,
     [psicologoId],
   )
 
@@ -105,9 +121,176 @@ export async function criarPaciente(input: CriarPacienteInput): Promise<Paciente
   )
   const paciente = rowToPaciente(rows[0])
 
-  // Fluxo 1: boas-vindas via WhatsApp.
   const link = `${env.appUrl}/onboard/${token}`
-  await enviarWA(paciente.telefone, WA_TEMPLATES.fluxo1_boasVindas(paciente.nome, link, input.psicologoNome))
+
+  // Busca dados do psicólogo pra usar no email (CRP + email-reply).
+  const { rows: psis } = await db.query<{ crp: string; email: string }>(
+    `SELECT crp, email FROM psicologos WHERE id = $1 LIMIT 1`,
+    [input.psicologoId],
+  )
+  const psi = psis[0]
+
+  // Fluxo 1: boas-vindas em paralelo (WhatsApp + Email).
+  // Errors não bloqueiam — paciente é criado mesmo se algum canal falhar.
+  await Promise.all([
+    enviarWA(paciente.telefone, WA_TEMPLATES.fluxo1_boasVindas(paciente.nome, link, input.psicologoNome))
+      .catch(err => log.err('paciente.criar', 'falha WA boas-vindas', err)),
+
+    paciente.email && psi ? enviarEmail({
+      to: paciente.email,
+      replyTo: psi.email,
+      ...tplPacienteBoasVindas({
+        nomePaciente: paciente.nome,
+        psicologoNome: input.psicologoNome,
+        psicologoCrp: psi.crp,
+        psicologoEmail: psi.email,
+        link,
+      }),
+    }).catch(err => log.err('paciente.criar', 'falha email boas-vindas', err)) : Promise.resolve(),
+  ])
 
   return paciente
+}
+
+// ─── Edição / Arquivar / Excluir ─────────────────────────────────────
+
+export type AtualizarPacienteInput = {
+  nome?: string
+  telefone?: string
+  email?: string | null
+}
+
+export type AtualizarPacienteResult =
+  | { ok: true; paciente: Paciente }
+  | { ok: false; error: string; campo?: 'nome' | 'telefone' | 'email' }
+
+/**
+ * Atualiza dados básicos do paciente (nome, telefone, email). Não mexe em
+ * condicoes (tem service próprio) nem em consentimento.
+ */
+export async function atualizarPaciente(
+  psicologoId: string, pacienteId: string, patch: AtualizarPacienteInput,
+): Promise<AtualizarPacienteResult> {
+  // Ownership
+  const { rowCount: own } = await db.query(
+    `SELECT 1 FROM pacientes WHERE id = $1 AND psicologo_id = $2`,
+    [pacienteId, psicologoId],
+  )
+  if (!own) return { ok: false, error: 'Paciente não encontrado.' }
+
+  // Validações
+  if (patch.nome !== undefined) {
+    const n = patch.nome.trim()
+    if (n.length < 3) return { ok: false, error: 'Informe o nome completo.', campo: 'nome' }
+  }
+  if (patch.telefone !== undefined) {
+    const tel = patch.telefone.replace(/\D/g, '')
+    if (tel.length < 10 || tel.length > 13) {
+      return { ok: false, error: 'Telefone inválido (DDD + número).', campo: 'telefone' }
+    }
+  }
+  if (patch.email !== undefined && patch.email !== null && patch.email !== '') {
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(patch.email)) {
+      return { ok: false, error: 'Email inválido.', campo: 'email' }
+    }
+  }
+
+  const fields: string[] = []
+  const values: any[] = [pacienteId]
+  const set = (col: string, v: any) => { fields.push(`${col} = $${values.length + 1}`); values.push(v) }
+  if (patch.nome !== undefined)     set('nome', patch.nome.trim())
+  if (patch.telefone !== undefined) set('telefone', patch.telefone.replace(/\D/g, ''))
+  if (patch.email !== undefined)    set('email', patch.email?.trim() || null)
+  if (fields.length === 0) {
+    const p = await buscarPacientePorId(pacienteId)
+    return p ? { ok: true, paciente: p } : { ok: false, error: 'Não encontrado.' }
+  }
+
+  try {
+    const { rows } = await db.query(
+      `UPDATE pacientes SET ${fields.join(', ')} WHERE id = $1 RETURNING *`,
+      values,
+    )
+    if (rows.length === 0) return { ok: false, error: 'Não encontrado.' }
+    log.ok('paciente.atualizar', `id=${pacienteId}`)
+    return { ok: true, paciente: rowToPaciente(rows[0]) }
+  } catch (err: any) {
+    // Conflito de UNIQUE (psicologo_id, telefone)
+    if (err?.code === '23505') {
+      return { ok: false, error: 'Você já tem um paciente com esse telefone.', campo: 'telefone' }
+    }
+    log.err('paciente.atualizar', 'falha', err)
+    return { ok: false, error: 'Não foi possível salvar agora.' }
+  }
+}
+
+/** Soft delete — status='inativo'. Histórico clínico permanece (CFP 06/2019 + LGPD). */
+export async function arquivarPaciente(psicologoId: string, pacienteId: string): Promise<boolean> {
+  const { rowCount } = await db.query(
+    `UPDATE pacientes SET status = 'inativo'
+      WHERE id = $1 AND psicologo_id = $2`,
+    [pacienteId, psicologoId],
+  )
+  if (rowCount) log.ok('paciente.arquivar', `id=${pacienteId}`)
+  return (rowCount ?? 0) > 0
+}
+
+export async function reativarPaciente(psicologoId: string, pacienteId: string): Promise<boolean> {
+  const { rowCount } = await db.query(
+    `UPDATE pacientes SET status = 'ativo'
+      WHERE id = $1 AND psicologo_id = $2`,
+    [pacienteId, psicologoId],
+  )
+  if (rowCount) log.ok('paciente.reativar', `id=${pacienteId}`)
+  return (rowCount ?? 0) > 0
+}
+
+export type ExcluirResult =
+  | { ok: true }
+  | { ok: false; error: string; sessoes?: number }
+
+/**
+ * Exclusão DEFINITIVA — só permitida se não houver nenhuma sessão registrada.
+ * Pacientes com histórico clínico devem ser apenas arquivados (preservação
+ * do prontuário conforme Resolução CFP 06/2019, guarda mínima 5 anos).
+ *
+ * CASCADE remove objetivos, condições, salas, conversas WA do paciente.
+ */
+export async function excluirPacienteDefinitivo(
+  psicologoId: string, pacienteId: string,
+): Promise<ExcluirResult> {
+  // Ownership
+  const { rowCount: own } = await db.query(
+    `SELECT 1 FROM pacientes WHERE id = $1 AND psicologo_id = $2`,
+    [pacienteId, psicologoId],
+  )
+  if (!own) return { ok: false, error: 'Paciente não encontrado.' }
+
+  // Bloqueio: existe alguma sessão registrada?
+  const { rows: ses } = await db.query<{ n: number }>(
+    `SELECT count(*)::int AS n FROM sessoes WHERE paciente_id = $1`,
+    [pacienteId],
+  )
+  const totalSessoes = ses[0]?.n ?? 0
+  if (totalSessoes > 0) {
+    return {
+      ok: false,
+      error: `Pacientes com sessões registradas não podem ser excluídos (preservação do prontuário · CFP 06/2019). Arquive em vez disso.`,
+      sessoes: totalSessoes,
+    }
+  }
+
+  try {
+    await db.query(`DELETE FROM pacientes WHERE id = $1`, [pacienteId])
+    log.ok('paciente.excluir', `id=${pacienteId} (sem sessões)`)
+    return { ok: true }
+  } catch (err) {
+    log.err('paciente.excluir', 'falha', err)
+    return { ok: false, error: 'Não foi possível excluir agora.' }
+  }
+}
+
+async function buscarPacientePorId(pacienteId: string): Promise<Paciente | null> {
+  const { rows } = await db.query(`SELECT * FROM pacientes WHERE id = $1 LIMIT 1`, [pacienteId])
+  return rows[0] ? rowToPaciente(rows[0]) : null
 }

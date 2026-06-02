@@ -29,7 +29,14 @@ export default async function SalaPage({ params }: { params: { token: string } }
     return <SalaExpirada psicologa={psi} />
   }
 
-  return <SalaPaciente token={params.token} psicologaNome={psi} pacienteNome={pac} />
+  return (
+    <SalaPaciente
+      token={params.token}
+      psicologaNome={psi}
+      pacienteNome={pac}
+      jaAceitou={!!sala.aceiteTermoEm}
+    />
+  )
 }
 
 function SalaExpirada({ psicologa }: { psicologa: string }) {

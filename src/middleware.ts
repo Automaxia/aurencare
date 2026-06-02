@@ -7,9 +7,10 @@ export default withAuth({
 export const config = {
   /**
    * Protege todo o app exceto rotas públicas:
-   * /login · /onboard/* · /api/auth/* · /api/webhooks/* · assets internos.
+   * /login · /cadastro · /lancamento (landing pública) · /onboard/* · /sala/*
+   * · /api/auth/* · /api/webhooks/* · /api/health · /confirmar/* · assets internos.
    */
   matcher: [
-    '/((?!login|cadastro|onboard|sala|api/auth|api/webhooks|api/sala|_next/static|_next/image|favicon.ico).*)',
+    '/((?!login|cadastro|lancamento|confirmar|onboard|sala|api/auth|api/webhooks|api/sala|api/wa|api/health|_next/static|_next/image|favicon.ico).*)',
   ],
 }

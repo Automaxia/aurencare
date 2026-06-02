@@ -2,11 +2,23 @@
 
 import { signIn } from 'next-auth/react'
 import { useRouter, useSearchParams } from 'next/navigation'
-import { useState } from 'react'
+import { Suspense, useState } from 'react'
 import Link from 'next/link'
 import { Logo } from '@/components/brand/Logo'
 
+/**
+ * Pra fazer o build estático, useSearchParams() exige envelopar em Suspense.
+ * O page raiz vira só a casca; o form mora num componente filho.
+ */
 export default function LoginPage() {
+  return (
+    <Suspense fallback={null}>
+      <LoginForm />
+    </Suspense>
+  )
+}
+
+function LoginForm() {
   const router = useRouter()
   const params = useSearchParams()
   const callbackUrl = params?.get('callbackUrl') ?? '/'
@@ -73,11 +85,7 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
         display: 'block', border: '1px solid var(--border)', borderRadius: 8,
         padding: '8px 12px', background: 'white',
       }}>
-        {(() => {
-          // Permite estilizar o input nativo via parent.
-          // (passthrough; React não permite cloneElement em ReactNode sem cast.)
-          return children
-        })()}
+        {children}
       </span>
       <style jsx>{`
         input {

@@ -52,6 +52,22 @@ Como prefere pagar?
 • Responda *CREDITO* (até 6x no cartão)
 • Responda *DEBITO* (à vista no débito)`,
 
+  /**
+   * Confirmação informativa de série recorrente (ex: 4 sessões toda sexta 15h).
+   * NÃO pede método aqui — cron dispara fluxo2_perguntarMetodo 48h antes
+   * de cada sessão. Evita inundar o paciente com 4 perguntas idênticas.
+   */
+  fluxo2_serieInformativa: (params: { nome: string; datas: string[]; valor: number }) =>
+    `Olá, ${params.nome.split(' ')[0]}!
+
+Foram agendadas ${params.datas.length} sessões pra você (R$ ${params.valor.toFixed(2)} cada):
+
+${params.datas.map((d, i) => `${i + 1}. ${d}`).join('\n')}
+
+Vou te perguntar o método de pagamento (PIX, crédito ou débito) ~48h antes de cada uma.
+
+Qualquer mudança, é só responder por aqui.`,
+
   fluxo2_pix: (qrcodeUrl: string, valor: number) =>
     `Aqui está seu QR Code PIX (R$ ${valor.toFixed(2)}).
 
@@ -85,6 +101,35 @@ Responda *CONFIRMAR* ou *CANCELAR*.`,
 
   fluxo6_posSessao: (numero: number) =>
     `Obrigada pela sessão de hoje (#${numero}). Cuide-se bem. Até a próxima.`,
+
+  /**
+   * Confirmação pós-sessão pelo paciente — proteção contra má-fé.
+   * janela = string já formatada ("em até 2 horas" / "até amanhã 9h").
+   */
+  fluxo7_confirmacao: (params: {
+    nomePaciente: string
+    horaSessao: string
+    psicologa: string
+    janela: string
+    linkConfirmacao: string
+  }) =>
+    `Olá, ${params.nomePaciente.split(' ')[0]}!
+
+Sua sessão de hoje às ${params.horaSessao} com ${params.psicologa} ocorreu como combinado?
+
+• Responda *SIM* para confirmar
+• Responda *NAO* se tiver algo a relatar
+
+Você também pode confirmar pelo link:
+${params.linkConfirmacao}
+
+Sem resposta ${params.janela}, o pagamento é liberado automaticamente.`,
+
+  fluxo7_confirmado: () =>
+    `Obrigada por confirmar. Bom descanso.`,
+
+  fluxo7_contestado: () =>
+    `Recebemos seu retorno. Vamos avaliar e entrar em contato em até 1 dia útil.`,
 
   fluxoFallback: () =>
     `Recebi sua mensagem. Vou avisar sua psicóloga — em breve te respondem por aqui.`,

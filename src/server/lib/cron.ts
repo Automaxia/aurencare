@@ -2,6 +2,8 @@ import 'server-only'
 import cron from 'node-cron'
 import { db } from '@/server/db/pool'
 import { enviarWA, WA_TEMPLATES } from './evolution'
+import { enviarEmailPacientePorSessao } from './emailPaciente'
+import { tplLembrete24h } from './emailTemplates'
 import { log } from './log'
 import { formatDateTimeBR } from '@/lib/formatters'
 
@@ -26,20 +28,41 @@ export function startCron() {
 }
 
 export async function lembrete24h(): Promise<number> {
-  const { rows } = await db.query(
+  const { rows } = await db.query<{
+    id: string; data_hora: string; modalidade: string;
+    pac_nome: string; pac_telefone: string;
+    psi_nome: string; psi_email: string;
+  }>(
     `UPDATE sessoes s
         SET wa_lembrete_24h = TRUE
-       FROM pacientes p
-      WHERE s.paciente_id = p.id
+       FROM pacientes p, psicologos ps
+      WHERE s.paciente_id = p.id AND s.psicologo_id = ps.id
         AND s.data_hora BETWEEN NOW() + INTERVAL '20 hours' AND NOW() + INTERVAL '28 hours'
         AND s.status IN ('confirmada','agendada')
         AND s.wa_lembrete_24h = FALSE
-     RETURNING s.id, s.data_hora, p.telefone`,
+     RETURNING s.id, s.data_hora, s.modalidade,
+               p.nome AS pac_nome, p.telefone AS pac_telefone,
+               ps.nome AS psi_nome, ps.email AS psi_email`,
   )
   for (const r of rows) {
-    await enviarWA(r.telefone, WA_TEMPLATES.fluxo3_lembrete24h(formatDateTimeBR(r.data_hora)))
+    const dataFmt = formatDateTimeBR(r.data_hora)
+    await Promise.all([
+      enviarWA(r.pac_telefone, WA_TEMPLATES.fluxo3_lembrete24h(dataFmt))
+        .catch(err => log.err('cron.lembrete24h', 'falha WA', err)),
+      enviarEmailPacientePorSessao(
+        r.id,
+        tplLembrete24h({
+          nomePaciente: r.pac_nome,
+          psicologoNome: r.psi_nome,
+          psicologoEmail: r.psi_email,
+          dataHora: dataFmt,
+          modalidade: r.modalidade,
+        }),
+        'cron.lembrete24h',
+      ),
+    ])
   }
-  if (rows.length) log.ok('cron.lembrete24h', `${rows.length} mensagem(ns) enviada(s)`)
+  if (rows.length) log.ok('cron.lembrete24h', `${rows.length} lembrete(s) enviado(s)`)
   return rows.length
 }
 

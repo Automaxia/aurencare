@@ -269,11 +269,22 @@ input, textarea, select { font-family: inherit; font-size: inherit; }
 }
 .btn-ico:hover { background: var(--card); color: var(--ink); box-shadow: var(--sh); }
 
-/* Animação do sino — toca quando chega nova notificação */
-.btn-ico.is-shaking {
+/* Sino com notificações não-lidas — cor permanente para chamar atenção */
+.btn-ico.has-unread {
   color: var(--amber);
   border-color: rgba(176,125,64,.42);
-  background: rgba(176,125,64,.06);
+  background: rgba(176,125,64,.10);
+}
+.btn-ico.has-unread:hover {
+  background: rgba(176,125,64,.16);
+  color: var(--amber);
+}
+
+/* Animação do sino — toca ao entrar (se já tem unread) ou quando chega nova */
+.btn-ico.is-shaking {
+  color: var(--amber);
+  border-color: rgba(176,125,64,.55);
+  background: rgba(176,125,64,.14);
 }
 .btn-ico.is-shaking svg {
   transform-origin: 50% 18%;
@@ -393,6 +404,8 @@ input, textarea, select { font-family: inherit; font-size: inherit; }
 .btn.primary:hover { background: #5a40b0; }
 .btn.ghost { background: transparent; border-color: transparent; color: var(--muted); }
 .btn.ghost:hover { color: var(--ink); background: rgba(0,0,0,.03); }
+.btn.sage { background: var(--sage); color: white; border-color: transparent; }
+.btn.sage:hover { background: #4a8a78; }
 .btn.sm { padding: 4px 10px; font-size: 12px; }
 
 /* ── Sistema de TAGS (alinhado ao mockup v12.5) ──
@@ -428,7 +441,12 @@ input, textarea, select { font-family: inherit; font-size: inherit; }
   display: inline-flex; align-items: center; gap: 6px;
   font-size: 12px; color: var(--ink-soft); font-weight: 400;
   margin-right: 16px;
+  text-decoration: none;
+  transition: color .15s ease;
 }
+a.pip { cursor: pointer; }
+a.pip:hover { color: var(--accent); }
+a.pip:hover .pip-d { transform: scale(1.25); transition: transform .15s ease; }
 .pip-d { display: inline-block; width: 6px; height: 6px; border-radius: 50%; }
 
 /* ────────────────────────────────────────────────────────────────────────
@@ -965,6 +983,40 @@ input, textarea, select { font-family: inherit; font-size: inherit; }
 .qnote textarea::placeholder { color: var(--faint); }
 
 /* ────────────────────────────────────────────────────────────────────────
+   MODO PRESENÇA — overflow e responsividade dos widgets
+   ──────────────────────────────────────────────────────────────────────── */
+
+/* Grid items precisam de min-width:0 senão respeitam o conteúdo intrínseco
+   e estouram a coluna (default min-width:auto). Fix pros widgets do painel
+   direito e pra coluna esquerda da transcrição. */
+.sess-right > * { min-width: 0; }
+.sess-wrap > * { min-width: 0; }
+
+/* Cards do painel: corta vazamento horizontal */
+.talk-card,
+.themes-card,
+.sp,
+.qnote {
+  overflow: hidden;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+/* Textos longos (transcrição, bullets, nomes) sempre quebram */
+.turn-txt,
+.sp-li,
+.t-tone,
+.pb-name {
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+.turn-txt { max-width: 100%; }
+
+/* Layout fixo (sem responsividade): mantém 1fr + 600px sempre.
+   Em telas estreitas o body ganha scroll horizontal — preferimos isso a
+   reflow do layout, que estava confundindo a leitura dos widgets. */
+
+/* ────────────────────────────────────────────────────────────────────────
    DASHBOARD (page-home) — alinhado ao protótipo v12.5
    ──────────────────────────────────────────────────────────────────────── */
 .greeting { margin-bottom: 40px; }
@@ -1073,17 +1125,55 @@ input, textarea, select { font-family: inherit; font-size: inherit; }
 .intel-body { font-size: 13px; color: var(--ink-soft); line-height: 1.6; }
 .intel-meta { font-size: 11px; color: var(--faint); margin-top: 2px; }
 
-/* Pendências — pend-row */
+/* Pendências — pend-row.
+   Padrão Gmail/Slack: lida fica visualmente apagada (fundo cinza,
+   texto faint), não-lida fica branca + dot colorido — assim a
+   não-lida "salta" sozinha na pilha.
+*/
 .pend-row {
   display: flex; align-items: center; gap: 10px;
   padding: 10px 0; border-bottom: 1px solid var(--border);
   cursor: pointer; text-decoration: none; color: inherit;
+  position: relative;
+  transition: background .15s var(--ease);
 }
 .pend-row:last-child { border-bottom: none; }
 .pend-row:hover .pend-lbl { color: var(--accent); }
-.pend-ico { font-size: 14px; opacity: .5; }
-.pend-lbl { font-size: 13px; color: var(--muted); flex: 1; transition: color .15s var(--ease); }
-.pend-act { font-size: 12px; color: var(--accent); opacity: .6; }
+
+/* Variante no popover do sino — padding lateral + estilo de "lida" por default */
+.pend-row.in-popover {
+  padding: 12px 16px;
+  background: var(--surface);   /* cinza-areia: estado lido */
+}
+.pend-row.in-popover:hover { background: rgba(26,24,37,.05); }
+
+.pend-ico { font-size: 14px; opacity: .35; transition: opacity .15s var(--ease); }
+.pend-lbl {
+  font-size: 13px; color: var(--faint); flex: 1;
+  transition: color .15s var(--ease);
+}
+.pend-act { font-size: 12px; color: var(--faint); opacity: .55 }
+
+/* Dot indicador de não-lida — fica antes do ícone, só aparece em .is-new */
+.pend-dot {
+  width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0;
+  background: var(--amber); box-shadow: 0 0 0 3px rgba(176,125,64,.18);
+}
+
+/* Não-lida — sai do cinza, ganha branco + dot + texto cheio */
+.pend-row.is-new {
+  background: var(--card);
+}
+.pend-row.is-new:hover { background: rgba(176,125,64,.06) }
+.pend-row.is-new .pend-lbl { color: var(--ink); font-weight: 500 }
+.pend-row.is-new .pend-ico { opacity: 1 }
+.pend-row.is-new .pend-act { color: var(--accent); opacity: .8 }
+.pend-new-tag {
+  font-size: 9px; color: var(--amber); letter-spacing: .6px;
+  text-transform: uppercase; font-weight: 600; margin-right: 6px;
+  padding: 2px 6px; border-radius: 999px;
+  background: rgba(176,125,64,.18);
+}
 
 /* Botão "expandir observações" */
 .expand-btn {

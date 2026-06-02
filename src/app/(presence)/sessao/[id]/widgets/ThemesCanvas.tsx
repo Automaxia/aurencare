@@ -4,9 +4,19 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import type { Turno } from './TranscriptionCard'
 
 /**
- * Mini-grafo ao vivo. Atualiza automaticamente conforme novos turnos
- * chegam — sem refresh. Física força-dirigida leve + cores por cluster
- * (heurística simples mesma de @/server/services/temas).
+ * Mini-grafo ao vivo dos temas da sessão.
+ *
+ * Dois modos (toggle no header):
+ * - "Agora" (recent): janela deslizante de 15min, peso por decay
+ *   exponencial — temas recentes dominam, antigos fadeam. Default.
+ *   Top 14 termos.
+ * - "Sessão toda" (all): acumulado puro até 24 termos. Visão macro.
+ *
+ * Sessões de 1h não entopem mais o canvas porque o modo padrão
+ * empurra termos antigos pra fora à medida que coisas novas surgem.
+ *
+ * Física força-dirigida leve + cores por cluster heurístico
+ * (mesma da @/server/services/temas).
  */
 
 const STOPWORDS = new Set([
@@ -19,6 +29,7 @@ const STOPWORDS = new Set([
 ])
 
 type Cluster = 'emocional' | 'relacional' | 'situacional' | 'cognitivo'
+type Mode = 'recent' | 'all'
 
 const CLUSTER_COLOR: Record<Cluster, string> = {
   emocional:   '#7d63d6',
@@ -46,76 +57,93 @@ function inferirCluster(palavra: string): Cluster {
 
 type SimNode = {
   word: string
-  count: number
+  weight: number     // peso (count puro no modo "all", count*decay no modo "recent")
   cluster: Cluster
   x: number; y: number
   vx: number; vy: number
   r: number
-  appearedAt: number   // timestamp pra animar entrada (pulse glow)
+  appearedAt: number   // pulse de entrada
+  fadingOut: boolean   // marcado pra remoção — fade-out antes de sumir
+  fadeStart: number
 }
 
+const CANVAS_HEIGHT = 380
+const TOP_RECENT = 14
+const TOP_ALL = 24
+const RECENT_WINDOW_MS = 15 * 60 * 1000   // 15min
+const DECAY_HALF_LIFE_MS = 5 * 60 * 1000  // peso cai pela metade a cada 5min
+const FADE_OUT_MS = 1200
+
 export function ThemesCanvas({ turnos }: { turnos: Turno[] }) {
+  const [mode, setMode] = useState<Mode>('recent')
   const wrapRef = useRef<HTMLDivElement | null>(null)
   const canvasRef = useRef<HTMLCanvasElement | null>(null)
   const rafRef = useRef<number>()
-  const simRef = useRef<Map<string, SimNode>>(new Map())   // persiste posições entre renders
+  const simRef = useRef<Map<string, SimNode>>(new Map())
 
-  // Recalcula contagem das palavras ao receber turnos novos
-  const wordCounts = useMemo(() => buildWordCounts(turnos), [turnos])
+  const wordWeights = useMemo(() => buildWordWeights(turnos, mode), [turnos, mode])
   const [updateTick, setUpdateTick] = useState(0)
 
-  // Sincroniza simRef com wordCounts (adiciona novos / atualiza count / remove sumidas)
   useEffect(() => {
     const sim = simRef.current
     const W = canvasRef.current?.clientWidth ?? 400
-    const H = canvasRef.current?.clientHeight ?? 200
+    const H = canvasRef.current?.clientHeight ?? CANVAS_HEIGHT
 
-    // Top N
-    const top = Array.from(wordCounts.entries())
+    const limit = mode === 'recent' ? TOP_RECENT : TOP_ALL
+    const top = Array.from(wordWeights.entries())
       .sort((a, b) => b[1] - a[1])
-      .slice(0, 12)
+      .slice(0, limit)
     const topSet = new Set(top.map(([w]) => w))
 
-    // remove os que não estão mais no top
-    for (const word of Array.from(sim.keys())) {
-      if (!topSet.has(word)) sim.delete(word)
+    const now = performance.now()
+
+    // marca pra fade-out o que saiu do top
+    for (const [word, n] of sim.entries()) {
+      if (!topSet.has(word) && !n.fadingOut) {
+        n.fadingOut = true
+        n.fadeStart = now
+      }
+    }
+    // remove os que já passaram do tempo de fade-out
+    for (const [word, n] of Array.from(sim.entries())) {
+      if (n.fadingOut && now - n.fadeStart > FADE_OUT_MS) sim.delete(word)
     }
 
-    // adiciona/atualiza
-    const now = performance.now()
-    top.forEach(([word, count], i) => {
+    // adiciona/atualiza top atual
+    top.forEach(([word, weight], i) => {
       const existing = sim.get(word)
       if (existing) {
-        existing.count = count
+        existing.weight = weight
+        existing.fadingOut = false   // ressuscita se voltou pro top
       } else {
         const angle = (i / top.length) * Math.PI * 2
         sim.set(word, {
-          word, count,
+          word, weight,
           cluster: inferirCluster(word),
-          x: W / 2 + Math.cos(angle) * 80 + (Math.random() - .5) * 20,
-          y: H / 2 + Math.sin(angle) * 60 + (Math.random() - .5) * 20,
+          x: W / 2 + Math.cos(angle) * 100 + (Math.random() - .5) * 24,
+          y: H / 2 + Math.sin(angle) * 80 + (Math.random() - .5) * 24,
           vx: 0, vy: 0,
-          r: 4 + Math.min(14, count * 2),
+          r: 4 + Math.min(16, weight * 2),
           appearedAt: now,
+          fadingOut: false,
+          fadeStart: 0,
         })
       }
     })
-    setUpdateTick(t => t + 1)   // dispara animation loop
-  }, [wordCounts])
+    setUpdateTick(t => t + 1)
+  }, [wordWeights, mode])
 
-  // Animation loop — física + render contínuo
   useEffect(() => {
     const canvas = canvasRef.current
     const wrap = wrapRef.current
     if (!canvas || !wrap) return
 
     const resize = () => {
-      const { width, height } = wrap.getBoundingClientRect()
-      const h = Math.max(140, height)
+      const { width } = wrap.getBoundingClientRect()
       canvas.width = width * devicePixelRatio
-      canvas.height = h * devicePixelRatio
+      canvas.height = CANVAS_HEIGHT * devicePixelRatio
       canvas.style.width = width + 'px'
-      canvas.style.height = h + 'px'
+      canvas.style.height = CANVAS_HEIGHT + 'px'
     }
     resize()
     window.addEventListener('resize', resize)
@@ -127,30 +155,29 @@ export function ThemesCanvas({ turnos }: { turnos: Turno[] }) {
       const H = canvas.height / devicePixelRatio
       const cx = W / 2, cy = H / 2
 
-      // física simples (similar ao GrafoCanvas mas leve)
+      // física: gravidade central + repulsão entre nós
       for (const n of nodes) {
         let fx = 0, fy = 0
-        fx += (cx - n.x) * 0.006
-        fy += (cy - n.y) * 0.006
+        fx += (cx - n.x) * 0.005
+        fy += (cy - n.y) * 0.005
         for (const o of nodes) {
           if (o === n) continue
           const dx = n.x - o.x, dy = n.y - o.y
           const d2 = Math.max(36, dx * dx + dy * dy)
-          const f = 800 / d2
+          const f = 1100 / d2
           fx += (dx / Math.sqrt(d2)) * f
           fy += (dy / Math.sqrt(d2)) * f
         }
-        n.vx = (n.vx + fx) * 0.82
-        n.vy = (n.vy + fy) * 0.82
-        n.r = 4 + Math.min(14, n.count * 2)
+        n.vx = (n.vx + fx) * 0.84
+        n.vy = (n.vy + fy) * 0.84
+        n.r = 4 + Math.min(16, n.weight * 2)
       }
       for (const n of nodes) {
         n.x += n.vx; n.y += n.vy
-        n.x = Math.max(20, Math.min(W - 20, n.x))
-        n.y = Math.max(16, Math.min(H - 20, n.y))
+        n.x = Math.max(22, Math.min(W - 22, n.x))
+        n.y = Math.max(18, Math.min(H - 22, n.y))
       }
 
-      // render
       const ctx = canvas.getContext('2d')!
       ctx.setTransform(devicePixelRatio, 0, 0, devicePixelRatio, 0, 0)
       ctx.clearRect(0, 0, W, H)
@@ -161,15 +188,16 @@ export function ThemesCanvas({ turnos }: { turnos: Turno[] }) {
         ctx.textAlign = 'center'
         ctx.fillText('Os temas aparecerão aqui conforme a conversa for transcrita.', W / 2, H / 2)
       } else {
-        // arestas — liga aos vizinhos mais próximos (heuristic)
+        // arestas
         ctx.strokeStyle = 'rgba(122,117,144,.18)'
         ctx.lineWidth = 0.7
         for (let i = 0; i < nodes.length; i++) {
           for (let j = i + 1; j < nodes.length; j++) {
             const a = nodes[i], b = nodes[j]
+            const alphaMul = nodeAlpha(a) * nodeAlpha(b)
             const d = Math.hypot(a.x - b.x, a.y - b.y)
-            if (d < 90) {
-              ctx.globalAlpha = Math.max(0, 1 - d / 90) * 0.5
+            if (d < 100) {
+              ctx.globalAlpha = Math.max(0, 1 - d / 100) * 0.45 * alphaMul
               ctx.beginPath()
               ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); ctx.stroke()
             }
@@ -177,30 +205,30 @@ export function ThemesCanvas({ turnos }: { turnos: Turno[] }) {
         }
         ctx.globalAlpha = 1
 
-        // nós
         const now = performance.now()
         for (const n of nodes) {
           const color = CLUSTER_COLOR[n.cluster]
-          const sinceAppear = now - n.appearedAt
-          const newPulse = sinceAppear < 1500 ? (1 - sinceAppear / 1500) : 0  // glow fade-out
+          const alpha = nodeAlpha(n, now)
+          if (alpha <= 0) continue
+          ctx.globalAlpha = alpha
 
-          // halo (pulso)
+          const sinceAppear = now - n.appearedAt
+          const newPulse = sinceAppear < 1500 ? (1 - sinceAppear / 1500) : 0
+
           if (newPulse > 0) {
             ctx.fillStyle = color + Math.round(newPulse * 64).toString(16).padStart(2, '0')
             ctx.beginPath(); ctx.arc(n.x, n.y, n.r * (3 + newPulse * 2), 0, Math.PI * 2); ctx.fill()
           }
-          // halo permanente suave
           ctx.fillStyle = color + '30'
           ctx.beginPath(); ctx.arc(n.x, n.y, n.r + 4, 0, Math.PI * 2); ctx.fill()
-          // core sólido
           ctx.fillStyle = color
           ctx.beginPath(); ctx.arc(n.x, n.y, n.r, 0, Math.PI * 2); ctx.fill()
-          // label
           ctx.fillStyle = 'rgba(26,24,37,.78)'
           ctx.font = '11px DM Sans, sans-serif'
           ctx.textAlign = 'center'
           ctx.fillText(n.word, n.x, n.y + n.r + 12)
         }
+        ctx.globalAlpha = 1
       }
 
       rafRef.current = requestAnimationFrame(tick)
@@ -214,22 +242,79 @@ export function ThemesCanvas({ turnos }: { turnos: Turno[] }) {
   }, [updateTick])
 
   return (
-    <div ref={wrapRef} style={{ position: 'relative', width: '100%', height: 220 }}>
-      <canvas ref={canvasRef} style={{ display: 'block' }} />
+    <div style={{ position: 'relative', width: '100%' }}>
+      <div style={{
+        display: 'flex', justifyContent: 'flex-end', gap: 2,
+        padding: '0 6px 6px', fontSize: 11,
+      }}>
+        <button
+          type="button"
+          onClick={() => setMode('recent')}
+          style={modeBtnStyle(mode === 'recent')}
+          title="Temas dos últimos 15min com mais peso"
+        >
+          Agora
+        </button>
+        <button
+          type="button"
+          onClick={() => setMode('all')}
+          style={modeBtnStyle(mode === 'all')}
+          title="Acumulado da sessão inteira"
+        >
+          Sessão toda
+        </button>
+      </div>
+      <div ref={wrapRef} style={{ position: 'relative', width: '100%', height: CANVAS_HEIGHT }}>
+        <canvas ref={canvasRef} style={{ display: 'block' }} />
+      </div>
     </div>
   )
 }
 
-function buildWordCounts(turnos: Turno[]): Map<string, number> {
-  const counts = new Map<string, number>()
+function modeBtnStyle(active: boolean): React.CSSProperties {
+  return {
+    padding: '3px 9px',
+    border: '1px solid var(--border)',
+    borderRadius: 999,
+    background: active ? 'rgba(106,78,200,.10)' : 'transparent',
+    color: active ? '#391d96' : 'var(--muted)',
+    fontWeight: active ? 500 : 400,
+    fontFamily: 'inherit',
+    fontSize: 11,
+    cursor: 'pointer',
+    transition: 'background .15s, color .15s',
+  }
+}
+
+function nodeAlpha(n: SimNode, now: number = performance.now()): number {
+  if (!n.fadingOut) return 1
+  const elapsed = now - n.fadeStart
+  return Math.max(0, 1 - elapsed / FADE_OUT_MS)
+}
+
+/**
+ * Constrói peso por palavra.
+ * - mode='recent': decay exponencial sobre os últimos 15min. Turnos
+ *   fora da janela contam 0. Cada turno contribui peso = 2^(-Δt/halfLife).
+ * - mode='all': contagem pura sem decay.
+ */
+function buildWordWeights(turnos: Turno[], mode: Mode): Map<string, number> {
+  const weights = new Map<string, number>()
+  const now = Date.now()
   for (const t of turnos) {
+    let factor = 1
+    if (mode === 'recent') {
+      const age = now - (Date.parse(t.ts) || now)
+      if (age > RECENT_WINDOW_MS) continue
+      factor = Math.pow(0.5, age / DECAY_HALF_LIFE_MS)
+    }
     const tokens = t.texto.toLowerCase()
       .replace(/[.,;:!?()"…“”‘’\-]/g, ' ')
       .split(/\s+/)
     for (const w of tokens) {
       if (w.length < 5 || STOPWORDS.has(w)) continue
-      counts.set(w, (counts.get(w) ?? 0) + 1)
+      weights.set(w, (weights.get(w) ?? 0) + factor)
     }
   }
-  return counts
+  return weights
 }

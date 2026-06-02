@@ -70,7 +70,7 @@ export async function GET() {
       insights = json.insights.slice(0, 5).map((it: any) => ({
         tom: ['positivo','atencao','neutro'].includes(it.tom) ? it.tom : 'neutro',
         texto: String(it.texto ?? '').slice(0, 200),
-      })).filter(it => it.texto.length > 4)
+      })).filter((it: { texto: string }) => it.texto.length > 4)
     }
   } catch { /* */ }
 

@@ -1,71 +1,58 @@
 'use client'
 
 import { useState } from 'react'
-import type { Objetivo } from '@/server/services/objetivos'
-import { criarObjetivoAction, atualizarObjetivoAction, deletarObjetivoAction } from './actions'
+import type { Objetivo, MetricaTipo, MetricaDirecao, EvolucaoObjetivo } from '@/server/services/objetivos'
+import {
+  criarObjetivoAction, atualizarObjetivoAction, deletarObjetivoAction,
+  registrarMedicaoAction, deletarMedicaoAction, lerEvolucaoAction,
+} from './actions'
+import { BulletChart } from './BulletChart'
+import { NovoObjetivoWizard } from './NovoObjetivoWizard'
 
 export function ObjetivosView({ pacienteId, initial }: { pacienteId: string; initial: Objetivo[] }) {
   const [objs, setObjs] = useState(initial)
   const [showForm, setShowForm] = useState(false)
-  const [titulo, setTitulo] = useState('')
-  const [descricao, setDescricao] = useState('')
 
-  async function criar() {
-    if (!titulo.trim()) return
-    const novo = await criarObjetivoAction(pacienteId, titulo.trim(), descricao.trim() || null)
-    if (novo) {
-      setObjs([novo, ...objs])
-      setTitulo(''); setDescricao(''); setShowForm(false)
-    }
+  function upsert(o: Objetivo) {
+    setObjs(prev => {
+      const i = prev.findIndex(x => x.id === o.id)
+      return i >= 0 ? prev.map(x => x.id === o.id ? o : x) : [o, ...prev]
+    })
   }
-  async function updateProgress(o: Objetivo, p: number) {
-    const upd = await atualizarObjetivoAction(o.id, { progresso: p })
-    if (upd) setObjs(objs.map(x => x.id === o.id ? upd : x))
-  }
+
   async function updateStatus(o: Objetivo, s: Objetivo['status']) {
     const upd = await atualizarObjetivoAction(o.id, { status: s })
-    if (upd) setObjs(objs.map(x => x.id === o.id ? upd : x))
+    if (upd) upsert(upd)
   }
   async function remover(o: Objetivo) {
     if (!confirm(`Remover objetivo "${o.titulo}"?`)) return
     await deletarObjetivoAction(o.id)
-    setObjs(objs.filter(x => x.id !== o.id))
+    setObjs(prev => prev.filter(x => x.id !== o.id))
   }
 
-  const ativos    = objs.filter(o => o.status === 'ativo')
-  const pausados  = objs.filter(o => o.status === 'pausado')
+  const ativos     = objs.filter(o => o.status === 'ativo')
+  const pausados   = objs.filter(o => o.status === 'pausado')
   const concluidos = objs.filter(o => o.status === 'concluido')
 
   return (
     <div>
       <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 12 }}>
         <button className="btn primary" onClick={() => setShowForm(s => !s)}>
-          {showForm ? 'Fechar' : '+ Novo objetivo'}
+          {showForm ? 'Fechar' : '+ Novo objetivo SMART'}
         </button>
       </div>
 
       {showForm && (
-        <div className="card" style={{ display: 'grid', gap: 10, marginBottom: 16 }}>
-          <input
-            value={titulo} onChange={e => setTitulo(e.target.value)}
-            placeholder="Título do objetivo (ex: Tolerar críticas sem reagir defensivamente)"
-            style={{ padding: '8px 12px', borderRadius: 8, border: '1px solid var(--border)', fontSize: 13, outline: 'none' }}
-          />
-          <textarea
-            value={descricao} onChange={e => setDescricao(e.target.value)}
-            placeholder="Descrição (opcional)"
-            rows={2}
-            style={{ padding: '8px 12px', borderRadius: 8, border: '1px solid var(--border)', fontSize: 13, fontFamily: 'inherit', resize: 'vertical', outline: 'none' }}
-          />
-          <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
-            <button className="btn primary" onClick={criar}>Criar</button>
-          </div>
-        </div>
+        <NovoObjetivoWizard
+          pacienteId={pacienteId}
+          onCriado={(o) => { upsert(o); setShowForm(false) }}
+          onCancelar={() => setShowForm(false)}
+        />
       )}
 
-      <Section title="Ativos" items={ativos} onProgress={updateProgress} onStatus={updateStatus} onDelete={remover} />
-      {pausados.length > 0 && <Section title="Pausados" items={pausados} onProgress={updateProgress} onStatus={updateStatus} onDelete={remover} />}
-      {concluidos.length > 0 && <Section title="Concluídos" items={concluidos} onProgress={updateProgress} onStatus={updateStatus} onDelete={remover} />}
+      <Section title="Ativos" items={ativos} onStatus={updateStatus} onDelete={remover} onUpsert={upsert} />
+      {pausados.length > 0   && <Section title="Pausados"  items={pausados}   onStatus={updateStatus} onDelete={remover} onUpsert={upsert} />}
+      {concluidos.length > 0 && <Section title="Concluídos" items={concluidos} onStatus={updateStatus} onDelete={remover} onUpsert={upsert} />}
 
       {objs.length === 0 && (
         <div className="empty">Nenhum objetivo cadastrado ainda.</div>
@@ -74,39 +61,298 @@ export function ObjetivosView({ pacienteId, initial }: { pacienteId: string; ini
   )
 }
 
-function Section({ title, items, onProgress, onStatus, onDelete }: {
-  title: string; items: Objetivo[]; onProgress: (o: Objetivo, p: number) => void; onStatus: (o: Objetivo, s: Objetivo['status']) => void; onDelete: (o: Objetivo) => void
+// ─── Lista ─────────────────────────────────────────────────────────────
+
+function Section({ title, items, onStatus, onDelete, onUpsert }: {
+  title: string
+  items: Objetivo[]
+  onStatus: (o: Objetivo, s: Objetivo['status']) => void
+  onDelete: (o: Objetivo) => void
+  onUpsert: (o: Objetivo) => void
 }) {
   if (items.length === 0) return null
+  // Conta quantos estão "no alvo" (progresso ≥ 100%)
+  const noAlvo = items.filter(o => o.progresso >= 100).length
   return (
     <section style={{ marginBottom: 24 }}>
-      <div style={{ fontSize: 11, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '.06em', marginBottom: 8 }}>{title}</div>
-      <ul style={{ margin: 0, padding: 0, listStyle: 'none', display: 'grid', gap: 8 }}>
-        {items.map(o => (
-          <li key={o.id} className="card">
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12 }}>
-              <div style={{ flex: 1 }}>
-                <div style={{ fontWeight: 500 }}>{o.titulo}</div>
-                {o.descricao && <div style={{ fontSize: 12, color: 'var(--muted)', marginTop: 4 }}>{o.descricao}</div>}
-              </div>
-              <div style={{ display: 'flex', gap: 4, fontSize: 11 }}>
-                {o.status !== 'concluido' && <button className="btn ghost" onClick={() => onStatus(o, 'concluido')}>Concluir</button>}
-                {o.status === 'ativo' && <button className="btn ghost" onClick={() => onStatus(o, 'pausado')}>Pausar</button>}
-                {o.status !== 'ativo' && <button className="btn ghost" onClick={() => onStatus(o, 'ativo')}>Reativar</button>}
-                <button className="btn ghost" onClick={() => onDelete(o)}>×</button>
-              </div>
-            </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 10 }}>
-              <input
-                type="range" min={0} max={100} step={5} value={o.progresso}
-                onChange={e => onProgress(o, +e.target.value)}
-                style={{ flex: 1, accentColor: 'var(--accent)' }}
-              />
-              <span className="mono" style={{ fontSize: 12, color: 'var(--muted)', width: 36, textAlign: 'right' }}>{o.progresso}%</span>
-            </div>
-          </li>
-        ))}
+      <div style={{
+        display: 'flex', justifyContent: 'space-between', alignItems: 'baseline',
+        marginBottom: 8,
+      }}>
+        <span style={{ fontSize: 11, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '.06em' }}>
+          {title}
+        </span>
+        {title === 'Ativos' && items.length > 0 && (
+          <span style={{ fontSize: 11, color: noAlvo > 0 ? 'var(--sage)' : 'var(--faint)' }}>
+            {noAlvo} de {items.length} no alvo
+          </span>
+        )}
+      </div>
+      <ul style={{ margin: 0, padding: 0, listStyle: 'none', display: 'grid', gap: 10 }}>
+        {items.map(o => <ObjetivoCard key={o.id} o={o} onStatus={onStatus} onDelete={onDelete} onUpsert={onUpsert} />)}
       </ul>
     </section>
+  )
+}
+
+function ObjetivoCard({ o, onStatus, onDelete, onUpsert }: {
+  o: Objetivo
+  onStatus: (o: Objetivo, s: Objetivo['status']) => void
+  onDelete: (o: Objetivo) => void
+  onUpsert: (o: Objetivo) => void
+}) {
+  const [expandido, setExpandido] = useState(false)
+  const [evolucao, setEvolucao] = useState<EvolucaoObjetivo | null>(null)
+  const [carregando, setCarregando] = useState(false)
+
+  async function carregar() {
+    if (evolucao) return
+    setCarregando(true)
+    const e = await lerEvolucaoAction(o.id)
+    setEvolucao(e)
+    setCarregando(false)
+  }
+  function toggle() {
+    if (!expandido) carregar()
+    setExpandido(e => !e)
+  }
+
+  // Última medição = valor atual; penúltima = delta
+  const ultima = evolucao?.medicoes?.[evolucao.medicoes.length - 1]?.valor ?? null
+  const penultima = evolucao && evolucao.medicoes.length >= 2
+    ? evolucao.medicoes[evolucao.medicoes.length - 2].valor
+    : null
+  // No card sem evolução carregada, fallback: usa progresso (0..100) traduzido pra um valor estimado
+  // se ele expandir, recarrega com medições reais.
+  const atualEstimado = ultima ?? estimarAtualPorProgresso(o)
+  // Delta só faz sentido se há pelo menos duas medições reais
+  // Direção do delta: positivo = melhor (na direção da meta), negativo = pior
+  const delta = ultima != null && penultima != null
+    ? deltaNaDirecao(penultima, ultima, o.metricaDirecao)
+    : null
+
+  // Sinal direcional pra header (↑ aumentar / ↓ diminuir)
+  const setaDirecao = o.metricaDirecao === 'aumentar' ? '↑' : '↓'
+
+  return (
+    <li className="card">
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12, marginBottom: 14 }}>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ fontWeight: 500, color: 'var(--ink)', display: 'flex', alignItems: 'baseline', gap: 8, flexWrap: 'wrap' }}>
+            <span>{o.titulo}</span>
+            <span style={{ fontSize: 11, color: 'var(--faint)', fontWeight: 400 }}>
+              {setaDirecao} {o.metricaTipo === 'gas' ? 'GAS' : (o.metricaUnidade ?? 'sem métrica')}
+            </span>
+          </div>
+          {o.descricao && (
+            <div style={{ fontSize: 12, color: 'var(--muted)', marginTop: 4, lineHeight: 1.5 }}>{o.descricao}</div>
+          )}
+          {o.prazoEm && (
+            <div style={{ fontSize: 11, color: 'var(--faint)', marginTop: 4 }}>prazo {formatPrazo(o.prazoEm)}</div>
+          )}
+        </div>
+        <div style={{ display: 'flex', gap: 4, fontSize: 11, flexShrink: 0 }}>
+          {o.status !== 'concluido' && <button className="btn ghost" onClick={() => onStatus(o, 'concluido')}>Concluir</button>}
+          {o.status === 'ativo' && <button className="btn ghost" onClick={() => onStatus(o, 'pausado')}>Pausar</button>}
+          {o.status !== 'ativo' && <button className="btn ghost" onClick={() => onStatus(o, 'ativo')}>Reativar</button>}
+          <button className="btn ghost" onClick={() => onDelete(o)} title="Remover">×</button>
+        </div>
+      </div>
+
+      {/* Bullet chart — apresentação principal */}
+      <BulletChart
+        baseline={o.metricaBaseline}
+        alvo={o.metricaAlvo}
+        atual={atualEstimado}
+        direcao={o.metricaDirecao}
+        tipo={o.metricaTipo}
+        unidade={null}
+        delta={delta}
+      />
+
+      <button onClick={toggle} className="btn ghost sm" style={{ marginTop: 14, padding: '4px 10px', fontSize: 11 }}>
+        {expandido ? '▲ Fechar histórico' : '▼ Registrar / ver histórico'}
+      </button>
+
+      {expandido && (
+        <div style={{ marginTop: 14, paddingTop: 14, borderTop: '1px solid var(--border)' }}>
+          {carregando && <div style={{ fontSize: 12, color: 'var(--muted)' }}>Carregando…</div>}
+          {evolucao && (
+            <EvolucaoPanel
+              evolucao={evolucao}
+              onMudou={(nova) => {
+                setEvolucao(nova)
+                if (nova.objetivo) onUpsert(nova.objetivo)
+              }}
+            />
+          )}
+        </div>
+      )}
+    </li>
+  )
+}
+
+/**
+ * Quando o card carrega sem ter buscado medições ainda, reconstrói um valor
+ * aproximado a partir do `progresso` (0..100) salvo no objetivo. Isso evita
+ * pular renderização do bullet chart no card colapsado.
+ */
+function estimarAtualPorProgresso(o: Objetivo): number | null {
+  if (o.metricaBaseline == null || o.metricaAlvo == null) return null
+  if (o.progresso === 0) return o.metricaBaseline
+  const frac = o.progresso / 100
+  const delta = (o.metricaAlvo - o.metricaBaseline) * frac
+  return o.metricaBaseline + delta
+}
+
+/**
+ * Delta "na direção da meta": positivo = melhorou, negativo = piorou.
+ * Para metas de "diminuir", a melhoria é o decréscimo.
+ */
+function deltaNaDirecao(anterior: number, atual: number, dir: 'aumentar' | 'diminuir'): number {
+  return dir === 'aumentar' ? (atual - anterior) : (anterior - atual)
+}
+
+// ─── Painel de evolução ───────────────────────────────────────────────
+
+function EvolucaoPanel({ evolucao, onMudou }: { evolucao: EvolucaoObjetivo; onMudou: (e: EvolucaoObjetivo) => void }) {
+  const { objetivo, medicoes } = evolucao
+  const [data, setData] = useState(() => new Date().toISOString().slice(0, 10))
+  const [valor, setValor] = useState('')
+  const [nota, setNota] = useState('')
+  const [salvando, setSalvando] = useState(false)
+  const [erro, setErro] = useState<string | null>(null)
+
+  async function adicionar() {
+    setErro(null)
+    const v = parseFloat(valor.replace(',', '.'))
+    if (isNaN(v)) { setErro('Valor inválido.'); return }
+    if (objetivo.metricaTipo === 'gas' && (v < -2 || v > 2)) { setErro('GAS aceita apenas valores entre -2 e +2.'); return }
+    setSalvando(true)
+    const m = await registrarMedicaoAction(objetivo.id, { medidoEm: data, valor: v, nota: nota.trim() || null })
+    setSalvando(false)
+    if (!m) { setErro('Não foi possível salvar.'); return }
+    const fresh = await lerEvolucaoAction(objetivo.id)
+    if (fresh) onMudou(fresh)
+    setValor(''); setNota('')
+  }
+
+  async function remover(medicaoId: string) {
+    if (!confirm('Remover essa medição?')) return
+    await deletarMedicaoAction(medicaoId, objetivo.id)
+    const fresh = await lerEvolucaoAction(objetivo.id)
+    if (fresh) onMudou(fresh)
+  }
+
+  // Última e penúltima pra delta
+  const ultima = medicoes[medicoes.length - 1]?.valor ?? null
+  const penultima = medicoes.length >= 2 ? medicoes[medicoes.length - 2].valor : null
+  const delta = ultima != null && penultima != null
+    ? deltaNaDirecao(penultima, ultima, objetivo.metricaDirecao)
+    : null
+
+  return (
+    <div style={{ display: 'grid', gap: 18 }}>
+      {/* Bullet chart maior */}
+      <BulletChart
+        baseline={objetivo.metricaBaseline}
+        alvo={objetivo.metricaAlvo}
+        atual={ultima}
+        direcao={objetivo.metricaDirecao}
+        tipo={objetivo.metricaTipo}
+        unidade={objetivo.metricaUnidade}
+        delta={delta}
+        size="lg"
+      />
+
+      {/* Form de medição */}
+      <div style={{
+        background: 'var(--surface)', borderRadius: 'var(--rsm)',
+        padding: 12, display: 'grid', gap: 10,
+      }}>
+        <div style={{ fontSize: 11, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '.06em' }}>
+          Registrar medição
+        </div>
+        <div style={{ display: 'grid', gridTemplateColumns: '120px 1fr 2fr auto', gap: 8, alignItems: 'end' }}>
+          <Inp label="Data" value={data} onChange={setData} placeholder="" />
+          <Inp
+            label={objetivo.metricaTipo === 'gas' ? 'GAS' : `Valor${objetivo.metricaUnidade ? ' · ' + objetivo.metricaUnidade : ''}`}
+            value={valor} onChange={setValor}
+            placeholder={objetivo.metricaTipo === 'gas' ? '-2 a +2' : ''}
+          />
+          <Inp label="Nota (opcional)" value={nota} onChange={setNota} placeholder="" />
+          <button type="button" className="btn primary" onClick={adicionar} disabled={salvando} style={{ height: 36 }}>
+            {salvando ? '…' : '+ Registrar'}
+          </button>
+        </div>
+        {erro && <div style={{ color: 'var(--rose)', fontSize: 12 }}>{erro}</div>}
+      </div>
+
+      {/* Lista de medições */}
+      {medicoes.length > 0 && (
+        <div>
+          <div style={{
+            display: 'flex', justifyContent: 'space-between', alignItems: 'baseline',
+            marginBottom: 6,
+          }}>
+            <span style={{ fontSize: 11, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '.06em' }}>
+              Histórico
+            </span>
+            <span style={{ fontSize: 11, color: 'var(--faint)' }}>
+              {medicoes.length} medi{medicoes.length === 1 ? 'ção' : 'ções'}
+            </span>
+          </div>
+          <ul style={{ margin: 0, padding: 0, listStyle: 'none', display: 'grid', gap: 4 }}>
+            {[...medicoes].reverse().map((m, idx, arr) => {
+              const proxAtras = arr[idx + 1]?.valor ?? null
+              const d = proxAtras != null
+                ? deltaNaDirecao(proxAtras, m.valor, objetivo.metricaDirecao)
+                : null
+              return (
+                <li key={m.id} style={{ display: 'flex', alignItems: 'baseline', gap: 12, padding: '6px 10px', background: 'var(--surface)', borderRadius: 6, fontSize: 12 }}>
+                  <span style={{ color: 'var(--muted)', fontVariantNumeric: 'tabular-nums', minWidth: 70 }}>{formatDataCurta(m.medidoEm)}</span>
+                  <span style={{ color: 'var(--ink)', fontWeight: 500, minWidth: 50, fontVariantNumeric: 'tabular-nums' }}>{formatNum(m.valor)}</span>
+                  {d != null && d !== 0 && (
+                    <span style={{ color: d > 0 ? 'var(--sage)' : 'var(--rose)', fontSize: 11 }}>
+                      {d > 0 ? '↑' : '↓'} {formatNum(Math.abs(d))}
+                    </span>
+                  )}
+                  {m.nota && <span style={{ color: 'var(--muted)', flex: 1 }}>{m.nota}</span>}
+                  {!m.nota && <span style={{ flex: 1 }} />}
+                  <button onClick={() => remover(m.id)} className="btn ghost" style={{ padding: '2px 8px', fontSize: 11, color: 'var(--rose)' }}>×</button>
+                </li>
+              )
+            })}
+          </ul>
+        </div>
+      )}
+    </div>
+  )
+}
+
+function formatNum(n: number): string {
+  return Number.isInteger(n) ? n.toString() : n.toFixed(2).replace(/\.?0+$/, '')
+}
+function formatPrazo(d: string): string {
+  return new Date(d + 'T00:00:00').toLocaleDateString('pt-BR', { day: '2-digit', month: 'short', year: 'numeric' })
+}
+function formatDataCurta(d: string): string {
+  return new Date(d + 'T00:00:00').toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' })
+}
+
+function Inp({ label, value, onChange, placeholder }: { label: string; value: string; onChange: (v: string) => void; placeholder?: string }) {
+  return (
+    <label style={{ display: 'grid', gap: 3 }}>
+      <span style={{ fontSize: 11, color: 'var(--muted)' }}>{label}</span>
+      <input
+        value={value} onChange={e => onChange(e.target.value)} placeholder={placeholder}
+        inputMode="decimal"
+        style={{
+          padding: '9px 12px', borderRadius: 8,
+          border: '1px solid var(--border)', background: 'white',
+          fontSize: 13, fontFamily: 'inherit', color: 'var(--ink)', outline: 'none',
+        }}
+      />
+    </label>
   )
 }

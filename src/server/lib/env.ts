@@ -19,6 +19,8 @@ export const env = {
   pagarmeKey:          process.env.PAGARME_API_KEY,
   pagarmeWebhookSec:   process.env.PAGARME_WEBHOOK_SECRET,
   assemblyKey:         process.env.ASSEMBLYAI_API_KEY,
+  resendKey:           process.env.RESEND_API_KEY,
+  emailFrom:           process.env.EMAIL_FROM || 'Auren Care <onboarding@aurencare.ia.br>',
   redisUrl:            process.env.REDIS_URL,
   appUrl:              process.env.NEXTAUTH_URL || 'http://localhost:3000',
 }
@@ -28,4 +30,5 @@ export const integrationStatus = {
   evolution: isConfigured(env.evolutionUrl) && isConfigured(env.evolutionKey),
   pagarme:   isConfigured(env.pagarmeKey),
   assembly:  isConfigured(env.assemblyKey),
+  resend:    isConfigured(env.resendKey),
 }

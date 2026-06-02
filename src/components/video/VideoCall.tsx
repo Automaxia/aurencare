@@ -12,9 +12,12 @@ type Props = {
   compact?: boolean
   /** Quando encerrar, callback (opcional) */
   onEncerrar?: () => void
+  /** Notifica quando o stream remoto (do outro lado) muda. Usado pra plumbar
+   * o áudio do paciente pra transcrição AssemblyAI no Modo Presença. */
+  onRemoteStream?: (stream: MediaStream | null) => void
 }
 
-export function VideoCall({ token, role, caller, compact, onEncerrar }: Props) {
+export function VideoCall({ token, role, caller, compact, onEncerrar, onRemoteStream }: Props) {
   const ctrl = useWebRTC({ token, role, caller })
   const localRef = useRef<HTMLVideoElement>(null)
   const remoteRef = useRef<HTMLVideoElement>(null)
@@ -24,7 +27,8 @@ export function VideoCall({ token, role, caller, compact, onEncerrar }: Props) {
   }, [ctrl.localStream])
   useEffect(() => {
     if (remoteRef.current && ctrl.remoteStream) remoteRef.current.srcObject = ctrl.remoteStream
-  }, [ctrl.remoteStream])
+    onRemoteStream?.(ctrl.remoteStream)
+  }, [ctrl.remoteStream, onRemoteStream])
 
   return (
     <div className={`vc-shell${compact ? ' vc-compact' : ''}`} data-estado={ctrl.estado}>

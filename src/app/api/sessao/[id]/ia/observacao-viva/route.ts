@@ -1,19 +1,20 @@
 import { NextResponse } from 'next/server'
 import { requirePsicologo } from '@/server/lib/auth'
 import { chat } from '@/server/lib/anthropic'
+import { CLINICAL_VOICE } from '@/server/lib/clinicalVoice'
 
 export const runtime = 'nodejs'
 
-const SYS = `Você gera uma OBSERVAÇÃO MUITO BREVE para a psicóloga durante uma sessão em curso.
-Recebe os últimos turnos transcritos da conversa.
+const SYS = `${CLINICAL_VOICE}
+
+TAREFA: gerar UMA observação muito breve enquanto a sessão está em curso, para a psicóloga ler de canto de olho.
 
 Em ATÉ 30 PALAVRAS:
-- Aponte UM padrão observável que está emergindo nesta sessão (frequência, co-ocorrência, mudança de tom, repetição de tema).
-- Use linguagem observacional ("observa-se", "frequência crescente", "co-ocorre", "padrão repetido", "primeira menção").
-- NÃO emita diagnóstico, interpretação clínica, recomendação ou hipótese.
+- Aponte UM padrão emergente nesta sessão: repetição de tema, co-ocorrência, mudança de tom, primeira menção, retomada.
+- Quando puder, ancore numa pista textual ('depois de mencionar X, retomou Y').
 - Se ainda não há padrão claro, retorne EXATAMENTE: "Conversa em desenvolvimento — sem padrão claro ainda."
 
-Português brasileiro. Um único parágrafo curto. NUNCA mais que 30 palavras. NUNCA cite o paciente pelo nome.`
+Um único parágrafo curto. NUNCA mais que 30 palavras. NUNCA cite o paciente pelo nome. NUNCA prescreva ação.`
 
 export async function POST(req: Request, _: { params: { id: string } }) {
   await requirePsicologo()

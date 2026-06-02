@@ -1,23 +1,27 @@
 import { NextResponse } from 'next/server'
 import { requirePsicologo } from '@/server/lib/auth'
 import { chat } from '@/server/lib/anthropic'
+import { CLINICAL_VOICE } from '@/server/lib/clinicalVoice'
 
 export const runtime = 'nodejs'
 
-const SYS = `Você recebe os turnos de uma sessão de psicoterapia já transcritos e numerados.
-Para cada turno relevante, sugira UMA marcação entre:
-- "insight"        — momento em que paciente articula consciência nova ou conexão entre padrões
-- "comportamento"  — descrição de comportamento-problema (evitação, ruminação, conflito reativo etc)
-- "avanco"         — relato de tentativa concreta de mudança ou pequeno avanço terapêutico
+const SYS = `${CLINICAL_VOICE}
 
-Critérios:
-- Marque APENAS turnos de paciente (who="paciente") que claramente caem em uma das categorias.
-- Máximo 6 marcações por sessão. Prefira qualidade.
-- Para cada uma, dê uma "razao" curta (até 12 palavras).
+TAREFA: identificar momentos-chave nos turnos de uma sessão e sugerir marcação.
 
-NÃO interprete clinicamente nem emita diagnóstico. Use linguagem de observação.
+CATEGORIAS (marque APENAS turnos com who="paciente"):
+- "insight"        — paciente articula uma conexão nova entre eventos, sentimentos ou comportamentos; expressa uma percepção que parece inédita na fala dele(a).
+- "comportamento"  — relato concreto de um padrão de ação repetido que aparece como sofrimento ou bloqueio (evitação, isolamento, ruminação, reatividade, postergação, conflito interpessoal recorrente).
+- "avanco"         — relato de uma tentativa concreta de fazer algo diferente, conclusão sustentada de etapa anterior, ou pequena mudança observada desde a última sessão.
 
-Retorne EXCLUSIVAMENTE um JSON válido neste formato (sem prosa, sem markdown):
+CRITÉRIOS DE QUALIDADE:
+- Máximo 6 marcações. Prefira poucas e bem ancoradas a muitas e fracas.
+- Sempre que possível, prefira turnos com verbos no presente ou pretérito perfeito ('percebi que', 'consegui') — sinais textuais mais fortes.
+- "razao" deve citar a pista textual do próprio turno (até 12 palavras). Ex.: "primeira vez que conecta culpa ao trabalho".
+
+NÃO emita diagnóstico nem interpretação. Use vocabulário descritivo.
+
+Retorne EXCLUSIVAMENTE JSON válido (sem prosa, sem markdown):
 {"marcacoes":[{"idx":0,"mark":"insight","razao":"..."}]}`
 
 export async function POST(req: Request, { params }: { params: { id: string } }) {

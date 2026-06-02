@@ -129,6 +129,7 @@ function DayView({ sessoes }: { sessoes: any[] }) {
                 <div className="cal-block-name">
                   {s.pacienteNome}
                   {s.status === 'em_curso' && <span className="cal-live-badge">● ao vivo</span>}
+                  {s.seriePosicao && <SerieBadge posicao={s.seriePosicao.posicao} total={s.seriePosicao.total} />}
                 </div>
                 <div className="cal-block-meta">
                   Sessão {s.numero} · {s.modalidade === 'online' ? 'Online' : 'Presencial'} · {s.duracaoMin}min
@@ -140,6 +141,24 @@ function DayView({ sessoes }: { sessoes: any[] }) {
         </div>
       </div>
     </div>
+  )
+}
+
+function SerieBadge({ posicao, total, compact = false }: { posicao: number; total: number; compact?: boolean }) {
+  return (
+    <span
+      title={`Sessão ${posicao} de ${total} dessa série`}
+      style={{
+        display: 'inline-flex', alignItems: 'center', gap: 3,
+        marginLeft: 6, padding: compact ? '1px 5px' : '1px 7px',
+        fontSize: compact ? 9 : 10, fontWeight: 500,
+        background: 'rgba(106,78,200,.10)', color: '#391d96',
+        borderRadius: 999, letterSpacing: '.02em',
+        whiteSpace: 'nowrap',
+      }}
+    >
+      ⟲ {posicao}/{total}
+    </span>
   )
 }
 
@@ -184,6 +203,7 @@ function WeekView({ inicio, sessoes }: { inicio: Date; sessoes: any[] }) {
                     <div className="cal-block-name">
                       {s.pacienteNome.split(' ')[0]}
                       {s.status === 'em_curso' && <span className="cal-live-badge">● ao vivo</span>}
+                      {s.seriePosicao && <SerieBadge posicao={s.seriePosicao.posicao} total={s.seriePosicao.total} compact />}
                     </div>
                     <div className="cal-block-meta">{formatTimeBR(s.dataHora)} · {s.modalidade === 'online' ? 'Online' : 'Presencial'}</div>
                     {pTag && <span className={pTag.klass}>{pTag.texto}</span>}
@@ -226,10 +246,20 @@ function MonthView({ inicio, sessoes }: { inicio: Date; sessoes: any[] }) {
             }}>
               <div style={{ fontSize: 12, marginBottom: 4, fontWeight: isToday ? 600 : 400, color: isToday ? 'var(--accent)' : 'var(--ink-soft)' }}>{d.getDate()}</div>
               {dssns.slice(0, 3).map((s: any) => (
-                <Link key={s.id} href={`/sessao/${s.id}`} className="cal-block" style={{ padding: '3px 6px', marginBottom: 2, ...blockStyles(s.status) }}>
+                <Link key={s.id} href={`/sessao/${s.id}`} className="cal-block" style={{ padding: '3px 6px', marginBottom: 2, ...blockStyles(s.status), position: 'relative' }}>
                   <div style={{ fontSize: 10, fontWeight: 500, color: 'var(--ink-soft)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                     {formatTimeBR(s.dataHora)} {s.pacienteNome.split(' ')[0]}
                   </div>
+                  {s.seriePosicao && (
+                    <span
+                      title={`Série · ${s.seriePosicao.posicao}/${s.seriePosicao.total}`}
+                      style={{
+                        position: 'absolute', top: 3, right: 3,
+                        width: 5, height: 5, borderRadius: '50%',
+                        background: 'var(--accent)', opacity: .65,
+                      }}
+                    />
+                  )}
                 </Link>
               ))}
               {dssns.length > 3 && <div style={{ fontSize: 10, color: 'var(--muted)', paddingLeft: 6 }}>+{dssns.length - 3}</div>}

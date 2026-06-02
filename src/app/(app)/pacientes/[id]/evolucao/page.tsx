@@ -4,8 +4,9 @@ import { PatientSelector } from '@/components/PatientSelector'
 import { Sparkline } from '@/components/Sparkline'
 import { requirePsicologo } from '@/server/lib/auth'
 import { db } from '@/server/db/pool'
-import { lerEvolucaoDados } from '@/server/services/evolucao'
+import { lerEvolucaoEstatisticas } from '@/server/services/evolucao'
 import { EvolucaoChat } from './chat'
+import { ObservacoesCliente } from './Observacoes'
 
 export const dynamic = 'force-dynamic'
 
@@ -18,7 +19,7 @@ export default async function EvolucaoPage({ params }: { params: { id: string } 
   if (!paciente) notFound()
   if (paciente.psicologo_id !== user.id) redirect('/pacientes')
 
-  const dados = await lerEvolucaoDados(params.id, paciente.nome)
+  const dados = await lerEvolucaoEstatisticas(params.id, paciente.nome)
 
   return (
     <div>
@@ -58,52 +59,7 @@ export default async function EvolucaoPage({ params }: { params: { id: string } 
             sparkRitmo={dados.perfil.sparkRitmo}
           />
 
-          <div className="card" style={{ padding: 0 }}>
-            <div className="card-h" style={{ padding: '14px 18px' }}>
-              <span className="card-title">Histórico de temas recorrentes</span>
-            </div>
-            <div style={{ padding: '14px 18px', display: 'flex', flexDirection: 'column', gap: 9 }}>
-              {dados.temas.length === 0 ? (
-                <div style={{ fontSize: 12, color: 'var(--muted)' }}>
-                  Sem temas extraídos ainda. Assine algumas sessões para começar.
-                </div>
-              ) : (
-                dados.temas.map((t, i) => (
-                  <div key={i} className={`tema-card ${t.positivo ? 'positivo' : 'neutro'}`}>
-                    <div className="tema-card-h">{t.titulo}</div>
-                    <div className="tema-card-b">{t.descricao}</div>
-                    {t.trend && <div className="tema-card-trend">→ {t.trend}</div>}
-                  </div>
-                ))
-              )}
-            </div>
-          </div>
-
-          {dados.instrumentos.length > 0 && (
-            <div className="card" style={{ padding: 0 }}>
-              <div className="card-h" style={{ padding: '14px 18px' }}>
-                <span className="card-title">Instrumentos a considerar</span>
-                <span style={{ fontSize: 11, color: 'var(--faint)' }}>baseado no histórico</span>
-              </div>
-              <div style={{ padding: '14px 18px', display: 'flex', flexDirection: 'column', gap: 10 }}>
-                {dados.instrumentos.map((i, idx) => {
-                  const klass = i.id === 'PHQ-9' ? 'phq9' : i.id === 'GAD-7' ? 'gad7' : 'phq9'
-                  return (
-                    <div key={idx} className={`instr-card ${klass}`}>
-                      <div className="instr-name">{i.id}</div>
-                      <div className="instr-body">{i.justificativa}</div>
-                    </div>
-                  )
-                })}
-                <div style={{
-                  fontSize: 11, color: 'var(--faint)', lineHeight: 1.55,
-                  padding: '8px 12px', background: 'var(--surface)', borderRadius: 'var(--rsm)',
-                }}>
-                  A aplicação de qualquer instrumento é decisão exclusiva do psicólogo responsável.
-                </div>
-              </div>
-            </div>
-          )}
+          <ObservacoesCliente pacienteId={params.id} />
         </div>
 
         <EvolucaoChat pacienteId={params.id} pacienteNome={paciente.nome} totalSessoes={dados.perfil.totalSessoes} />

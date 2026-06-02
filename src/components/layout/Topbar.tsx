@@ -67,13 +67,16 @@ export function Topbar({ initialSessaoAtiva, initialPendencias }: Props) {
     [pendencias, seenIds],
   )
 
-  // Animação do sino — toca quando chega UMA nova pendência (não-vista) que ainda não estava
-  const prevUnseenCount = useRef(unseen.length)
+  // Animação do sino — pula quando psicóloga entra (mount com unseen > 0)
+  // OU quando chega uma nova pendência durante a navegação.
+  // Inicializa em 0 propositalmente pra disparar o shake no primeiro render.
+  const prevUnseenCount = useRef(0)
   const [bellShake, setBellShake] = useState(false)
   useEffect(() => {
     if (unseen.length > prevUnseenCount.current) {
       setBellShake(true)
       const t = setTimeout(() => setBellShake(false), 1400)
+      prevUnseenCount.current = unseen.length
       return () => clearTimeout(t)
     }
     prevUnseenCount.current = unseen.length
@@ -141,7 +144,7 @@ export function Topbar({ initialSessaoAtiva, initialPendencias }: Props) {
         {/* Notificações */}
         <div style={{ position: 'relative' }}>
           <button
-            className={`btn-ico${bellShake ? ' is-shaking' : ''}`}
+            className={`btn-ico${unseen.length > 0 ? ' has-unread' : ''}${bellShake ? ' is-shaking' : ''}`}
             onClick={() => bellOpen ? setBellOpen(false) : openBell()}
             title={unseen.length > 0 ? `${unseen.length} novas notificações` : 'Notificações'}
             aria-label="Notificações"
@@ -204,22 +207,12 @@ function NotificationsPopover({ pendencias, unseenIds, onClose }: { pendencias: 
                   key={p.id}
                   href={p.href}
                   onClick={onClose}
-                  className="pend-row"
-                  style={{
-                    padding: '12px 16px', borderRadius: 0,
-                    background: isNew ? 'rgba(176,125,64,.045)' : undefined,
-                  }}
+                  className={`pend-row in-popover${isNew ? ' is-new' : ''}`}
                 >
+                  {isNew && <span className="pend-dot" aria-hidden="true" />}
                   <span className="pend-ico">{PEND_ICON[p.tipo]}</span>
                   <span className="pend-lbl">{p.label}</span>
-                  {isNew && (
-                    <span style={{
-                      fontSize: 9, color: 'var(--amber)', letterSpacing: '.6px',
-                      textTransform: 'uppercase', fontWeight: 500, marginRight: 6,
-                    }}>
-                      Nova
-                    </span>
-                  )}
+                  {isNew && <span className="pend-new-tag">Nova</span>}
                   <span className="pend-act">→</span>
                 </Link>
               )

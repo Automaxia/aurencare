@@ -14,6 +14,7 @@ const STATUSES = [
   { key: 'todos',       label: 'Todos' },
   { key: 'pago',        label: 'Pago' },
   { key: 'pendente',    label: 'Pendente' },
+  { key: 'contestado',  label: 'Contestado' },
   { key: 'reembolsado', label: 'Reembolsado' },
   { key: 'falhou',      label: 'Falhou' },
 ] as const
@@ -25,21 +26,36 @@ const METODOS = [
   { key: 'debito',  label: 'Débito' },
 ] as const
 
+const NF_OPCOES = [
+  { key: 'todos',      label: 'Todos' },
+  { key: 'sem_nf',     label: 'Sem NF' },
+  { key: 'emitida',    label: 'Emitida' },
+  { key: 'dispensada', label: 'Dispensada' },
+] as const
+
 type Counts = Record<string, number>
 
 type Props = {
   periodo: string
   status: string
   metodo: string
+  nfFiltro: string
   busca: string
   countsStatus: Counts
   countsMetodo: Counts
+  countSemNf: number
 }
 
-export function FinanceiroFilters({ periodo, status, metodo, busca, countsStatus, countsMetodo }: Props) {
+export function FinanceiroFilters({
+  periodo, status, metodo, nfFiltro, busca,
+  countsStatus, countsMetodo, countSemNf,
+}: Props) {
   const router = useRouter()
   const params = useSearchParams()
   const [q, setQ] = useState(busca)
+
+  // Período é só "default mês" — não conta como filtro ativo.
+  const temFiltro = status !== 'todos' || metodo !== 'todos' || nfFiltro !== 'todos' || !!busca.trim() || periodo !== 'mes'
 
   function update(next: Record<string, string>) {
     const u = new URLSearchParams(params?.toString() ?? '')
@@ -48,6 +64,11 @@ export function FinanceiroFilters({ periodo, status, metodo, busca, countsStatus
       else u.set(k, v)
     }
     router.push(`/financeiro${u.toString() ? '?' + u.toString() : ''}`)
+  }
+
+  function limparTudo() {
+    setQ('')
+    router.push('/financeiro')
   }
 
   return (
@@ -88,6 +109,41 @@ export function FinanceiroFilters({ periodo, status, metodo, busca, countsStatus
             </button>
           ))}
         </div>
+
+        <span className="sec-lbl-sm" style={{ marginLeft: 12, marginRight: 4 }}>NF</span>
+        <div className="ftabs">
+          {NF_OPCOES.map(o => (
+            <button
+              key={o.key}
+              className={`ftab${nfFiltro === o.key ? ' active' : ''}`}
+              onClick={() => update({ nf: o.key })}
+            >
+              {o.label}
+              {o.key === 'sem_nf' && countSemNf > 0 && (
+                <span style={{ marginLeft: 6, fontSize: 10, opacity: .8, color: 'var(--rose)' }}>{countSemNf}</span>
+              )}
+            </button>
+          ))}
+        </div>
+
+        {temFiltro && (
+          <button
+            type="button"
+            onClick={limparTudo}
+            style={{
+              marginLeft: 'auto', padding: '5px 10px',
+              border: 'none', background: 'transparent',
+              color: 'var(--rose)', fontSize: 12, fontFamily: 'inherit',
+              cursor: 'pointer', borderRadius: 6,
+              transition: 'background .15s var(--ease)',
+            }}
+            onMouseEnter={e => (e.currentTarget.style.background = 'rgba(196,96,122,.08)')}
+            onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
+            title="Limpar todos os filtros"
+          >
+            × Limpar filtros
+          </button>
+        )}
       </div>
     </div>
   )

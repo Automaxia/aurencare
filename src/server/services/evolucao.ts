@@ -10,16 +10,20 @@ import { redis } from '@/server/lib/redis'
  * Combina dados estatísticos + observações textuais geradas pela IA.
  */
 
+export type PerfilEvolucao = {
+  avatar: string                 // iniciais
+  nome: string
+  totalSessoes: number
+  minutosMedia: number
+  desde: string                  // data primeira sessão
+  presenca: number               // 0-100 (% comparecimento)
+  abertura: number               // 0-100 (avg humor.estado mapeado)
+  sparkHumor: number[]
+  sparkRitmo: number[]
+}
+
 export type EvolucaoDados = {
-  perfil: {
-    avatar: string                 // iniciais
-    nome: string
-    totalSessoes: number
-    minutosMedia: number
-    desde: string                  // data primeira sessão
-    presenca: number               // 0-100 (% comparecimento)
-    abertura: number               // 0-100 (avg humor.estado mapeado)
-  }
+  perfil: PerfilEvolucao
   temas: TemaDescritivo[]
   instrumentos: Instrumento[]
 }
@@ -36,7 +40,61 @@ export type Instrumento = {
   justificativa: string            // texto curto explicando por que considerar
 }
 
+/**
+ * Caminho RÁPIDO usado no SSR. Só queries SQL — não chama IA.
+ * Devolve perfil + sparklines. Temas/instrumentos (que vêm da IA)
+ * são buscados depois pelo client via /api/pacientes/[id]/evolucao/observacoes.
+ */
+export async function lerEvolucaoEstatisticas(pacienteId: string, pacienteNome: string): Promise<EvolucaoDados> {
+  const perfilDados = await lerPerfilEvolucao(pacienteId, pacienteNome)
+  return { perfil: perfilDados, temas: [], instrumentos: [] }
+}
+
+/**
+ * Caminho LENTO chamado pelo client (não bloqueia SSR). IA + Redis cache 24h.
+ * Devolve só temas/instrumentos — o perfil já chegou pelo SSR.
+ */
+export async function lerEvolucaoObservacoes(
+  pacienteId: string, pacienteNome: string,
+): Promise<{ temas: TemaDescritivo[]; instrumentos: Instrumento[] }> {
+  const r = await redis()
+  const cacheKey = `evolucao-dados:${pacienteId}`
+  if (r) {
+    const cached = await r.get(cacheKey)
+    if (cached) {
+      try { return JSON.parse(cached) } catch { /* */ }
+    }
+  }
+
+  // Conta sessões assinadas pra contexto da IA (uma query simples)
+  const { rows: cnt } = await db.query<{ n: number }>(
+    `SELECT count(*)::int AS n FROM sessoes WHERE paciente_id = $1 AND assinada = TRUE`,
+    [pacienteId],
+  )
+  const totalAssinadas = cnt[0]?.n ?? 0
+
+  const grafo = await lerGrafo(pacienteId)
+  let temas: TemaDescritivo[] = []
+  let instrumentos: Instrumento[] = []
+  if (grafo.nodes.length > 0) {
+    const ger = await gerarObservacoes({ pacienteNome, totalSessoes: totalAssinadas, grafo })
+    temas = ger.temas
+    instrumentos = ger.instrumentos
+  }
+  if (r) await r.set(cacheKey, JSON.stringify({ temas, instrumentos }), { EX: 86400 })
+  return { temas, instrumentos }
+}
+
+/** Mantida pra compatibilidade. Chama o caminho lento — usar apenas onde a latência IA é aceitável. */
 export async function lerEvolucaoDados(pacienteId: string, pacienteNome: string): Promise<EvolucaoDados> {
+  const [estat, obs] = await Promise.all([
+    lerEvolucaoEstatisticas(pacienteId, pacienteNome),
+    lerEvolucaoObservacoes(pacienteId, pacienteNome),
+  ])
+  return { perfil: estat.perfil, ...obs }
+}
+
+async function lerPerfilEvolucao(pacienteId: string, pacienteNome: string) {
   // 1) Sessões assinadas (para perfil e abertura)
   const { rows: sessoesA } = await db.query<{ data_hora: string; duracao_min: number; indicadores: any }>(
     `SELECT data_hora, duracao_min, indicadores
@@ -82,7 +140,7 @@ export async function lerEvolucaoDados(pacienteId: string, pacienteNome: string)
     .map(s => s.indicadores?.ritmo?.paciente)
     .filter((v): v is number => typeof v === 'number')
 
-  const perfil = {
+  return {
     avatar: iniciais(pacienteNome),
     nome: pacienteNome,
     totalSessoes: sessoesA.length,
@@ -93,37 +151,6 @@ export async function lerEvolucaoDados(pacienteId: string, pacienteNome: string)
     sparkHumor,
     sparkRitmo,
   }
-
-  // 3) Temas descritivos + instrumentos (via IA — cache 24h)
-  const r = await redis()
-  const cacheKey = `evolucao-dados:${pacienteId}`
-  if (r) {
-    const cached = await r.get(cacheKey)
-    if (cached) {
-      try {
-        const { temas, instrumentos } = JSON.parse(cached)
-        return { perfil, temas, instrumentos }
-      } catch { /* */ }
-    }
-  }
-
-  const grafo = await lerGrafo(pacienteId)
-  let temas: TemaDescritivo[] = []
-  let instrumentos: Instrumento[] = []
-
-  if (grafo.nodes.length > 0) {
-    const ger = await gerarObservacoes({
-      pacienteNome,
-      totalSessoes: sessoesA.length,
-      grafo,
-    })
-    temas = ger.temas
-    instrumentos = ger.instrumentos
-  }
-
-  if (r) await r.set(cacheKey, JSON.stringify({ temas, instrumentos }), { EX: 86400 })
-
-  return { perfil, temas, instrumentos }
 }
 
 const SYS_OBS = `Você analisa o histórico clínico de um paciente para gerar OBSERVAÇÕES descritivas para a psicóloga.

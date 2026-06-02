@@ -3,14 +3,22 @@ import { requirePsicologo } from '@/server/lib/auth'
 import { db } from '@/server/db/pool'
 import { lerGrafo } from '@/server/services/temas'
 import { chat } from '@/server/lib/anthropic'
+import { CLINICAL_VOICE } from '@/server/lib/clinicalVoice'
 import { redis } from '@/server/lib/redis'
 
 export const runtime = 'nodejs'
 
-const SYS = `Você analisa um mapa de correlações de palavras (clusters: emocional, relacional, situacional, cognitivo) extraído de transcrições de sessões.
-Em ATÉ 90 PALAVRAS, descreva os 2-3 padrões mais salientes observados — frequência, co-ocorrências, possível tendência longitudinal.
-NÃO interprete clinicamente. NÃO emita diagnóstico. Use linguagem de observação ("observa-se", "co-ocorre em X sessões", "frequência crescente").
-Português brasileiro. Sem listas numeradas; um único parágrafo conciso.`
+const SYS = `${CLINICAL_VOICE}
+
+TAREFA: descrever os padrões mais salientes do mapa de temas do(a) paciente.
+Você recebe palavras com seu cluster (emocional, relacional, situacional, cognitivo) e frequência, e as principais co-ocorrências.
+
+Em ATÉ 90 PALAVRAS, em UM parágrafo (sem listas):
+- Aponte 2-3 padrões: maior frequência, co-ocorrências que se repetem, possível variação longitudinal.
+- Quando relevante, cruze clusters ('temas emocionais co-ocorrem com situacionais ligados a trabalho').
+- Termine sugerindo uma direção de escuta para sessões futuras (sem prescrever ação).
+
+Use vocabulário descritivo — frequência, co-ocorrência, padrão, tendência. Sem diagnóstico.`
 
 export async function GET(_req: Request, { params }: { params: { id: string } }) {
   const user = await requirePsicologo()

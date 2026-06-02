@@ -1,0 +1,42 @@
+# Build artifacts
+.next
+node_modules
+dist
+out
+
+# Local dev
+.env.local
+.env.*.local
+*.log
+npm-debug.log*
+
+# Editor / OS
+.vscode
+.idea
+.DS_Store
+*.swp
+
+# Git
+.git
+.gitignore
+
+# Docker
+Dockerfile
+docker-compose.yml
+.dockerignore
+
+# Docs / scratch
+*.md
+RELATO2.HTM
+Auren-Care-v12-5.html
+bin/postgres-init.sh
+
+# Tests / coverage
+coverage
+*.test.ts
+*.test.tsx
+*.spec.ts
+
+# CI / config local
+.github
+.husky

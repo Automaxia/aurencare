@@ -319,7 +319,7 @@ async function validarComIA(pacienteId: string): Promise<void> {
           palavra: String(it.palavra ?? '').toLowerCase().trim(),
           cluster: (['emocional', 'relacional', 'situacional', 'cognitivo'].includes(it.cluster) ? it.cluster : 'cognitivo') as Cluster,
         }))
-        .filter(it => it.palavra.length > 1)
+        .filter((it: { palavra: string }) => it.palavra.length > 1)
         .slice(0, 25)
     }
   } catch { /* sem IA: mantém lista atual */ }

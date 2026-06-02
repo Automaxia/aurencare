@@ -1,0 +1,96 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: habilita-app
+  namespace: habilita
+  annotations:
+    prometheus.io/scrape: "true"
+    prometheus.io/path: "/metrics"
+    prometheus.io/port: "3000"
+spec:
+  replicas: 1
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 1
+      maxSurge: 1
+  selector:
+    matchLabels:
+      app: habilita-app
+  template:
+    metadata:
+      labels:
+        app: habilita-app
+      annotations:
+        recreatePod: "{{.Release.Time.Seconds}}"
+        prometheus.io/scrape: "true"
+        prometheus.io/path: "/metrics"
+        prometheus.io/port: "3000"
+    spec:
+      restartPolicy: Always
+      containers:
+        - name: habilita-app
+          image: wesleyromualdo/habilita-app:latest
+          ports:
+            - containerPort: 3000
+          resources:
+            requests:
+              memory: "512Mi"
+              cpu: "500m"
+            limits:
+              memory: "1Gi"
+              cpu: "1"
+      imagePullSecrets:
+        - name: automaxia-secreto-docker
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: habilita-app-service
+  namespace: habilita
+  annotations:
+    prometheus.io/scrape: "true"
+    prometheus.io/path: "/metrics"
+    prometheus.io/port: "80"
+spec:
+  selector:
+    app: habilita-app
+  ports:
+    - protocol: TCP
+      port: 80
+      targetPort: 3000
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: habilita-app-ingress
+  namespace: habilita
+  annotations:
+    kubernetes.io/ingress.class: "nginx"
+    cert-manager.io/cluster-issuer: "letsencrypt-prod-cluster"
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/force-ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/enable-cors: "true"
+    nginx.ingress.kubernetes.io/use-regex: "true"
+    nginx.ingress.kubernetes.io/proxy-body-size: "20m"
+spec:
+  # Classe do ingress obrigatória
+  ingressClassName: "nginx"
+  # Configuração TLS/SSL
+  tls:
+  - hosts:
+    - app.habilita.app.br
+    secretName: habilita-app-tls-cert
+  rules:
+  - host: app.habilita.app.br
+    http:
+      paths:
+
+      # Rota principal para o frontend (SEM rewrite)
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: habilita-app-service
+            port:
+              number: 80
