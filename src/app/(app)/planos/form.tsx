@@ -5,6 +5,41 @@ import { useRouter } from 'next/navigation'
 import { formatBRL, formatDateBR } from '@/lib/formatters'
 import { assinarAction, cancelarAction } from './actions'
 
+// Public key da Pagar.me (inlinada pelo Next em build). Se ausente, o checkout
+// roda em modo demonstração (sem cartão real).
+const PAGARME_PK = process.env.NEXT_PUBLIC_PAGARME_PUBLIC_KEY
+
+/** Tokeniza o cartão direto na Pagar.me (token de uso único, 60s). O PAN nunca
+ *  passa pelo nosso backend — vai só pra Pagar.me com a public key no appId. */
+async function tokenizeCard(pk: string, card: {
+  number: string; holder: string; expMonth: string; expYear: string; cvv: string
+}): Promise<string> {
+  const res = await fetch(`https://api.pagar.me/core/v5/tokens?appId=${encodeURIComponent(pk)}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      type: 'card',
+      card: {
+        number: card.number.replace(/\D/g, ''),
+        holder_name: card.holder.trim(),
+        exp_month: card.expMonth.replace(/\D/g, ''),
+        exp_year: card.expYear.replace(/\D/g, ''),
+        cvv: card.cvv.replace(/\D/g, ''),
+      },
+    }),
+  })
+  if (!res.ok) throw new Error('tokenize_failed')
+  const json = await res.json()
+  if (!json?.id) throw new Error('tokenize_no_id')
+  return json.id as string
+}
+
+const inputStyle: React.CSSProperties = {
+  width: '100%', padding: '9px 12px', borderRadius: 8,
+  border: '1px solid var(--border)', background: 'var(--surface)',
+  fontSize: 13, color: 'var(--ink)',
+}
+
 type PlanoKey = 'free' | 'essencial' | 'pro'
 type Ciclo = 'mensal' | 'anual'
 
@@ -37,17 +72,50 @@ export function PlanosForm({ planos, atual, mock }: Props) {
   const [ciclo, setCiclo] = useState<Ciclo>(atual.ciclo ?? 'mensal')
   const [pending, setPending] = useState<PlanoKey | 'cancel' | null>(null)
   const [msg, setMsg] = useState<{ tipo: 'ok' | 'erro'; texto: string } | null>(null)
+  // plano escolhido aguardando dados do cartão (só no fluxo real, com public key)
+  const [escolhido, setEscolhido] = useState<Exclude<PlanoKey, 'free'> | null>(null)
+  const [card, setCard] = useState({ number: '', holder: '', expMonth: '', expYear: '', cvv: '' })
+  const [processando, setProcessando] = useState(false)
 
   const pctUso = atual.cap > 0 ? Math.min(100, Math.round((atual.usadas / atual.cap) * 100)) : 0
+  // checkout real exige tanto a public key (tokenizar no front) quanto a
+  // secret key (criar a assinatura no back). Faltando uma, cai no modo demo.
+  const realCheckout = !!PAGARME_PK && !mock
 
   async function assinar(plano: PlanoKey) {
     if (plano === 'free') return
-    setPending(plano); setMsg(null)
-    // Em produção real: aqui tokenizamos o cartão (Pagar.me) e passamos cardToken.
+    setMsg(null)
+    if (realCheckout) { setEscolhido(plano as Exclude<PlanoKey, 'free'>); return }   // abre o painel de cartão
+    // Sem public key: modo demonstração — assina direto (assinatura mock no backend).
+    setPending(plano)
     const r = await assinarAction({ plano, ciclo })
     setPending(null)
     if (r.ok) { setMsg({ tipo: 'ok', texto: 'Plano atualizado!' }); router.refresh() }
     else setMsg({ tipo: 'erro', texto: r.error })
+  }
+
+  async function confirmarPagamento() {
+    if (!escolhido || !PAGARME_PK) return
+    if (card.number.replace(/\D/g, '').length < 13 || card.holder.trim().length < 3
+        || card.expMonth.length < 1 || card.expYear.length < 2 || card.cvv.length < 3) {
+      setMsg({ tipo: 'erro', texto: 'Confira os dados do cartão.' }); return
+    }
+    setProcessando(true); setMsg(null)
+    let token: string
+    try {
+      token = await tokenizeCard(PAGARME_PK, card)
+    } catch {
+      setProcessando(false)
+      setMsg({ tipo: 'erro', texto: 'Não foi possível validar o cartão. Confira os dados e tente novamente.' })
+      return
+    }
+    const r = await assinarAction({ plano: escolhido, ciclo, cardToken: token })
+    setProcessando(false)
+    if (r.ok) {
+      setEscolhido(null)
+      setCard({ number: '', holder: '', expMonth: '', expYear: '', cvv: '' })
+      setMsg({ tipo: 'ok', texto: 'Plano atualizado!' }); router.refresh()
+    } else setMsg({ tipo: 'erro', texto: r.error })
   }
 
   async function cancelar() {
@@ -141,13 +209,46 @@ export function PlanosForm({ planos, atual, mock }: Props) {
         })}
       </div>
 
+      {escolhido && realCheckout && (() => {
+        const cfg = planos[escolhido]
+        const valor = ciclo === 'anual' && cfg.precoAnualCentavos != null ? cfg.precoAnualCentavos : cfg.precoMensalCentavos
+        return (
+          <div style={{ background: 'var(--card)', border: '1px solid var(--accent)', borderRadius: 14, padding: 20, display: 'grid', gap: 12 }}>
+            <div style={{ fontSize: 14, fontWeight: 500, color: 'var(--ink)' }}>
+              Assinar {cfg.nome} — {formatBRL(valor, true)} <span style={{ fontWeight: 400, color: 'var(--muted)', fontSize: 12 }}>/{ciclo === 'anual' ? 'ano' : 'mês'}</span>
+            </div>
+            <input style={inputStyle} placeholder="Número do cartão" inputMode="numeric" autoComplete="cc-number"
+              value={card.number} onChange={e => setCard({ ...card, number: e.target.value })} />
+            <input style={inputStyle} placeholder="Nome impresso no cartão" autoComplete="cc-name"
+              value={card.holder} onChange={e => setCard({ ...card, holder: e.target.value })} />
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8 }}>
+              <input style={inputStyle} placeholder="MM" inputMode="numeric" maxLength={2} autoComplete="cc-exp-month"
+                value={card.expMonth} onChange={e => setCard({ ...card, expMonth: e.target.value })} />
+              <input style={inputStyle} placeholder="AAAA" inputMode="numeric" maxLength={4} autoComplete="cc-exp-year"
+                value={card.expYear} onChange={e => setCard({ ...card, expYear: e.target.value })} />
+              <input style={inputStyle} placeholder="CVV" inputMode="numeric" maxLength={4} autoComplete="cc-csc"
+                value={card.cvv} onChange={e => setCard({ ...card, cvv: e.target.value })} />
+            </div>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <button className="btn primary" onClick={confirmarPagamento} disabled={processando}>
+                {processando ? 'Processando…' : `Confirmar — ${formatBRL(valor, true)}`}
+              </button>
+              <button className="btn ghost" onClick={() => { setEscolhido(null); setMsg(null) }} disabled={processando}>Cancelar</button>
+            </div>
+            <div style={{ fontSize: 11, color: 'var(--muted)' }}>
+              🔒 Dados do cartão vão direto e cifrados pra Pagar.me — não passam pelos servidores do Auren.
+            </div>
+          </div>
+        )
+      })()}
+
       {msg && (
         <div style={{ fontSize: 13, color: msg.tipo === 'ok' ? 'var(--sage)' : 'var(--rose)' }}>{msg.texto}</div>
       )}
 
-      {mock && (
+      {!realCheckout && (
         <div style={{ fontSize: 11.5, color: 'var(--amber)', background: 'rgba(176,125,64,.10)', padding: '8px 12px', borderRadius: 10 }}>
-          ⚠️ Checkout em modo demonstração — a assinatura é simulada (sem cartão real). A tokenização de cartão da Pagar.me será plugada quando a chave pública estiver configurada.
+          ⚠️ Checkout em modo demonstração — a assinatura é simulada (sem cartão real). Configure <code>NEXT_PUBLIC_PAGARME_PUBLIC_KEY</code> (front) e <code>PAGARME_API_KEY</code> (back) pra habilitar o pagamento com cartão.
         </div>
       )}
 

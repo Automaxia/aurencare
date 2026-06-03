@@ -54,6 +54,12 @@ ENV NEXTAUTH_URL=http://localhost:3000
 ENV DATABASE_URL=postgresql://placeholder@placeholder:5432/placeholder
 ENV ENCRYPTION_KEY=__build_placeholder_64_caracteres__
 
+# Public key da Pagar.me — NEXT_PUBLIC_* é INLINADO no bundle do client durante
+# o build (não é env de runtime). Passe via --build-arg (ver build-push.sh).
+# Vazio = checkout de assinatura em modo demonstração.
+ARG NEXT_PUBLIC_PAGARME_PUBLIC_KEY=""
+ENV NEXT_PUBLIC_PAGARME_PUBLIC_KEY=$NEXT_PUBLIC_PAGARME_PUBLIC_KEY
+
 RUN npm run build
 
 # ─── runner (imagem final) ───────────────────────────────────────────

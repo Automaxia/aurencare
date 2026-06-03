@@ -55,11 +55,22 @@ TAGS=(
 TAG_ARGS=()
 for t in "${TAGS[@]}"; do TAG_ARGS+=("-t" "$t"); done
 
+# NEXT_PUBLIC_* precisa existir no BUILD (é inlinado no client). Exporte a
+# public key da Pagar.me no ambiente antes de rodar; vazio = checkout em demo.
+BUILD_ARGS=(--build-arg "NEXT_PUBLIC_PAGARME_PUBLIC_KEY=${NEXT_PUBLIC_PAGARME_PUBLIC_KEY:-}")
+if [ -n "${NEXT_PUBLIC_PAGARME_PUBLIC_KEY:-}" ]; then
+  echo "  Pagar.me pk: ${NEXT_PUBLIC_PAGARME_PUBLIC_KEY:0:8}… (checkout real)"
+else
+  echo "  Pagar.me pk: (ausente — checkout em modo demonstração)"
+fi
+echo ""
+
 if $PUSH; then
   # buildx multi-arch + push direto (não fica imagem local)
   docker buildx build \
     --platform "$PLATFORM" \
     --push \
+    "${BUILD_ARGS[@]}" \
     "${TAG_ARGS[@]}" \
     .
   echo ""
@@ -69,6 +80,7 @@ else
   docker buildx build \
     --platform "$PLATFORM" \
     --load \
+    "${BUILD_ARGS[@]}" \
     "${TAG_ARGS[@]}" \
     .
   echo ""
