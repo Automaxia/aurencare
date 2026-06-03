@@ -19,15 +19,15 @@ um único produto.
 
 ## 2. Premissas inegociáveis
 
+> **As 6 premissas canônicas (P1–P6) estão em CLAUDE.md §2** (IA nunca diagnostica;
+> nota abre como rascunho; zero data training; pagamento confirma agendamento;
+> paciente não instala nada; badge CFP visível). Toda RF abaixo as respeita.
+
+Premissa adicional adotada neste produto:
+
 | # | Premissa | Origem |
 |---|----------|--------|
-| P1 | **A IA nunca emite diagnóstico.** Linguagem de frequência e observação, nunca clínica/diagnóstica. | CFP 09/2024 |
-| P2 | **Toda nota abre como rascunho.** Só vira prontuário após assinatura do psicólogo. | CFP 06/2019 |
-| P3 | **Zero data training.** Nenhum dado de paciente treina modelos. | LGPD + contrato |
-| P4 | **Pagamento confirma o agendamento.** Sessão só fica "confirmada" após webhook de pagamento. | Negócio |
-| P5 | **O paciente não instala nada.** WhatsApp é a única interface do paciente. | Negócio |
-| P6 | **Badge CFP visível** em toda tela com conteúdo gerado por IA. | CFP 09/2024 |
-| P7 | **Análise é sobre o paciente.** A extração de temas/observações considera apenas as falas do paciente. | Clínico |
+| P7 | **Análise é sobre o paciente.** A extração de temas/observações considera apenas as falas do paciente, nunca as do psicólogo. | Clínico |
 
 ## 3. Requisitos funcionais
 
@@ -90,6 +90,26 @@ um único produto.
 - RF-70 PIX (QR, expira 30min), crédito (até 6x), débito.
 - RF-71 Recipient/split (PF/PJ), reembolso.
 - RF-72 Webhook que confirma a sessão ao receber pagamento (P4).
+
+### 3.9 Critérios de aceite (RFs críticos)
+
+Condições testáveis que dirigem o desenvolvimento e a verificação:
+
+- **CA-10 (RF-10):** ao criar paciente com telefone e email válidos, são disparados
+  1 WhatsApp **e** 1 email de boas-vindas, ambos com o link `/onboard/<token>`.
+  Falha de um canal não impede a criação nem o outro canal.
+- **CA-22 (RF-22 / P4):** a sessão só atinge `confirmada` após o webhook de pagamento
+  correspondente; nunca por ação manual sem pagamento.
+- **CA-32 (RF-32 / P7):** nenhuma fala do psicólogo aparece em turno `who='paciente'`
+  (verificável: falar no lado do psicólogo não gera turno do paciente).
+- **CA-40 (RF-40 / P7):** o grafo de Temas e a extração persistida usam **apenas**
+  texto do paciente (linhas `C:`); falas do psicólogo não geram palavras-chave.
+- **CA-43 (RF-43 / P1):** toda saída de IA passa pelo guard de termos proibidos; um
+  resumo contendo termo proibido **não** pode ser assinado.
+- **CA-36 (RF-36 / P2):** o resumo pós-sessão nasce como rascunho editável e só vira
+  prontuário após assinatura (com timestamp).
+- **CA-64 (RF-64):** comandos `PIX`/`CREDITO`/`DEBITO`/`CONFIRMAR`/`CANCELAR` recebidos
+  por WhatsApp disparam a ação correta; texto não reconhecido cai no fallback.
 
 ## 4. Requisitos não-funcionais
 

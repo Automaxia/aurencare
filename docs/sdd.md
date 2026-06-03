@@ -32,35 +32,25 @@ Browser ── HTTPS (Cloudflare Full strict) ── Ingress nginx ── Servic
 
 ## 2. Stack
 
-| Camada | Tecnologia |
-|--------|-----------|
-| Frontend/SSR | Next.js 14 · App Router · TypeScript · Tailwind |
-| Auth | NextAuth (Credentials + bcrypt, JWT 8h) |
-| Banco | PostgreSQL (`pg`) · 17 migrations |
-| Cache | Redis (QR WhatsApp, cache de insight, etc.) |
-| IA | Anthropic SDK · `claude-sonnet-4-20250514` |
-| Transcrição | AssemblyAI streaming v3 (paciente) + Web Speech API (psicólogo) |
-| Pagamentos | Pagar.me (PIX/crédito/débito + recipient/split) |
-| WhatsApp | Evolution API v2 (Baileys) |
-| Email | Resend |
-| Vídeo | WebRTC P2P (signaling via SSE+POST) |
-| Exportações | @react-pdf/renderer |
+> **Stack e versões completas: CLAUDE.md §3.** Aqui só os pontos com implicação de design.
 
-## 3. Modelo de dados (principais tabelas)
+- **Monolito Next.js 14 (App Router)** em build `standalone` — um único processo serve
+  páginas (SSR) e APIs (Route Handlers + Server Actions).
+- **Transcrição dual por canal:** Web Speech (psicólogo, no browser) + AssemblyAI
+  streaming (paciente, áudio remoto do WebRTC) — ver §4.1.
+- **Realtime sem servidor dedicado:** SSE para painel e signaling de vídeo; WebRTC P2P.
 
-- `psicologos` — credenciais, instância WA, dados Pagar.me/tributários.
-- `pacientes` — dados, consentimento (aceito/token/timestamp), status, condições.
-- `sessoes` — agendamento, status, pagamento, **`transcricao_texto`/`nota_clinica`/
-  `resumo_ia` (AES-256)**, `indicadores`/`palavras_chave` (JSONB), assinatura.
-- `palavras_chave` + `arestas_tema` — grafo de Temas Recorrentes por paciente.
-- `objetivos` — objetivos SMART e progresso.
-- `consentimentos` — trilha de auditoria LGPD.
-- `wa_conversas` — máquina de estados do WhatsApp (por telefone E.164).
-- `salas_video` — salas WebRTC (token, validade, aceite de termo).
-- `_migrations` — controle do runner.
+## 3. Modelo de dados
 
-Migrations em `src/server/db/migrations/NNN_*.sql`, aplicadas por
-`src/server/db/migrate.mjs` (idempotente).
+> **DDL completa: CLAUDE.md §11.** Aqui só o que importa para o design.
+
+- Campos clínicos cifrados em repouso (AES-256): `sessoes.transcricao_texto`,
+  `nota_clinica`, `resumo_ia` — ver §5.
+- Grafo de temas: `palavras_chave` + `arestas_tema` (co-ocorrência por sessão),
+  alimentado **apenas pelas falas do paciente** — ver §4.1.
+- Estado conversacional do WhatsApp em `wa_conversas` (chave = telefone E.164).
+- Migrations em `src/server/db/migrations/NNN_*.sql`, aplicadas por
+  `src/server/db/migrate.mjs` (idempotente, controla em `_migrations`).
 
 ## 4. Fluxos-chave
 
