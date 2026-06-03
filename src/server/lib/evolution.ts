@@ -8,22 +8,22 @@ import { log } from './log'
  * Quando placeholder, registra a mensagem no log e segue (não interrompe fluxos).
  */
 
-function toJid(telefone: string): string {
+function toNumber(telefone: string): string {
   const digits = telefone.replace(/\D/g, '')
-  const withCountry = digits.startsWith('55') ? digits : `55${digits}`
-  return `${withCountry}@s.whatsapp.net`
+  return digits.startsWith('55') ? digits : `55${digits}`
 }
 
 export async function enviarWA(telefone: string, texto: string): Promise<void> {
-  const jid = toJid(telefone)
+  const number = toNumber(telefone)
   if (!integrationStatus.evolution) {
     log.warn('evolution', `[mock] → ${telefone}: ${texto.slice(0, 80).replace(/\n/g, ' ')}…`)
     return
   }
   try {
+    // Evolution API v2: payload é { number, text } no topo (v1 usava textMessage.text).
     await axios.post(
       `${env.evolutionUrl}/message/sendText/${env.evolutionInstance}`,
-      { number: jid, textMessage: { text: texto } },
+      { number, text: texto },
       { headers: { apikey: env.evolutionKey!, 'Content-Type': 'application/json' }, timeout: 12_000 },
     )
     log.ok('evolution', `→ ${telefone} (${texto.length} chars)`)

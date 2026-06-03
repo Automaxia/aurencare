@@ -7,26 +7,42 @@ import { subscribe } from '@/server/lib/sse'
 export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
 
-export async function GET() {
+export async function GET(req: Request) {
+  let closed = false
+  let cleanup = () => {}
+
   const stream = new ReadableStream({
     start(controller) {
       const enc = new TextEncoder()
-      const send = (data: any) => controller.enqueue(enc.encode(`data: ${JSON.stringify(data)}\n\n`))
+      // enqueue após o fecho lança ERR_INVALID_STATE — guarda e auto-limpa.
+      const send = (data: any) => {
+        if (closed) return
+        try {
+          controller.enqueue(enc.encode(`data: ${JSON.stringify(data)}\n\n`))
+        } catch {
+          cleanup()
+        }
+      }
 
-      send({ type: 'hello' })
       const heartbeat = setInterval(() => send({ type: 'ping' }), 25_000)
       const unsub = subscribe(e => send(e))
 
-      const close = () => {
+      cleanup = () => {
+        if (closed) return
+        closed = true
         clearInterval(heartbeat)
         unsub()
-        try { controller.close() } catch { /* */ }
+        try { controller.close() } catch { /* já fechado */ }
       }
-      // node18+ — não temos AbortSignal aqui mas o handler termina ao fechar conexão.
-      ;(controller as any)._auren_close = close
+
+      // Desconexão do cliente: aborta o fetch -> limpa heartbeat + subscription.
+      req.signal.addEventListener('abort', cleanup)
+
+      send({ type: 'hello' })
     },
     cancel() {
-      // chamado quando o cliente desconecta
+      // cliente desconectou (ou stream cancelado): para o heartbeat e desinscreve.
+      cleanup()
     },
   })
 

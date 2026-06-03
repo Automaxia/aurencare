@@ -23,26 +23,36 @@ export async function GET(req: Request, { params }: { params: { token: string } 
     return new Response('sala encerrada', { status: 410 })
   }
 
+  let closed = false
+  let cleanup = () => {}
+
   const stream = new ReadableStream({
     start(controller) {
       const enc = new TextEncoder()
       const send = (data: any) => {
+        if (closed) return
         try { controller.enqueue(enc.encode(`data: ${JSON.stringify(data)}\n\n`)) }
-        catch { /* controller fechado */ }
+        catch { cleanup() }
       }
-
-      send({ type: 'hello', from: role, ts: Date.now() })  // confirma entrada
 
       const unsub = subscribe(params.token, { role, send })
       const heartbeat = setInterval(() => send({ type: 'ping', ts: Date.now() }), 25_000)
 
-      ;(controller as any)._auren_close = () => {
+      cleanup = () => {
+        if (closed) return
+        closed = true
         clearInterval(heartbeat)
         unsub()
+        try { controller.close() } catch { /* já fechado */ }
       }
+
+      // peer desconectou -> para heartbeat + desinscreve do signaling.
+      req.signal.addEventListener('abort', cleanup)
+
+      send({ type: 'hello', from: role, ts: Date.now() })  // confirma entrada
     },
     cancel() {
-      // chamado quando cliente desconecta
+      cleanup()
     },
   })
 
