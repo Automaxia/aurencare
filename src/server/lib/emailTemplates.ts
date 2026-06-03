@@ -386,6 +386,82 @@ export function tplSerieAgendada(p: SerieAgendadaInput): { html: string; text: s
   return { html, text, subject }
 }
 
+// ─── Lista de espera (lançamento) ───────────────────────────────────
+
+/** Confirmação enviada a quem entrou na lista de espera. */
+export function tplListaEsperaConfirmacao(p: { nome: string }): { html: string; text: string; subject: string } {
+  const primeiroNome = p.nome.trim().split(/\s+/)[0]
+  const subject = 'Você está na lista de espera do Auren Care'
+
+  const text = [
+    `Olá, ${primeiroNome}!`,
+    ``,
+    `Recebemos sua inscrição na lista de espera do Auren Care.`,
+    `Vamos te avisar por email assim que seu acesso abrir.`,
+    ``,
+    `Qualquer dúvida, escreva pra contato@automaxia.com.br.`,
+    ``,
+    `Auren Care · Sistema operacional da prática clínica`,
+  ].join('\n')
+
+  const html = baseHtml({
+    titulo: 'Você está na lista',
+    saudacao: `Olá, ${primeiroNome}.`,
+    psicologoEmail: 'contato@automaxia.com.br',
+    corpo: `
+      <p style="margin:0 0 16px;font-size:14px;line-height:1.65;color:#38324e;">
+        Recebemos sua inscrição na <strong>lista de espera do Auren Care</strong>.
+      </p>
+      <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="margin:0 0 20px;background:#e8f1ed;border-radius:10px;border:1px solid rgba(90,158,138,.25);">
+        <tr><td style="padding:16px 20px;">
+          <p style="margin:0;font-size:13.5px;color:#2a6456;line-height:1.55;">
+            ✓ Te avisamos por email assim que seu acesso abrir.
+          </p>
+        </td></tr>
+      </table>
+      <p style="margin:0 0 8px;font-size:13px;color:#7a7590;line-height:1.55;">
+        Sem spam — só o aviso quando for a sua vez.
+      </p>
+    `,
+  })
+
+  return { html, text, subject }
+}
+
+/** Aviso interno (pra equipe) de nova inscrição na lista. */
+export function tplListaEsperaAviso(p: {
+  nome: string; email: string; crp?: string | null; mensagem?: string | null; origem?: string | null
+}): { html: string; text: string; subject: string } {
+  const subject = `Nova lista de espera: ${p.nome}`
+  const linhas = [
+    `Nome: ${p.nome}`,
+    `Email: ${p.email}`,
+    p.crp ? `CRP: ${p.crp}` : null,
+    p.origem ? `Origem: ${p.origem}` : null,
+    p.mensagem ? `Mensagem: ${p.mensagem}` : null,
+  ].filter(Boolean) as string[]
+
+  const text = ['Nova inscrição na lista de espera:', '', ...linhas].join('\n')
+
+  const html = baseHtml({
+    titulo: 'Nova inscrição',
+    saudacao: 'Nova inscrição na lista de espera',
+    psicologoEmail: 'contato@automaxia.com.br',
+    corpo: `
+      <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="margin:0 0 8px;background:#f0eef9;border-radius:10px;border:1px solid rgba(106,78,200,.25);">
+        <tr><td style="padding:16px 20px;">
+          ${linhas.map(l => {
+            const [rotulo, ...resto] = l.split(': ')
+            return `<p style="margin:0 0 8px;font-size:13.5px;color:#38324e;line-height:1.5;"><strong style="color:#6a4ec8;">${escapeHtml(rotulo)}:</strong> ${escapeHtml(resto.join(': '))}</p>`
+          }).join('')}
+        </td></tr>
+      </table>
+    `,
+  })
+
+  return { html, text, subject }
+}
+
 // ─── Base HTML compartilhado ────────────────────────────────────────
 
 type BaseHtmlInput = {

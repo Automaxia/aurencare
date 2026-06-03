@@ -1,6 +1,14 @@
 import 'server-only'
 import { db } from '@/server/db/pool'
 import { log } from '@/server/lib/log'
+import { enviarEmail } from '@/server/lib/email'
+import { env } from '@/server/lib/env'
+import { tplListaEsperaConfirmacao, tplListaEsperaAviso } from '@/server/lib/emailTemplates'
+
+/** Extrai o endereço de "Nome <email>" ou retorna a própria string. */
+function soEndereco(from: string): string {
+  return from.match(/<([^>]+)>/)?.[1] ?? from.trim()
+}
 
 export type EntrarListaInput = {
   nome: string
@@ -40,6 +48,17 @@ export async function entrarListaEspera(input: EntrarListaInput): Promise<Entrar
       [nome, email, crp, mensagem, input.origem ?? 'lancamento', input.ip ?? null, input.userAgent ?? null],
     )
     log.ok('lista-espera', `nova entrada: ${email}`)
+
+    // Notificações (fire-and-forget — falha de email não derruba o cadastro).
+    // 1) confirmação pro inscrito · 2) aviso pra equipe (contato@automaxia.com.br).
+    const adminTo = soEndereco(env.emailFrom)
+    void Promise.all([
+      enviarEmail({ to: email, ...tplListaEsperaConfirmacao({ nome }) })
+        .catch(err => log.err('lista-espera', 'falha email confirmacao', err)),
+      enviarEmail({ to: adminTo, replyTo: email, ...tplListaEsperaAviso({ nome, email, crp, mensagem, origem: input.origem ?? 'lancamento' }) })
+        .catch(err => log.err('lista-espera', 'falha email aviso', err)),
+    ])
+
     return { ok: true }
   } catch (err) {
     log.err('lista-espera', 'falha ao inserir', err)
