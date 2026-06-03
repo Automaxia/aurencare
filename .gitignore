@@ -4,6 +4,12 @@ out
 .env
 .env.local
 .env.*.local
+.env.production
+
+# kubeconfig — contém token do cluster
+local.yaml
+*.kubeconfig
+kubeconfig*
 .DS_Store
 *.tsbuildinfo
 next-env.d.ts
