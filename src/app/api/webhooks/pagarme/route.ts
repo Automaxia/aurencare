@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { marcarPagamentoConfirmado, marcarPagamentoCancelado } from '@/server/services/sessoes'
+import { aplicarEventoAssinatura } from '@/server/services/assinatura'
 import { log } from '@/server/lib/log'
 import { env } from '@/server/lib/env'
 import { verifyHubSignature } from '@/server/lib/webhookAuth'
@@ -38,7 +39,36 @@ export async function POST(req: Request) {
     return NextResponse.json({ ok: true })
   }
 
-  log.info('pagarme.webhook', `evento: ${event} order: ${orderId}`)
+  log.info('pagarme.webhook', `evento: ${event} order/sub: ${orderId}`)
+
+  // Eventos de ASSINATURA (mensalidade do psicólogo) — identificados pela
+  // presença de um subscription_id. Roteamos antes da lógica de orders de sessão.
+  const data = payload?.data
+  const subId: string | undefined =
+    data?.subscription?.id
+    ?? data?.subscription_id
+    ?? (event.startsWith('subscription.') ? data?.id : undefined)
+
+  if (subId) {
+    const fimCiclo =
+      data?.subscription?.current_cycle?.end_at
+      ?? data?.current_cycle?.end_at
+      ?? data?.next_billing_at
+      ?? null
+    try {
+      if (event === 'subscription.canceled') {
+        await aplicarEventoAssinatura(subId, 'cancelado')
+      } else if (event.includes('payment_failed')) {
+        await aplicarEventoAssinatura(subId, 'falhou')
+      } else if (event === 'invoice.paid' || event === 'subscription.charged' || event === 'charge.paid') {
+        await aplicarEventoAssinatura(subId, 'renovado', fimCiclo)
+      }
+    } catch (err) {
+      log.err('pagarme.webhook', 'falha ao processar assinatura', err)
+      return NextResponse.json({ error: 'processing_failed' }, { status: 500 })
+    }
+    return NextResponse.json({ ok: true })
+  }
 
   try {
     if (event === 'order.paid' || event === 'charge.paid') {

@@ -28,6 +28,8 @@ type Props = {
 
 const DEFAULT_ORDER = ['live-insight', 'ritmo', 'temas', 'humor', 'info', 'risco', 'ultima', 'topicos', 'nota']
 const OBS_INTERVAL_TURNS = 5  // gera observação a cada N turnos novos
+const TOM_BATCH_SIZE = 5      // classifica o tom em lotes de N turnos (1 chamada IA)
+const TOM_BATCH_MS = 3500     // …ou ao fim deste intervalo, o que vier primeiro
 
 export function PresenceClient(props: Props) {
   const router = useRouter()
@@ -52,12 +54,16 @@ export function PresenceClient(props: Props) {
   const [remoteStream, setRemoteStream] = useState<MediaStream | null>(null)
   const [pacienteInterim, setPacienteInterim] = useState('')
   const [linkCopiado, setLinkCopiado] = useState(false)
+  const [bloqueio, setBloqueio] = useState<{ cap: number; usadas: number; plano: string } | null>(null)
 
   const startedRef = useRef(false)
   // controle de quando rodar próxima observação ao vivo
   const lastObsAtCountRef = useRef<number>(0)
   // últimos finais do mic local (psicóloga) — janela curta pra dedupe contra eco do alto-falante
   const recentLocalRef = useRef<Array<{ id: string; texto: string; ts: number }>>([])
+  // fila de classificação de tom — agrupa turnos pra classificar em lote (1 chamada/lote)
+  const tomQueueRef = useRef<Array<{ id: string; texto: string; who: 'psicologo' | 'paciente' }>>([])
+  const tomTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   useEffect(() => {
     if (startedRef.current) return
@@ -69,6 +75,9 @@ export function PresenceClient(props: Props) {
     const id = setInterval(() => setTempo(t => t + 1), 1000)
     return () => clearInterval(id)
   }, [])
+
+  // limpa o timer do lote de tom ao desmontar (evita flush após sair da tela)
+  useEffect(() => () => { if (tomTimerRef.current) clearTimeout(tomTimerRef.current) }, [])
 
   const { ctx, loading: ctxLoading } = useContexto(props.sessaoId)
 
@@ -83,7 +92,7 @@ export function PresenceClient(props: Props) {
       recentLocalRef.current = win.slice(-8)
       setTurnos(prev => [...prev, { id, who: 'psicologo', texto: chunk.texto, ts: chunk.ts, mark: null, tone: null }])
       setInterim('')
-      classificarTom(id, chunk.texto)
+      enqueueTom(id, chunk.texto, 'psicologo')
     },
     onInterim: setInterim,
   })
@@ -108,21 +117,40 @@ export function PresenceClient(props: Props) {
       const id = crypto.randomUUID()
       setTurnos(prev => [...prev, { id, who: 'paciente', texto, ts, mark: null, tone: null }])
       setPacienteInterim('')
-      classificarTom(id, texto)
+      enqueueTom(id, texto, 'paciente')
     },
     onInterim: setPacienteInterim,
   })
 
-  async function classificarTom(turnoId: string, texto: string) {
+  // Enfileira um turno pra classificação de tom em lote. Dispara o flush quando
+  // o lote enche (TOM_BATCH_SIZE) ou após TOM_BATCH_MS — o que vier primeiro.
+  function enqueueTom(turnoId: string, texto: string, who: 'psicologo' | 'paciente') {
     if (texto.length < 12) return
+    tomQueueRef.current.push({ id: turnoId, texto, who })
+    if (tomQueueRef.current.length >= TOM_BATCH_SIZE) {
+      flushTom()
+    } else if (!tomTimerRef.current) {
+      tomTimerRef.current = setTimeout(flushTom, TOM_BATCH_MS)
+    }
+  }
+
+  async function flushTom() {
+    if (tomTimerRef.current) { clearTimeout(tomTimerRef.current); tomTimerRef.current = null }
+    const lote = tomQueueRef.current
+    if (lote.length === 0) return
+    tomQueueRef.current = []
     try {
       const r = await fetch(`/api/sessao/${props.sessaoId}/ia/tom-turno`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ texto, who: 'paciente' }),
+        body: JSON.stringify({ turnos: lote.map(t => ({ texto: t.texto, who: t.who })) }),
       })
       const json = await r.json()
-      const tone = json?.tone as TurnTone | undefined
-      if (tone) setTurnos(prev => prev.map(t => t.id === turnoId ? { ...t, tone } : t))
+      const tones = (json?.tones ?? []) as Array<TurnTone | null>
+      setTurnos(prev => prev.map(t => {
+        const idx = lote.findIndex(l => l.id === t.id)
+        const tone = idx >= 0 ? tones[idx] : null
+        return tone ? { ...t, tone } : t
+      }))
     } catch { /* */ }
   }
 
@@ -177,10 +205,25 @@ export function PresenceClient(props: Props) {
   const counts: Record<TurnMark, number> = { insight: 0, comportamento: 0, avanco: 0 }
   for (const t of turnos) if (t.mark) counts[t.mark]++
 
+  // Inicia o registro (transcrição/IA) após passar pelo gate de cota mensal.
+  async function iniciarRegistro() {
+    try {
+      const r = await fetch(`/api/sessao/${props.sessaoId}/ia/iniciar`, { method: 'POST' })
+      if (r.status === 403) {
+        const j = await r.json().catch(() => ({}))
+        setBloqueio({ cap: j?.cap ?? 0, usadas: j?.usadas ?? 0, plano: j?.plano ?? 'free' })
+        return
+      }
+    } catch { /* rede instável: deixa gravar mesmo assim, não trava o atendimento */ }
+    setBloqueio(null)
+    setRecording(true)
+  }
+
   async function encerrar() {
     if (encerrando) return
     setEncerrando(true)
     setRecording(false)
+    flushTom()  // classifica o tom do último lote pendente antes de fechar
     const transcricao = transcricaoCompleta()
     const indicadores = {
       ritmo: { psicologo: pctPsic, paciente: pctPac },
@@ -275,7 +318,7 @@ export function PresenceClient(props: Props) {
         </div>
         <div className="pb-actions">
           {!recording ? (
-            <button className="btn" onClick={() => setRecording(true)}>● Iniciar registro</button>
+            <button className="btn" onClick={iniciarRegistro}>● Iniciar registro</button>
           ) : (
             <button className="btn ghost" onClick={() => setRecording(false)}>⏸</button>
           )}
@@ -294,6 +337,16 @@ export function PresenceClient(props: Props) {
           <a className="btn ghost" href="/">← Voltar</a>
         </div>
       </div>
+
+      {bloqueio && (
+        <div style={{ background: 'var(--rose-lo)', color: 'var(--rose)', padding: '10px 16px', fontSize: 12, display: 'flex', alignItems: 'center', gap: 12, justifyContent: 'space-between' }}>
+          <span>
+            Você atingiu o limite de <strong>{bloqueio.cap} sessões com IA</strong> do plano {bloqueio.plano} este mês.
+            A agenda e o prontuário seguem normais; o registro com IA volta no próximo ciclo.
+          </span>
+          <a className="btn primary" href="/planos" style={{ whiteSpace: 'nowrap' }}>Fazer upgrade</a>
+        </div>
+      )}
 
       {supported === false && (
         <div style={{ background: 'var(--rose-lo)', color: 'var(--rose)', padding: '8px 16px', fontSize: 12 }}>

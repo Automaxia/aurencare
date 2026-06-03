@@ -1,38 +1,42 @@
 import { PageHeader } from '@/components/PageHeader'
 import { requirePsicologo } from '@/server/lib/auth'
-import { obterPerfil } from '@/server/services/psicologo'
-import { redirect } from 'next/navigation'
+import { obterAssinatura } from '@/server/services/assinatura'
+import { PLANOS } from '@/server/lib/planos'
+import { integrationStatus } from '@/server/lib/env'
 import Link from 'next/link'
-import { PerfilForm } from './form'
+import { PlanosForm } from './form'
 
 export const dynamic = 'force-dynamic'
 
-export default async function PerfilPage() {
+export default async function PlanosPage() {
   const user = await requirePsicologo()
-  const perfil = await obterPerfil(user.id)
-  if (!perfil) redirect('/')
+  const info = await obterAssinatura(user.id)
 
   return (
     <div>
       <div style={{ display: 'flex', gap: 4, marginBottom: 14 }}>
-        <TabLink href="/perfil"              label="Perfil"       active />
+        <TabLink href="/perfil"              label="Perfil"       active={false} />
         <TabLink href="/perfil/recebimentos" label="Recebimentos" active={false} />
-        <TabLink href="/planos"              label="Plano e uso"  active={false} />
+        <TabLink href="/planos"              label="Plano e uso"  active />
       </div>
+
       <PageHeader
-        title="Perfil profissional"
-        subtitle="Seus dados básicos e valor da sessão."
+        title="Plano e uso"
+        subtitle="Sua mensalidade e o consumo de sessões com IA do mês."
       />
-      <PerfilForm
-        initial={{
-          nome: perfil.nome,
-          crp: perfil.crp,
-          email: perfil.email,
-          telefone: perfil.telefone ?? '',
-          valorSessao: perfil.valorSessao,
+
+      <PlanosForm
+        planos={PLANOS}
+        atual={{
+          plano: info.plano,
+          status: info.status,
+          ciclo: info.ciclo,
+          expiraEm: info.expiraEm,
+          cap: info.cap,
+          usadas: info.usadas,
+          restantes: info.restantes,
         }}
-        emailAtual={perfil.email}
-        waConectado={perfil.waConectado}
+        mock={!integrationStatus.pagarme}
       />
     </div>
   )

@@ -2,12 +2,14 @@ import { Sidebar } from '@/components/layout/Sidebar'
 import { Topbar } from '@/components/layout/Topbar'
 import { AppShell } from '@/components/layout/AppShell'
 import { OnboardingBanner } from '@/components/layout/OnboardingBanner'
+import { PlanoUsoBanner } from '@/components/layout/PlanoUsoBanner'
 import { getServerSession } from 'next-auth/next'
 import { authOptions } from '@/server/auth/options'
 import { redirect } from 'next/navigation'
 import { bootstrap } from '@/server/bootstrap'
 import { obterAtalhos } from '@/server/services/atalhos'
 import { lerStatusOnboarding } from '@/server/services/onboardingPagamento'
+import { obterAssinatura } from '@/server/services/assinatura'
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   bootstrap()
@@ -15,10 +17,16 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   if (!session) redirect('/login')
 
   const userId = (session.user as any).id
-  const [atalhos, onboarding] = await Promise.all([
+  const [atalhos, onboarding, assinatura] = await Promise.all([
     obterAtalhos(userId),
     lerStatusOnboarding(userId),
+    obterAssinatura(userId),
   ])
+
+  const planoBanner: 'limite' | 'inadimplente' | null =
+    assinatura.status === 'inadimplente' ? 'inadimplente'
+    : assinatura.restantes === 0 ? 'limite'
+    : null
 
   return (
     <AppShell>
@@ -29,6 +37,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
           initialPendencias={atalhos.pendencias}
         />
         {!onboarding.completo && <OnboardingBanner />}
+        {planoBanner && <PlanoUsoBanner motivo={planoBanner} cap={assinatura.cap} />}
         <main className="app-content">{children}</main>
       </div>
     </AppShell>

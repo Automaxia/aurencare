@@ -10,6 +10,8 @@ import {
   tplSessaoConfirmada, tplSessaoCancelada, tplSerieAgendada,
 } from '@/server/lib/emailTemplates'
 import { formatDateTimeBR } from '@/lib/formatters'
+import { obterAssinatura } from './assinatura'
+import { incrementarSessaoIa } from './uso'
 
 export type SessaoStatus =
   | 'agendada' | 'aguardando_metodo' | 'aguardando_pagamento'
@@ -460,6 +462,41 @@ export async function cancelarSessao(sessaoId: string): Promise<{ reembolsada: b
 export async function iniciarSessao(sessaoId: string): Promise<void> {
   await db.query(`UPDATE sessoes SET status='em_curso' WHERE id=$1`, [sessaoId])
   publish({ type: 'sessao.iniciada', sessaoId })
+}
+
+export type GateRegistroResult =
+  | { ok: true }
+  | { ok: false; motivo: 'limite'; cap: number; usadas: number; plano: string }
+
+/**
+ * Gate do Modo Presença: chamado ao iniciar o REGISTRO (transcrição/IA), que é
+ * onde o custo acontece. Conta 1 da cota mensal de sessões-IA, de forma
+ * idempotente (flag `ia_contabilizada` — pausar/retomar não recota). Bloqueia
+ * se a cota do plano já estiver esgotada.
+ */
+export async function gateIniciarRegistroIa(sessaoId: string): Promise<GateRegistroResult> {
+  const { rows } = await db.query<{ psicologo_id: string; ia_contabilizada: boolean }>(
+    `SELECT psicologo_id, ia_contabilizada FROM sessoes WHERE id = $1 LIMIT 1`,
+    [sessaoId],
+  )
+  const sessao = rows[0]
+  if (!sessao) return { ok: true }                 // sessão inexistente: não trava o front
+  if (sessao.ia_contabilizada) return { ok: true } // já contou: retomar registro é livre
+
+  const info = await obterAssinatura(sessao.psicologo_id)
+  if (info.usadas >= info.cap) {
+    return { ok: false, motivo: 'limite', cap: info.cap, usadas: info.usadas, plano: info.plano }
+  }
+
+  // Marca a sessão como contabilizada de forma atômica; só incrementa se ESTA
+  // chamada fez a transição (evita corrida de duplo clique).
+  const { rowCount } = await db.query(
+    `UPDATE sessoes SET ia_contabilizada = TRUE
+      WHERE id = $1 AND ia_contabilizada = FALSE`,
+    [sessaoId],
+  )
+  if (rowCount) await incrementarSessaoIa(sessao.psicologo_id)
+  return { ok: true }
 }
 
 export async function encerrarSessao(sessaoId: string, opts: { transcricao?: string; indicadores?: any } = {}): Promise<void> {
