@@ -121,14 +121,32 @@ function tokenize(texto: string): string[] {
 }
 
 /**
+ * Mantém só as falas do PACIENTE para a análise de temas.
+ * O transcript é salvo como linhas "P: ..." (psicóloga) e "C: ..." (cliente).
+ * Se houver linhas marcadas, retorna apenas as "C:" (sem o prefixo). Se o texto
+ * não tiver marcação de falante (ex.: resumo da IA), retorna como veio.
+ */
+function somenteFalasDoPaciente(transcricao: string): string {
+  const linhas = transcricao.split('\n')
+  const doPaciente = linhas
+    .filter(l => /^\s*C:\s/.test(l))
+    .map(l => l.replace(/^\s*C:\s/, ''))
+  if (doPaciente.length > 0) return doPaciente.join('\n')
+  // Sem rótulos de falante — não dá pra separar; usa o texto inteiro.
+  const temRotulos = linhas.some(l => /^\s*[PC]:\s/.test(l))
+  return temRotulos ? '' : transcricao
+}
+
+/**
  * Extrai palavras significativas e atualiza palavras_chave + arestas_tema.
+ * Considera SOMENTE as falas do paciente (a análise é sobre o paciente).
  */
 export async function extrairTemasDaSessao(opts: {
   pacienteId: string
   sessaoId: string
   transcricao: string
 }): Promise<{ palavrasInseridas: number; arestasInseridas: number }> {
-  const tokens = tokenize(opts.transcricao)
+  const tokens = tokenize(somenteFalasDoPaciente(opts.transcricao))
   if (tokens.length === 0) return { palavrasInseridas: 0, arestasInseridas: 0 }
 
   // Frequência local na sessão.

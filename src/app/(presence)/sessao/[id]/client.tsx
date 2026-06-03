@@ -90,9 +90,10 @@ export function PresenceClient(props: Props) {
 
   // STT do paciente — pega o áudio remoto do WebRTC e manda direto pra AssemblyAI.
   // Turnos do paciente entram já com who='paciente' fixo.
-  // Dedup: se o áudio do paciente vazar pelo alto-falante, o mic local também
-  // transcreveu. Quando chega o turno "real" do remoteSTT, descartamos qualquer
-  // turno local recente com texto muito parecido (era eco, não a psicóloga).
+  // Dedup (psicólogo→paciente): o mic local da psicóloga é a fonte autoritativa
+  // da fala dela. Se o mic do paciente captou a voz da psicóloga pelo alto-falante
+  // (eco residual), esse texto chega aqui como "paciente" mas é cópia de um turno
+  // recente da psicóloga — descartamos pra não contaminar a análise do paciente.
   const remoteSTT = useRemoteTranscribe({
     enabled: recording && !!remoteStream,
     stream: remoteStream,
@@ -100,15 +101,12 @@ export function PresenceClient(props: Props) {
       const tsMs = Date.parse(ts) || Date.now()
       const win = recentLocalRef.current.filter(r => tsMs - r.ts < 6000)
       recentLocalRef.current = win
-      const echoIds = new Set(
-        win.filter(r => similarity(r.texto, texto) >= 0.7).map(r => r.id),
-      )
+      // É eco da psicóloga vazando no mic do paciente? Então não é fala do paciente.
+      const ehEcoDaPsicologa = win.some(r => similarity(r.texto, texto) >= 0.7)
+      if (ehEcoDaPsicologa) { setPacienteInterim(''); return }
+
       const id = crypto.randomUUID()
-      setTurnos(prev => {
-        const limpo = echoIds.size ? prev.filter(t => !echoIds.has(t.id)) : prev
-        return [...limpo, { id, who: 'paciente', texto, ts, mark: null, tone: null }]
-      })
-      if (echoIds.size) recentLocalRef.current = win.filter(r => !echoIds.has(r.id))
+      setTurnos(prev => [...prev, { id, who: 'paciente', texto, ts, mark: null, tone: null }])
       setPacienteInterim('')
       classificarTom(id, texto)
     },
@@ -143,17 +141,20 @@ export function PresenceClient(props: Props) {
    * Observação ao vivo — regenera a cada OBS_INTERVAL_TURNS novos turnos.
    */
   useEffect(() => {
-    if (turnos.length === 0) {
+    // Análise do paciente: a observação ao vivo considera SOMENTE as falas do
+    // paciente (não as intervenções da psicóloga).
+    const turnosPaciente = turnos.filter(t => t.who === 'paciente')
+    if (turnosPaciente.length === 0) {
       setObsViva(null)
       lastObsAtCountRef.current = 0
       return
     }
-    if (turnos.length - lastObsAtCountRef.current < OBS_INTERVAL_TURNS) return
-    lastObsAtCountRef.current = turnos.length
+    if (turnosPaciente.length - lastObsAtCountRef.current < OBS_INTERVAL_TURNS) return
+    lastObsAtCountRef.current = turnosPaciente.length
     setObsLoading(true)
     fetch(`/api/sessao/${props.sessaoId}/ia/observacao-viva`, {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ turnos: turnos.map(t => ({ who: t.who, texto: t.texto })) }),
+      body: JSON.stringify({ turnos: turnosPaciente.map(t => ({ who: t.who, texto: t.texto })) }),
     })
       .then(r => r.json())
       .then(j => setObsViva(j?.text ?? null))
@@ -245,7 +246,7 @@ export function PresenceClient(props: Props) {
     <div key="temas" className="themes-card" data-widget-id="temas">
       <WidgetGrip />
       <div className="themes-head"><span className="ttl">Temas desta sessão</span><span className="sub">ao vivo</span></div>
-      <div style={{ padding: 8 }}><ThemesCanvas turnos={turnos} /></div>
+      <div style={{ padding: 8 }}><ThemesCanvas turnos={turnos.filter(t => t.who === 'paciente')} /></div>
     </div>,
     <HumorCheck key="humor" value={humor} onChange={setHumor} />,
     <InfoPacienteWidget key="info" ctx={ctx} loading={ctxLoading} pacienteId={props.pacienteId} />,

@@ -75,9 +75,16 @@ export function useWebRTC({ token, role, caller, withVideo = true }: Options): W
 
     async function init() {
       try {
-        // 1. Captura mic+cam locais
+        // 1. Captura mic+cam locais.
+        // AEC/NS/AGC explícitos: sem isso o mic do paciente capta a voz do
+        // psicólogo saindo pelo alto-falante e ela volta pelo WebRTC sendo
+        // transcrita como se fosse do paciente (contamina a análise).
         stream = await navigator.mediaDevices.getUserMedia({
-          audio: true,
+          audio: {
+            echoCancellation: true,
+            noiseSuppression: true,
+            autoGainControl: true,
+          },
           video: withVideo ? { width: { ideal: 640 }, height: { ideal: 360 } } : false,
         })
         if (cancelled) { stream.getTracks().forEach(t => t.stop()); return }
