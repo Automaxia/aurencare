@@ -1,6 +1,11 @@
 # CLAUDE.md — Auren Care
 > Este arquivo é lido automaticamente pelo Claude Code. Contém todo o contexto do projeto.
-> Última atualização: maio 2026
+> Última atualização: junho 2026
+>
+> 📚 **Documentação complementar em [`docs/`](./docs/):**
+> [`spec.md`](./docs/spec.md) (especificação funcional) ·
+> [`sdd.md`](./docs/sdd.md) (design técnico/arquitetura) ·
+> [`tasks.md`](./docs/tasks.md) (tarefas e backlog).
 
 ---
 
@@ -602,26 +607,44 @@ Modal abre automaticamente ao encerrar. Contém:
 
 ---
 
-## 15. ESCOPO FASE 1 (MVP)
+## 15. ESCOPO — STATUS ATUAL
 
-### ✅ Incluído
-- Auth (login/logout)
+> O projeto está **em produção** (https://aurencare.automaxia.com.br/) e já cobre
+> Fase 1 + parte da Fase 2. Detalhe e backlog em [`docs/tasks.md`](./docs/tasks.md).
+
+### ✅ Implementado e em produção
+- Auth (login/logout) + cadastro público de psicólogo
 - Dashboard com agenda do dia e KPIs
-- Cadastro de pacientes (3 campos + preview WA)
-- Lista de pacientes com filtros
-- Agenda (dia/semana/mês)
-- Modal nova sessão
-- Evolution API: 6 fluxos completos
+- Pacientes: cadastro (dispara **WhatsApp + email**), lista com filtros, perfil, arquivar
+- Agenda (dia/semana/mês) + nova sessão (avulsa e série)
+- Evolution API: **7 fluxos** (inclui confirmação pós-sessão)
 - Pagar.me: PIX + crédito (6x) + débito + webhook
-- Modo Presença: transcrição ao vivo, widgets, marcação
-- Pós-sessão: resumo IA + assinatura
-- CFP badge + AES-256 + consentimento
+- Resend: email transacional (domínio verificado)
+- Modo Presença: transcrição **dual** (psicólogo Web Speech + paciente AssemblyAI),
+  9 widgets, marcação, **vídeo WebRTC P2P**, isolamento de falante, **análise paciente-only**
+- Pós-sessão: resumo IA + assinatura + sugestões
+- **Temas Recorrentes (grafo)** e **Evolução longitudinal** com chat de IA  ← era Fase 2
+- Financeiro + NF + exportação contábil/tributária; Saúde da Prática (KPIs)
+- CFP badge + AES-256 + consentimento + aiGuard
 
-### ❌ Fora do MVP
-- Grafo completo de temas (Fase 2)
-- Chat longitudinal completo (Fase 2)
+### 🔮 Futuro / fora de escopo
 - Modo supervisor (Fase 3)
-- App mobile (fora de escopo)
+- App mobile
+- Agendamento inbound pelo paciente via WhatsApp
+- Itens de hardening (validação de assinatura de webhooks, TURN, etc.) — ver `docs/tasks.md`
+
+---
+
+## 15.1 DEPLOY (Kubernetes)
+
+- **Monolito, 1 pod** (`aurencare-web`): frontend e API são o mesmo app/imagem. Os
+  hosts `aurencare.automaxia.com.br` (e `api.`) apontam para o mesmo Service.
+- **kubeconfig**: `local.yaml` (cluster Rancher) — usar `kubectl --insecure-skip-tls-verify`.
+- **Imagem**: `wesleyromualdo/aurencare-web:latest`. Migrations: `k8s/migrate-job.yaml`
+  (`node src/server/db/migrate.mjs`, idempotente — **não** usa `tsx`).
+- **Secret** `aurencare-secrets`: todas as envs. Banco/cache/Evolution já com hosts
+  in-cluster. ⚠️ `ENCRYPTION_KEY` não é rotacionável sem migração (cifra dados clínicos).
+- Detalhes de arquitetura e decisões em [`docs/sdd.md`](./docs/sdd.md).
 
 ---
 
