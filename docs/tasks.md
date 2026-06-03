@@ -30,8 +30,10 @@ Legenda prioridade: **P0** crítico (segurança/risco) · **P1** importante · *
   apontar o token na config do webhook da Evolution.
 - ⏳ **P0** Definir `ENCRYPTION_KEY` real **antes de qualquer dado clínico real**
   (trocar depois torna dados ilegíveis). Idem `NEXTAUTH_SECRET`.
-- ⏳ **P0** **Rotacionar credenciais expostas no histórico do git** (Resend, Evolution,
-  senha do Postgres do cluster) — entraram em commits anteriores do `.env.example`.
+- 🔄 **P0** **Rotacionar credenciais expostas no histórico do git.** ✅ senha do Postgres
+  rotacionada (valor antigo morto); ✅ `.env.example` agora só com placeholders + `local.yaml`
+  no `.gitignore`. ⏳ **falta:** Resend (gerar key nova no painel + revogar antiga) e decidir
+  sobre a Evolution API key (rotacionar = recriar instância → reescanear QR).
 - ⏳ **P1** Preencher demais placeholders no secret: `PAGARME_*`, `ASSEMBLYAI_API_KEY`.
 
 ## Pendências — operação/robustez
