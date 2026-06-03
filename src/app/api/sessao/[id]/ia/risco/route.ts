@@ -33,7 +33,7 @@ export async function POST(req: Request, { params }: { params: { id: string } })
   const transcricao = String(body?.transcricao ?? '').slice(0, 12_000)
   if (!transcricao) return NextResponse.json({ error: 'sem_transcricao' }, { status: 400 })
 
-  const raw = await chat(SYS, [{ role: 'user', content: transcricao }], { scope: 'ia.risco', maxTokens: 200 })
+  const raw = await chat(SYS, [{ role: 'user', content: transcricao }], { scope: 'ia.risco', maxTokens: 200, model: 'strong' })
 
   try {
     const json = JSON.parse(extractJson(raw))

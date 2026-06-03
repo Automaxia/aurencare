@@ -154,6 +154,7 @@ export async function chatProntuarioIa(input: ProntuarioIaInput): Promise<Prontu
     const resposta = await chat(SYS_PRONTUARIO_NARRATIVO, messages, {
       scope: 'prontuario.ia',
       maxTokens: 1200,
+      model: 'strong',
     })
     return { ok: true, resposta, contextoIncluido }
   } catch (err) {

@@ -64,6 +64,6 @@ export async function POST(req: Request) {
   }
 
   const sys = (contexto === 'temas' ? SYS_TEMAS : SYS_EVOLUCAO) + `\n\n${grounding}`
-  const text = await chat(sys, messages, { scope: `chat.${contexto}`, maxTokens: 600 })
+  const text = await chat(sys, messages, { scope: `chat.${contexto}`, maxTokens: 600, model: 'strong' })
   return NextResponse.json({ text })
 }

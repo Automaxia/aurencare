@@ -191,7 +191,7 @@ ${top || '(nenhuma)'}
 Co-ocorrências (peso = co-aparecer):
 ${arestas || '(nenhuma)'}`
 
-  const raw = await chat(SYS_OBS, [{ role: 'user', content: userMsg }], { scope: 'evolucao.obs', maxTokens: 900 })
+  const raw = await chat(SYS_OBS, [{ role: 'user', content: userMsg }], { scope: 'evolucao.obs', maxTokens: 900, model: 'strong' })
 
   try {
     const m = raw.match(/\{[\s\S]*\}/)

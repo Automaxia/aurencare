@@ -5,7 +5,21 @@ import { log } from './log'
 import { validarTextoIA, sanitizarTextoIA } from './aiGuard'
 import { CLINICAL_VOICE } from './clinicalVoice'
 
-const MODEL = 'claude-sonnet-4-20250514'
+/**
+ * Roteamento por tier de modelo (otimização de custo §IA):
+ * - `fast`   (Haiku 4.5)  — chamadas mecânicas/ao vivo (tom, falante, obs-viva,
+ *   contexto, marcar-turnos, insight, temas, saúde, voz WA, marcos). ~3× mais barato.
+ * - `strong` (Sonnet 4.6) — APENAS onde vira prontuário ou avalia risco
+ *   (resumo, risco, evolução longitudinal, chat clínico, narrativa de prontuário).
+ *   Qualidade clínica + barreira anti-diagnóstico (CFP 09/2024) não pode escorregar.
+ *
+ * Default é `fast` — escolha consciente: o caller sensível PRECISA pedir `strong`.
+ */
+export type ModelTier = 'fast' | 'strong'
+const MODEL_IDS: Record<ModelTier, string> = {
+  fast:   'claude-haiku-4-5-20251001',
+  strong: 'claude-sonnet-4-6',
+}
 
 let client: Anthropic | null = null
 function getClient() {
@@ -19,7 +33,7 @@ export type ChatMessage = { role: 'user' | 'assistant'; content: string }
 export async function chat(
   systemPrompt: string,
   messages: ChatMessage[],
-  opts: { maxTokens?: number; scope?: string } = {},
+  opts: { maxTokens?: number; scope?: string; model?: ModelTier } = {},
 ): Promise<string> {
   const c = getClient()
   if (!c) {
@@ -29,7 +43,7 @@ export async function chat(
 
   try {
     const res = await c.messages.create({
-      model: MODEL,
+      model: MODEL_IDS[opts.model ?? 'fast'],
       max_tokens: opts.maxTokens ?? 1000,
       system: systemPrompt,
       messages: messages.slice(-8),
@@ -67,5 +81,5 @@ ${transcricao.slice(0, 8_000)}
 
 Gere o rascunho do resumo desta sessão.`
 
-  return chat(SYS, [{ role: 'user', content: user }], { maxTokens: 600, scope: 'anthropic.resumo' })
+  return chat(SYS, [{ role: 'user', content: user }], { maxTokens: 600, scope: 'anthropic.resumo', model: 'strong' })
 }
