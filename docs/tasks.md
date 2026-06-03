@@ -23,8 +23,11 @@ Legenda prioridade: **P0** crítico (segurança/risco) · **P1** importante · *
 
 ## Pendências — segurança
 
-- ⏳ **P0** **Validar assinatura dos webhooks** Pagar.me e Evolution (hoje aceitam
-  qualquer POST). `PAGARME_WEBHOOK_SECRET` existe mas não é verificado.
+- 🔄 **P0** **Verificação de webhooks implementada** (Pagar.me: HMAC `X-Hub-Signature`;
+  Evolution: token compartilhado `x-webhook-token`/`?token=`). **Degradação segura:**
+  só *exige* quando o segredo está configurado. ⏳ **Falta ativar:** definir
+  `PAGARME_WEBHOOK_SECRET` e `EVOLUTION_WEBHOOK_TOKEN` reais no secret do cluster e
+  apontar o token na config do webhook da Evolution.
 - ⏳ **P0** Definir `ENCRYPTION_KEY` real **antes de qualquer dado clínico real**
   (trocar depois torna dados ilegíveis). Idem `NEXTAUTH_SECRET`.
 - ⏳ **P0** **Rotacionar credenciais expostas no histórico do git** (Resend, Evolution,

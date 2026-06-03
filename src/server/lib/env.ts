@@ -16,6 +16,7 @@ export const env = {
   evolutionUrl:        process.env.EVOLUTION_API_URL,
   evolutionKey:        process.env.EVOLUTION_API_KEY,
   evolutionInstance:   process.env.EVOLUTION_INSTANCE_NAME || 'auren-care',
+  evolutionWebhookTok: process.env.EVOLUTION_WEBHOOK_TOKEN,
   pagarmeKey:          process.env.PAGARME_API_KEY,
   pagarmeWebhookSec:   process.env.PAGARME_WEBHOOK_SECRET,
   assemblyKey:         process.env.ASSEMBLYAI_API_KEY,

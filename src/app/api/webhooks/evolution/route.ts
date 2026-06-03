@@ -2,13 +2,32 @@ import { NextResponse } from 'next/server'
 import { processarMensagemRecebida } from '@/server/services/inbox'
 import { log } from '@/server/lib/log'
 import { redis } from '@/server/lib/redis'
+import { env } from '@/server/lib/env'
+import { verifySharedToken } from '@/server/lib/webhookAuth'
 
 /**
  * Webhook Evolution API. §10 Fluxo 4.
  * Payload típico (messages.upsert): { event, data: { key: { remoteJid }, message: { conversation } } }
  * Outros eventos relevantes: qrcode.updated, connection.update
+ *
+ * Autenticidade: Evolution não assina o payload, então usamos um token
+ * compartilhado (header `x-webhook-token` ou query `?token=`) com
+ * EVOLUTION_WEBHOOK_TOKEN. Sem token configurado, libera com aviso.
  */
 export async function POST(req: Request) {
+  const url = new URL(req.url)
+  const tok = verifySharedToken(
+    req.headers.get('x-webhook-token') ?? url.searchParams.get('token'),
+    env.evolutionWebhookTok,
+  )
+  if (tok === 'invalid') {
+    log.warn('evolution.webhook', 'token inválido — rejeitado')
+    return NextResponse.json({ error: 'invalid_token' }, { status: 401 })
+  }
+  if (tok === 'unconfigured') {
+    log.warn('evolution.webhook', 'EVOLUTION_WEBHOOK_TOKEN ausente — aceitando sem verificar token')
+  }
+
   let body: any
   try { body = await req.json() } catch { return NextResponse.json({ error: 'bad json' }, { status: 400 }) }
 
