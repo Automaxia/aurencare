@@ -700,6 +700,11 @@ components/
 ```
 
 ### Tom da interface
+- **Personificação:** na copy user-facing, a IA é **"a Auren"** (feminino, como uma
+  assistente/colega) — "a Auren observa", "a Auren sugere", "extraído pela Auren".
+  Tira o peso do preconceito do termo "IA". **Exceção:** manter **"IA assistente"**
+  nos selos de disclosure (CFP 09/2024) e nos textos legais/de consentimento
+  (termos LGPD/CFP), onde a transparência de que há IA é obrigatória.
 - IA age muito, aparece pouco
 - Sem linguagem analítica ou diagnóstica
 - Sem badges agressivos

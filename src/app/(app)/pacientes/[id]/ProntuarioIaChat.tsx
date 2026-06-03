@@ -199,7 +199,7 @@ export function ProntuarioIaChat({ pacienteId }: { pacienteId: string }) {
         <span style={{ fontSize: 14 }}>🧭</span>
         <div style={{ fontSize: 11, color: '#7a5520', lineHeight: 1.55 }}>
           <strong>IA assistente · CFP 09/2024 · LGPD.</strong> O texto gerado é rascunho.
-          Revise antes de assinar. A IA usa contexto clínico já registrado — nada é treinado.
+          Revise antes de assinar. A Auren usa contexto clínico já registrado — nada é treinado.
         </div>
       </div>
 
@@ -379,7 +379,7 @@ function HistoricoBar({
         background: 'var(--surface)', border: '1px solid var(--border)',
         fontSize: 11, color: 'var(--faint)', textAlign: 'center',
       }}>
-        Nenhum prontuário IA salvo ainda. Salve este pra retomar depois.
+        Nenhum rascunho da Auren salvo ainda. Salve este pra retomar depois.
       </div>
     )
   }

@@ -82,7 +82,7 @@ export function ExportarProntuario({ pacienteId, sessoesAssinadas }: Props) {
                 Relatório de sessão
               </TabBtn>
               <TabBtn ativo={aba === 'ia'} onClick={() => setAba('ia')}>
-                Gerar com IA <span style={{ fontSize: 9, color: 'var(--accent)', marginLeft: 4 }}>NOVO</span>
+                Gerar com a Auren <span style={{ fontSize: 9, color: 'var(--accent)', marginLeft: 4 }}>NOVO</span>
               </TabBtn>
             </div>
 
