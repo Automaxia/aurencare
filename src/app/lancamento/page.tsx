@@ -405,8 +405,8 @@ function PraticaIntegrada() {
           />
           <BlocoOperacional
             icone="◑"
-            titulo="Pagamentos PIX e cartão"
-            corpo="Sub-conta Pagar.me por psicólogo(a). O dinheiro cai direto na sua conta. Repasses em D+1 (PIX) ou D+30 (cartão)."
+            titulo="Pagamentos pelo Pagar.me"
+            corpo="PIX, crédito e débito — pelo Pagar.me, tanto nas sessões que seus pacientes pagam quanto no seu acesso ao Audere. O dinheiro das sessões cai direto na sua conta."
           />
           <BlocoOperacional
             icone="◐"
@@ -485,7 +485,7 @@ function Privacidade() {
             />
             <ChkRow
               titulo="Audere não toca seu dinheiro"
-              corpo="Pagamentos vão direto pra sua sub-conta Pagar.me, via split automático. Bloqueio bancário do Audere não afeta seu recebimento."
+              corpo="O que seus pacientes pagam vai direto pra sua conta no Pagar.me. Um problema no Audere não afeta o seu recebimento."
             />
           </div>
 
