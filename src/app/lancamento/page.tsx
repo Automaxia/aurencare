@@ -405,8 +405,8 @@ function PraticaIntegrada() {
           />
           <BlocoOperacional
             icone="◑"
-            titulo="Pagamentos pelo Pagar.me"
-            corpo="PIX, crédito e débito — pelo Pagar.me, tanto nas sessões que seus pacientes pagam quanto no seu acesso ao Audere. O dinheiro das sessões cai direto na sua conta."
+            titulo="Pagamentos seguros"
+            corpo="PIX, crédito e débito em ambiente seguro — para as sessões que seus pacientes pagam e para o seu acesso ao Audere. O valor das sessões cai direto na sua conta."
           />
           <BlocoOperacional
             icone="◐"
@@ -485,7 +485,7 @@ function Privacidade() {
             />
             <ChkRow
               titulo="Audere não toca seu dinheiro"
-              corpo="O que seus pacientes pagam vai direto pra sua conta no Pagar.me. Um problema no Audere não afeta o seu recebimento."
+              corpo="O que seus pacientes pagam cai direto na sua conta, por processamento de pagamento certificado e independente do Audere. Um problema no Audere não afeta o seu recebimento."
             />
           </div>
 
