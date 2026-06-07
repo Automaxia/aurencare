@@ -56,8 +56,6 @@ function Hero() {
   return (
     <section style={{ padding: '88px 0 64px', position: 'relative' }}>
       <div className="lp-wrap" style={{ display: 'grid', gridTemplateColumns: '1fr', gap: 28, textAlign: 'center', maxWidth: 820 }}>
-        <CfpPill />
-
         <h1 style={{
           fontFamily: 'var(--font-display)', fontSize: 56, fontWeight: 300,
           color: '#291860', lineHeight: 1.08, letterSpacing: '-.01em',
@@ -98,22 +96,6 @@ function Hero() {
   )
 }
 
-function CfpPill() {
-  return (
-    <div style={{
-      display: 'inline-flex', alignSelf: 'center',
-      alignItems: 'center', gap: 8,
-      padding: '6px 14px', borderRadius: 999,
-      background: 'rgba(176,125,64,.10)',
-      border: '1px solid rgba(176,125,64,.22)',
-      fontSize: 11, color: '#7a5520', letterSpacing: '.04em',
-    }}>
-      <span style={{ fontSize: 13 }}>🧭</span>
-      IA assistente · CFP 09/2024 · LGPD
-    </div>
-  )
-}
-
 // ─── Continuidade longitudinal (1ª seção de produto · o diferenciador) ──
 
 function Continuidade() {
@@ -150,63 +132,79 @@ function Continuidade() {
           />
         </div>
 
-        <LongitudinalDemo />
+        <GrafoDemo />
       </div>
     </section>
   )
 }
 
-function LongitudinalDemo() {
-  const clusters = [
-    { nome: 'Trabalho',   cor: '#6a4ec8', pct: 85, n: '11 sess.' },
-    { nome: 'Relacional', cor: '#5a9e8a', pct: 70, n: '9 sess.' },
-    { nome: 'Autoestima', cor: '#b07d40', pct: 55, n: '7 sess.' },
-    { nome: 'Família',    cor: '#c4607a', pct: 30, n: '4 sess.' },
+function GrafoDemo() {
+  // Nós = temas (cor por cluster, raio por frequência). Coords em viewBox 340×220.
+  const nodes = [
+    { id: 'ansiedade',  x: 152, y: 112, r: 27, cor: '#6a4ec8' },
+    { id: 'cobrança',   x: 256, y: 64,  r: 20, cor: '#b07d40' },
+    { id: 'trabalho',   x: 84,  y: 48,  r: 18, cor: '#5a9e8a' },
+    { id: 'autoestima', x: 252, y: 170, r: 18, cor: '#b07d40' },
+    { id: 'sono',       x: 92,  y: 182, r: 15, cor: '#5a9e8a' },
+    { id: 'mãe',        x: 36,  y: 122, r: 14, cor: '#c4607a' },
+    { id: 'sumir',      x: 210, y: 26,  r: 12, cor: '#6a4ec8' },
   ]
-  const tags = [
-    { t: 'burnout · recorrente',           cls: 'accent' },
-    { t: 'vínculo · crescente',            cls: 'sage' },
-    { t: 'sumir · s4, s7',                 cls: 'amber' },
-    { t: 'mãe · co-ocorre com autoestima', cls: 'rose' },
-  ] as const
-  const tagBg: Record<string, { bg: string; cor: string }> = {
-    accent: { bg: 'rgba(106,78,200,.10)', cor: 'var(--accent)' },
-    sage:   { bg: 'rgba(90,158,138,.13)', cor: '#2a6456' },
-    amber:  { bg: 'rgba(168,120,64,.13)', cor: '#7a5520' },
-    rose:   { bg: 'rgba(196,96,122,.12)', cor: 'var(--rose)' },
-  }
+  const pos: Record<string, { x: number; y: number; r: number; cor: string }> =
+    Object.fromEntries(nodes.map(n => [n.id, n]))
+  const edges: [string, string, number][] = [
+    ['ansiedade', 'cobrança', .7], ['ansiedade', 'trabalho', .5], ['ansiedade', 'sono', .45],
+    ['ansiedade', 'sumir', .4], ['ansiedade', 'mãe', .35],
+    ['cobrança', 'autoestima', .6], ['mãe', 'autoestima', .55], ['trabalho', 'cobrança', .4],
+  ]
   return (
     <div style={{
       marginTop: 24, padding: 22, borderRadius: 14,
       background: 'var(--card)', border: '1px solid var(--border)',
+      display: 'flex', flexWrap: 'wrap', gap: 28, alignItems: 'center',
     }}>
-      <div style={{
-        fontSize: 10, color: 'var(--faint)', textTransform: 'uppercase',
-        letterSpacing: '.08em', fontFamily: 'var(--font-mono), monospace', marginBottom: 16,
-      }}>Grafo de temas · Marina · 14 sessões</div>
-
-      <div style={{ display: 'grid', gap: 9 }}>
-        {clusters.map(c => (
-          <div key={c.nome} style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-            <span style={{ width: 8, height: 8, borderRadius: '50%', background: c.cor, flexShrink: 0 }} />
-            <span style={{ fontSize: 11.5, color: 'var(--ink-soft)', width: 78, flexShrink: 0 }}>{c.nome}</span>
-            <span style={{ flex: 1, height: 5, borderRadius: 999, background: 'var(--surface)', overflow: 'hidden' }}>
-              <span style={{ display: 'block', width: `${c.pct}%`, height: '100%', background: c.cor, opacity: .55 }} />
-            </span>
-            <span style={{ fontSize: 10.5, color: 'var(--muted)', width: 46, textAlign: 'right' }}>{c.n}</span>
-          </div>
-        ))}
+      {/* Grafo */}
+      <div style={{ flex: '1 1 300px', minWidth: 280 }}>
+        <div style={{
+          fontSize: 10, color: 'var(--faint)', textTransform: 'uppercase',
+          letterSpacing: '.08em', fontFamily: 'var(--font-mono), monospace', marginBottom: 12,
+        }}>Grafo de temas · Marina · 14 sessões</div>
+        <svg viewBox="0 0 340 220" style={{ width: '100%', height: 'auto', display: 'block' }}>
+          {edges.map(([a, b, w], i) => (
+            <line key={i} x1={pos[a].x} y1={pos[a].y} x2={pos[b].x} y2={pos[b].y}
+              stroke="#6a4ec8" strokeOpacity={0.12 + w * 0.2} strokeWidth={1 + w * 1.6} />
+          ))}
+          {nodes.map(n => (
+            <g key={n.id}>
+              <circle cx={n.x} cy={n.y} r={n.r} fill={n.cor} fillOpacity={0.85} />
+              <text x={n.x} y={n.y + n.r + 11} textAnchor="middle" fontSize="10"
+                fill="var(--ink-soft)" fontFamily="var(--font-display), serif">{n.id}</text>
+            </g>
+          ))}
+        </svg>
       </div>
 
-      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 14 }}>
-        {tags.map(({ t, cls }) => (
-          <span key={t} style={{
-            fontSize: 10.5, padding: '3px 9px', borderRadius: 999,
-            background: tagBg[cls].bg, color: tagBg[cls].cor, fontWeight: 500,
-          }}>{t}</span>
-        ))}
+      {/* Valor pro psicólogo */}
+      <div style={{ flex: '1 1 240px', minWidth: 220 }}>
+        <p style={{ fontSize: 14, color: 'var(--ink-soft)', lineHeight: 1.6, margin: '0 0 14px' }}>
+          Cada tema vira um <strong>nó</strong> — quanto mais aparece nas sessões, maior.
+          As <strong>linhas</strong> mostram o que costuma surgir junto.
+        </p>
+        <ul style={{ margin: 0, padding: 0, listStyle: 'none', display: 'grid', gap: 10 }}>
+          <ValorItem>Abra <strong>antes da sessão</strong> e veja o caso inteiro num olhar.</ValorItem>
+          <ValorItem>&ldquo;Cobrança&rdquo; puxando &ldquo;ansiedade&rdquo; e &ldquo;autoestima&rdquo;: o padrão fica <strong>visível</strong>, não perdido em meses de anotação.</ValorItem>
+          <ValorItem>As cores agrupam por natureza — emocional, relacional, situacional, cognitivo.</ValorItem>
+        </ul>
       </div>
     </div>
+  )
+}
+
+function ValorItem({ children }: { children: React.ReactNode }) {
+  return (
+    <li style={{ display: 'flex', gap: 9, alignItems: 'flex-start', fontSize: 13, color: 'var(--ink-soft)', lineHeight: 1.5 }}>
+      <span style={{ color: 'var(--accent)', marginTop: 1, flexShrink: 0 }}>◍</span>
+      <span>{children}</span>
+    </li>
   )
 }
 
@@ -607,7 +605,6 @@ function FooterLanding() {
           <Logo size={28} />
           <p style={{ fontSize: 12, color: 'var(--muted)', marginTop: 12, lineHeight: 1.55, maxWidth: 320 }}>
             Sistema operacional da prática clínica.
-            IA assistente · CFP 09/2024 · LGPD.
           </p>
         </div>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 6, fontSize: 12, color: 'var(--muted)', alignItems: 'flex-end' }}>
