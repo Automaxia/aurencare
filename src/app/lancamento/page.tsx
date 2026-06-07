@@ -177,7 +177,7 @@ function GrafoDemo() {
             <g key={n.id}>
               <circle cx={n.x} cy={n.y} r={n.r} fill={n.cor} fillOpacity={0.85} />
               <text x={n.x} y={n.y + n.r + 11} textAnchor="middle" fontSize="10"
-                fill="var(--ink-soft)" fontFamily="var(--font-display), serif">{n.id}</text>
+                fill="var(--ink-soft, #3d3852)" fontFamily="var(--font-display), serif">{n.id}</text>
             </g>
           ))}
         </svg>
@@ -682,7 +682,11 @@ function Styles() {
       .lp-grid-3 { display: grid; gap: 18px; grid-template-columns: repeat(3, 1fr); }
 
       @media (max-width: 900px) {
-        .lp-wrap > div[style*="grid-template-columns: 1fr 1fr"] { grid-template-columns: 1fr !important; }
+        /* Colapsa qualquer grid de 2 colunas no mobile. Usa substring "1fr 1fr"
+           (sem depender do espaço após ':', que o React não serializa) e cobre
+           tanto o .lp-wrap-grid quanto grids aninhados. */
+        .lp-wrap[style*="1fr 1fr"],
+        .lp-wrap [style*="1fr 1fr"] { grid-template-columns: 1fr !important; }
         .lp-grid-2, .lp-grid-3 { grid-template-columns: 1fr; }
         h1 { font-size: 38px !important; }
         h2 { font-size: 30px !important; }

@@ -71,15 +71,12 @@ export function ListaEsperaForm() {
           autoComplete="email"
         />
       </Field>
-      <div style={{ display: 'grid', gridTemplateColumns: 'auto 1fr', gap: 12 }}>
-        <Field label="CRP (opcional)">
-          <input
-            value={crp} onChange={e => setCrp(e.target.value)}
-            placeholder="CRP 06/12345"
-            style={{ width: 140 }}
-          />
-        </Field>
-      </div>
+      <Field label="CRP (opcional)">
+        <input
+          value={crp} onChange={e => setCrp(e.target.value)}
+          placeholder="CRP 06/12345"
+        />
+      </Field>
       <Field label="O que quer testar primeiro? (opcional)">
         <textarea
           value={mensagem} onChange={e => setMensagem(e.target.value)}
@@ -92,17 +89,7 @@ export function ListaEsperaForm() {
         <div style={{ color: 'var(--rose)', fontSize: 12 }}>{erro}</div>
       )}
 
-      <button
-        type="submit"
-        disabled={enviando}
-        style={{
-          padding: '13px 20px',
-          borderRadius: 10, border: 'none', cursor: 'pointer',
-          background: 'var(--accent)', color: 'white',
-          fontFamily: 'inherit', fontSize: 14, fontWeight: 500,
-          transition: 'background .2s var(--ease)',
-        }}
-      >
+      <button type="submit" className="fb" disabled={enviando}>
         {enviando ? 'Enviando…' : 'Entrar na lista de espera →'}
       </button>
 
@@ -117,8 +104,16 @@ export function ListaEsperaForm() {
           font-size: 14px; font-family: inherit; color: var(--ink); outline: none;
           transition: border-color .15s var(--ease);
         }
-        input:focus, textarea:focus { border-color: var(--accent); }
+        input:focus, textarea:focus { border-color: var(--accent, #6a4ec8); }
         textarea { resize: vertical; min-height: 60px; }
+        .fb {
+          width: 100%; padding: 13px 20px; border-radius: 10px; border: none;
+          cursor: pointer; background: var(--accent, #6a4ec8); color: #fff;
+          font-family: inherit; font-size: 14px; font-weight: 500;
+          transition: background .2s var(--ease);
+        }
+        .fb:hover:not(:disabled) { background: #5a40b0; }
+        .fb:disabled { opacity: .6; cursor: default; }
       `}</style>
     </form>
   )
