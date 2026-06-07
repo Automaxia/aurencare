@@ -484,6 +484,10 @@ function Privacidade() {
               corpo="Termos CFP 11/2018, CFP 09/2024 e LGPD — assinados com IP e timestamp automáticos."
             />
             <ChkRow
+              titulo="Pagamentos com padrão bancário"
+              corpo="Processamento certificado PCI DSS Nível 1 — o mais alto padrão de segurança — com criptografia, antifraude, autenticação 3DS 2.0 e tokenização de cartão. Em conformidade com o Banco Central."
+            />
+            <ChkRow
               titulo="Audere não toca seu dinheiro"
               corpo="O que seus pacientes pagam cai direto na sua conta, por processamento de pagamento certificado e independente do Audere. Um problema no Audere não afeta o seu recebimento."
             />
