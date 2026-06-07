@@ -39,9 +39,10 @@ Banco:       PostgreSQL + Redis (cache/sessões)
 Auth:        NextAuth.js
 Storage:     S3-compatible (áudio temporário)
 WhatsApp:    Evolution API (Baileys)
-Pagamentos:  Pagar.me (PIX · crédito até 6x · débito)
-IA:          Anthropic API · claude-sonnet-4-20250514
-Transcrição: Whisper ou AssemblyAI (pt-BR nativo)
+Pagamentos:  Pagar.me (sessões: PIX/crédito/débito · assinatura: cartão recorrente)
+IA:          Anthropic API · roteamento por tier (claude-haiku-4-5 p/ chamadas
+             ao vivo/mecânicas · claude-sonnet-4-6 p/ resumo, risco e longitudinal)
+Transcrição: AssemblyAI Universal-Streaming (paciente) + Web Speech (psicólogo)
 Realtime:    WebSocket (sessão ao vivo) + SSE (notificações)
 ```
 
@@ -369,7 +370,7 @@ const response = await fetch('https://api.anthropic.com/v1/messages', {
     'anthropic-version': '2023-06-01'
   },
   body: JSON.stringify({
-    model: 'claude-sonnet-4-20250514',
+    model: 'claude-sonnet-4-6',   // tier 'strong' (chat clínico/longitudinal); chamadas mecânicas usam claude-haiku-4-5
     max_tokens: 1000,
     system: SYSTEM_PROMPT,
     messages: conversationHistory.slice(-8)
@@ -628,6 +629,18 @@ Modal abre automaticamente ao encerrar. Contém:
 - **Temas Recorrentes (grafo)** e **Evolução longitudinal** com chat de IA  ← era Fase 2
 - Financeiro + NF + exportação contábil/tributária; Saúde da Prática (KPIs)
 - CFP badge + AES-256 + consentimento + aiGuard
+
+### 🧩 Implementado em código (branch `dev`, aguardando deploy)
+- **Planos / assinatura (freemium pago)** — Free (3 sessões-IA/mês) · Essencial
+  R$ 69,90 (30) · Pro R$ 159,90 (80). Medidor = **sessões com IA/mês** (não nº de
+  pacientes); gate de cota no Modo Presença; Pagar.me **Subscriptions** (cartão
+  recorrente, tokenização v5 no front); UI `/planos`. Sem excedente (preço fixo).
+  Config em `src/server/lib/planos.ts`. ⏳ runtime: migration 018, chaves
+  `pk_`/`sk_` Pagar.me, `PAGARME_WEBHOOK_SECRET`.
+- **Otimização de custo de IA** — roteamento Haiku 4.5 / Sonnet 4.6 + batching do
+  `tom-turno` (~R$ 1,27/sessão-IA; a transcrição AssemblyAI é o piso).
+- **Rebrand Auren → Audere** — camada user-facing renomeada; infra técnica ainda
+  `aurencare` (domínio/banco/k8s/imagem).
 
 ### 🔮 Futuro / fora de escopo
 - Modo supervisor (Fase 3)
