@@ -1,4 +1,4 @@
-# CLAUDE.md — Auren Care
+# CLAUDE.md — Audere
 > Este arquivo é lido automaticamente pelo Claude Code. Contém todo o contexto do projeto.
 > Última atualização: junho 2026
 >
@@ -9,7 +9,7 @@
 
 ---
 
-## 1. O QUE É O AUREN CARE
+## 1. O QUE É O AUDERE
 
 **"Sistema Operacional da Prática Clínica"** — plataforma SaaS para psicólogos clínicos privados.
 
@@ -104,11 +104,13 @@ A logo é uma espiral construída em 3 arcos progressivos + ponto final:
 
 Background do ícone: `linear-gradient(145deg, #7b5ee8, #5a9e8a)`
 
-### Wordmark
+### Wordmark — "Audere" (nome único, sem "Care")
 ```
-"Auren" — Cormorant Garamond weight 300, color #291860
-"Care"  — Cormorant Garamond weight 500, gradient #6a4ec8→#5c9d88 via background-clip:text
+"Au"   — Cormorant Garamond weight 300, color #291860
+"dere" — Cormorant Garamond weight 500, gradient #6a4ec8→#5c9d88 via background-clip:text
 ```
+> Persona da IA = "a Audere" (feminino). Identificadores técnicos seguem
+> `aurencare`/`auren` (domínio, banco, k8s, imagem) — rename de infra é à parte.
 
 ### Sidebar
 - Background: `#efecf7` (lavanda suave)
@@ -700,8 +702,8 @@ components/
 ```
 
 ### Tom da interface
-- **Personificação:** na copy user-facing, a IA é **"a Auren"** (feminino, como uma
-  assistente/colega) — "a Auren observa", "a Auren sugere", "extraído pela Auren".
+- **Personificação:** na copy user-facing, a IA é **"a Audere"** (feminino, como uma
+  assistente/colega) — "a Audere observa", "a Audere sugere", "extraído pela Audere".
   Tira o peso do preconceito do termo "IA". **Exceção:** manter **"IA assistente"**
   nos selos de disclosure (CFP 09/2024) e nos textos legais/de consentimento
   (termos LGPD/CFP), onde a transparência de que há IA é obrigatória.
@@ -717,4 +719,4 @@ components/
 
 ---
 
-*Auren Care · CLAUDE.md · maio 2026 · Daniel Versiani · Luiz Filho · Wesley Romualdo*
+*Audere · CLAUDE.md · jun 2026 · Daniel Versiani · Luiz Filho · Wesley Romualdo*
