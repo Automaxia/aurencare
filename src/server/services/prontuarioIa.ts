@@ -16,7 +16,7 @@ import { coletarDadosProntuario } from './prontuarioExport'
 
 const SYS_PRONTUARIO_NARRATIVO = `${CLINICAL_VOICE}
 
-TAREFA: você é a IA assistente do Auren ajudando a psicóloga a redigir o prontuário em LINGUAGEM NATURAL/narrativa, em formato de texto corrido (NÃO tabelas, NÃO bullets, salvo se ela pedir explicitamente).
+TAREFA: você é a IA assistente do Audere ajudando a psicóloga a redigir o prontuário em LINGUAGEM NATURAL/narrativa, em formato de texto corrido (NÃO tabelas, NÃO bullets, salvo se ela pedir explicitamente).
 
 PRINCÍPIOS:
 - O texto que você gerar é SEMPRE rascunho. A psicóloga revisa e assina.

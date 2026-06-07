@@ -240,5 +240,5 @@ function breadcrumbFor(pathname: string): { label: string; sub?: string } {
   if (pathname === '/saude') return { label: 'Saúde da Prática' }
   const hit = NAV.find(n => n.href === pathname)
   if (hit) return { label: hit.label }
-  return { label: 'Auren Care' }
+  return { label: 'Audere' }
 }

@@ -9,7 +9,7 @@ export type PerfilPsicologo = {
   email: string
   telefone: string | null
   valorSessao: number | null
-  /** Detalhe técnico — gerenciado pelo Auren, não exposto na UI. */
+  /** Detalhe técnico — gerenciado pelo Audere, não exposto na UI. */
   waInstancia: string | null
   waConectado: boolean
   pagarmeRecipientId: string | null

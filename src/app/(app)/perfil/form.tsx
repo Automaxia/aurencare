@@ -180,7 +180,7 @@ export function PerfilForm({ initial, emailAtual, waConectado }: Props) {
             </div>
           </div>
           <p style={{ fontSize: 11, color: 'var(--faint)', marginTop: 14, lineHeight: 1.55 }}>
-            A conexão técnica é gerenciada pelo Auren. Se tiver problemas, fale com o suporte.
+            A conexão técnica é gerenciada pelo Audere. Se tiver problemas, fale com o suporte.
           </p>
         </div>
 

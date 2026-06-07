@@ -53,7 +53,7 @@ export default async function ConfirmarPage({ params }: Props) {
         </div>
       </main>
       <footer style={{ padding: '20px 24px', textAlign: 'center', fontSize: 11, color: 'var(--faint)' }}>
-        Auren Care · sistema operacional da prática clínica
+        Audere · sistema operacional da prática clínica
       </footer>
     </div>
   )

@@ -160,7 +160,7 @@ export function montarCsv(d: ExportacaoMensal): string {
   const linhas: string[] = []
 
   // Cabeçalho com metadados
-  linhas.push(`# Auren Care · Relatório financeiro mensal · ${d.rotuloMes}`)
+  linhas.push(`# Audere · Relatório financeiro mensal · ${d.rotuloMes}`)
   linhas.push(`# Profissional: ${d.psicologo.nome} (${d.psicologo.crp})`)
   linhas.push(`# Email: ${d.psicologo.email}`)
   if (d.psicologo.nomeContador || d.psicologo.emailContador) {

@@ -73,7 +73,7 @@ export function TermoUsoVideo({ psicologaNome }: Props) {
             temas em sessões futuras.
           </p>
           <p>
-            <strong>A IA do Auren não emite diagnóstico</strong>, não substitui avaliação clínica
+            <strong>A IA do Audere não emite diagnóstico</strong>, não substitui avaliação clínica
             e não interpreta clinicamente o que você relata. Toda nota gerada é um rascunho
             destinado à revisão e assinatura da própria psicóloga, conforme a Resolução CFP
             nº 09/2024.

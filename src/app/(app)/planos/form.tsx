@@ -236,7 +236,7 @@ export function PlanosForm({ planos, atual, mock }: Props) {
               <button className="btn ghost" onClick={() => { setEscolhido(null); setMsg(null) }} disabled={processando}>Cancelar</button>
             </div>
             <div style={{ fontSize: 11, color: 'var(--muted)' }}>
-              🔒 Dados do cartão vão direto e cifrados pra Pagar.me — não passam pelos servidores do Auren.
+              🔒 Dados do cartão vão direto e cifrados pra Pagar.me — não passam pelos servidores do Audere.
             </div>
           </div>
         )

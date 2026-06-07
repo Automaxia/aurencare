@@ -166,7 +166,7 @@ export function Wizard({ nomePsicologa }: Props) {
         {step === 1 ? 'Configurar recebimentos' : step === 2 ? 'Conta bancária' : 'Chave PIX'}
       </h1>
       <p style={{ color: 'var(--muted)', fontSize: 14, marginTop: 0, marginBottom: 24, lineHeight: 1.55 }}>
-        {step === 1 && 'Dados pra registrar você como recebedora no Pagar.me. O dinheiro das sessões cai direto na sua conta — Auren nunca toca o valor.'}
+        {step === 1 && 'Dados pra registrar você como recebedora no Pagar.me. O dinheiro das sessões cai direto na sua conta — Audere nunca toca o valor.'}
         {step === 2 && 'Conta de destino dos repasses. Pagamentos PIX caem em 1 dia útil, cartão em até 30 dias.'}
         {step === 3 && 'Opcional. Se preencher, sua chave PIX fica registrada como preferência de recebimento e será usada como destino padrão em estornos para pacientes que pagaram via PIX.'}
       </p>

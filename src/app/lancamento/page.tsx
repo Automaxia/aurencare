@@ -78,7 +78,7 @@ function Hero() {
         }}>
           Agenda, pagamentos, sala de vídeo e transcrição — todos integrados. E um
           mapa vivo do processo terapêutico que cresce sessão a sessão.{' '}
-          <strong>A Auren organiza, observa e sugere — a decisão clínica é sempre sua.</strong>
+          <strong>A Audere organiza, observa e sugere — a decisão clínica é sempre sua.</strong>
         </p>
 
         <div style={{ display: 'flex', justifyContent: 'center', gap: 12, marginTop: 6 }}>
@@ -127,7 +127,7 @@ function Continuidade() {
         <Eyebrow>Entre uma sessão e outra</Eyebrow>
         <H2>Continuidade longitudinal.</H2>
         <P>
-          Em vez de relembrar à mão o que aconteceu três semanas atrás, a Auren
+          Em vez de relembrar à mão o que aconteceu três semanas atrás, a Audere
           mantém um mapa vivo do processo clínico — pra você abrir antes da sessão e ver de onde
           retomar.
         </P>
@@ -259,7 +259,7 @@ function ModoPresenca() {
               por longos trechos merece atenção.
             </NotaCard>
             <NotaCard rotulo="Temas ao vivo + histórico">
-              Quando &ldquo;sumir&rdquo; aparece na sessão de hoje, a Auren já sabe
+              Quando &ldquo;sumir&rdquo; aparece na sessão de hoje, a Audere já sabe
               que surgiu nas sessões 4 e 7. Você não precisa lembrar — está visível,
               com o contexto de quando e como apareceu antes.
             </NotaCard>
@@ -484,14 +484,14 @@ function Privacidade() {
               corpo="Termos CFP 11/2018, CFP 09/2024 e LGPD — assinados com IP e timestamp automáticos."
             />
             <ChkRow
-              titulo="Auren não toca seu dinheiro"
-              corpo="Pagamentos vão direto pra sua sub-conta Pagar.me, via split automático. Bloqueio bancário do Auren não afeta seu recebimento."
+              titulo="Audere não toca seu dinheiro"
+              corpo="Pagamentos vão direto pra sua sub-conta Pagar.me, via split automático. Bloqueio bancário do Audere não afeta seu recebimento."
             />
           </div>
 
           {/* Ética da IA — dissolvida aqui, no fim, em vez de no topo */}
           <div style={{ display: 'grid', gap: 12 }}>
-            <NotaCard rotulo="A Auren observa · você decide">
+            <NotaCard rotulo="A Audere observa · você decide">
               Toda sugestão usa linguagem observacional — frequência, padrão,
               co-ocorrência. Há uma camada de validação que segura o texto se ele
               escapar pro território de interpretação. A decisão terapêutica é sempre sua.
@@ -527,11 +527,11 @@ function ChkRow({ titulo, corpo }: { titulo: string; corpo: string }) {
 
 function Manifesto() {
   const linhas = [
-    'A Auren age muito, aparece pouco.',
+    'A Audere age muito, aparece pouco.',
     'Presente, não gravando.',
     'Frequência e observação, nunca diagnóstico.',
     'Rascunho até você assinar.',
-    'Você é a(o) psicóloga(o). Auren é seu sistema.',
+    'Você é a(o) psicóloga(o). Audere é seu sistema.',
   ]
   return (
     <section style={{
@@ -609,7 +609,7 @@ function FooterLanding() {
         <div style={{ display: 'flex', flexDirection: 'column', gap: 6, fontSize: 12, color: 'var(--muted)', alignItems: 'flex-end' }}>
           <a href="/login" className="lp-link">Já tenho conta</a>
           <a href="mailto:contato@automaxia.com.br" className="lp-link">contato@automaxia.com.br</a>
-          <span style={{ color: 'var(--faint)' }}>© Auren Care · {new Date().getFullYear()}</span>
+          <span style={{ color: 'var(--faint)' }}>© Audere · {new Date().getFullYear()}</span>
         </div>
       </div>
     </footer>

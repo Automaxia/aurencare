@@ -72,14 +72,14 @@ export function PostSessionModal(p: Props) {
         {/* Sugestões IA — banner com ação de aplicar */}
         {p.sugestaoMarcacao && p.sugestaoMarcacao.length > 0 && !marcacaoAplicada && (
           <SuggestionBanner
-            title={`A Auren sugere ${p.sugestaoMarcacao.length} marcações na transcrição`}
+            title={`A Audere sugere ${p.sugestaoMarcacao.length} marcações na transcrição`}
             detail={p.sugestaoMarcacao.slice(0, 3).map(m => `[${m.idx}] ${labelMark(m.mark)} — ${m.razao}`).join(' · ')}
             onApply={() => { p.onAplicarMarcacao(); setMarcacaoAplicada(true) }}
           />
         )}
         {p.sugestaoRisco && !riscoAplicado && (
           <SuggestionBanner
-            title="A Auren sugere avaliação de risco"
+            title="A Audere sugere avaliação de risco"
             detail={`Autolesão: ${riskLabel(p.sugestaoRisco.autolesao)} · Ideação: ${riskLabel(p.sugestaoRisco.ideacao)} · Plano: ${riskLabel(p.sugestaoRisco.plano)} — ${p.sugestaoRisco.justificativa}`}
             onApply={() => { p.onAplicarRisco(); setRiscoAplicado(true) }}
           />

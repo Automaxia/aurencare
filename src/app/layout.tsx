@@ -26,7 +26,7 @@ const mono = DM_Mono({
 })
 
 export const metadata: Metadata = {
-  title: 'Auren Care',
+  title: 'Audere',
   description: 'Sistema operacional da prática clínica.',
 }
 

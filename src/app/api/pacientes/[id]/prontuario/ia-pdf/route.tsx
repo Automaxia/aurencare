@@ -11,7 +11,7 @@ export const dynamic = 'force-dynamic'
 /**
  * Recebe POST { texto: string, titulo?: string } e devolve PDF.
  * Texto é o resultado final aprovado pela psicóloga (com refinamentos
- * feitos via chat). PDF tem branding Auren + assinatura do(a) psicólogo(a).
+ * feitos via chat). PDF tem branding Audere + assinatura do(a) psicólogo(a).
  */
 export async function POST(req: Request, { params }: { params: { id: string } }) {
   const user = await requirePsicologo()

@@ -33,7 +33,7 @@ export function SalaPaciente({ token, psicologaNome, pacienteNome, jaAceitou }: 
           return
         }
       } catch {
-        setErroAceite('Sem conexão com o Auren. Verifique sua internet.')
+        setErroAceite('Sem conexão com o Audere. Verifique sua internet.')
         setRegistrando(false)
         return
       }

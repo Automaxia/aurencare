@@ -1,7 +1,7 @@
 import 'server-only'
 
 /**
- * Templates HTML/texto pros emails do Auren.
+ * Templates HTML/texto pros emails do Audere.
  *
  * Padrão visual: paleta do app (#6a4ec8 accent, #5a9e8a sage, #f9f8f5 page,
  * Cormorant Garamond no título, DM Sans no corpo). HTML inline pra
@@ -26,7 +26,7 @@ export function tplPacienteBoasVindas(p: BoasVindasInput): { html: string; text:
   const text = [
     `Olá, ${primeiroNome}!`,
     ``,
-    `Sou da equipe de ${p.psicologoNome} (${p.psicologoCrp}). Você foi cadastrado(a) no Auren Care,`,
+    `Sou da equipe de ${p.psicologoNome} (${p.psicologoCrp}). Você foi cadastrado(a) no Audere,`,
     `o sistema que organiza o acompanhamento clínico.`,
     ``,
     `Pra começar, leia e aceite o termo de consentimento no link abaixo:`,
@@ -37,7 +37,7 @@ export function tplPacienteBoasVindas(p: BoasVindasInput): { html: string; text:
     ``,
     `Qualquer dúvida, responda direto pra ${p.psicologoNome} em ${p.psicologoEmail}.`,
     ``,
-    `Auren Care`,
+    `Audere`,
     `Sistema operacional da prática clínica · CFP 09/2024 · LGPD`,
   ].join('\n')
 
@@ -60,8 +60,7 @@ export function tplPacienteBoasVindas(p: BoasVindasInput): { html: string; text:
                 <div style="width:34px;height:34px;border-radius:8px;background:linear-gradient(145deg,#7b5ee8,#5a9e8a);"></div>
               </td>
               <td style="vertical-align:middle;font-family:Georgia,'Times New Roman',serif;font-size:20px;">
-                <span style="color:#291860;font-weight:300;">Auren</span>
-                <span style="font-weight:600;background:linear-gradient(90deg,#6a4ec8,#5c9d88);-webkit-background-clip:text;background-clip:text;color:#6a4ec8;">&nbsp;Care</span>
+                <span style="color:#291860;font-weight:300;">Au</span><span style="font-weight:600;background:linear-gradient(90deg,#6a4ec8,#5c9d88);-webkit-background-clip:text;background-clip:text;color:#6a4ec8;">dere</span>
               </td>
             </tr>
           </table>
@@ -75,7 +74,7 @@ export function tplPacienteBoasVindas(p: BoasVindasInput): { html: string; text:
           <p style="margin:0 0 14px;font-size:14px;line-height:1.65;color:#38324e;">
             Sou da equipe de <strong>${escapeHtml(p.psicologoNome)}</strong>
             (${escapeHtml(p.psicologoCrp)}). Você foi cadastrado(a) no
-            <strong>Auren Care</strong> — o sistema que organiza o seu
+            <strong>Audere</strong> — o sistema que organiza o seu
             acompanhamento clínico.
           </p>
           <p style="margin:0 0 22px;font-size:14px;line-height:1.65;color:#38324e;">
@@ -107,7 +106,7 @@ export function tplPacienteBoasVindas(p: BoasVindasInput): { html: string; text:
                 IA assistente · CFP 09/2024 · LGPD
               </p>
               <p style="margin:0;font-size:12px;color:#38324e;line-height:1.55;">
-                Auren usa inteligência artificial como apoio à continuidade clínica.
+                Audere usa inteligência artificial como apoio à continuidade clínica.
                 A IA NÃO emite diagnóstico. Notas e resumos são sempre rascunho até a
                 psicóloga assinar. Seus dados ficam criptografados e nunca são usados
                 pra treinar modelos.
@@ -123,7 +122,7 @@ export function tplPacienteBoasVindas(p: BoasVindasInput): { html: string; text:
             <a href="mailto:${escapeHtml(p.psicologoEmail)}" style="color:#6a4ec8;text-decoration:none;">${escapeHtml(p.psicologoEmail)}</a>.
           </p>
           <p style="margin:0;">
-            Auren Care · Sistema operacional da prática clínica
+            Audere · Sistema operacional da prática clínica
           </p>
         </td></tr>
 
@@ -164,7 +163,7 @@ export function tplSessaoConfirmada(p: SessaoConfirmadaInput): { html: string; t
     `Profissional: ${p.psicologoNome}`,
     `Dúvidas? Responda este email — vai direto pra ${p.psicologoEmail}.`,
     ``,
-    `Auren Care · CFP 09/2024 · LGPD`,
+    `Audere · CFP 09/2024 · LGPD`,
   ].filter(Boolean).join('\n')
 
   const html = baseHtml({
@@ -232,7 +231,7 @@ export function tplLembrete24h(p: Lembrete24hInput): { html: string; text: strin
     `Caso precise confirmar ou cancelar, responda a mensagem no WhatsApp.`,
     p.linkSala ? `Sala: ${p.linkSala}` : '',
     ``,
-    `Auren Care`,
+    `Audere`,
   ].filter(Boolean).join('\n')
 
   const html = baseHtml({
@@ -292,7 +291,7 @@ export function tplSessaoCancelada(p: SessaoCanceladaInput): { html: string; tex
     ``,
     `Pra remarcar, responda este email ou converse com ${p.psicologoNome} em ${p.psicologoEmail}.`,
     ``,
-    `Auren Care`,
+    `Audere`,
   ].join('\n')
 
   const html = baseHtml({
@@ -350,7 +349,7 @@ export function tplSerieAgendada(p: SerieAgendadaInput): { html: string; text: s
     ``,
     `Qualquer dúvida ou mudança, responda este email.`,
     ``,
-    `Auren Care`,
+    `Audere`,
   ].join('\n')
 
   const linhasHtml = p.datas
@@ -391,17 +390,17 @@ export function tplSerieAgendada(p: SerieAgendadaInput): { html: string; text: s
 /** Confirmação enviada a quem entrou na lista de espera. */
 export function tplListaEsperaConfirmacao(p: { nome: string }): { html: string; text: string; subject: string } {
   const primeiroNome = p.nome.trim().split(/\s+/)[0]
-  const subject = 'Você está na lista de espera do Auren Care'
+  const subject = 'Você está na lista de espera do Audere'
 
   const text = [
     `Olá, ${primeiroNome}!`,
     ``,
-    `Recebemos sua inscrição na lista de espera do Auren Care.`,
+    `Recebemos sua inscrição na lista de espera do Audere.`,
     `Vamos te avisar por email assim que seu acesso abrir.`,
     ``,
     `Qualquer dúvida, escreva pra contato@automaxia.com.br.`,
     ``,
-    `Auren Care · Sistema operacional da prática clínica`,
+    `Audere · Sistema operacional da prática clínica`,
   ].join('\n')
 
   const html = baseHtml({
@@ -410,7 +409,7 @@ export function tplListaEsperaConfirmacao(p: { nome: string }): { html: string; 
     psicologoEmail: 'contato@automaxia.com.br',
     corpo: `
       <p style="margin:0 0 16px;font-size:14px;line-height:1.65;color:#38324e;">
-        Recebemos sua inscrição na <strong>lista de espera do Auren Care</strong>.
+        Recebemos sua inscrição na <strong>lista de espera do Audere</strong>.
       </p>
       <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="margin:0 0 20px;background:#e8f1ed;border-radius:10px;border:1px solid rgba(90,158,138,.25);">
         <tr><td style="padding:16px 20px;">
@@ -489,7 +488,7 @@ function baseHtml(p: BaseHtmlInput): string {
                 <div style="width:30px;height:30px;border-radius:8px;background:linear-gradient(145deg,#7b5ee8,#5a9e8a);"></div>
               </td>
               <td style="vertical-align:middle;font-family:Georgia,'Times New Roman',serif;font-size:18px;">
-                <span style="color:#291860;font-weight:300;">Auren</span><span style="font-weight:600;color:#6a4ec8;">&nbsp;Care</span>
+                <span style="color:#291860;font-weight:300;">Au</span><span style="font-weight:600;color:#6a4ec8;">dere</span>
               </td>
             </tr>
           </table>
@@ -508,7 +507,7 @@ function baseHtml(p: BaseHtmlInput): string {
             <a href="mailto:${escapeHtml(p.psicologoEmail)}" style="color:#6a4ec8;text-decoration:none;">${escapeHtml(p.psicologoEmail)}</a>.
           </p>
           <p style="margin:0;">
-            Auren Care · CFP 09/2024 · LGPD
+            Audere · CFP 09/2024 · LGPD
           </p>
         </td></tr>
       </table>

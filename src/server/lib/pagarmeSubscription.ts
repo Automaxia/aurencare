@@ -71,7 +71,7 @@ export async function criarAssinatura(opts: {
         ...(tel ? { phones: { mobile_phone: { country_code: '55', area_code: tel.slice(-11, -9), number: tel.slice(-9) } } } : {}),
       },
       items: [{
-        description: `Auren Care ${cfg.nome} (${opts.ciclo})`,
+        description: `Audere ${cfg.nome} (${opts.ciclo})`,
         quantity: 1,
         pricing_scheme: { scheme_type: 'unit', price: valorCentavos },
       }],

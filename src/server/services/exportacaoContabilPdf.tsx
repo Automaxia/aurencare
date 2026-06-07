@@ -132,7 +132,7 @@ function nfBadge(status: string): { txt: string; cor: string } {
   return { txt: 'PENDENTE', cor: C.amber }
 }
 
-function AurenLogo({ size = 22 }: { size?: number }) {
+function AudereLogo({ size = 22 }: { size?: number }) {
   return (
     <Svg width={size} height={size} viewBox="0 0 50 50">
       <Rect x={0} y={0} width={50} height={50} rx={8} fill={C.tituloAzul} />
@@ -159,15 +159,15 @@ export function ExportacaoContabilPDF({ d }: { d: ExportacaoMensal }) {
       title={`Relatório financeiro — ${d.rotuloMes}`}
       author={d.psicologo.nome}
       subject={`Relatório mensal pro contador · ${d.rotuloMes}`}
-      creator="Auren Care"
+      creator="Audere"
     >
       <Page size="A4" style={s.page}>
         {/* Brand */}
         <View style={s.brand}>
-          <AurenLogo size={22} />
+          <AudereLogo size={22} />
           <View style={{ flexDirection: 'row', alignItems: 'baseline' }}>
-            <Text style={s.brandWord}>Auren</Text>
-            <Text style={s.brandBold}> Care</Text>
+            <Text style={s.brandWord}>Au</Text>
+            <Text style={s.brandBold}>dere</Text>
           </View>
         </View>
 
@@ -288,7 +288,7 @@ export function ExportacaoContabilPDF({ d }: { d: ExportacaoMensal }) {
         {/* Rodapé */}
         <View style={s.rodape} fixed>
           <Text>
-            Auren Care · Documento emitido em {new Date().toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
+            Audere · Documento emitido em {new Date().toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
           </Text>
           <Text render={({ pageNumber, totalPages }) => `${pageNumber}/${totalPages}`} />
         </View>

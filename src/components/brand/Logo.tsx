@@ -18,7 +18,7 @@ export function LogoMark({ size = 36, className }: LogoMarkProps) {
         height: size,
         background: 'linear-gradient(145deg, #7b5ee8, #5a9e8a)',
       }}
-      aria-label="Auren Care"
+      aria-label="Audere"
     >
       <svg
         viewBox="0 0 50 50"
@@ -85,11 +85,10 @@ export function Logo({
         letterSpacing: '-.01em',
       }}
     >
-      <span style={{ fontWeight: 300, color: '#291860' }}>Auren</span>
+      <span style={{ fontWeight: 300, color: '#291860' }}>Au</span>
       <span
         style={{
           fontWeight: 500,
-          marginLeft: 4,
           background: 'linear-gradient(90deg, #6a4ec8, #5c9d88)',
           WebkitBackgroundClip: 'text',
           WebkitTextFillColor: 'transparent',
@@ -97,7 +96,7 @@ export function Logo({
           color: 'transparent',
         }}
       >
-        Care
+        dere
       </span>
     </span>
   )

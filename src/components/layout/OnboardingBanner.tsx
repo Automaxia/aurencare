@@ -18,7 +18,7 @@ export function OnboardingBanner() {
         <span style={{ fontSize: 16 }}>◐</span>
         <span>
           <strong>Configure seus recebimentos</strong> pra começar a cobrar sessões.
-          O dinheiro cai direto na sua conta — Auren nunca toca o valor.
+          O dinheiro cai direto na sua conta — Audere nunca toca o valor.
         </span>
       </div>
       <Link

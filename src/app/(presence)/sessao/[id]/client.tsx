@@ -326,7 +326,7 @@ export function PresenceClient(props: Props) {
             className={`btn${chamada ? ' primary' : ' ghost'}`}
             onClick={iniciarChamada}
             disabled={iniciandoChamada}
-            title={chamada ? 'Mostrar link da sala' : 'Abrir chamada online no Auren'}
+            title={chamada ? 'Mostrar link da sala' : 'Abrir chamada online no Audere'}
           >
             <Video size={14} style={{ marginRight: 4 }} />
             {chamada ? 'Sala online' : iniciandoChamada ? 'Abrindo…' : 'Chamada online'}

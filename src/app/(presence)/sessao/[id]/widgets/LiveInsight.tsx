@@ -27,7 +27,7 @@ export function LiveInsight({ text, loading, numeroTurnos }: Props) {
         <p style={{ margin: 0, fontSize: 13, color: 'var(--ink-soft)', lineHeight: 1.6, fontWeight: 300 }}>{text}</p>
       ) : (
         <p style={{ margin: 0, fontSize: 12, color: 'var(--faint)' }}>
-          {loading ? 'gerando primeira observação…' : 'a Auren gera observações automaticamente a cada poucos turnos'}
+          {loading ? 'gerando primeira observação…' : 'a Audere gera observações automaticamente a cada poucos turnos'}
         </p>
       )}
     </div>

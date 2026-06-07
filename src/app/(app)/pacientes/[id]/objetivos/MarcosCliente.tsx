@@ -42,7 +42,7 @@ export function MarcosCliente({ pacienteId }: { pacienteId: string }) {
     <section>
       <div className="sec-lbl" style={{ marginBottom: 10, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
         <span>Marcos do processo</span>
-        <span style={{ fontSize: 10, color: 'var(--faint)' }}>extraído pela Auren</span>
+        <span style={{ fontSize: 10, color: 'var(--faint)' }}>extraído pela Audere</span>
       </div>
 
       {estado.fase === 'carregando' && <Skeleton />}

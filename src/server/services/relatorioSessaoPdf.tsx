@@ -110,7 +110,7 @@ export function RelatorioSessaoPDF({ d }: { d: RelatorioSessaoDados }) {
       title={`Relatório de sessão — ${paciente.nome}`}
       author={psicologo.nome}
       subject={`Sessão ${sessao.numero}`}
-      creator="Auren Care"
+      creator="Audere"
     >
       <Page size="A4" style={s.page}>
         {/* ── Cabeçalho ───────────────────────────────────────────── */}
@@ -201,7 +201,7 @@ export function RelatorioSessaoPDF({ d }: { d: RelatorioSessaoDados }) {
         {/* Rodapé fixo */}
         <View style={s.rodapeFixo} fixed>
           <Text>
-            Documento emitido em {formatDataHora(d.geradoEm)} · Auren Care · integridade {d.hashIntegridade.slice(0, 12)}
+            Documento emitido em {formatDataHora(d.geradoEm)} · Audere · integridade {d.hashIntegridade.slice(0, 12)}
           </Text>
           <Text render={({ pageNumber, totalPages }) => `${pageNumber}/${totalPages}`} />
         </View>

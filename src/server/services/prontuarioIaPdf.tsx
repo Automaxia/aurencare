@@ -130,7 +130,7 @@ const s = StyleSheet.create({
   assinaturaCRP: { fontSize: 9, color: C.muted, marginTop: 2 },
 })
 
-function AurenMark({ size = 32 }: { size?: number }) {
+function AudereMark({ size = 32 }: { size?: number }) {
   return (
     <Svg width={size} height={size} viewBox="0 0 50 50">
       <Rect x={0} y={0} width={50} height={50} rx={10} fill="#7b5ee8" />
@@ -160,15 +160,15 @@ export function ProntuarioIaPDF(input: ProntuarioIaPdfInput) {
       title={`Prontuário (narrativa) — ${input.paciente.nome}`}
       author={input.psicologo.nome}
       subject="Prontuário psicológico em formato narrativo"
-      creator="Auren Care"
+      creator="Audere"
     >
       {/* Capa */}
       <Page size="A4" style={s.page}>
         <View style={s.capaTopo}>
-          <AurenMark size={32} />
+          <AudereMark size={32} />
           <View style={{ flexDirection: 'row', alignItems: 'baseline' }}>
-            <Text style={s.capaWordmark}>Auren</Text>
-            <Text style={s.capaWordmarkBold}> Care</Text>
+            <Text style={s.capaWordmark}>Au</Text>
+            <Text style={s.capaWordmarkBold}>dere</Text>
           </View>
         </View>
 
