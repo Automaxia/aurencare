@@ -29,6 +29,9 @@ env:
   REGISTRY: wesleyromualdo
   NAMESPACE: aurencare
   DEPLOYMENT: aurencare-web
+  # Opt-in pro Node 24 nas JS actions (checkout/docker/kubectl ainda em Node 20,
+  # que o GitHub aposenta em set/2026). Cobre todas sem fixar versões.
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
 
 jobs:
   build-deploy:
