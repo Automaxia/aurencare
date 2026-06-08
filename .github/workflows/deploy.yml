@@ -1,0 +1,110 @@
+# ──────────────────────────────────────────────────────────────────────────
+# CI/CD — Auren Care (Audere)
+#
+# Dispara a CADA push em `main` (ou manualmente em Actions → Run workflow):
+#   1. build da imagem (linux/amd64) a partir do Dockerfile multi-stage
+#   2. push pro Docker Hub: wesleyromualdo/aurencare-{web,api}:latest e :<sha>
+#   3. migration 0XX (idempotente) — SEMPRE antes do rollout (regra do projeto)
+#   4. set image do deploy pra tag imutável :<sha> → rollout de um pod novo
+#   5. aguarda o rollout terminar
+#
+# Secrets necessários (Settings → Secrets and variables → Actions):
+#   DOCKERHUB_USERNAME            wesleyromualdo
+#   DOCKERHUB_TOKEN              access token do Docker Hub (NÃO a senha)
+#   KUBE_CONFIG                  conteúdo do kubeconfig do cluster (Rancher)
+#   NEXT_PUBLIC_PAGARME_PUBLIC_KEY  (opcional) pk_ da Pagar.me; vazio = checkout demo
+# ──────────────────────────────────────────────────────────────────────────
+name: deploy
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch: {}   # botão "Run workflow" pra deploy manual
+
+concurrency:
+  group: deploy-main
+  cancel-in-progress: false   # não cancela um deploy no meio
+
+env:
+  REGISTRY: wesleyromualdo
+  NAMESPACE: aurencare
+  DEPLOYMENT: aurencare-web
+
+jobs:
+  build-deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Tag curta do commit
+        id: vars
+        run: echo "sha=${GITHUB_SHA::7}" >> "$GITHUB_OUTPUT"
+
+      - name: Login no Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Setup Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build + push (web e api, :latest e :<sha>)
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          platforms: linux/amd64
+          push: true
+          # NEXT_PUBLIC_* é inlinado no bundle do client durante o build.
+          # Vazio = checkout de assinatura em modo demonstração (beta).
+          build-args: |
+            NEXT_PUBLIC_PAGARME_PUBLIC_KEY=${{ secrets.NEXT_PUBLIC_PAGARME_PUBLIC_KEY }}
+          tags: |
+            ${{ env.REGISTRY }}/aurencare-web:latest
+            ${{ env.REGISTRY }}/aurencare-web:${{ steps.vars.outputs.sha }}
+            ${{ env.REGISTRY }}/aurencare-api:latest
+            ${{ env.REGISTRY }}/aurencare-api:${{ steps.vars.outputs.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Setup kubectl
+        uses: azure/setup-kubectl@v4
+
+      - name: Configura acesso ao cluster
+        run: |
+          mkdir -p "$HOME/.kube"
+          printf '%s' "${{ secrets.KUBE_CONFIG }}" > "$HOME/.kube/config"
+          chmod 600 "$HOME/.kube/config"
+          # O kubeconfig do Rancher não traz CA → pula verificação de TLS.
+          kubectl config set-cluster local --insecure-skip-tls-verify=true
+
+      - name: Migration (antes do rollout — obrigatório)
+        run: |
+          set -euo pipefail
+          NS="${{ env.NAMESPACE }}"
+          kubectl -n "$NS" delete job aurencare-migrate --ignore-not-found
+          kubectl -n "$NS" apply -f k8s/migrate-job.yaml
+          echo "Aguardando a migration concluir…"
+          if ! kubectl -n "$NS" wait --for=condition=complete job/aurencare-migrate --timeout=240s; then
+            echo "::error::Migration falhou ou expirou — logs abaixo"
+            kubectl -n "$NS" logs job/aurencare-migrate || true
+            exit 1
+          fi
+          kubectl -n "$NS" logs job/aurencare-migrate
+
+      - name: Rollout do app (pod novo na tag do commit)
+        run: |
+          set -euo pipefail
+          NS="${{ env.NAMESPACE }}"
+          IMG="${{ env.REGISTRY }}/aurencare-web:${{ steps.vars.outputs.sha }}"
+          kubectl -n "$NS" set image deploy/${{ env.DEPLOYMENT }} \
+            ${{ env.DEPLOYMENT }}="$IMG"
+          kubectl -n "$NS" rollout status deploy/${{ env.DEPLOYMENT }} --timeout=240s
+
+      - name: Resumo
+        if: always()
+        run: |
+          echo "### Deploy ${{ steps.vars.outputs.sha }}" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Imagem: \`${{ env.REGISTRY }}/aurencare-web:${{ steps.vars.outputs.sha }}\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Site: https://aurencare.automaxia.com.br/" >> "$GITHUB_STEP_SUMMARY"
