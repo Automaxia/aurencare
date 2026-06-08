@@ -63,11 +63,12 @@ type Props = {
     restantes: number
   }
   mock: boolean
+  beta: boolean
 }
 
 const ORDEM: PlanoKey[] = ['free', 'essencial', 'pro']
 
-export function PlanosForm({ planos, atual, mock }: Props) {
+export function PlanosForm({ planos, atual, mock, beta }: Props) {
   const router = useRouter()
   const [ciclo, setCiclo] = useState<Ciclo>(atual.ciclo ?? 'mensal')
   const [pending, setPending] = useState<PlanoKey | 'cancel' | null>(null)
@@ -83,7 +84,7 @@ export function PlanosForm({ planos, atual, mock }: Props) {
   const realCheckout = !!PAGARME_PK && !mock
 
   async function assinar(plano: PlanoKey) {
-    if (plano === 'free') return
+    if (plano === 'free' || beta) return
     setMsg(null)
     if (realCheckout) { setEscolhido(plano as Exclude<PlanoKey, 'free'>); return }   // abre o painel de cartão
     // Sem public key: modo demonstração — assina direto (assinatura mock no backend).
@@ -129,28 +130,40 @@ export function PlanosForm({ planos, atual, mock }: Props) {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
-      {/* ── Uso do mês ── */}
-      <div style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 14, padding: '16px 18px' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 10 }}>
-          <span style={{ fontSize: 13, color: 'var(--ink-soft)' }}>
-            Sessões com IA este mês — plano <strong>{planos[atual.plano].nome}</strong>
-            {atual.status === 'inadimplente' && <span style={{ color: 'var(--rose)' }}> · pagamento pendente</span>}
-            {atual.status === 'cancelado' && <span style={{ color: 'var(--amber)' }}> · cancelado</span>}
-          </span>
-          <span style={{ fontSize: 13, fontWeight: 500, color: atual.restantes === 0 ? 'var(--rose)' : 'var(--ink)' }}>
-            {atual.usadas}/{atual.cap}
-          </span>
+      {/* ── Beta: acesso liberado · ou medidor de uso do mês ── */}
+      {beta ? (
+        <div style={{ background: 'rgba(90,158,138,.10)', border: '1px solid rgba(90,158,138,.25)', borderRadius: 14, padding: '16px 18px' }}>
+          <div style={{ fontSize: 14, fontWeight: 500, color: '#2a6456', marginBottom: 4 }}>
+            Beta · acesso completo liberado
+          </div>
+          <div style={{ fontSize: 12.5, color: 'var(--ink-soft)', lineHeight: 1.6 }}>
+            Durante o beta, você usa a Audere <strong>sem limite e sem mensalidade</strong>.
+            Os planos abaixo são uma prévia do que virá quando a cobrança começar — avisaremos antes.
+          </div>
         </div>
-        <div style={{ height: 8, borderRadius: 999, background: 'var(--surface)', overflow: 'hidden' }}>
-          <div style={{ width: `${pctUso}%`, height: '100%', background: atual.restantes === 0 ? 'var(--rose)' : 'var(--accent)', transition: 'width .3s' }} />
+      ) : (
+        <div style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 14, padding: '16px 18px' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 10 }}>
+            <span style={{ fontSize: 13, color: 'var(--ink-soft)' }}>
+              Sessões com IA este mês — plano <strong>{planos[atual.plano].nome}</strong>
+              {atual.status === 'inadimplente' && <span style={{ color: 'var(--rose)' }}> · pagamento pendente</span>}
+              {atual.status === 'cancelado' && <span style={{ color: 'var(--amber)' }}> · cancelado</span>}
+            </span>
+            <span style={{ fontSize: 13, fontWeight: 500, color: atual.restantes === 0 ? 'var(--rose)' : 'var(--ink)' }}>
+              {atual.usadas}/{atual.cap}
+            </span>
+          </div>
+          <div style={{ height: 8, borderRadius: 999, background: 'var(--surface)', overflow: 'hidden' }}>
+            <div style={{ width: `${pctUso}%`, height: '100%', background: atual.restantes === 0 ? 'var(--rose)' : 'var(--accent)', transition: 'width .3s' }} />
+          </div>
+          <div style={{ fontSize: 11.5, color: 'var(--muted)', marginTop: 8 }}>
+            {atual.restantes > 0
+              ? `${atual.restantes} sessões com IA restantes neste ciclo.`
+              : 'Limite atingido — o registro com IA volta no próximo ciclo. Agenda e prontuário seguem normais.'}
+            {atual.expiraEm && atual.plano !== 'free' && ` Renova em ${formatDateBR(atual.expiraEm)}.`}
+          </div>
         </div>
-        <div style={{ fontSize: 11.5, color: 'var(--muted)', marginTop: 8 }}>
-          {atual.restantes > 0
-            ? `${atual.restantes} sessões com IA restantes neste ciclo.`
-            : 'Limite atingido — o registro com IA volta no próximo ciclo. Agenda e prontuário seguem normais.'}
-          {atual.expiraEm && atual.plano !== 'free' && ` Renova em ${formatDateBR(atual.expiraEm)}.`}
-        </div>
-      </div>
+      )}
 
       {/* ── Toggle ciclo ── */}
       <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
@@ -195,7 +208,11 @@ export function PlanosForm({ planos, atual, mock }: Props) {
                 {key === 'pro' && ' · Temas e Evolução longitudinal · analytics'}
               </div>
 
-              {ehAtual ? (
+              {beta ? (
+                key === 'free'
+                  ? <span style={{ fontSize: 11, color: 'var(--muted)', textAlign: 'center' }}>—</span>
+                  : <button className="btn ghost" disabled style={{ opacity: .7 }}>Em breve</button>
+              ) : ehAtual ? (
                 <button className="btn ghost" disabled style={{ opacity: .7 }}>Plano atual</button>
               ) : key === 'free' ? (
                 <span style={{ fontSize: 11, color: 'var(--muted)', textAlign: 'center' }}>—</span>
@@ -246,7 +263,7 @@ export function PlanosForm({ planos, atual, mock }: Props) {
         <div style={{ fontSize: 13, color: msg.tipo === 'ok' ? 'var(--sage)' : 'var(--rose)' }}>{msg.texto}</div>
       )}
 
-      {!realCheckout && (
+      {!beta && !realCheckout && (
         <div style={{ fontSize: 11.5, color: 'var(--amber)', background: 'rgba(176,125,64,.10)', padding: '8px 12px', borderRadius: 10 }}>
           ⚠️ Checkout em modo demonstração — a assinatura é simulada (sem cartão real). Configure <code>NEXT_PUBLIC_PAGARME_PUBLIC_KEY</code> (front) e <code>PAGARME_API_KEY</code> (back) pra habilitar o pagamento com cartão.
         </div>

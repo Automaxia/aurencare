@@ -27,6 +27,14 @@ export type PlanoConfig = {
   destaque?: boolean
 }
 
+/**
+ * BETA: enquanto true, o acesso é liberado — o gate de cota NÃO bloqueia e não
+ * há cobrança (honra "sem mensalidade durante o beta" da landing). Os planos/
+ * preços abaixo já ficam definidos; quando as chaves Pagar.me entrarem e a
+ * cobrança for ligada, troque para `false` e faça redeploy.
+ */
+export const BETA_LIBERADO = true
+
 export const PLANOS: Record<Plano, PlanoConfig> = {
   free: {
     nome: 'Free',

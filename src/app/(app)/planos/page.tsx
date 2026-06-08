@@ -1,7 +1,7 @@
 import { PageHeader } from '@/components/PageHeader'
 import { requirePsicologo } from '@/server/lib/auth'
 import { obterAssinatura } from '@/server/services/assinatura'
-import { PLANOS } from '@/server/lib/planos'
+import { PLANOS, BETA_LIBERADO } from '@/server/lib/planos'
 import { integrationStatus } from '@/server/lib/env'
 import Link from 'next/link'
 import { PlanosForm } from './form'
@@ -37,6 +37,7 @@ export default async function PlanosPage() {
           restantes: info.restantes,
         }}
         mock={!integrationStatus.pagarme}
+        beta={BETA_LIBERADO}
       />
     </div>
   )

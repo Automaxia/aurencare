@@ -12,6 +12,7 @@ import {
 import { formatDateTimeBR } from '@/lib/formatters'
 import { obterAssinatura } from './assinatura'
 import { incrementarSessaoIa } from './uso'
+import { BETA_LIBERADO } from '@/server/lib/planos'
 
 export type SessaoStatus =
   | 'agendada' | 'aguardando_metodo' | 'aguardando_pagamento'
@@ -475,6 +476,9 @@ export type GateRegistroResult =
  * se a cota do plano já estiver esgotada.
  */
 export async function gateIniciarRegistroIa(sessaoId: string): Promise<GateRegistroResult> {
+  // Beta: acesso liberado — nunca bloqueia e não contabiliza cota (sem mensalidade).
+  if (BETA_LIBERADO) return { ok: true }
+
   const { rows } = await db.query<{ psicologo_id: string; ia_contabilizada: boolean }>(
     `SELECT psicologo_id, ia_contabilizada FROM sessoes WHERE id = $1 LIMIT 1`,
     [sessaoId],
