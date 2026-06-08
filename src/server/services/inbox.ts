@@ -38,10 +38,19 @@ export async function processarMensagemRecebida(msg: Inbound): Promise<void> {
 
   // ──────────────────────────────────────────────────────────────────
   // 1) Comandos clássicos do fluxo de pagamento — independem do estado
-  //    (paciente já tem sessão aberta esperando método/confirmação)
+  //    (paciente já tem sessão aberta esperando método/confirmação).
+  //    Aceita a palavra exata ("PIX") OU frases naturais ("quero pagar via
+  //    pix", "pode ser no crédito") — ver detectarComandoPagamento.
   // ──────────────────────────────────────────────────────────────────
-  if (['PIX', 'CREDITO', 'CRÉDITO', 'DEBITO', 'DÉBITO', 'CONFIRMAR', 'CANCELAR'].includes(cmdUpper)) {
-    return processarComandoPagamento({ telefone: tel, cmd: cmdUpper })
+  const cmdPagamento = detectarComandoPagamento(cmd)
+  if (cmdPagamento) {
+    const exato = ['PIX', 'CREDITO', 'CRÉDITO', 'DEBITO', 'DÉBITO', 'CONFIRMAR', 'CANCELAR'].includes(cmdUpper)
+    // Palavra exata sempre intercepta (compat). Frase natural só intercepta se
+    // o remetente já é paciente — evita sequestrar o onboarding de um lead novo
+    // que por acaso mencione "pix" na saudação.
+    if (exato || (await buscarPacientePorTelefone(tel))) {
+      return processarComandoPagamento({ telefone: tel, cmd: cmdPagamento })
+    }
   }
 
   // ──────────────────────────────────────────────────────────────────
@@ -303,6 +312,50 @@ function limparNome(input: string): string | null {
   // Bloqueia comandos comuns que claramente não são nome
   if (/^(oi|olá|ola|hello|hi|test|teste|email|nome|sim|nao|não|ok|pix|cancelar|confirmar)$/i.test(s)) return null
   return s.split(' ').map(w => w[0]?.toUpperCase() + w.slice(1).toLowerCase()).join(' ')
+}
+
+/**
+ * Detecta o comando de pagamento a partir da mensagem do paciente.
+ * Aceita a palavra exata ("PIX") ou frases naturais ("quero pagar via pix",
+ * "pode ser no crédito", "vou cancelar"). Retorna o comando canônico (sem
+ * acento) ou null se não houver intenção clara.
+ *
+ * Princípios:
+ *  - Métodos (PIX/CREDITO/DEBITO) são não-destrutivos (geram um link/QR que o
+ *    paciente pode ignorar) → toleramos frases. Se a mensagem citar mais de um
+ *    método, é ambígua → null (não adivinha).
+ *  - CANCELAR dispara cancelamento/reembolso → exige verbo claro de cancelar.
+ *  - Negação ("não") suprime o disparo automático (evita "não quero pix").
+ */
+function detectarComandoPagamento(texto: string): 'PIX' | 'CREDITO' | 'DEBITO' | 'CONFIRMAR' | 'CANCELAR' | null {
+  const t = ` ${texto
+    .normalize('NFD').replace(/[̀-ͯ]/g, '')   // remove acentos
+    .toLowerCase()
+    .replace(/[^a-z0-9\s]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()} `
+  if (!t.trim()) return null
+
+  const negado = /\b(nao|jamais|nunca)\b/.test(t)
+
+  const temPix     = /\bpix\b/.test(t)
+  const temCredito = /\bcredito\b|\bcredit\b/.test(t)
+  const temDebito  = /\bdebito\b|\bdebit\b/.test(t)
+  const metodos = [temPix && 'PIX', temCredito && 'CREDITO', temDebito && 'DEBITO']
+    .filter(Boolean) as Array<'PIX' | 'CREDITO' | 'DEBITO'>
+
+  // Um único método citado, sem negação → dispara a cobrança.
+  if (metodos.length === 1 && !negado) return metodos[0]
+  // Mais de um método (ambíguo) → não adivinha.
+  if (metodos.length > 1) return null
+
+  // CANCELAR — verbo claro, sem negação ("não quero cancelar").
+  if (!negado && /\bcancelar\b|\bcancela\b|\bcancelo\b|\bcancelamento\b/.test(t)) return 'CANCELAR'
+
+  // CONFIRMAR — confirmação do agendamento (Fluxo 3).
+  if (!negado && /\bconfirmar\b|\bconfirmo\b|\bconfirma\b|\bconfirmado\b/.test(t)) return 'CONFIRMAR'
+
+  return null
 }
 
 /**

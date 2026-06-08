@@ -104,7 +104,11 @@ export async function criarCheckoutCartao(opts: {
         checkout: {
           expires_in: 2 * 60 * 60,
           accepted_payment_methods: [opts.metodo === 'credito' ? 'credit_card' : 'debit_card'],
-          credit_card: opts.metodo === 'credito' ? { installments: [{ number: 1 }, { number: 2 }, { number: 3 }, { number: 4 }, { number: 5 }, { number: 6 }] } : undefined,
+          // Pagar.me exige `total` (valor em centavos) por parcela. Sem juros:
+          // o total é o mesmo valor da sessão em qualquer nº de parcelas.
+          credit_card: opts.metodo === 'credito'
+            ? { installments: Array.from({ length: 6 }, (_, i) => ({ number: i + 1, total: opts.valorCentavos })) }
+            : undefined,
           success_url: `${env.appUrl}/pagamento-ok`,
         },
       }],

@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 50 50" width="50" height="50">
+  <defs>
+    <linearGradient id="audere" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#7b5ee8"/>
+      <stop offset="1" stop-color="#5a9e8a"/>
+    </linearGradient>
+  </defs>
+  <rect width="50" height="50" rx="12" fill="url(#audere)"/>
+  <path d="M 25 38 C 25 38 14 38 14 27 C 14 16 25 16 25 16" stroke="white" stroke-width="2.2" stroke-linecap="round" fill="none" opacity=".5"/>
+  <path d="M 25 16 C 25 16 36 16 36 27 C 36 38 25 44 12 42" stroke="white" stroke-width="2.2" stroke-linecap="round" fill="none" opacity=".75"/>
+  <path d="M 12 42 C 4 40 4 28 4 24 C 4 12 14 6 26 6 C 38 6 46 14 46 26" stroke="white" stroke-width="2.2" stroke-linecap="round" fill="none"/>
+  <circle cx="46" cy="26" r="3" fill="white"/>
+</svg>

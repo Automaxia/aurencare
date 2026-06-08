@@ -11,6 +11,6 @@ export const config = {
    * · /api/auth/* · /api/webhooks/* · /api/health · /confirmar/* · assets internos.
    */
   matcher: [
-    '/((?!login|cadastro|lancamento|confirmar|onboard|sala|api/auth|api/webhooks|api/sala|api/wa|api/health|_next/static|_next/image|favicon.ico).*)',
+    '/((?!login|cadastro|lancamento|confirmar|onboard|sala|api/auth|api/webhooks|api/sala|api/wa|api/health|_next/static|_next/image|favicon.ico|icon.svg).*)',
   ],
 }
