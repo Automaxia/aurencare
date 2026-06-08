@@ -5,7 +5,7 @@ export const dynamic = 'force-dynamic'
 
 export default function LancamentoPage() {
   return (
-    <div style={{ background: 'var(--page)', color: 'var(--ink)', overflowX: 'hidden' }}>
+    <div style={{ background: 'var(--page)', color: 'var(--ink)', overflowX: 'clip' }}>
       <NavTopo />
       <Hero />
       {/* Lidera com o diferenciador (memória/continuidade), depois a sessão e a
@@ -50,12 +50,70 @@ function NavTopo() {
   )
 }
 
+// ─── Atmosfera orgânica (blobs suaves nas cores da marca) ───────────────
+
+function OrganicBlobs() {
+  const blobs: { pos: React.CSSProperties; size: number; cor: string }[] = [
+    { pos: { top: '-12%', left: '-8%' },  size: 380, cor: 'rgba(106,78,200,.16)' }, // accent
+    { pos: { top: '8%',  right: '-10%' }, size: 440, cor: 'rgba(90,158,138,.15)' }, // sage
+    { pos: { bottom: '-18%', left: '20%' }, size: 320, cor: 'rgba(176,125,64,.11)' }, // amber
+    { pos: { top: '46%', left: '42%' },   size: 280, cor: 'rgba(196,96,122,.09)' }, // rose
+  ]
+  return (
+    <div aria-hidden style={{ position: 'absolute', inset: 0, overflow: 'hidden', pointerEvents: 'none', zIndex: 0 }}>
+      {blobs.map((b, i) => (
+        <div key={i} style={{
+          position: 'absolute', ...b.pos,
+          width: b.size, height: b.size, borderRadius: '50%',
+          background: `radial-gradient(circle at 32% 30%, ${b.cor}, transparent 70%)`,
+          filter: 'blur(26px)',
+        }} />
+      ))}
+    </div>
+  )
+}
+
+// ─── Croqui (estilo estilista de moda) — figura alongada, traço solto ──
+
+/**
+ * Slot de ilustração — renderiza um sketch de `/public/landing/` via
+ * background-image. Os PNGs têm fundo creme (não transparente), então usamos
+ * `mix-blend-mode: multiply`: o fundo claro se funde com a seção e só o traço
+ * aparece — integra sobre qualquer fundo sem mostrar retângulo. Sem o arquivo,
+ * fica invisível (não quebra o layout).
+ */
+function Figura({ src, style, opacity = 1 }: {
+  src: string; style?: React.CSSProperties; opacity?: number
+}) {
+  return (
+    <div aria-hidden style={{
+      position: 'absolute', pointerEvents: 'none',
+      backgroundImage: `url(${src})`, backgroundRepeat: 'no-repeat',
+      backgroundSize: 'contain', backgroundPosition: 'center',
+      opacity, mixBlendMode: 'multiply',
+      ...style,
+    }} />
+  )
+}
+
 // ─── Hero ──────────────────────────────────────────────────────────────
 
 function Hero() {
   return (
-    <section style={{ padding: '88px 0 64px', position: 'relative' }}>
-      <div className="lp-wrap" style={{ display: 'grid', gridTemplateColumns: '1fr', gap: 28, textAlign: 'center', maxWidth: 820 }}>
+    <section style={{
+      minHeight: 'calc(100vh - 54px)', display: 'grid', placeItems: 'center',
+      position: 'relative', overflow: 'hidden', padding: '48px 0',
+      backgroundColor: 'var(--page)',
+      backgroundImage: 'url(/landing/conversa.png)',
+      backgroundSize: 'cover', backgroundPosition: 'center', backgroundRepeat: 'no-repeat',
+    }}>
+      {/* Véu radial: clareia o centro (legibilidade do texto) e mantém as
+          figuras visíveis nas laterais. */}
+      <div aria-hidden style={{
+        position: 'absolute', inset: 0, zIndex: 0, pointerEvents: 'none',
+        background: 'radial-gradient(ellipse 60% 66% at 50% 48%, rgba(249,248,245,.92) 0%, rgba(249,248,245,.62) 40%, rgba(249,248,245,0) 72%)',
+      }} />
+      <div className="lp-wrap" style={{ display: 'grid', gridTemplateColumns: '1fr', gap: 28, textAlign: 'center', maxWidth: 820, position: 'relative', zIndex: 1 }}>
         <h1 style={{
           fontFamily: 'var(--font-display)', fontSize: 56, fontWeight: 300,
           color: '#291860', lineHeight: 1.08, letterSpacing: '-.01em',
@@ -104,8 +162,11 @@ function Continuidade() {
       padding: '80px 0',
       background: 'var(--surface)',
       borderTop: '1px solid var(--border)',
+      position: 'relative', overflow: 'hidden',
     }}>
-      <div className="lp-wrap">
+      <Figura src="/landing/figura-1.png" opacity={0.6}
+        style={{ left: '-2%', bottom: '-4%', width: 'min(300px, 30%)', height: '78%', zIndex: 0 }} />
+      <div className="lp-wrap" style={{ position: 'relative', zIndex: 1 }}>
         <Eyebrow>Entre uma sessão e outra</Eyebrow>
         <H2>Continuidade longitudinal.</H2>
         <P>
@@ -236,8 +297,11 @@ function ModoPresenca() {
       padding: '80px 0',
       background: 'linear-gradient(180deg, var(--page), rgba(106,78,200,.04) 60%, var(--page))',
       borderTop: '1px solid var(--border)',
+      position: 'relative', overflow: 'hidden',
     }}>
-      <div className="lp-wrap">
+      <Figura src="/landing/figura-2.png" opacity={0.6}
+        style={{ right: '-2%', top: '6%', width: 'min(300px, 30%)', height: '78%', zIndex: 0 }} />
+      <div className="lp-wrap" style={{ position: 'relative', zIndex: 1 }}>
         <Eyebrow>Durante a sessão</Eyebrow>
         <H2>A ferramenta que se ajusta<br />à sua prática — não o contrário.</H2>
         <P>
@@ -453,8 +517,11 @@ function Privacidade() {
       padding: '80px 0',
       background: 'linear-gradient(180deg, var(--page), rgba(90,158,138,.04) 50%, var(--page))',
       borderTop: '1px solid var(--border)',
+      position: 'relative', overflow: 'hidden',
     }}>
-      <div className="lp-wrap">
+      <Figura src="/landing/figura-3.png" opacity={0.55}
+        style={{ left: '-2%', top: '8%', width: 'min(280px, 28%)', height: '74%', zIndex: 0 }} />
+      <div className="lp-wrap" style={{ position: 'relative', zIndex: 1 }}>
         <Eyebrow>Privacidade por design</Eyebrow>
         <H2>Seus dados de paciente:<br />blindados em todas as camadas.</H2>
         <P>
