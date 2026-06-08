@@ -40,7 +40,9 @@ function LoginForm() {
   return (
     <div style={{
       minHeight: '100vh', display: 'grid', placeItems: 'center',
-      background: 'linear-gradient(180deg, var(--page) 0%, var(--surface) 100%)',
+      backgroundColor: 'var(--page)',
+      backgroundImage: 'url(/landing/login-bg.png)',
+      backgroundSize: 'cover', backgroundPosition: 'center', backgroundRepeat: 'no-repeat',
     }}>
       <div className="card" style={{ width: 360, padding: 28 }}>
         <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 20 }}>
