@@ -24,16 +24,22 @@ export function ConfirmarClient(props: Props) {
   async function responder(r: 'sim' | 'contestou') {
     if (enviando || ja) return
     setEnviando(r); setErro(null)
-    const res = await responderConfirmacaoAction(props.token, r)
-    setEnviando(null)
-    if (res.ok) {
-      setResposta(res.resposta)
-    } else {
-      setErro({
-        token_invalido: 'Link inválido. Talvez já tenha sido respondido.',
-        janela_expirada: 'A janela de confirmação já passou. O pagamento foi liberado automaticamente.',
-        sessao_invalida: 'Sessão inválida.',
-      }[res.razao])
+    try {
+      const res = await responderConfirmacaoAction(props.token, r)
+      if (res.ok) {
+        setResposta(res.resposta)
+      } else {
+        setErro({
+          token_invalido: 'Link inválido. Talvez já tenha sido respondido.',
+          janela_expirada: 'A janela de confirmação já passou. O pagamento foi liberado automaticamente.',
+          sessao_invalida: 'Sessão inválida.',
+        }[res.razao])
+      }
+    } catch {
+      // Nunca deixar o botão preso em "Confirmando…": mostra erro e libera o retry.
+      setErro('Não foi possível registrar agora. Verifique sua conexão e tente novamente.')
+    } finally {
+      setEnviando(null)
     }
   }
 

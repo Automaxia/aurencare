@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { atualizarPerfilTributarioAction } from './actions'
 import type { PerfilTributario, RegimeTributario } from '@/server/services/perfilTributario'
+import { SavedBadge } from '@/components/brand/Feedback'
 
 const REGIMES: Array<{ key: RegimeTributario; label: string; hint: string }> = [
   { key: 'autonomo_pf',        label: 'Autônomo · PF',                hint: 'Carnê-Leão + Receita Saúde (obrigatório 2026)' },
@@ -78,7 +79,7 @@ export function TributarioForm({ inicial }: Props) {
         marginBottom: 4,
       }}>
         <span className="sec-lbl">Tributação · Contador</span>
-        {salvo && <span style={{ color: 'var(--sage)', fontSize: 12 }}>✓ Salvo</span>}
+        {salvo && <SavedBadge />}
       </div>
 
       <p style={{ fontSize: 12, color: 'var(--muted)', margin: 0, lineHeight: 1.55 }}>

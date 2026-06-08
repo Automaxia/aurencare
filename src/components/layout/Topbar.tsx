@@ -90,6 +90,23 @@ export function Topbar({ initialSessaoAtiva, initialPendencias }: Props) {
     setSeenIds(next); writeSeen(next)
   }
 
+  // Re-sincroniza com o estado real do banco a cada navegação. Necessário porque
+  // o estado vive em useState (não acompanha props novas) e o Next pode servir a
+  // rota do cache: ao voltar de uma sessão encerrada, o pill "em andamento" ficava
+  // preso até o refresh. Aqui ele se auto-cura em qualquer troca de rota.
+  useEffect(() => {
+    let cancel = false
+    fetch('/api/atalhos')
+      .then(r => (r.ok ? r.json() : null))
+      .then(j => {
+        if (cancel || !j) return
+        setSessaoAtiva(j.sessaoAtiva ?? null)
+        setPendencias(j.pendencias ?? [])
+      })
+      .catch(() => {})
+    return () => { cancel = true }
+  }, [pathname])
+
   // Atualiza ao receber eventos do SSE
   useEffect(() => {
     if (typeof window === 'undefined' || typeof EventSource === 'undefined') return

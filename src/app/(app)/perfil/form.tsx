@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from 'react'
 import { salvarPerfilAction, type SalvarInput } from './actions'
+import { SavedBadge } from '@/components/brand/Feedback'
 
 type InitialPerfil = {
   nome: string
@@ -133,7 +134,7 @@ export function PerfilForm({ initial, emailAtual, waConectado }: Props) {
         )}
 
         {erro && !erroCampo && <div style={{ color: 'var(--rose)', fontSize: 12 }}>{erro}</div>}
-        {salvo && <div style={{ color: 'var(--sage)', fontSize: 13 }}>✓ Alterações salvas</div>}
+        {salvo && <SavedBadge label="Alterações salvas" />}
 
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
           <span style={{ fontSize: 11, color: 'var(--faint)' }}>
