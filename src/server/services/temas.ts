@@ -63,6 +63,11 @@ const STOPWORDS = new Set([
   // muito comuns mas pouco específicos
   'casa','vida','gente','pessoa','pessoas','homem','mulher','crianças','criança',
   'lugar','lugares','feito','fazer','faço','fiz','fazendo','fazendo','feita',
+  // bordões, gírias e fillers conversacionais (#3) — nunca são tema clínico
+  'né','sacou','saca','manja','manjou','mano','cara','véi','vei','tá','to','tô',
+  'beleza','blz','nossa','putz','uai','ué','poxa','caramba','aff','enfim',
+  'ahn','hum','hã','ahã','uhum','aham','eh','ah','oh','daí','aí','massa',
+  'vish','eita','oxe','pô','po','cê','ce','tipo','tá','tipão','rolê','role',
 ])
 
 const SEEDS: Record<Cluster, string[]> = {

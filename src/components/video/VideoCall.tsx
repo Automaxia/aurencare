@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Mic, MicOff, Video, VideoOff, PhoneOff } from 'lucide-react'
 import { useWebRTC, type WebRTCState } from '@/lib/useWebRTC'
 
@@ -21,6 +21,33 @@ export function VideoCall({ token, role, caller, compact, onEncerrar, onRemoteSt
   const ctrl = useWebRTC({ token, role, caller })
   const localRef = useRef<HTMLVideoElement>(null)
   const remoteRef = useRef<HTMLVideoElement>(null)
+
+  // #10: janela do próprio vídeo arrastável (mouse + toque), presa dentro do quadro.
+  const [pos, setPos] = useState<{ left: number; top: number } | null>(null)
+  const dragRef = useRef<{ sx: number; sy: number; bl: number; bt: number } | null>(null)
+
+  function onPointerDown(e: React.PointerEvent<HTMLVideoElement>) {
+    const el = e.currentTarget
+    const parent = el.parentElement
+    if (!parent) return
+    const r = el.getBoundingClientRect()
+    const p = parent.getBoundingClientRect()
+    dragRef.current = { sx: e.clientX, sy: e.clientY, bl: r.left - p.left, bt: r.top - p.top }
+    try { el.setPointerCapture(e.pointerId) } catch { /* */ }
+  }
+  function onPointerMove(e: React.PointerEvent<HTMLVideoElement>) {
+    const d = dragRef.current
+    if (!d) return
+    const el = e.currentTarget
+    const p = el.parentElement!.getBoundingClientRect()
+    const left = Math.max(6, Math.min(d.bl + (e.clientX - d.sx), p.width - el.offsetWidth - 6))
+    const top = Math.max(6, Math.min(d.bt + (e.clientY - d.sy), p.height - el.offsetHeight - 6))
+    setPos({ left, top })
+  }
+  function onPointerUp(e: React.PointerEvent<HTMLVideoElement>) {
+    dragRef.current = null
+    try { e.currentTarget.releasePointerCapture(e.pointerId) } catch { /* */ }
+  }
 
   useEffect(() => {
     if (localRef.current && ctrl.localStream) localRef.current.srcObject = ctrl.localStream
@@ -60,6 +87,14 @@ export function VideoCall({ token, role, caller, compact, onEncerrar, onRemoteSt
         muted
         playsInline
         className="vc-local"
+        onPointerDown={onPointerDown}
+        onPointerMove={onPointerMove}
+        onPointerUp={onPointerUp}
+        title="Arraste para reposicionar seu vídeo"
+        style={{
+          cursor: 'grab', touchAction: 'none',
+          ...(pos ? { left: pos.left, top: pos.top, right: 'auto', bottom: 'auto' } : null),
+        }}
       />
 
       <ControlsCall ctrl={ctrl} onEncerrar={onEncerrar} />
