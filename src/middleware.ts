@@ -8,10 +8,11 @@ export const config = {
   /**
    * Protege todo o app exceto rotas públicas:
    * /login · /cadastro · /lancamento (landing pública) · /onboard/* · /sala/*
-   * · /api/auth/* · /api/webhooks/* · /api/health · /confirmar/* · /landing/*
-   * (imagens públicas da landing) · assets internos.
+   * · /api/auth/* · /api/webhooks/* · /api/health · /api/ice (ICE servers do
+   * WebRTC — paciente é anônimo) · /confirmar/* · /landing/* (imagens públicas
+   * da landing) · assets internos.
    */
   matcher: [
-    '/((?!login|cadastro|lancamento|landing|confirmar|onboard|sala|api/auth|api/webhooks|api/sala|api/wa|api/health|_next/static|_next/image|favicon.ico|icon.svg).*)',
+    '/((?!login|cadastro|lancamento|landing|confirmar|onboard|sala|api/auth|api/webhooks|api/sala|api/wa|api/health|api/ice|_next/static|_next/image|favicon.ico|icon.svg).*)',
   ],
 }
