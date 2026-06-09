@@ -21,6 +21,7 @@ export function NewSessionForm({ pacientes }: { pacientes: { id: string; nome: s
   const [duracao, setDuracao] = useState(50)
   const [modalidade, setModalidade] = useState('online')
   const [valor, setValor] = useState(220)
+  const [gratuita, setGratuita] = useState(false)
 
   // Série
   const [frequencia, setFrequencia] = useState<Frequencia>('semanal')
@@ -146,9 +147,22 @@ export function NewSessionForm({ pacientes }: { pacientes: { id: string; nome: s
           </select>
         </Field>
         <Field label={modo === 'serie' ? 'Valor por sessão (R$)' : 'Valor (R$)'}>
-          <input type="number" value={valor} onChange={e => setValor(+e.target.value)} min={0} step={10} />
+          <input
+            type="number" value={gratuita ? 0 : valor}
+            onChange={e => setValor(+e.target.value)}
+            min={0} step={10} disabled={gratuita}
+            style={gratuita ? { opacity: .5 } : undefined}
+          />
         </Field>
       </div>
+
+      <label style={{ display: 'inline-flex', alignItems: 'center', gap: 8, fontSize: 13, color: 'var(--ink-soft)', cursor: 'pointer' }}>
+        <input
+          type="checkbox" checked={gratuita}
+          onChange={e => { setGratuita(e.target.checked); if (e.target.checked) setValor(0) }}
+        />
+        Não cobrar esta sessão (gratuita) — sem pedido de pagamento ao paciente
+      </label>
 
       {error && <div style={{ color: 'var(--rose)', fontSize: 12 }}>{error}</div>}
 

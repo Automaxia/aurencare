@@ -24,13 +24,15 @@ export type SpeechFinalChunk = {
 
 type Options = {
   enabled: boolean
+  /** Idioma do reconhecimento (ex.: 'pt-BR', 'en-US'). Default 'pt-BR'. */
+  lang?: string
   onFinal: (chunk: SpeechFinalChunk) => void
   onInterim?: (text: string) => void
 }
 
 type SR = any
 
-export function useSpeech({ enabled, onFinal, onInterim }: Options) {
+export function useSpeech({ enabled, lang = 'pt-BR', onFinal, onInterim }: Options) {
   // Callbacks vão pra refs ESTÁVEIS — o useEffect principal não reage
   // a mudanças delas, evitando recriar SpeechRecognition a cada render.
   const onFinalRef = useRef(onFinal)
@@ -62,7 +64,7 @@ export function useSpeech({ enabled, onFinal, onInterim }: Options) {
     let restartTimer: ReturnType<typeof setTimeout> | null = null
 
     const r = new SR()
-    r.lang = 'pt-BR'
+    r.lang = lang
     r.continuous = true
     r.interimResults = true
     r.maxAlternatives = 1
@@ -131,7 +133,7 @@ export function useSpeech({ enabled, onFinal, onInterim }: Options) {
       } catch { /* */ }
       setActive(false)
     }
-  }, [enabled, supported])
+  }, [enabled, supported, lang])
 
   return { supported, active, error }
 }

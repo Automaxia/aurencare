@@ -161,19 +161,31 @@ export async function criarSessao(input: CriarSessaoInput): Promise<Sessao> {
   )
   const numero = count[0].n
 
+  // Sessão gratuita (valor 0): pula a cobrança — já nasce confirmada, sem WhatsApp de método.
+  const gratuita = (input.valor ?? 0) <= 0
+
   const { rows } = await db.query(
-    `INSERT INTO sessoes (psicologo_id, paciente_id, numero, data_hora, duracao_min, modalidade, status, valor, wa_pergunta_metodo_em)
-     VALUES ($1,$2,$3,$4,$5,$6,'aguardando_metodo',$7, NOW())
+    `INSERT INTO sessoes (psicologo_id, paciente_id, numero, data_hora, duracao_min, modalidade, status, valor, pagamento_status, wa_pergunta_metodo_em)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
      RETURNING id`,
-    [input.psicologoId, input.pacienteId, numero, input.dataHora, input.duracaoMin ?? 50, input.modalidade ?? 'online', input.valor],
+    [
+      input.psicologoId, input.pacienteId, numero, input.dataHora,
+      input.duracaoMin ?? 50, input.modalidade ?? 'online',
+      gratuita ? 'confirmada' : 'aguardando_metodo',
+      input.valor,
+      gratuita ? 'isento' : 'pendente',
+      gratuita ? null : new Date().toISOString(),
+    ],
   )
   const sessao = (await buscarSessao(rows[0].id))!
 
-  // Fluxo 2 — pergunta método via WhatsApp.
-  await enviarWA(
-    sessao.pacienteTelefone,
-    WA_TEMPLATES.fluxo2_perguntarMetodo(formatDateTimeBR(sessao.dataHora), sessao.valor),
-  )
+  // Fluxo 2 — pergunta método via WhatsApp (só quando há cobrança).
+  if (!gratuita) {
+    await enviarWA(
+      sessao.pacienteTelefone,
+      WA_TEMPLATES.fluxo2_perguntarMetodo(formatDateTimeBR(sessao.dataHora), sessao.valor),
+    )
+  }
 
   return sessao
 }
@@ -244,6 +256,7 @@ export async function criarSerie(input: CriarSerieInput): Promise<CriarSerieResu
   if (input.quantidade > 52) throw new Error('serie_maximo_52_sessoes')
 
   const datas = gerarDatasSerie(input.primeiraSessaoIso, input.frequencia, input.quantidade)
+  const gratuita = (input.valor ?? 0) <= 0
 
   // próximo número de sessão pra esse paciente
   const { rows: count } = await db.query<{ n: number }>(
@@ -263,13 +276,14 @@ export async function criarSerie(input: CriarSerieInput): Promise<CriarSerieResu
 
     for (const dataIso of datas) {
       const { rows } = await cliente.query<{ id: string }>(
-        `INSERT INTO sessoes (psicologo_id, paciente_id, numero, data_hora, duracao_min, modalidade, status, valor, serie_id)
-         VALUES ($1,$2,$3,$4,$5,$6,'aguardando_metodo',$7,$8)
+        `INSERT INTO sessoes (psicologo_id, paciente_id, numero, data_hora, duracao_min, modalidade, status, valor, pagamento_status, serie_id)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
          RETURNING id`,
         [
           input.psicologoId, input.pacienteId, proxNumero++,
           dataIso, input.duracaoMin ?? 50, input.modalidade ?? 'online',
-          input.valor, serieId,
+          gratuita ? 'confirmada' : 'aguardando_metodo',
+          input.valor, gratuita ? 'isento' : 'pendente', serieId,
         ],
       )
       sessoesIds.push(rows[0].id)

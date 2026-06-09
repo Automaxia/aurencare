@@ -77,7 +77,11 @@ export function useRemoteTranscribe({ stream, enabled, onFinal, onInterim }: Opt
     /** Abre uma nova WS pareada a um token. Resolve quando onopen disparar. */
     function openWs(token: string, sampleRate: number): Promise<WebSocket> {
       return new Promise((resolve, reject) => {
-        const url = `${WS_URL}?sample_rate=${sampleRate}&format_turns=true&token=${encodeURIComponent(token)}`
+        // Modelo multilíngue (PT/EN/ES/FR/DE/IT) + detecção automática de idioma
+        // — corrige PT (antes ia no modelo inglês default) e capta inglês/troca de idioma.
+        const url = `${WS_URL}?sample_rate=${sampleRate}&format_turns=true`
+          + `&speech_model=universal-streaming-multilingual&language_detection=true`
+          + `&token=${encodeURIComponent(token)}`
         const ws = new WebSocket(url)
         ws.binaryType = 'arraybuffer'
         ws.onopen = () => resolve(ws)

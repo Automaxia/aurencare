@@ -11,7 +11,7 @@ export async function criarSessaoAction(input: {
 }): Promise<Result> {
   const user = await requirePsicologo()
   if (!input.pacienteId) return { ok: false, error: 'Selecione um paciente.' }
-  if (input.valor <= 0)  return { ok: false, error: 'Valor inválido.' }
+  if (input.valor < 0)   return { ok: false, error: 'Valor inválido.' }
   if (new Date(input.dataHora).getTime() < Date.now()) return { ok: false, error: 'Data/hora no passado.' }
 
   try {
@@ -37,7 +37,7 @@ export async function criarSerieAction(input: {
 }): Promise<SerieResult> {
   const user = await requirePsicologo()
   if (!input.pacienteId) return { ok: false, error: 'Selecione um paciente.' }
-  if (input.valor <= 0)  return { ok: false, error: 'Valor inválido.' }
+  if (input.valor < 0)   return { ok: false, error: 'Valor inválido.' }
   if (input.quantidade < 2) return { ok: false, error: 'Série precisa de pelo menos 2 sessões.' }
   if (input.quantidade > 52) return { ok: false, error: 'Máximo 52 sessões por série.' }
   if (new Date(input.primeiraSessaoIso).getTime() < Date.now()) return { ok: false, error: 'A primeira sessão está no passado.' }

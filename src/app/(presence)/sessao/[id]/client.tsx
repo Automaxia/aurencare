@@ -58,6 +58,9 @@ export function PresenceClient(props: Props) {
   // mic local do psicólogo — só usado como FALLBACK quando o Web Speech não existe
   // (iPad/Safari/Firefox). Aí roteamos o mic local pela AssemblyAI (igual ao paciente).
   const [localMicStream, setLocalMicStream] = useState<MediaStream | null>(null)
+  // idioma do reconhecimento de fala da psicóloga (Web Speech). A AssemblyAI
+  // (paciente/tablet) detecta o idioma automaticamente.
+  const [idioma, setIdioma] = useState('pt-BR')
 
   const startedRef = useRef(false)
   // controle de quando rodar próxima observação ao vivo
@@ -99,6 +102,7 @@ export function PresenceClient(props: Props) {
 
   const { supported, active, error } = useSpeech({
     enabled: recording,
+    lang: idioma,
     onFinal: chunk => addPsicologoTurn(chunk.texto, chunk.ts),
     onInterim: setInterim,
   })
@@ -352,6 +356,20 @@ export function PresenceClient(props: Props) {
           </span>
         </div>
         <div className="pb-actions">
+          {supported !== false && (
+            <select
+              value={idioma}
+              onChange={e => setIdioma(e.target.value)}
+              title="Idioma da sua fala (a do paciente é detectada automaticamente)"
+              style={{
+                fontSize: 12, padding: '6px 8px', borderRadius: 8,
+                border: '1px solid var(--border)', background: 'var(--card)', color: 'var(--ink-soft)',
+              }}
+            >
+              <option value="pt-BR">PT</option>
+              <option value="en-US">EN</option>
+            </select>
+          )}
           {!recording ? (
             <button className="btn" onClick={iniciarRegistro}>● Iniciar registro</button>
           ) : (
