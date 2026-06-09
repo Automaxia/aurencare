@@ -82,10 +82,10 @@ spec:
   # Configuração TLS/SSL
   tls:
   - hosts:
-    - aurencare.automaxia.com.br
-    secretName: aurencare-web-tls-cert
+    - app.audere.ia.br
+    secretName: aurencare-web-audere-tls-cert
   rules:
-  - host: aurencare.automaxia.com.br
+  - host: app.audere.ia.br
     http:
       paths:
 

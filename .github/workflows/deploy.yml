@@ -110,4 +110,4 @@ jobs:
         run: |
           echo "### Deploy ${{ steps.vars.outputs.sha }}" >> "$GITHUB_STEP_SUMMARY"
           echo "- Imagem: \`${{ env.REGISTRY }}/aurencare-web:${{ steps.vars.outputs.sha }}\`" >> "$GITHUB_STEP_SUMMARY"
-          echo "- Site: https://aurencare.automaxia.com.br/" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Site: https://app.audere.ia.br/" >> "$GITHUB_STEP_SUMMARY"
