@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { Mic, MicOff, Video, VideoOff, PhoneOff, Maximize2, Minimize2, Aperture } from 'lucide-react'
 import { useWebRTC, type WebRTCState } from '@/lib/useWebRTC'
+import { useBackgroundBlur } from '@/lib/useBackgroundBlur'
 
 type Props = {
   token: string
@@ -54,7 +55,8 @@ export function VideoCall({ token, role, caller, compact, onEncerrar, onRemoteSt
   const [minimized, setMinimized] = useState(false)
   const [maximized, setMaximized] = useState(false)
   const [blur, setBlur] = useState(false)
-  const [blurOk, setBlurOk] = useState(true)
+  const blurProc = useBackgroundBlur(ctrl.localStream, blur)
+  const blurOk = !blurProc.error
 
   useEffect(() => {
     const h = () => setMaximized(!!document.fullscreenElement)
@@ -71,21 +73,21 @@ export function VideoCall({ token, role, caller, compact, onEncerrar, onRemoteSt
     } catch { /* */ }
   }
 
-  async function toggleBlur() {
-    const track = ctrl.localStream?.getVideoTracks?.()[0]
-    if (!track) return
-    const next = !blur
-    try {
-      await (track as any).applyConstraints({ advanced: [{ backgroundBlur: next }] })
-      setBlur(next)
-    } catch {
-      setBlurOk(false)   // navegador sem suporte ao blur nativo
-    }
-  }
-
+  // Preview local: mostra o blurred quando ativo (igual ao que o outro vê), senão a câmera crua.
   useEffect(() => {
-    if (localRef.current && ctrl.localStream) localRef.current.srcObject = ctrl.localStream
-  }, [ctrl.localStream])
+    const v = localRef.current
+    if (!v) return
+    v.srcObject = (blur && blurProc.stream) ? blurProc.stream : ctrl.localStream
+  }, [ctrl.localStream, blur, blurProc.stream])
+
+  // Track ENVIADO: troca pelo blurred quando ativo, reverte quando off (seamless).
+  useEffect(() => {
+    if (blur && blurProc.stream) ctrl.replaceVideoTrack(blurProc.stream.getVideoTracks()[0] ?? null)
+    else ctrl.replaceVideoTrack(null)
+  }, [blur, blurProc.stream, ctrl])
+
+  // Falhou (modelo não carregou / device fraco) → volta o botão pro off.
+  useEffect(() => { if (blurProc.error) setBlur(false) }, [blurProc.error])
   useEffect(() => {
     if (remoteRef.current && ctrl.remoteStream) remoteRef.current.srcObject = ctrl.remoteStream
     onRemoteStream?.(ctrl.remoteStream)
@@ -100,10 +102,10 @@ export function VideoCall({ token, role, caller, compact, onEncerrar, onRemoteSt
       {/* Controles da janela — canto superior direito */}
       <div className="vc-winctrls">
         <button
-          className={`vc-win${blur ? ' on' : ''}`}
-          onClick={toggleBlur}
+          className={`vc-win${blur && blurProc.stream ? ' on' : ''}`}
+          onClick={() => setBlur(b => !b)}
           disabled={!blurOk}
-          title={blurOk ? (blur ? 'Desativar desfoque de fundo' : 'Desfocar o fundo') : 'Desfoque não suportado neste navegador'}
+          title={!blurOk ? 'Desfoque indisponível neste dispositivo' : blur ? (blurProc.stream ? 'Desativar desfoque de fundo' : 'Carregando desfoque…') : 'Desfocar o fundo'}
         >
           <Aperture size={14} />
         </button>

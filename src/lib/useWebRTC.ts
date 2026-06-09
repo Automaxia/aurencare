@@ -37,6 +37,8 @@ export type WebRTCState = {
   /** Toggle vídeo local */
   camOn: boolean
   setCamOn: (on: boolean) => void
+  /** Troca o track de vídeo ENVIADO (ex.: versão com blur). null = volta à câmera. Seamless, não renegocia. */
+  replaceVideoTrack: (track: MediaStreamTrack | null) => void
   encerrar: () => void
 }
 
@@ -203,6 +205,14 @@ export function useWebRTC({ token, role, caller, withVideo = true }: Options): W
     localStream?.getVideoTracks().forEach(t => { t.enabled = on })
   }, [localStream])
 
+  const replaceVideoTrack = useCallback((track: MediaStreamTrack | null) => {
+    const pc = pcRef.current
+    if (!pc) return
+    const sender = pc.getSenders().find(s => s.track?.kind === 'video')
+    const original = localStream?.getVideoTracks()[0] ?? null
+    sender?.replaceTrack(track ?? original).catch(() => { /* fail-safe: mantém o atual */ })
+  }, [localStream])
+
   const encerrar = useCallback(() => {
     try { sendSignal({ type: 'bye' }) } catch { /* */ }
     try { esRef.current?.close() } catch { /* */ }
@@ -211,5 +221,5 @@ export function useWebRTC({ token, role, caller, withVideo = true }: Options): W
     setEstado('encerrado')
   }, [localStream, sendSignal])
 
-  return { estado, localStream, remoteStream, outroPresente, err, micOn, setMicOn, camOn, setCamOn, encerrar }
+  return { estado, localStream, remoteStream, outroPresente, err, micOn, setMicOn, camOn, setCamOn, replaceVideoTrack, encerrar }
 }
