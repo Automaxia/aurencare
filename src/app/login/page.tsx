@@ -23,8 +23,8 @@ function LoginForm() {
   const params = useSearchParams()
   const callbackUrl = params?.get('callbackUrl') ?? '/'
 
-  const [email, setEmail] = useState('ana@aurencare.com')
-  const [password, setPassword] = useState('auren123')
+  const [email, setEmail] = useState('')
+  const [password, setPassword] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -44,7 +44,7 @@ function LoginForm() {
       backgroundImage: 'url(/landing/login-bg.png)',
       backgroundSize: 'cover', backgroundPosition: 'center', backgroundRepeat: 'no-repeat',
     }}>
-      <div className="card" style={{ width: 360, padding: 28 }}>
+      <div className="card" style={{ width: 'min(360px, 92vw)', padding: 28 }}>
         <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 20 }}>
           <Logo size={40} layout="stack" tagline />
         </div>
@@ -81,19 +81,18 @@ function LoginForm() {
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
-    <label style={{ display: 'grid', gap: 4 }}>
+    <label style={{ display: 'grid', gap: 5 }}>
       <span style={{ fontSize: 11, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '.06em' }}>{label}</span>
-      <span style={{
-        display: 'block', border: '1px solid var(--border)', borderRadius: 8,
-        padding: '8px 12px', background: 'white',
-      }}>
-        {children}
-      </span>
+      {children}
       <style jsx>{`
         input {
-          width: 100%; border: 0; outline: none; background: transparent;
-          font-size: 13px; color: var(--ink);
+          width: 100%; box-sizing: border-box; display: block;
+          padding: 11px 13px; border-radius: 8px;
+          border: 1px solid var(--border); background: white;
+          font-size: 15px; font-family: inherit; color: var(--ink);
+          outline: none; transition: border-color .15s var(--ease);
         }
+        input:focus { border-color: var(--accent); }
       `}</style>
     </label>
   )
