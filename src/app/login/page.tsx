@@ -41,7 +41,7 @@ function LoginForm() {
     <div style={{
       minHeight: '100vh', display: 'grid', placeItems: 'center',
       backgroundColor: 'var(--page)',
-      backgroundImage: 'url(/landing/login-bg.png)',
+      backgroundImage: 'url(/landing/login-bg.webp)',
       backgroundSize: 'cover', backgroundPosition: 'center', backgroundRepeat: 'no-repeat',
     }}>
       <div className="card" style={{ width: 'min(360px, 92vw)', padding: 28 }}>
