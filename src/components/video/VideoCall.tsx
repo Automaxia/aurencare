@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
-import { Mic, MicOff, Video, VideoOff, PhoneOff } from 'lucide-react'
+import { Mic, MicOff, Video, VideoOff, PhoneOff, Maximize2, Minimize2, Aperture } from 'lucide-react'
 import { useWebRTC, type WebRTCState } from '@/lib/useWebRTC'
 
 type Props = {
@@ -49,6 +49,40 @@ export function VideoCall({ token, role, caller, compact, onEncerrar, onRemoteSt
     try { e.currentTarget.releasePointerCapture(e.pointerId) } catch { /* */ }
   }
 
+  // #1: controles da janela — maximizar (fullscreen), minimizar (flutuante), blur de fundo.
+  const shellRef = useRef<HTMLDivElement>(null)
+  const [minimized, setMinimized] = useState(false)
+  const [maximized, setMaximized] = useState(false)
+  const [blur, setBlur] = useState(false)
+  const [blurOk, setBlurOk] = useState(true)
+
+  useEffect(() => {
+    const h = () => setMaximized(!!document.fullscreenElement)
+    document.addEventListener('fullscreenchange', h)
+    return () => document.removeEventListener('fullscreenchange', h)
+  }, [])
+
+  async function toggleFullscreen() {
+    const el = shellRef.current
+    if (!el) return
+    try {
+      if (!document.fullscreenElement) { setMinimized(false); await el.requestFullscreen() }
+      else await document.exitFullscreen()
+    } catch { /* */ }
+  }
+
+  async function toggleBlur() {
+    const track = ctrl.localStream?.getVideoTracks?.()[0]
+    if (!track) return
+    const next = !blur
+    try {
+      await (track as any).applyConstraints({ advanced: [{ backgroundBlur: next }] })
+      setBlur(next)
+    } catch {
+      setBlurOk(false)   // navegador sem suporte ao blur nativo
+    }
+  }
+
   useEffect(() => {
     if (localRef.current && ctrl.localStream) localRef.current.srcObject = ctrl.localStream
   }, [ctrl.localStream])
@@ -58,7 +92,29 @@ export function VideoCall({ token, role, caller, compact, onEncerrar, onRemoteSt
   }, [ctrl.remoteStream, onRemoteStream])
 
   return (
-    <div className={`vc-shell${compact ? ' vc-compact' : ''}`} data-estado={ctrl.estado}>
+    <div
+      ref={shellRef}
+      className={`vc-shell${compact ? ' vc-compact' : ''}${minimized ? ' vc-min' : ''}`}
+      data-estado={ctrl.estado}
+    >
+      {/* Controles da janela — canto superior direito */}
+      <div className="vc-winctrls">
+        <button
+          className={`vc-win${blur ? ' on' : ''}`}
+          onClick={toggleBlur}
+          disabled={!blurOk}
+          title={blurOk ? (blur ? 'Desativar desfoque de fundo' : 'Desfocar o fundo') : 'Desfoque não suportado neste navegador'}
+        >
+          <Aperture size={14} />
+        </button>
+        <button className="vc-win" onClick={() => setMinimized(m => !m)} title={minimized ? 'Restaurar' : 'Minimizar'}>
+          <Minimize2 size={14} />
+        </button>
+        <button className="vc-win" onClick={toggleFullscreen} title={maximized ? 'Sair da tela cheia' : 'Maximizar'}>
+          <Maximize2 size={14} />
+        </button>
+      </div>
+
       <div className="vc-remote">
         <video
           ref={remoteRef}
