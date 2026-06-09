@@ -6,12 +6,25 @@ import { useCallback, useEffect, useRef, useState } from 'react'
  * Hook de chamada WebRTC P2P 1:1 com signaling via SSE+POST.
  * O lado `caller` cria a offer assim que o outro lado entra (recebe 'hello').
  *
- * Limitação atual: STUN público do Google apenas. Pra produção, configurar TURN.
+ * ICE servers vêm de `/api/ice` (STUN sempre; TURN quando configurado no cluster),
+ * com fallback pra STUN-only caso a rota falhe. Ver `src/server/lib/turn.ts`.
  */
 
-const ICE_SERVERS: RTCIceServer[] = [
+const STUN_FALLBACK: RTCIceServer[] = [
   { urls: ['stun:stun.l.google.com:19302', 'stun:stun1.l.google.com:19302'] },
 ]
+
+async function fetchIceServers(): Promise<RTCIceServer[]> {
+  try {
+    const r = await fetch('/api/ice', { cache: 'no-store' })
+    if (!r.ok) return STUN_FALLBACK
+    const data = await r.json()
+    const list = data?.iceServers
+    return Array.isArray(list) && list.length > 0 ? list : STUN_FALLBACK
+  } catch {
+    return STUN_FALLBACK
+  }
+}
 
 type Role = 'psicologo' | 'paciente'
 type Estado = 'inicializando' | 'aguardando_peer' | 'conectando' | 'conectado' | 'encerrado' | 'erro'
@@ -92,8 +105,10 @@ export function useWebRTC({ token, role, caller, withVideo = true }: Options): W
         if (cancelled) { stream.getTracks().forEach(t => t.stop()); return }
         setLocalStream(stream)
 
-        // 2. Cria peer connection
-        pc = new RTCPeerConnection({ iceServers: ICE_SERVERS })
+        // 2. Cria peer connection (ICE servers do backend; STUN se falhar)
+        const iceServers = await fetchIceServers()
+        if (cancelled) { stream.getTracks().forEach(t => t.stop()); return }
+        pc = new RTCPeerConnection({ iceServers })
         pcRef.current = pc
 
         // Adiciona tracks locais

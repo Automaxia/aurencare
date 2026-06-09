@@ -1,0 +1,92 @@
+# ──────────────────────────────────────────────────────────────────────────
+# coturn — servidor TURN/STUN para o vídeo WebRTC do Audere.
+#
+# Resolve chamadas que caem atrás de NAT simétrico / 4G corporativo (só STUN
+# não basta). O app gera credenciais EFÊMERAS via HMAC (use-auth-secret), então
+# o `static-auth-secret` aqui = `TURN_STATIC_AUTH_SECRET` no aurencare-secrets.
+#
+# Pré-requisitos de rede:
+#   - coturn usa hostNetwork: o nó precisa de IP público alcançável.
+#   - Liberar no firewall/SG: 3478/udp, 3478/tcp, 5349/tcp(TLS) e o range de
+#     relay 49160-49200/udp.
+#   - DNS turn.audere.ia.br → IP público do nó (cluster: 84.247.138.18).
+#   - Para `turns:` (TLS) monte um cert válido em /etc/coturn/certs (cert-manager
+#     ou Secret) e descomente as linhas cert/pkey no ConfigMap.
+#
+# Aplicar:
+#   kubectl apply -f k8s/coturn.yaml
+#   kubectl -n aurencare create secret generic coturn-auth \
+#     --from-literal=static-auth-secret="<MESMO valor de TURN_STATIC_AUTH_SECRET>"
+# ──────────────────────────────────────────────────────────────────────────
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: coturn-config
+  namespace: aurencare
+data:
+  turnserver.conf: |
+    listening-port=3478
+    tls-listening-port=5349
+    fingerprint
+    lt-cred-mech
+    use-auth-secret
+    realm=audere.ia.br
+    # Range de portas de relay (deve bater com o firewall):
+    min-port=49160
+    max-port=49200
+    # Endurecimento — nega tráfego pra redes internas/privadas:
+    no-multicast-peers
+    no-cli
+    denied-peer-ip=10.0.0.0-10.255.255.255
+    denied-peer-ip=172.16.0.0-172.31.255.255
+    denied-peer-ip=192.168.0.0-192.168.255.255
+    # TLS (descomente após montar o cert):
+    # cert=/etc/coturn/certs/tls.crt
+    # pkey=/etc/coturn/certs/tls.key
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: coturn
+  namespace: aurencare
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: coturn
+  template:
+    metadata:
+      labels:
+        app: coturn
+    spec:
+      # hostNetwork: coturn precisa ver o IP público real pra advertir candidatos.
+      hostNetwork: true
+      dnsPolicy: ClusterFirstWithHostNet
+      containers:
+        - name: coturn
+          image: coturn/coturn:4.6
+          args:
+            - "-c"
+            - "/etc/coturn/turnserver.conf"
+            - "--static-auth-secret=$(TURN_STATIC_AUTH_SECRET)"
+          env:
+            - name: TURN_STATIC_AUTH_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: coturn-auth
+                  key: static-auth-secret
+          ports:
+            - { name: turn-udp, containerPort: 3478, protocol: UDP }
+            - { name: turn-tcp, containerPort: 3478, protocol: TCP }
+            - { name: turns-tcp, containerPort: 5349, protocol: TCP }
+          volumeMounts:
+            - name: config
+              mountPath: /etc/coturn/turnserver.conf
+              subPath: turnserver.conf
+          resources:
+            requests: { memory: "128Mi", cpu: "100m" }
+            limits:   { memory: "256Mi", cpu: "500m" }
+      volumes:
+        - name: config
+          configMap:
+            name: coturn-config
