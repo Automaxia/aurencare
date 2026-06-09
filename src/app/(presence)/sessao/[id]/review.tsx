@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { isValidElement, useState } from 'react'
 import Link from 'next/link'
 import { CfpBadge } from '@/components/brand/CfpBadge'
 import type { Sessao } from '@/server/services/sessoes'
@@ -123,10 +123,13 @@ export function SessionReview({ sessao }: { sessao: Sessao }) {
             )}
             {ind?.humor && (
               <>
-                <div style={{ marginTop: 10, fontSize: 11, color: 'var(--muted)' }}>Humor (−5 → +5)</div>
-                <Row label="Início" value={ind.humor.inicio} />
-                <Row label="Meio" value={ind.humor.meio} />
-                <Row label="Fim" value={ind.humor.fim} />
+                <div style={{ marginTop: 10, fontSize: 11, color: 'var(--muted)' }}>Humor</div>
+                {typeof ind.humor.estado === 'number' && (
+                  <Row label="Estado (−5 a +5)" value={`${ind.humor.estado > 0 ? '+' : ''}${ind.humor.estado} · ${emoLabel(ind.humor.estado)}`} />
+                )}
+                <Row label="Predominante" value={momentoLabel(ind.humor.predominante)} />
+                <Row label="Início" value={momentoLabel(ind.humor.inicio)} />
+                <Row label="Fim" value={momentoLabel(ind.humor.fim)} />
               </>
             )}
             {ind?.risco && (
@@ -173,15 +176,39 @@ function Empty({ children }: { children: React.ReactNode }) {
   return <div style={{ fontSize: 12, color: 'var(--muted)' }}>{children}</div>
 }
 function Row({ label, value }: { label: string; value: React.ReactNode }) {
+  // Rede de segurança: nunca renderiza um objeto cru como filho do React (isso
+  // estoura "Objects are not valid as a React child"). Coage pra string.
+  const safe = value !== null && typeof value === 'object' && !isValidElement(value)
+    ? JSON.stringify(value)
+    : value
   return (
     <div style={{ display: 'flex', justifyContent: 'space-between', padding: '3px 0', fontSize: 12 }}>
       <span style={{ color: 'var(--muted)' }}>{label}</span>
-      <span style={{ color: 'var(--ink-soft)' }}>{value}</span>
+      <span style={{ color: 'var(--ink-soft)' }}>{safe}</span>
     </div>
   )
 }
 function riskLabel(v?: string) {
   return ({ lo: 'Baixo', md: 'Médio', hi: 'Alto' } as Record<string, string>)[v ?? 'lo'] ?? '—'
+}
+
+const EMO_LABELS: Record<number, string> = {
+  [-5]: 'Extremamente desagradável', [-4]: 'Muito desagradável', [-3]: 'Desagradável',
+  [-2]: 'Levemente desagradável', [-1]: 'Pouco desagradável', 0: 'Neutro',
+  1: 'Pouco agradável', 2: 'Levemente agradável', 3: 'Agradável',
+  4: 'Muito agradável', 5: 'Extremamente agradável',
+}
+function emoLabel(v: number): string {
+  return EMO_LABELS[v] ?? 'Neutro'
+}
+/** Momento de humor pode ser objeto {texto, intensidade} (atual) ou primitivo (legado). */
+function momentoLabel(m: any): string {
+  if (m == null) return '—'
+  if (typeof m !== 'object') return String(m)
+  const texto = (m.texto ?? '').toString().trim()
+  const inten = typeof m.intensidade === 'number' ? `intensidade ${m.intensidade}` : ''
+  if (texto && inten) return `${texto} · ${inten}`
+  return texto || inten || '—'
 }
 
 /**
