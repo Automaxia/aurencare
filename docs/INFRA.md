@@ -54,6 +54,21 @@ Hoje `BETA_LIBERADO=true` (acesso liberado, sem cobrança). Para ligar:
 - [ ] Migrar o cron in-process (node-cron) para **CronJob do k8s** + definir
       `CRON_SECRET` (evita lembrete duplicado se subir mais de 1 pod).
 
+## 🔵 6. Login com Google (adiado — precisa de credenciais OAuth)
+Recuperação de senha já está no ar. O login/cadastro com Google fica pra ligar
+quando houver as credenciais (o dev faz o código; estas etapas são suas):
+
+- [ ] No **Google Cloud Console** → APIs & Services → Credentials → criar
+      **OAuth client ID** (tipo *Web application*).
+- [ ] Authorized redirect URI: `https://app.audere.ia.br/api/auth/callback/google`
+- [ ] Definir no secret e reiniciar:
+  ```bash
+  kubectl patch secret aurencare-secrets -n aurencare --type merge \
+    -p '{"stringData":{"GOOGLE_CLIENT_ID":"<id>","GOOGLE_CLIENT_SECRET":"<secret>"}}'
+  ```
+- [ ] Confirmar `NEXTAUTH_URL=https://app.audere.ia.br` (o callback do Google usa essa base).
+- [ ] Decisão já tomada: contas de mesmo email são **vinculadas** (Google = outra forma de entrar na conta existente).
+
 ---
 
 ## 🐞 Diagnóstico (não é config — precisa reproduzir)

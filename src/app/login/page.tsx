@@ -71,7 +71,11 @@ function LoginForm() {
           </button>
         </form>
 
-        <div style={{ marginTop: 18, textAlign: 'center', fontSize: 12, color: 'var(--muted)' }}>
+        <div style={{ marginTop: 14, textAlign: 'center', fontSize: 12 }}>
+          <Link href="/recuperar-senha" style={{ color: 'var(--muted)' }}>Esqueci minha senha</Link>
+        </div>
+
+        <div style={{ marginTop: 10, textAlign: 'center', fontSize: 12, color: 'var(--muted)' }}>
           Não tem conta? <Link href="/cadastro" style={{ color: 'var(--accent)' }}>Criar agora</Link>
         </div>
       </div>
