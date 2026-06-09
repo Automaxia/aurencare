@@ -38,7 +38,7 @@ Hoje `BETA_LIBERADO=true` (acesso liberado, sem cobrança). Para ligar:
 - [ ] `NEXT_PUBLIC_PAGARME_PUBLIC_KEY` (pk_live) — ⚠️ **é build-time**: tem que entrar
       no **build da imagem** (`--build-arg` no `build-push.sh` ou env do job de build),
       **não** só no secret de runtime.
-- [ ] Cadastrar o webhook no painel Pagar.me → `https://aurencare.automaxia.com.br/api/webhooks/pagarme`
+- [ ] Cadastrar o webhook no painel Pagar.me → `https://app.audere.ia.br/api/webhooks/pagarme`
       (eventos: subscription.charged/canceled, invoice.paid, charge.payment_failed).
 - [ ] No código: trocar `BETA_LIBERADO` para `false` em `src/server/lib/planos.ts` + redeploy.
 

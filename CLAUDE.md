@@ -612,7 +612,7 @@ Modal abre automaticamente ao encerrar. Contém:
 
 ## 15. ESCOPO — STATUS ATUAL
 
-> O projeto está **em produção** (https://aurencare.automaxia.com.br/) e já cobre
+> O projeto está **em produção** (https://app.audere.ia.br/) e já cobre
 > Fase 1 + parte da Fase 2. Detalhe e backlog em [`docs/tasks.md`](./docs/tasks.md).
 
 ### ✅ Implementado e em produção
@@ -653,7 +653,7 @@ Modal abre automaticamente ao encerrar. Contém:
 ## 15.1 DEPLOY (Kubernetes)
 
 - **Monolito, 1 pod** (`aurencare-web`): frontend e API são o mesmo app/imagem. Os
-  hosts `aurencare.automaxia.com.br` (e `api.`) apontam para o mesmo Service.
+  hosts `app.audere.ia.br` (e `api.`) apontam para o mesmo Service.
 - **kubeconfig**: `local.yaml` (cluster Rancher) — usar `kubectl --insecure-skip-tls-verify`.
 - **Imagem**: `wesleyromualdo/aurencare-web:latest`. Migrations: `k8s/migrate-job.yaml`
   (`node src/server/db/migrate.mjs`, idempotente — **não** usa `tsx`).

@@ -13,7 +13,7 @@ Legenda prioridade: **P0** crítico (segurança/risco) · **P1** importante · *
 - ✅ Deploy no Kubernetes — monolito em 1 pod (`aurencare-web`), Ingress dos dois hosts.
 - ✅ Job de migrations (`migrate.mjs` em JS puro) + 17 migrations aplicadas.
 - ✅ Banco/role `aurencare` criados no Postgres do cluster.
-- ✅ Domínio de produção `aurencare.automaxia.com.br` + TLS (Cloudflare Full strict).
+- ✅ Domínio de produção `app.audere.ia.br` + TLS (Cloudflare Full strict).
 - ✅ WhatsApp funcionando — correção do payload Evolution **v2** (`{ number, text }`).
 - ✅ Email funcionando — Resend configurado + domínio `automaxia.com.br` verificado.
 - ✅ IA em produção — `ANTHROPIC_API_KEY` real no secret do cluster.
