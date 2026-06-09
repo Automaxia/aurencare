@@ -24,21 +24,21 @@ Sem isso, áudio do paciente e o fallback de fala do psicólogo no tablet não f
 Destrava: transcrição do paciente, fallback do tablet, multilíngue (PT/EN) e
 qualidade do PT (antes ia no modelo inglês default).
 
-## 🟠 2. Confiabilidade do vídeo — servidor TURN (#11)
-Chamadas caem atrás de NAT/4G porque hoje só há **STUN** (sem TURN).
+## 🟢 2. Confiabilidade do vídeo — servidor TURN (#11) — ✅ ATIVO
+Chamadas atrás de NAT/4G agora têm relay TURN (antes só STUN).
 
 - [x] **Código** — app lê TURN do cluster: `src/server/lib/turn.ts` (credenciais
       **efêmeras** HMAC, modo coturn `use-auth-secret`), rota pública `/api/ice`
       (liberada no middleware), `useWebRTC` busca de lá (fallback STUN-only).
 - [x] **coturn no cluster** — `k8s/coturn.yaml` aplicado, pod Running no nó
-      `84.247.138.18` (hostNetwork). Secret `coturn-auth` criado; `aurencare-secrets`
-      com `TURN_STATIC_AUTH_SECRET`/`TURN_URLS`/`TURN_TTL`. App reiniciado.
-      ✔️ `/api/ice` já devolve STUN+TURN com credencial efêmera.
-- [ ] **DNS** (provedor): `turn.audere.ia.br` → `84.247.138.18`.
-- [ ] **Firewall/SG** (Contabo): abrir `3478/udp`, `3478/tcp`, `5349/tcp` e o relay
-      `49160-49200/udp`. **Sem isso o TURN não conecta de fora** (app segue em
-      STUN-only até liberar).
-- [ ] *(Opcional)* `turns:` (TLS:5349) só funciona após montar um cert válido em
+      `84.247.138.18` (hostNetwork). Secret `coturn-auth` + `aurencare-secrets`
+      com `TURN_STATIC_AUTH_SECRET`/`TURN_URLS`/`TURN_TTL`.
+- [x] **DNS** — `turn.audere.ia.br` → `84.247.138.18` (resolve no 8.8.8.8/1.1.1.1).
+- [x] **Firewall** — `3478/udp` e `3478/tcp` abertos + relay `49160-49200/udp`.
+- [x] **Validado end-to-end** (jun/2026) — TURN Allocate real com credencial
+      efêmera do `/api/ice`: `realm=audere.ia.br`, relay alocado em `:49165`.
+      Auth HMAC OK, relay OK.
+- [ ] *(Opcional)* `turns:` (TLS:5349) — só após montar cert válido em
       `/etc/coturn/certs` e descomentar `cert`/`pkey` no ConfigMap do `coturn.yaml`.
       Útil em redes que bloqueiam tudo menos 443/TLS; `3478 udp/tcp` cobre o resto.
 
