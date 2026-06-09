@@ -64,6 +64,10 @@ export function VideoCall({ token, role, caller, compact, onEncerrar, onRemoteSt
     return () => document.removeEventListener('fullscreenchange', h)
   }, [])
 
+  // Ao maximizar/minimizar o quadro muda de tamanho — a posição arrastada (em px)
+  // ficaria fora dos novos limites e o self-view "sumia". Reseta pra posição padrão.
+  useEffect(() => { setPos(null) }, [minimized, maximized])
+
   async function toggleFullscreen() {
     const el = shellRef.current
     if (!el) return
