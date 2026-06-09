@@ -234,7 +234,7 @@ export async function lerGrafo(pacienteId: string): Promise<GrafoDados> {
        FROM palavras_chave
       WHERE paciente_id = $1
         AND frequencia >= 3
-        AND (COALESCE(array_length(sessoes_ids, 1), 1) >= 2 OR frequencia >= 5)
+        AND (COALESCE(jsonb_array_length(sessoes_ids), 1) >= 2 OR frequencia >= 5)
       ORDER BY frequencia DESC
       LIMIT 30`,
     [pacienteId],
