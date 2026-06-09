@@ -2,17 +2,19 @@
 
 import { useMemo, useState } from 'react'
 import { salvarCondicoesAction } from './actions'
+import { CidAutocomplete } from '@/components/CidAutocomplete'
 
 type Condicoes = { cid?: string[]; medicacoes?: { nome: string; dose?: string }[]; alertas?: string[]; observacoes?: string }
 
 export function PatientProfileForm({ pacienteId, initial }: { pacienteId: string; initial: Condicoes | null }) {
   // Valores iniciais serializados em string — base pra comparação
-  const initialCid     = (initial?.cid ?? []).join(', ')
+  const initialCids    = initial?.cid ?? []
+  const initialCidKey  = initialCids.join('|')
   const initialMeds    = (initial?.medicacoes ?? []).map(m => `${m.nome}${m.dose ? ' (' + m.dose + ')' : ''}`).join('\n')
   const initialAlertas = (initial?.alertas ?? []).join('\n')
   const initialObs     = initial?.observacoes ?? ''
 
-  const [cidText, setCidText]         = useState(initialCid)
+  const [cids, setCids]               = useState<string[]>(initialCids)
   const [medsText, setMedsText]       = useState(initialMeds)
   const [alertasText, setAlertasText] = useState(initialAlertas)
   const [obs, setObs]                 = useState(initialObs)
@@ -23,18 +25,18 @@ export function PatientProfileForm({ pacienteId, initial }: { pacienteId: string
   // Habilita Salvar só quando algum campo mudou em relação ao inicial.
   const dirty = useMemo(
     () =>
-      cidText     !== initialCid ||
+      cids.join('|')  !== initialCidKey ||
       medsText    !== initialMeds ||
       alertasText !== initialAlertas ||
       obs         !== initialObs,
-    [cidText, medsText, alertasText, obs, initialCid, initialMeds, initialAlertas, initialObs],
+    [cids, medsText, alertasText, obs, initialCidKey, initialMeds, initialAlertas, initialObs],
   )
 
   async function salvar() {
     setLoading(true); setError(null); setSaved(false)
     try {
       const condicoes: Condicoes = {
-        cid: cidText.split(',').map(s => s.trim()).filter(Boolean),
+        cid: cids,
         medicacoes: medsText.split('\n').map(s => s.trim()).filter(Boolean).map(line => {
           const m = line.match(/^(.+?)\s*\((.+?)\)\s*$/)
           return m ? { nome: m[1].trim(), dose: m[2].trim() } : { nome: line }
@@ -56,8 +58,8 @@ export function PatientProfileForm({ pacienteId, initial }: { pacienteId: string
     <div className="card" style={{ display: 'grid', gap: 14, maxWidth: 640 }}>
       <div style={{ fontSize: 11, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '.06em' }}>Condições clínicas</div>
 
-      <Field label="CID-11 (separados por vírgula)">
-        <input value={cidText} onChange={e => setCidText(e.target.value)} placeholder="6A70.0, 6A60.1" />
+      <Field label="CID-10 (busque por código ou condição)">
+        <CidAutocomplete value={cids} onChange={setCids} />
       </Field>
 
       <Field label="Medicações (uma por linha — 'nome (dose)')">
