@@ -27,22 +27,20 @@ qualidade do PT (antes ia no modelo inglês default).
 ## 🟠 2. Confiabilidade do vídeo — servidor TURN (#11)
 Chamadas caem atrás de NAT/4G porque hoje só há **STUN** (sem TURN).
 
-- [x] **Código pronto** — app já lê TURN do cluster: `src/server/lib/turn.ts`
-      (credenciais **efêmeras** HMAC, modo coturn `use-auth-secret`), rota
-      `/api/ice`, `useWebRTC` busca os ICE servers de lá (fallback STUN-only).
-- [ ] Subir o **coturn**: `kubectl apply -f k8s/coturn.yaml` (manifesto pronto).
-- [ ] Liberar no firewall: `3478/udp,tcp`, `5349/tcp`, relay `49160-49200/udp`;
-      DNS `turn.audere.ia.br` → IP público do nó.
-- [ ] Criar o secret do coturn e setar a mesma chave no app:
-  ```bash
-  SECRET=$(openssl rand -hex 32)
-  kubectl -n aurencare create secret generic coturn-auth \
-    --from-literal=static-auth-secret="$SECRET"
-  kubectl patch secret aurencare-secrets -n aurencare --type merge \
-    -p "{\"stringData\":{\"TURN_STATIC_AUTH_SECRET\":\"$SECRET\",\"TURN_URLS\":\"turn:turn.audere.ia.br:3478?transport=udp,turn:turn.audere.ia.br:3478?transport=tcp,turns:turn.audere.ia.br:5349\"}}"
-  kubectl rollout restart deploy/aurencare-web -n aurencare
-  ```
-  (Alternativa: serviço gerenciado → use `TURN_USERNAME`/`TURN_PASSWORD`.)
+- [x] **Código** — app lê TURN do cluster: `src/server/lib/turn.ts` (credenciais
+      **efêmeras** HMAC, modo coturn `use-auth-secret`), rota pública `/api/ice`
+      (liberada no middleware), `useWebRTC` busca de lá (fallback STUN-only).
+- [x] **coturn no cluster** — `k8s/coturn.yaml` aplicado, pod Running no nó
+      `84.247.138.18` (hostNetwork). Secret `coturn-auth` criado; `aurencare-secrets`
+      com `TURN_STATIC_AUTH_SECRET`/`TURN_URLS`/`TURN_TTL`. App reiniciado.
+      ✔️ `/api/ice` já devolve STUN+TURN com credencial efêmera.
+- [ ] **DNS** (provedor): `turn.audere.ia.br` → `84.247.138.18`.
+- [ ] **Firewall/SG** (Contabo): abrir `3478/udp`, `3478/tcp`, `5349/tcp` e o relay
+      `49160-49200/udp`. **Sem isso o TURN não conecta de fora** (app segue em
+      STUN-only até liberar).
+- [ ] *(Opcional)* `turns:` (TLS:5349) só funciona após montar um cert válido em
+      `/etc/coturn/certs` e descomentar `cert`/`pkey` no ConfigMap do `coturn.yaml`.
+      Útil em redes que bloqueiam tudo menos 443/TLS; `3478 udp/tcp` cobre o resto.
 
 ## 🟡 3. Cobrança (quando sair do beta — NÃO urgente)
 Hoje `BETA_LIBERADO=true` (acesso liberado, sem cobrança). Para ligar:
@@ -51,7 +49,7 @@ Hoje `BETA_LIBERADO=true` (acesso liberado, sem cobrança). Para ligar:
 - [ ] `NEXT_PUBLIC_PAGARME_PUBLIC_KEY` (pk_live) — ⚠️ **é build-time**: tem que entrar
       no **build da imagem** (`--build-arg` no `build-push.sh` ou env do job de build),
       **não** só no secret de runtime.
-- [ ] Cadastrar o webhook no painel Pagar.me → `https://aurencare.automaxia.com.br/api/webhooks/pagarme`
+- [ ] Cadastrar o webhook no painel Pagar.me → `https://app.audere.ia.br/api/webhooks/pagarme`
       (eventos: subscription.charged/canceled, invoice.paid, charge.payment_failed).
 - [ ] No código: trocar `BETA_LIBERADO` para `false` em `src/server/lib/planos.ts` + redeploy.
 
