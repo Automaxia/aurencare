@@ -4,7 +4,8 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Bell, X } from 'lucide-react'
-import { NAV, mundoFromPath } from '@/lib/nav'
+import { mundoFromPath } from '@/lib/nav'
+import { buildBreadcrumb } from '@/lib/breadcrumb'
 
 type SessaoAtiva = { id: string; pacienteNome: string; numero: number; iniciadaEm: string | null }
 type Pendencia = { id: string; tipo: 'registrar' | 'cobranca' | 'consentimento'; label: string; href: string; data?: string }
@@ -39,11 +40,28 @@ function writeSeen(s: Set<string>) {
 export function Topbar({ initialSessaoAtiva, initialPendencias }: Props) {
   const pathname = usePathname() ?? '/'
   const mundo = mundoFromPath(pathname)
-  const crumb = breadcrumbFor(pathname)
 
   const [sessaoAtiva, setSessaoAtiva] = useState(initialSessaoAtiva ?? null)
   const [pendencias, setPendencias] = useState<Pendencia[]>(initialPendencias ?? [])
   const [bellOpen, setBellOpen] = useState(false)
+
+  // Nome do paciente para a trilha (subpáginas de /pacientes/[id]). Cache por id
+  // pra não re-buscar ao navegar entre as abas do mesmo paciente.
+  const [pacienteNome, setPacienteNome] = useState<string | null>(null)
+  const pacCache = useRef<Record<string, string>>({})
+  useEffect(() => {
+    const id = pathname.match(/^\/pacientes\/([^/]+)/)?.[1]
+    if (!id || id === 'novo') { setPacienteNome(null); return }
+    if (pacCache.current[id]) { setPacienteNome(pacCache.current[id]); return }
+    let cancel = false
+    fetch(`/api/pacientes/${id}`)
+      .then(r => (r.ok ? r.json() : null))
+      .then(j => { if (!cancel && j?.nome) { pacCache.current[id] = j.nome; setPacienteNome(j.nome) } })
+      .catch(() => {})
+    return () => { cancel = true }
+  }, [pathname])
+
+  const crumbs = buildBreadcrumb(pathname, { pacienteNome })
 
   // IDs já vistos (após abrir o popover) — persiste em localStorage
   const [seenIds, setSeenIds] = useState<Set<string>>(new Set())
@@ -139,10 +157,19 @@ export function Topbar({ initialSessaoAtiva, initialPendencias }: Props) {
   return (
     <header className="topbar">
       <div className="tp-l">
-        <div className="tp-crumb">
-          <strong>{crumb.label}</strong>
-          {crumb.sub && <span style={{ marginLeft: 8, color: 'var(--faint)' }}>· {crumb.sub}</span>}
-        </div>
+        <nav className="bc" aria-label="Trilha de navegação">
+          {crumbs.map((c, i) => {
+            const last = i === crumbs.length - 1
+            return (
+              <span key={`${c.label}-${i}`} className="bc-seg">
+                {i > 0 && <span className="bc-sep" aria-hidden="true">›</span>}
+                {c.href && !last
+                  ? <Link href={c.href} className="bc-link">{c.label}</Link>
+                  : <span className={last ? 'bc-current' : 'bc-link'} aria-current={last ? 'page' : undefined}>{c.label}</span>}
+              </span>
+            )
+          })}
+        </nav>
       </div>
 
       <div className="tp-r">
@@ -241,21 +268,3 @@ function NotificationsPopover({ pendencias, unseenIds, onClose }: { pendencias: 
   )
 }
 
-function breadcrumbFor(pathname: string): { label: string; sub?: string } {
-  if (pathname === '/' || pathname === '') return { label: 'Início' }
-  if (pathname.startsWith('/login')) return { label: 'Entrar' }
-  if (pathname.startsWith('/sessao/')) return { label: 'Sessão', sub: 'modo presença' }
-  if (pathname.startsWith('/pacientes/') && pathname.endsWith('/objetivos')) return { label: 'Objetivos', sub: 'paciente' }
-  if (pathname.startsWith('/pacientes/') && pathname.endsWith('/temas'))     return { label: 'Temas Recorrentes', sub: 'paciente' }
-  if (pathname.startsWith('/pacientes/') && pathname.endsWith('/evolucao'))  return { label: 'Evolução Registrada', sub: 'paciente' }
-  if (pathname === '/pacientes/novo') return { label: 'Novo paciente' }
-  if (pathname.startsWith('/pacientes/')) return { label: 'Perfil', sub: 'paciente' }
-  if (pathname === '/pacientes') return { label: 'Pacientes' }
-  if (pathname === '/agenda/nova') return { label: 'Nova sessão' }
-  if (pathname === '/agenda') return { label: 'Agenda' }
-  if (pathname === '/financeiro') return { label: 'Financeiro' }
-  if (pathname === '/saude') return { label: 'Saúde da Prática' }
-  const hit = NAV.find(n => n.href === pathname)
-  if (hit) return { label: hit.label }
-  return { label: 'Audere' }
-}

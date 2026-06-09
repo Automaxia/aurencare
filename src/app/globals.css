@@ -279,10 +279,27 @@ input:user-invalid:focus, textarea:user-invalid:focus, select:user-invalid:focus
   display: flex; align-items: center; justify-content: space-between;
   padding: 0 28px;
 }
-.tp-l { display: flex; align-items: center; gap: 12px; }
+.tp-l { display: flex; align-items: center; gap: 12px; min-width: 0; }
 .tp-r { display: flex; align-items: center; gap: 8px; }
-.tp-crumb { font-size: 14px; color: var(--muted); display: flex; align-items: center; }
-.tp-crumb strong { color: var(--ink-soft); font-weight: 500; }
+
+/* Trilha de navegação (breadcrumb) */
+.bc { display: flex; align-items: center; flex-wrap: nowrap; min-width: 0; font-size: 13px; }
+.bc-seg { display: inline-flex; align-items: center; min-width: 0; }
+.bc-sep { color: var(--faint); margin: 0 7px; font-size: 14px; line-height: 1; }
+.bc-link {
+  color: var(--muted); text-decoration: none; white-space: nowrap;
+  border-radius: 5px; padding: 2px 5px; margin: 0 -5px;
+  transition: color .12s var(--ease), background .12s var(--ease);
+}
+.bc-link:hover { color: var(--accent); background: rgba(106,78,200,.07); }
+.bc-current {
+  color: var(--ink-soft); font-weight: 500; white-space: nowrap;
+  overflow: hidden; text-overflow: ellipsis; max-width: 260px;
+}
+/* Telas estreitas: esconde os crumbs intermediários, mantém raiz + atual */
+@media (max-width: 720px) {
+  .bc-seg:not(:first-child):not(:last-child) { display: none; }
+}
 
 .ctx-pill {
   display: inline-flex; align-items: center; gap: 6px;
