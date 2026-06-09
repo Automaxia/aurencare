@@ -105,12 +105,16 @@ export function PostSessionModal(p: Props) {
 
         <style jsx>{`
           textarea {
-            width: 100%; padding: 10px 12px; border-radius: 8px;
-            border: 1px solid var(--border); background: white;
+            width: 100%; padding: 10px 12px; border-radius: var(--field-radius);
+            border: 1px solid var(--field-border); background: var(--field-bg);
             font-family: inherit; font-size: 13px; color: var(--ink);
             outline: none; resize: vertical;
+            transition: border-color .15s var(--ease), box-shadow .15s var(--ease);
           }
-          textarea:focus { border-color: var(--accent); }
+          textarea:hover { border-color: var(--field-border-hover); }
+          textarea:focus { border-color: var(--accent); box-shadow: var(--field-ring); }
+          textarea:user-invalid { border-color: var(--rose); }
+          textarea:user-invalid:focus { box-shadow: var(--field-ring-error); }
         `}</style>
       </div>
     </div>

@@ -373,11 +373,15 @@ export function Wizard({ nomePsicologa }: Props) {
 
         <style jsx>{`
           input, select {
-            width: 100%; padding: 9px 12px; border-radius: 8px;
-            border: 1px solid var(--border); background: white;
+            width: 100%; padding: 9px 12px; border-radius: var(--field-radius);
+            border: 1px solid var(--field-border); background: var(--field-bg);
             font-size: 13px; font-family: inherit; color: var(--ink); outline: none;
+            transition: border-color .15s var(--ease), box-shadow .15s var(--ease);
           }
-          input:focus, select:focus { border-color: var(--accent); }
+          input:not([type=checkbox]):hover, select:hover { border-color: var(--field-border-hover); }
+          input:not([type=checkbox]):focus, select:focus { border-color: var(--accent); box-shadow: var(--field-ring); }
+          input:not([type=checkbox]):user-invalid, select:user-invalid { border-color: var(--rose); }
+          input:not([type=checkbox]):user-invalid:focus, select:user-invalid:focus { box-shadow: var(--field-ring-error); }
           input[type=checkbox] { width: auto; padding: 0; }
         `}</style>
       </form>

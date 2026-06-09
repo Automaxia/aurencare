@@ -37,6 +37,14 @@
   --border:    rgba(26,24,37,.055);
   --border-md: rgba(26,24,37,.09);
 
+  /* ── campos (input/select/textarea) — base padronizada, ref. tela de login ── */
+  --field-bg:           #ffffff;
+  --field-border:       rgba(106,78,200,.22);
+  --field-border-hover: rgba(106,78,200,.34);
+  --field-radius:       8px;
+  --field-ring:         0 0 0 3px rgba(106,78,200,.12);
+  --field-ring-error:   0 0 0 3px rgba(196,96,122,.14);
+
   /* ── sombras ── */
   --sh:    0 1px 3px rgba(26,24,37,.04), 0 4px 16px rgba(26,24,37,.04);
   --sh-m:  0 2px 8px rgba(26,24,37,.06), 0 8px 28px rgba(26,24,37,.07);
@@ -83,7 +91,32 @@ h3 { font-size: 18px; line-height: 1.25; }
 
 a { color: inherit; text-decoration: none; }
 button { font-family: inherit; cursor: pointer; }
-input, textarea, select { font-family: inherit; font-size: inherit; }
+
+/* ── Campos de formulário — base padronizada (referência: tela de login).
+   Escopada a inputs de TEXTO; checkbox/radio/range/file/color/botões ficam de fora.
+   Forms com <style jsx> próprio sobrescrevem (mantêm padding/tamanho intencionais). ── */
+input:not([type=checkbox]):not([type=radio]):not([type=range]):not([type=file]):not([type=color]):not([type=submit]):not([type=button]):not([type=image]),
+textarea,
+select {
+  font-family: inherit;
+  font-size: inherit;
+  padding: 10px 13px;
+  border: 1px solid var(--field-border);
+  border-radius: var(--field-radius);
+  background: var(--field-bg);
+  color: var(--ink);
+  outline: none;
+  transition: border-color .15s var(--ease), box-shadow .15s var(--ease);
+}
+input:not([type=checkbox]):not([type=radio]):not([type=range]):not([type=file]):not([type=color]):not([type=submit]):not([type=button]):not([type=image]):hover,
+textarea:hover, select:hover { border-color: var(--field-border-hover); }
+input:not([type=checkbox]):not([type=radio]):not([type=range]):not([type=file]):not([type=color]):not([type=submit]):not([type=button]):not([type=image]):focus,
+textarea:focus, select:focus { border-color: var(--accent); box-shadow: var(--field-ring); }
+/* Validação de obrigatório/formato — só após interação/tentativa de envio. */
+input:not([type=checkbox]):not([type=radio]):not([type=range]):not([type=file]):not([type=color]):not([type=submit]):not([type=button]):not([type=image]):user-invalid,
+textarea:user-invalid, select:user-invalid { border-color: var(--rose); }
+input:user-invalid:focus, textarea:user-invalid:focus, select:user-invalid:focus { box-shadow: var(--field-ring-error); }
+::placeholder { color: var(--muted); opacity: 1; }
 
 ::selection { background: var(--accent-lo); color: var(--ink); }
 

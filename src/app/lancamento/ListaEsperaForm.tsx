@@ -99,12 +99,15 @@ export function ListaEsperaForm() {
 
       <style jsx>{`
         input, textarea {
-          width: 100%; padding: 11px 14px; border-radius: 10px;
-          border: 1px solid var(--border); background: white;
+          width: 100%; padding: 11px 14px; border-radius: var(--field-radius);
+          border: 1px solid var(--field-border); background: var(--field-bg);
           font-size: 14px; font-family: inherit; color: var(--ink); outline: none;
-          transition: border-color .15s var(--ease);
+          transition: border-color .15s var(--ease), box-shadow .15s var(--ease);
         }
-        input:focus, textarea:focus { border-color: var(--accent, #6a4ec8); }
+        input:hover, textarea:hover { border-color: var(--field-border-hover); }
+        input:focus, textarea:focus { border-color: var(--accent, #6a4ec8); box-shadow: var(--field-ring); }
+        input:user-invalid, textarea:user-invalid { border-color: var(--rose); }
+        input:user-invalid:focus, textarea:user-invalid:focus { box-shadow: var(--field-ring-error); }
         textarea { resize: vertical; min-height: 60px; }
         .fb {
           width: 100%; padding: 13px 20px; border-radius: 10px; border: none;
