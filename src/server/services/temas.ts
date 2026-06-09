@@ -227,11 +227,16 @@ export type GrafoDados = { nodes: GrafoNode[]; edges: GrafoEdge[] }
 
 export async function lerGrafo(pacienteId: string): Promise<GrafoDados> {
   const { rows } = await db.query<{ palavra: string; cluster: Cluster; frequencia: number; sessoes_ids: string[] | null }>(
+    // #7 relevância: só entra no grafo quem RECORRE (apareceu em ≥2 sessões) ou
+    // é muito frequente (≥5) numa só — corta o ruído de palavra vista uma vez.
+    // Cap em 30 nós pra ficar legível.
     `SELECT palavra, cluster, frequencia, sessoes_ids
        FROM palavras_chave
       WHERE paciente_id = $1
+        AND frequencia >= 3
+        AND (COALESCE(array_length(sessoes_ids, 1), 1) >= 2 OR frequencia >= 5)
       ORDER BY frequencia DESC
-      LIMIT 60`,
+      LIMIT 30`,
     [pacienteId],
   )
   const nodes: GrafoNode[] = rows.map(r => ({
@@ -244,11 +249,12 @@ export async function lerGrafo(pacienteId: string): Promise<GrafoDados> {
   const palavraSet = new Set(nodes.map(n => n.palavra))
 
   const { rows: edges } = await db.query<{ palavra_a: string; palavra_b: string; weight: number }>(
+    // #7: aresta só vale com ≥2 co-ocorrências (uma única era ruído).
     `SELECT palavra_a, palavra_b, weight
        FROM arestas_tema
-      WHERE paciente_id = $1 AND weight >= 1
+      WHERE paciente_id = $1 AND weight >= 2
       ORDER BY weight DESC
-      LIMIT 240`,
+      LIMIT 120`,
     [pacienteId],
   )
 
