@@ -43,6 +43,8 @@ export type Sessao = {
   resumoIa: string | null
   transcricao: string | null
   notaClinica: string | null
+  /** Ritmo, humor, risco e nota rápida da sessão (JSONB). Salvo no encerrar. */
+  indicadores: any | null
   serieId: string | null
   /** Posição na série (1-based) e total. Só preenchido em listarSessoesEntre. */
   seriePosicao: { posicao: number; total: number } | null
@@ -62,6 +64,7 @@ function rowToSessao(r: any): Sessao {
     resumoIa: tryDecrypt(r.resumo_ia),
     transcricao: tryDecrypt(r.transcricao_texto),
     notaClinica: tryDecrypt(r.nota_clinica),
+    indicadores: r.indicadores ?? null,
     serieId: r.serie_id ?? null,
     seriePosicao: r.serie_posicao && r.serie_total
       ? { posicao: parseInt(r.serie_posicao, 10), total: parseInt(r.serie_total, 10) }

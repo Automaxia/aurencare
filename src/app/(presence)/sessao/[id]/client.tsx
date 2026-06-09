@@ -330,7 +330,7 @@ export function PresenceClient(props: Props) {
       <div className="themes-head"><span className="ttl">Temas desta sessão</span><span className="sub">ao vivo</span></div>
       <div style={{ padding: 8 }}><ThemesCanvas turnos={turnos.filter(t => t.who === 'paciente')} /></div>
     </div>,
-    <HumorCheck key="humor" value={humor} onChange={setHumor} />,
+    <HumorCheck key="humor" className="wide" value={humor} onChange={setHumor} />,
     <InfoPacienteWidget key="info" ctx={ctx} loading={ctxLoading} pacienteId={props.pacienteId} />,
     <RiskAssessment key="risco" value={risco} onChange={setRisco} />,
     <UltimaSessaoWidget key="ultima" ctx={ctx} loading={ctxLoading} />,

@@ -25,7 +25,7 @@ export function SessionReview({ sessao }: { sessao: Sessao }) {
   const [loadingInsight, setLoadingInsight] = useState(false)
   const [insightError, setInsightError] = useState<string | null>(null)
 
-  const ind = (sessao as any).indicadores ?? {}
+  const ind = sessao.indicadores ?? {}
   const turnos = parseTranscriptionToTurns(sessao.transcricao ?? '')
 
   async function carregarInsight() {

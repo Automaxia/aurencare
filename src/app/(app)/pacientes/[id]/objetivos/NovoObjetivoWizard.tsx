@@ -82,7 +82,7 @@ export function NovoObjetivoWizard({ pacienteId, onCriado, onCancelar }: Props) 
         // Texto livre opcional
         return true
       case 't':
-        if (!prazo) { setErro('Defina um prazo realista.'); return false }
+        // #5: prazo é opcional (varia caso a caso).
         return true
       default: return true
     }
@@ -480,9 +480,9 @@ function PassoA({ subPassos, onChange }: { subPassos: string; onChange: (v: stri
 function PassoT({ prazo, onChange }: { prazo: string; onChange: (v: string) => void }) {
   return (
     <div style={{ display: 'grid', gap: 14 }}>
-      <HeaderPasso letra="T" titulo="Temporal" sub="Em quanto tempo você espera atingir esse objetivo?" />
+      <HeaderPasso letra="T" titulo="Temporal" sub="Em quanto tempo você espera atingir esse objetivo? (opcional)" />
       <Tip
-        titulo="Definir um prazo realista"
+        titulo="Definir um prazo realista (opcional)"
         perguntas={[
           'O prazo é compatível com o ritmo terapêutico desse paciente?',
           'Curto demais (gera frustração) ou longo demais (perde tração)?',
