@@ -294,3 +294,52 @@ async function buscarPacientePorId(pacienteId: string): Promise<Paciente | null>
   const { rows } = await db.query(`SELECT * FROM pacientes WHERE id = $1 LIMIT 1`, [pacienteId])
   return rows[0] ? rowToPaciente(rows[0]) : null
 }
+
+// ─── Dados cadastrais/demográficos (#2 — todos opcionais) ─────────────
+
+export type ContatoEmergencia = { nome?: string; telefone?: string; email?: string }
+export type DadosCadastro = {
+  nomeSocial?: string
+  cpf?: string
+  pais?: string
+  estado?: string
+  cidade?: string
+  racaCor?: string
+  genero?: string
+  estadoCivil?: string
+  ocupacao?: string
+  formacao?: string
+  origem?: string
+  contatosEmergencia?: ContatoEmergencia[]
+}
+
+export async function buscarDadosCadastro(psicologoId: string, pacienteId: string): Promise<DadosCadastro> {
+  const { rows } = await db.query<{ dados_cadastro: DadosCadastro | null }>(
+    `SELECT dados_cadastro FROM pacientes WHERE id = $1 AND psicologo_id = $2 LIMIT 1`,
+    [pacienteId, psicologoId],
+  )
+  return rows[0]?.dados_cadastro ?? {}
+}
+
+export async function salvarDadosCadastro(
+  psicologoId: string, pacienteId: string, dados: DadosCadastro,
+): Promise<{ ok: boolean }> {
+  // Limpa strings vazias e contatos sem nenhum dado.
+  const limpo: DadosCadastro = {}
+  for (const [k, v] of Object.entries(dados)) {
+    if (k === 'contatosEmergencia') continue
+    const s = typeof v === 'string' ? v.trim() : v
+    if (s) (limpo as any)[k] = s
+  }
+  const contatos = (dados.contatosEmergencia ?? [])
+    .map(c => ({ nome: c.nome?.trim() || undefined, telefone: c.telefone?.replace(/\s+/g, ' ').trim() || undefined, email: c.email?.trim() || undefined }))
+    .filter(c => c.nome || c.telefone || c.email)
+  if (contatos.length) limpo.contatosEmergencia = contatos
+
+  const { rowCount } = await db.query(
+    `UPDATE pacientes SET dados_cadastro = $3 WHERE id = $1 AND psicologo_id = $2`,
+    [pacienteId, psicologoId, JSON.stringify(limpo)],
+  )
+  if (rowCount) log.ok('paciente.dadosCadastro', `id=${pacienteId}`)
+  return { ok: (rowCount ?? 0) > 0 }
+}

@@ -4,8 +4,10 @@ import { PageHeader } from '@/components/PageHeader'
 import { requirePsicologo } from '@/server/lib/auth'
 import { db } from '@/server/db/pool'
 import { lerCondicoesPaciente } from '@/server/services/contexto'
+import { buscarDadosCadastro } from '@/server/services/pacientes'
 import { formatPhone } from '@/lib/formatters'
 import { PatientProfileForm } from './profile-form'
+import { DadosCadastroForm } from './DadosCadastroForm'
 import { ExportarProntuario } from './ExportarProntuario'
 import { AcoesPaciente } from './AcoesPaciente'
 
@@ -21,7 +23,7 @@ export default async function PacientePerfilPage({ params }: { params: { id: str
   if (!p) notFound()
   if (p.psicologo_id !== user.id) redirect('/pacientes')
 
-  const [condicoes, sessoesAssinadas, totalSessoes] = await Promise.all([
+  const [condicoes, sessoesAssinadas, totalSessoes, dadosCadastro] = await Promise.all([
     lerCondicoesPaciente(params.id),
     db.query<{ id: string; numero: number; data_hora: string; modalidade: string; duracao_min: number }>(
       `SELECT id, numero, data_hora, modalidade, duracao_min
@@ -38,6 +40,7 @@ export default async function PacientePerfilPage({ params }: { params: { id: str
       `SELECT count(*)::int AS n FROM sessoes WHERE paciente_id = $1`,
       [params.id],
     ).then(r => r.rows[0]?.n ?? 0),
+    buscarDadosCadastro(user.id, params.id),
   ])
 
   const arquivado = p.status === 'inativo'
@@ -79,6 +82,10 @@ export default async function PacientePerfilPage({ params }: { params: { id: str
       />
 
       <PatientProfileForm pacienteId={p.id} initial={condicoes} />
+
+      <div style={{ marginTop: 16 }}>
+        <DadosCadastroForm pacienteId={p.id} initial={dadosCadastro} />
+      </div>
     </div>
   )
 }
