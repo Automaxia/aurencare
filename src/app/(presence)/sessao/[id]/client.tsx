@@ -55,6 +55,9 @@ export function PresenceClient(props: Props) {
   const [pacienteInterim, setPacienteInterim] = useState('')
   const [linkCopiado, setLinkCopiado] = useState(false)
   const [bloqueio, setBloqueio] = useState<{ cap: number; usadas: number; plano: string } | null>(null)
+  // mic local do psicólogo — só usado como FALLBACK quando o Web Speech não existe
+  // (iPad/Safari/Firefox). Aí roteamos o mic local pela AssemblyAI (igual ao paciente).
+  const [localMicStream, setLocalMicStream] = useState<MediaStream | null>(null)
 
   const startedRef = useRef(false)
   // controle de quando rodar próxima observação ao vivo
@@ -81,19 +84,51 @@ export function PresenceClient(props: Props) {
 
   const { ctx, loading: ctxLoading } = useContexto(props.sessaoId)
 
+  // Adiciona um turno do psicólogo (usado tanto pelo Web Speech quanto pelo
+  // fallback AssemblyAI). Memoriza no buffer de dedup vs eco do alto-falante.
+  function addPsicologoTurn(texto: string, ts: string) {
+    const id = crypto.randomUUID()
+    const tsMs = Date.parse(ts) || Date.now()
+    const win = recentLocalRef.current.filter(r => tsMs - r.ts < 6000)
+    win.push({ id, texto, ts: tsMs })
+    recentLocalRef.current = win.slice(-8)
+    setTurnos(prev => [...prev, { id, who: 'psicologo', texto, ts, mark: null, tone: null }])
+    setInterim('')
+    enqueueTom(id, texto, 'psicologo')
+  }
+
   const { supported, active, error } = useSpeech({
     enabled: recording,
-    onFinal: chunk => {
-      const id = crypto.randomUUID()
-      const tsMs = Date.parse(chunk.ts) || Date.now()
-      // memoriza últimos 8 finais locais (janela ~6s) pra dedup vs eco
-      const win = recentLocalRef.current.filter(r => tsMs - r.ts < 6000)
-      win.push({ id, texto: chunk.texto, ts: tsMs })
-      recentLocalRef.current = win.slice(-8)
-      setTurnos(prev => [...prev, { id, who: 'psicologo', texto: chunk.texto, ts: chunk.ts, mark: null, tone: null }])
-      setInterim('')
-      enqueueTom(id, chunk.texto, 'psicologo')
-    },
+    onFinal: chunk => addPsicologoTurn(chunk.texto, chunk.ts),
+    onInterim: setInterim,
+  })
+
+  // Fallback: onde o Web Speech não existe (supported === false), captura o mic
+  // local do psicólogo e o transcreve pela AssemblyAI. Em navegadores com Web
+  // Speech (desktop), isto fica desligado — mantém a transcrição local grátis.
+  useEffect(() => {
+    if (!(recording && supported === false)) return
+    let stream: MediaStream | null = null
+    let cancelled = false
+    navigator.mediaDevices
+      ?.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true } })
+      .then(s => {
+        if (cancelled) { s.getTracks().forEach(t => t.stop()); return }
+        stream = s
+        setLocalMicStream(s)
+      })
+      .catch(() => { /* permissão negada — banner de erro já cobre */ })
+    return () => {
+      cancelled = true
+      stream?.getTracks().forEach(t => t.stop())
+      setLocalMicStream(null)
+    }
+  }, [recording, supported])
+
+  const localFallbackSTT = useRemoteTranscribe({
+    enabled: recording && supported === false && !!localMicStream,
+    stream: localMicStream,
+    onFinal: (texto, ts) => addPsicologoTurn(texto, ts),
     onInterim: setInterim,
   })
 
@@ -349,9 +384,15 @@ export function PresenceClient(props: Props) {
       )}
 
       {supported === false && (
-        <div style={{ background: 'var(--rose-lo)', color: 'var(--rose)', padding: '8px 16px', fontSize: 12 }}>
-          Seu navegador não suporta transcrição nativa. Use Chrome ou Edge.
-        </div>
+        localFallbackSTT.error ? (
+          <div style={{ background: 'var(--rose-lo)', color: 'var(--rose)', padding: '8px 16px', fontSize: 12 }}>
+            Transcrição indisponível neste navegador: {localFallbackSTT.error}
+          </div>
+        ) : (
+          <div style={{ background: 'rgba(90,158,138,.10)', color: '#2a6456', padding: '8px 16px', fontSize: 12 }}>
+            Transcrição em nuvem ativa neste dispositivo (sem Web Speech).
+          </div>
+        )
       )}
       {error && (
         <div style={{ background: 'rgba(176,125,64,.10)', color: 'var(--amber)', padding: '8px 16px', fontSize: 12 }}>
