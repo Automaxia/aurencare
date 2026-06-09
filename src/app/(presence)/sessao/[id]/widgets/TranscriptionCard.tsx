@@ -1,5 +1,6 @@
 'use client'
 
+import { useState } from 'react'
 import { WidgetGrip } from '@/components/WidgetGrip'
 
 export type TurnMark = 'insight' | 'comportamento' | 'avanco'
@@ -35,7 +36,21 @@ const TONE_LABEL: Record<NonNullable<TurnTone>, string> = {
   closed: 'fechado', anxious: 'ansioso', acolhedor: 'acolhedor',
 }
 
+// Descrição de cada tom (legenda + tooltip) — #4: o usuário não sabia o significado.
+const TONE_DESC: Record<NonNullable<TurnTone>, string> = {
+  calm:      'calmo, sereno, regulado',
+  tense:     'tenso, retraído, defensivo',
+  open:      'aberto, em contato com a própria experiência',
+  closed:    'fechado, evasivo, monossilábico',
+  anxious:   'ansioso, ruminativo, acelerado',
+  acolhedor: 'acolhedor, validador (geralmente da psicóloga)',
+}
+
 export function TranscriptionCard({ turnos, interim, armed: _armed, setArmed: _setArmed, onMark, onToggleWho, recording }: Props) {
+  const [legendaTons, setLegendaTons] = useState(false)
+  // #5: mais recente no topo (ordena por timestamp desc — robusto a chegada fora de ordem).
+  const ordenados = [...turnos].sort((a, b) => +new Date(b.ts) - +new Date(a.ts))
+
   return (
     <div className="trans-card">
       <div className="trans-head">
@@ -43,13 +58,41 @@ export function TranscriptionCard({ turnos, interim, armed: _armed, setArmed: _s
           <WidgetGrip size={11} />
           <span style={{ fontSize: 13, fontWeight: 500, color: 'var(--ink-soft)' }}>Registro assistido</span>
         </div>
-        {recording && (
-          <div className="live-pill">
-            <div className="live-d" />
-            Presente
-          </div>
-        )}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <button
+            type="button"
+            onClick={() => setLegendaTons(v => !v)}
+            style={{
+              fontSize: 11, color: legendaTons ? 'var(--accent)' : 'var(--muted)',
+              background: 'none', border: '1px solid var(--border)', borderRadius: 999,
+              padding: '3px 9px', cursor: 'pointer',
+            }}
+            title="O que cada tom significa"
+          >
+            tons ⓘ
+          </button>
+          {recording && (
+            <div className="live-pill">
+              <div className="live-d" />
+              Presente
+            </div>
+          )}
+        </div>
       </div>
+
+      {legendaTons && (
+        <div style={{
+          padding: '10px 14px', borderBottom: '1px solid var(--border)',
+          display: 'grid', gap: 6, background: 'var(--surface)',
+        }}>
+          {(Object.keys(TONE_LABEL) as NonNullable<TurnTone>[]).map(k => (
+            <div key={k} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 11.5 }}>
+              <span className={`t-tone tn-${k}`} style={{ flexShrink: 0 }}>{TONE_LABEL[k]}</span>
+              <span style={{ color: 'var(--muted)' }}>{TONE_DESC[k]}</span>
+            </div>
+          ))}
+        </div>
+      )}
 
       <div className="trans-body">
         {turnos.length === 0 && !interim ? (
@@ -60,7 +103,15 @@ export function TranscriptionCard({ turnos, interim, armed: _armed, setArmed: _s
           </p>
         ) : (
           <>
-            {turnos.map(t => (
+            {interim && (
+              <div className="turn" style={{ opacity: .45 }}>
+                <div className="turn-top">
+                  <span className="t-sp" style={{ color: 'var(--faint)' }}>…</span>
+                </div>
+                <div className="turn-txt" style={{ fontStyle: 'italic' }}>{interim}</div>
+              </div>
+            )}
+            {ordenados.map(t => (
               <div
                 key={t.id}
                 className={`turn armable${t.who === 'psicologo' ? ' psic' : ''}`}
@@ -77,19 +128,11 @@ export function TranscriptionCard({ turnos, interim, armed: _armed, setArmed: _s
                     {t.who === 'psicologo' ? 'Psicóloga' : 'Paciente'}
                   </button>
                   <span className="t-time">{formatTime(t.ts)}</span>
-                  {t.tone && <span className={`t-tone tn-${t.tone}`}>{TONE_LABEL[t.tone] ?? t.tone}</span>}
+                  {t.tone && <span className={`t-tone tn-${t.tone}`} title={TONE_DESC[t.tone]}>{TONE_LABEL[t.tone] ?? t.tone}</span>}
                 </div>
                 <div className="turn-txt">{t.texto}</div>
               </div>
             ))}
-            {interim && (
-              <div className="turn" style={{ opacity: .45 }}>
-                <div className="turn-top">
-                  <span className="t-sp" style={{ color: 'var(--faint)' }}>…</span>
-                </div>
-                <div className="turn-txt" style={{ fontStyle: 'italic' }}>{interim}</div>
-              </div>
-            )}
           </>
         )}
       </div>

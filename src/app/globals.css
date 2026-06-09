@@ -1177,11 +1177,14 @@ a.pip:hover .pip-d { transform: scale(1.25); transition: transform .15s ease; }
   background: var(--amber); box-shadow: 0 0 0 3px rgba(176,125,64,.18);
 }
 
-/* Não-lida — sai do cinza, ganha branco + dot + texto cheio */
+/* Não-lida — sai do cinza, ganha branco + barra âmbar + dot + texto cheio.
+   A barra lateral garante o contraste que faltava (lida × não-lida estavam quase iguais). */
 .pend-row.is-new {
   background: var(--card);
+  border-left: 3px solid var(--amber);
+  padding-left: 13px;   /* compensa a borda (in-popover usa 16px) */
 }
-.pend-row.is-new:hover { background: rgba(176,125,64,.06) }
+.pend-row.is-new:hover { background: rgba(176,125,64,.09) }
 .pend-row.is-new .pend-lbl { color: var(--ink); font-weight: 500 }
 .pend-row.is-new .pend-ico { opacity: 1 }
 .pend-row.is-new .pend-act { color: var(--accent); opacity: .8 }

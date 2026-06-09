@@ -206,7 +206,11 @@ export function Wizard({ nomePsicologa }: Props) {
                 label={tipoPessoa === 'PF' ? 'Data de nascimento' : 'Data de fundação'}
                 error={erroCampo === 'dataNascimento' ? erro : undefined}
               >
-                <input type="date" required value={dataNascimento} onChange={e => setDataNascimento(e.target.value)} />
+                <input
+                  type="date" required value={dataNascimento}
+                  onChange={e => setDataNascimento(e.target.value)}
+                  style={{ minHeight: 46, fontSize: 16 }}
+                />
               </Field>
               <Field
                 label={tipoPessoa === 'PF' ? 'Renda mensal estimada (R$)' : 'Faturamento mensal (R$)'}
