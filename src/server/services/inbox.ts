@@ -309,8 +309,18 @@ function limparNome(input: string): string | null {
   // Mínimo 2 letras, máx 80, sem símbolos estranhos
   if (s.length < 2 || s.length > 80) return null
   if (!/[a-záàâãéêíóôõúüç]/i.test(s)) return null
-  // Bloqueia comandos comuns que claramente não são nome
-  if (/^(oi|olá|ola|hello|hi|test|teste|email|nome|sim|nao|não|ok|pix|cancelar|confirmar)$/i.test(s)) return null
+  // Bloqueia saudações/comandos que claramente não são nome — inclusive de duas
+  // palavras ("bom dia", "boa tarde"), que antes viravam nome de paciente.
+  const norm = s.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '')
+    .replace(/[^a-z\s]/g, ' ').replace(/\s+/g, ' ').trim()
+  const NAO_NOME = new Set([
+    'oi', 'ola', 'alo', 'hello', 'hi', 'hey', 'eai', 'eae', 'opa', 'salve', 'blz', 'beleza',
+    'bom', 'boa', 'bom dia', 'boa tarde', 'boa noite', 'boa madrugada',
+    'tudo bem', 'tudo bom', 'oi tudo bem', 'ola tudo bem', 'oi bom dia', 'ola bom dia',
+    'test', 'teste', 'email', 'nome', 'sim', 'nao', 'ok', 'pix', 'cancelar', 'confirmar',
+    'obrigado', 'obrigada', 'valeu',
+  ])
+  if (NAO_NOME.has(norm)) return null
   return s.split(' ').map(w => w[0]?.toUpperCase() + w.slice(1).toLowerCase()).join(' ')
 }
 
