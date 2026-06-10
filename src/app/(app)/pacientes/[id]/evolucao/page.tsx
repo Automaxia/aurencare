@@ -6,9 +6,11 @@ import { requirePsicologo } from '@/server/lib/auth'
 import { db } from '@/server/db/pool'
 import { lerEvolucaoEstatisticas } from '@/server/services/evolucao'
 import { resumoEvolucao } from '@/server/services/resumoEvolucao'
+import { mudancasEPadroes } from '@/server/services/mudancasEPadroes'
 import { EvolucaoChat } from './chat'
 import { ObservacoesCliente } from './Observacoes'
 import { LinhaDoTempo } from './LinhaDoTempo'
+import { MudancasPadroes } from './MudancasPadroes'
 
 export const dynamic = 'force-dynamic'
 
@@ -25,6 +27,7 @@ export default async function EvolucaoPage({ params }: { params: { id: string } 
     lerEvolucaoEstatisticas(params.id, paciente.nome),
     resumoEvolucao(params.id),
   ])
+  const mp = await mudancasEPadroes(params.id, dados.perfil)
 
   return (
     <div>
@@ -65,6 +68,8 @@ export default async function EvolucaoPage({ params }: { params: { id: string } 
           Observação a partir do histórico — não diagnóstico · CFP 09/2024
         </div>
       </section>
+
+      <MudancasPadroes dados={mp} />
 
       <div className="orient-grid">
         <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
