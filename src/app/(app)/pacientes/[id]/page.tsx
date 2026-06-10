@@ -5,13 +5,14 @@ import { db } from '@/server/db/pool'
 import { lerCondicoesPaciente, ultimaSessaoAssinada } from '@/server/services/contexto'
 import { buscarDadosCadastro } from '@/server/services/pacientes'
 import { listarObjetivos } from '@/server/services/objetivos'
-import { lerGrafo } from '@/server/services/temas'
+import { gerarMemoriaClinica } from '@/server/services/memoriaClinica'
 import { formatPhone } from '@/lib/formatters'
 import { PatientProfileForm } from './profile-form'
 import { DadosCadastroForm } from './DadosCadastroForm'
 import { ExportarProntuario } from './ExportarProntuario'
 import { AcoesPaciente } from './AcoesPaciente'
 import { OndeEstamos } from './OndeEstamos'
+import { MemoriaClinica } from './MemoriaClinica'
 
 export const dynamic = 'force-dynamic'
 
@@ -48,7 +49,7 @@ export default async function PacientePerfilPage({ params }: { params: { id: str
   if (!p) notFound()
   if (p.psicologo_id !== user.id) redirect('/pacientes')
 
-  const [condicoes, sessoesAssinadas, totalSessoes, dadosCadastro, objetivos, grafo, ultimaEvol, proximaRows, ultimaRows] = await Promise.all([
+  const [condicoes, sessoesAssinadas, totalSessoes, dadosCadastro, objetivos, memoria, ultimaEvol, proximaRows, ultimaRows] = await Promise.all([
     lerCondicoesPaciente(params.id),
     db.query<{ id: string; numero: number; data_hora: string; modalidade: string; duracao_min: number }>(
       `SELECT id, numero, data_hora, modalidade, duracao_min
@@ -60,7 +61,7 @@ export default async function PacientePerfilPage({ params }: { params: { id: str
     db.query<{ n: number }>(`SELECT count(*)::int AS n FROM sessoes WHERE paciente_id = $1`, [params.id]).then(r => r.rows[0]?.n ?? 0),
     buscarDadosCadastro(user.id, params.id),
     listarObjetivos(params.id),
-    lerGrafo(params.id),
+    gerarMemoriaClinica(params.id),
     ultimaSessaoAssinada(params.id),
     db.query<{ id: string; numero: number; data_hora: string }>(
       `SELECT id, numero, data_hora FROM sessoes
@@ -74,7 +75,7 @@ export default async function PacientePerfilPage({ params }: { params: { id: str
 
   const arquivado = p.status === 'inativo'
   const objetivosAtivos = objetivos.filter(o => o.status === 'ativo')
-  const temas = grafo.nodes.slice(0, 6).map(n => n.palavra)
+  const temas = memoria.temasPredominantes
   const alertas = condicoes?.alertas ?? []
 
   // Subtítulo CLÍNICO (não mais cadastral)
@@ -126,14 +127,17 @@ export default async function PacientePerfilPage({ params }: { params: { id: str
         </div>
       )}
 
-      <OndeEstamos
-        pacienteId={p.id}
-        objetivos={objetivosAtivos.slice(0, 3).map(o => ({ id: o.id, titulo: o.titulo, progresso: o.progresso }))}
-        totalObjetivosAtivos={objetivosAtivos.length}
-        temas={temas}
-        ultimaEvolucao={ultimaEvol ? { numero: ultimaEvol.numero, quando: haQuanto(ultimaEvol.dataHora), texto: ultimaEvol.bullets[0] ?? '' } : null}
-        proximaSessaoId={proximaRows?.id ?? null}
-      />
+      <div className="briefing-grid">
+        <OndeEstamos
+          pacienteId={p.id}
+          objetivos={objetivosAtivos.slice(0, 3).map(o => ({ id: o.id, titulo: o.titulo, progresso: o.progresso }))}
+          totalObjetivosAtivos={objetivosAtivos.length}
+          temas={temas}
+          ultimaEvolucao={ultimaEvol ? { numero: ultimaEvol.numero, quando: haQuanto(ultimaEvol.dataHora), texto: ultimaEvol.bullets[0] ?? '' } : null}
+          proximaSessaoId={proximaRows?.id ?? null}
+        />
+        <MemoriaClinica dados={memoria} pacienteId={p.id} />
+      </div>
 
       <details className="bloco-recolhivel" id="info-clinica" open={alertas.length > 0}>
         <summary>

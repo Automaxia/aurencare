@@ -128,6 +128,10 @@ input:user-invalid:focus, textarea:user-invalid:focus, select:user-invalid:focus
 
 ::selection { background: var(--accent-lo); color: var(--ink); }
 
+/* Briefing do paciente — coluna principal + rail de memória clínica */
+.briefing-grid { display: grid; grid-template-columns: 1.7fr 1fr; gap: 16px; align-items: start; }
+@media (max-width: 900px) { .briefing-grid { grid-template-columns: 1fr; } }
+
 /* Blocos recolhíveis (Informações clínicas / Dados cadastrais no perfil) */
 .bloco-recolhivel { margin-top: 14px; border-top: 1px solid var(--border); scroll-margin-top: 70px; }
 .bloco-recolhivel > summary {
