@@ -43,10 +43,13 @@ export async function obterAtalhos(psicologoId: string): Promise<Atalhos> {
   //    a) Sessões concluídas mas não assinadas (registrar)
   //    b) Sessões aguardando método/pagamento (cobrança)
   //    c) Pacientes sem consentimento aceito há > 1 dia
+  // p.status = 'ativo' em todas: paciente arquivado NÃO gera pendência
+  // (arquivar deve silenciar — antes não filtrava e as pendências persistiam).
   const { rows: pRegistrar } = await db.query<{ id: string; data_hora: string; nome: string }>(
     `SELECT s.id, s.data_hora, p.nome
        FROM sessoes s JOIN pacientes p ON p.id = s.paciente_id
       WHERE s.psicologo_id = $1 AND s.status = 'concluida' AND s.assinada = FALSE
+        AND p.status = 'ativo'
       ORDER BY s.data_hora DESC LIMIT 6`,
     [psicologoId],
   )
@@ -57,6 +60,7 @@ export async function obterAtalhos(psicologoId: string): Promise<Atalhos> {
       WHERE s.psicologo_id = $1
         AND s.status IN ('aguardando_metodo','aguardando_pagamento')
         AND s.data_hora >= NOW() - INTERVAL '7 days'
+        AND p.status = 'ativo'
       ORDER BY s.data_hora DESC LIMIT 6`,
     [psicologoId],
   )
@@ -65,6 +69,7 @@ export async function obterAtalhos(psicologoId: string): Promise<Atalhos> {
     `SELECT id, nome, created_at FROM pacientes
       WHERE psicologo_id = $1 AND consentimento_aceito = FALSE
         AND created_at < NOW() - INTERVAL '1 day'
+        AND status = 'ativo'
       ORDER BY created_at DESC LIMIT 4`,
     [psicologoId],
   )
