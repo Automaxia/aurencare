@@ -22,23 +22,19 @@ export function SalaPaciente({ token, psicologaNome, pacienteNome, jaAceitou }: 
   async function entrarNaSala() {
     if (!aceito) return
     setErroAceite(null)
-    // Se já tinha aceite registrado no DB, pula a chamada (idempotência).
+    setRegistrando(true)
+    // Registra o aceite (IP+UA) como evidência, mas NÃO bloqueia a entrada por
+    // causa disso — rede instável não pode trancar o paciente na tela do termo.
+    // Best-effort, com timeout curto; entra de qualquer forma.
     if (!jaAceitou) {
-      setRegistrando(true)
       try {
-        const r = await fetch(`/api/sala/${token}/aceite-termo`, { method: 'POST' })
-        if (!r.ok) {
-          setErroAceite('Não foi possível registrar seu aceite. Tente novamente.')
-          setRegistrando(false)
-          return
-        }
-      } catch {
-        setErroAceite('Sem conexão com o Audere. Verifique sua internet.')
-        setRegistrando(false)
-        return
-      }
-      setRegistrando(false)
+        const ctrl = new AbortController()
+        const t = setTimeout(() => ctrl.abort(), 4000)
+        await fetch(`/api/sala/${token}/aceite-termo`, { method: 'POST', signal: ctrl.signal })
+        clearTimeout(t)
+      } catch { /* aceite é best-effort; segue mesmo assim */ }
     }
+    setRegistrando(false)
     setEntrou(true)
   }
 
@@ -103,7 +99,7 @@ export function SalaPaciente({ token, psicologaNome, pacienteNome, jaAceitou }: 
               style={{ padding: '10px 24px' }}
               title={!aceito ? 'Marque o aceite do termo para continuar' : undefined}
             >
-              {registrando ? 'Registrando aceite…' : 'Entrar na sala'}
+              {registrando ? 'Entrando…' : 'Entrar na sala'}
             </button>
           </div>
 
