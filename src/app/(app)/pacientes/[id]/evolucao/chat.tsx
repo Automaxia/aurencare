@@ -9,12 +9,15 @@ export function EvolucaoChat({ pacienteId, pacienteNome, totalSessoes }: { pacie
       <AiChatPanel
         endpoint="/api/analise/chat"
         payload={{ contexto: 'evolucao', pacienteId }}
-        title="Memória do processo"
-        subtitle={`Pergunte sobre o histórico de ${first}. ${totalSessoes} ${totalSessoes === 1 ? 'sessão registrada' : 'sessões registradas'}.`}
-        initialMessage={`Registrei ${totalSessoes} ${totalSessoes === 1 ? 'sessão' : 'sessões'} de ${first}. Posso ajudar a organizar o que foi observado ao longo do processo — temas recorrentes, mudanças, continuidade entre sessões. O que quer explorar?`}
+        title="Converse com a memória clínica"
+        subtitle={`Aprofunde o que a Audere observou no histórico de ${first}. ${totalSessoes} ${totalSessoes === 1 ? 'sessão registrada' : 'sessões registradas'}.`}
+        initialMessage={`Registrei ${totalSessoes} ${totalSessoes === 1 ? 'sessão' : 'sessões'} de ${first}. Use os atalhos abaixo ou pergunte livremente para aprofundar a evolução — temas, mudanças e continuidade ao longo do processo.`}
         quickPrompts={[
           'Como evoluiu entre a primeira e a última sessão?',
-          'O que mudou nas últimas sessões?',
+          'O que mudou nos últimos 30 dias?',
+          'Quais temas diminuíram?',
+          'Quais temas reapareceram após desaparecer?',
+          'Quais objetivos avançaram?',
           'Quais padrões aparecem com mais frequência?',
         ]}
         placeholder={`Explore o histórico de ${first}…`}
