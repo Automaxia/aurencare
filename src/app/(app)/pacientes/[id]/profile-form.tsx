@@ -55,7 +55,7 @@ export function PatientProfileForm({ pacienteId, initial }: { pacienteId: string
   }
 
   return (
-    <div className="card" style={{ display: 'grid', gap: 14, maxWidth: 640 }}>
+    <div className="card" style={{ display: 'grid', gap: 14, maxWidth: 720 }}>
       <div style={{ fontSize: 11, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '.06em' }}>Condições clínicas</div>
 
       <Field label="CID-10 (busque por código ou condição)">
