@@ -114,11 +114,22 @@ export function useWebRTC({ token, role, caller, withVideo = true }: Options): W
         // Adiciona tracks locais
         for (const t of stream.getTracks()) pc.addTrack(t, stream)
 
-        // Recebe remote tracks
+        // Recebe remote tracks.
+        // Importante: emitimos uma NOVA referência de MediaStream a cada track
+        // que chega. Sem isso, o áudio do paciente entrava no mesmo objeto e a
+        // referência não mudava — então a transcrição do paciente (que faz
+        // createMediaStreamSource e depende de [stream]) nunca religava quando o
+        // áudio chegava depois do início da gravação. Resultado: só o psicólogo
+        // era transcrito.
         const remote = new MediaStream()
         setRemoteStream(remote)
         pc.ontrack = (ev) => {
-          ev.streams[0]?.getTracks().forEach(t => remote.addTrack(t))
+          const incoming = ev.streams[0]?.getTracks() ?? (ev.track ? [ev.track] : [])
+          let changed = false
+          for (const t of incoming) {
+            if (!remote.getTracks().includes(t)) { remote.addTrack(t); changed = true }
+          }
+          if (changed) setRemoteStream(new MediaStream(remote.getTracks()))
         }
 
         // ICE → manda pelo signaling
