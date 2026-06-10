@@ -19,8 +19,13 @@ export function validarTextoIA(texto: string): boolean {
 }
 
 /**
- * Quando a IA escapou: stripe termos proibidos para versão neutra.
+ * Quando a IA escapou: troca termos proibidos por versão neutra.
  * Não é perfeito (apenas mitiga); o ideal é re-gerar com nota corretiva.
+ *
+ * Só faz a troca de termos — NÃO anexa rodapé. O aviso "rascunho/revisar" é de
+ * prontuário (psicóloga revisa) e vazava para mensagens de WhatsApp do paciente
+ * quando estas passavam pela sanitização. A indicação de rascunho fica a cargo
+ * da UI/PDF do prontuário, não do texto.
  */
 export function sanitizarTextoIA(texto: string): string {
   let out = texto
@@ -38,6 +43,5 @@ export function sanitizarTextoIA(texto: string): string {
   for (const [bad, good] of Object.entries(SUBS)) {
     out = out.replace(new RegExp(bad, 'gi'), good)
   }
-  // Anexa nota de revisão para a psicóloga
-  return `${out}\n\n[Rascunho automatizado — revisar antes de assinar.]`
+  return out
 }
