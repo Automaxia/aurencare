@@ -85,7 +85,7 @@ export async function POST(req: Request) {
 
   const telefone = jid.split('@')[0]
   try {
-    await processarMensagemRecebida({ telefone, texto })
+    await processarMensagemRecebida({ telefone, texto, instance: body?.instance })
   } catch (err) {
     log.err('evolution.webhook', 'falha ao processar', err)
   }

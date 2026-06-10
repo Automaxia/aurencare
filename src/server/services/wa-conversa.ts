@@ -102,10 +102,24 @@ export async function buscarPacientePorTelefone(telefone: string): Promise<{ id:
   return rows[0] ? { id: rows[0].id, psicologoId: rows[0].psicologo_id, nome: rows[0].nome } : null
 }
 
-/** Resolve psicóloga "dona" da instância Evolution (por enquanto, a única ativa). */
-export async function resolverPsicologo(): Promise<{ id: string; nome: string } | null> {
+/**
+ * Resolve a psicóloga dona da conversa.
+ * - Se a instância Evolution for informada (webhook), casa por `wa_instancia` —
+ *   caminho multi-tenant correto (cada psicóloga com seu número/instância).
+ * - Fallback (solo / instância única atual): a psicóloga ATIVA mais antiga.
+ * Forward-compat: quando houver provisionamento por instância, o match já
+ * funciona sem mudar isto. Evita o vazamento do "pega o primeiro" cego.
+ */
+export async function resolverPsicologo(instance?: string | null): Promise<{ id: string; nome: string } | null> {
+  if (instance) {
+    const { rows } = await db.query<{ id: string; nome: string }>(
+      `SELECT id, nome FROM psicologos WHERE wa_instancia = $1 AND status = 'ativo' LIMIT 1`,
+      [instance],
+    )
+    if (rows[0]) return rows[0]
+  }
   const { rows } = await db.query<{ id: string; nome: string }>(
-    `SELECT id, nome FROM psicologos ORDER BY created_at ASC LIMIT 1`,
+    `SELECT id, nome FROM psicologos WHERE status = 'ativo' ORDER BY created_at ASC LIMIT 1`,
   )
   return rows[0] ?? null
 }

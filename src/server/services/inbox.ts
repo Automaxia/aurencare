@@ -17,7 +17,7 @@ import { processarResposta, acharSessaoPendentePorTelefone, type RespostaPacient
  *  2. Estado da conversa (wa_conversas) — onboarding inbound
  *  3. Paciente já cadastrado ou não
  */
-type Inbound = { telefone: string; texto: string }
+type Inbound = { telefone: string; texto: string; instance?: string | null }
 
 export async function processarMensagemRecebida(msg: Inbound): Promise<void> {
   const tel = normalizar(msg.telefone)
@@ -57,7 +57,7 @@ export async function processarMensagemRecebida(msg: Inbound): Promise<void> {
   // 2) Roteador conversacional baseado em estado
   // ──────────────────────────────────────────────────────────────────
   const conversa = await obterConversa(tel)
-  const psicologo = await resolverPsicologo()
+  const psicologo = await resolverPsicologo(msg.instance)
   if (!psicologo) {
     log.warn('wa.inbox', 'nenhuma psicóloga configurada — ignorando')
     return

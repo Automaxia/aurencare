@@ -21,16 +21,20 @@ export const authOptions: NextAuthOptions = {
       async authorize(creds) {
         if (!creds?.email || !creds?.password) return null
         const { rows } = await db.query<{
-          id: string; nome: string; email: string; senha_hash: string; crp: string
+          id: string; nome: string; email: string; senha_hash: string; crp: string;
+          status: string | null; role: string | null
         }>(
-          'SELECT id, nome, email, senha_hash, crp FROM psicologos WHERE email = $1 LIMIT 1',
+          'SELECT id, nome, email, senha_hash, crp, status, role FROM psicologos WHERE email = $1 LIMIT 1',
           [String(creds.email).toLowerCase().trim()],
         )
         const u = rows[0]
         if (!u) return null
         const ok = await bcrypt.compare(String(creds.password), u.senha_hash)
         if (!ok) return null
-        return { id: u.id, name: u.nome, email: u.email, crp: u.crp } as any
+        // Gestão: conta suspensa/inativa não loga. Fail-open: só bloqueia valores
+        // explícitos de bloqueio — nunca trava por status inesperado/nulo.
+        if (u.status && ['suspenso', 'inativo', 'bloqueado'].includes(u.status)) return null
+        return { id: u.id, name: u.nome, email: u.email, crp: u.crp, role: u.role ?? 'psicologo' } as any
       },
     }),
   ],
@@ -39,6 +43,7 @@ export const authOptions: NextAuthOptions = {
       if (user) {
         token.uid = (user as any).id
         token.crp = (user as any).crp
+        token.role = (user as any).role ?? 'psicologo'
       }
       return token
     },
@@ -46,6 +51,7 @@ export const authOptions: NextAuthOptions = {
       if (session.user) {
         (session.user as any).id = token.uid
         ;(session.user as any).crp = token.crp
+        ;(session.user as any).role = token.role ?? 'psicologo'
       }
       return session
     },
