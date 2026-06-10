@@ -322,13 +322,23 @@ export function PresenceClient(props: Props) {
     }
   }
 
+  // Os temas/palavras vêm SÓ da fala do paciente. Quando ainda não há nenhum
+  // turno do paciente, explica o que falta (em vez de canvas vazio sem motivo).
+  const turnosPaciente = turnos.filter(t => t.who === 'paciente')
+  const temasHint =
+    turnosPaciente.length > 0 ? undefined
+    : remoteSTT.error ? `Transcrição do paciente indisponível: ${remoteSTT.error}`
+    : !remoteStream ? 'Os temas vêm da fala do paciente. Aguardando o paciente entrar na chamada e começar a falar.'
+    : remoteSTT.active ? 'Ouvindo o paciente… os temas surgem conforme ele fala.'
+    : 'Conectando a transcrição do paciente…'
+
   const widgets = [
     <LiveInsight key="live-insight" text={obsViva} loading={obsLoading} numeroTurnos={turnos.length} />,
     <RhythmWidget key="ritmo" pctPsic={pctPsic} pctPac={pctPac} counts={counts} armed={armed} setArmed={setArmed} />,
     <div key="temas" className="themes-card" data-widget-id="temas">
       <WidgetGrip />
       <div className="themes-head"><span className="ttl">Temas desta sessão</span><span className="sub">ao vivo</span></div>
-      <div style={{ padding: 8 }}><ThemesCanvas turnos={turnos.filter(t => t.who === 'paciente')} /></div>
+      <div style={{ padding: 8 }}><ThemesCanvas turnos={turnosPaciente} emptyHint={temasHint} /></div>
     </div>,
     <HumorCheck key="humor" className="wide" value={humor} onChange={setHumor} />,
     <InfoPacienteWidget key="info" ctx={ctx} loading={ctxLoading} pacienteId={props.pacienteId} />,
