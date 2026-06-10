@@ -66,7 +66,12 @@ export async function POST(req: Request) {
   }
 
   const data = body?.data
-  const jid: string | undefined = data?.key?.remoteJid
+  const k = data?.key
+  // O WhatsApp moderno pode mandar o remetente como `<id>@lid` (LinkedID, sem
+  // telefone) e o número real vem em `remoteJidAlt`. Preferimos sempre o JID
+  // `@s.whatsapp.net`; sem ele não há como responder (e enviar pro LID dá 400).
+  const jidsCand = [k?.remoteJid, k?.remoteJidAlt].filter(Boolean) as string[]
+  const jid = jidsCand.find(j => j.endsWith('@s.whatsapp.net'))
   const texto: string | undefined =
     data?.message?.conversation ??
     data?.message?.extendedTextMessage?.text ??
@@ -74,7 +79,7 @@ export async function POST(req: Request) {
     undefined
 
   if (!jid || !texto) {
-    log.warn('evolution.webhook', 'payload sem jid ou texto', { jid, hasText: !!texto })
+    log.warn('evolution.webhook', 'sem jid telefônico ou texto', { remoteJid: k?.remoteJid, alt: k?.remoteJidAlt, hasText: !!texto })
     return NextResponse.json({ ok: true })
   }
 
