@@ -1267,6 +1267,21 @@ a.pip:hover .pip-d { transform: scale(1.25); transition: transform .15s ease; }
 }
 .pend-act { font-size: 12px; color: var(--faint); opacity: .55 }
 
+/* Botão "marcar como lida" (✓) — só nas não-lidas */
+.pend-check {
+  flex: none; width: 24px; height: 24px; border-radius: 7px;
+  border: 1px solid var(--border); background: var(--card);
+  color: var(--muted); font-size: 13px; line-height: 1; cursor: pointer;
+  display: inline-flex; align-items: center; justify-content: center;
+  transition: background .15s var(--ease), color .15s var(--ease), border-color .15s var(--ease);
+}
+.pend-check:hover { background: var(--sage); color: #fff; border-color: var(--sage); }
+/* Tag "lida" — discreta, nas já lidas */
+.pend-read-tag {
+  flex: none; font-size: 9px; letter-spacing: .6px; text-transform: uppercase;
+  color: var(--faint); font-weight: 600;
+}
+
 /* Dot indicador de não-lida — fica antes do ícone, só aparece em .is-new */
 .pend-dot {
   width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0;

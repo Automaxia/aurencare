@@ -21,20 +21,21 @@ const PEND_ICON: Record<Pendencia['tipo'], string> = {
   consentimento: '✋',
 }
 
-const SEEN_KEY = 'auren.notifs.seen'
+// Chave nova (v2): invalida o "lixo" do modelo antigo de "visto".
+const READ_KEY = 'audere.notifs.read'
 
-function readSeen(): Set<string> {
+function readReadIds(): Set<string> {
   if (typeof window === 'undefined') return new Set()
   try {
-    const raw = localStorage.getItem(SEEN_KEY)
+    const raw = localStorage.getItem(READ_KEY)
     if (!raw) return new Set()
     const arr = JSON.parse(raw)
     return new Set(Array.isArray(arr) ? arr : [])
   } catch { return new Set() }
 }
-function writeSeen(s: Set<string>) {
+function writeReadIds(s: Set<string>) {
   if (typeof window === 'undefined') return
-  try { localStorage.setItem(SEEN_KEY, JSON.stringify(Array.from(s))) } catch { /* */ }
+  try { localStorage.setItem(READ_KEY, JSON.stringify(Array.from(s))) } catch { /* */ }
 }
 
 export function Topbar({ initialSessaoAtiva, initialPendencias }: Props) {
@@ -63,49 +64,48 @@ export function Topbar({ initialSessaoAtiva, initialPendencias }: Props) {
 
   const crumbs = buildBreadcrumb(pathname, { pacienteNome })
 
-  // IDs já vistos (após abrir o popover) — persiste em localStorage
-  const [seenIds, setSeenIds] = useState<Set<string>>(new Set())
-  useEffect(() => { setSeenIds(readSeen()) }, [])
+  // IDs marcados como LIDOS — persiste em localStorage. Diferente do modelo
+  // antigo: abrir o sino NÃO marca tudo como lido; o usuário marca explicitamente
+  // (por item ou "marcar todas"). Assim a distinção lida/não-lida não some.
+  const [readIds, setReadIds] = useState<Set<string>>(new Set())
+  useEffect(() => { setReadIds(readReadIds()) }, [])
 
-  // Limpa do "seen" IDs que não estão mais em pendencias (já resolvidos)
+  // Poda IDs lidos que não estão mais em pendencias (resolvidos) — evita o
+  // localStorage acumular "lixo".
   useEffect(() => {
-    const ativeIds = new Set(pendencias.map(p => p.id))
-    let changed = false
-    const cleaned = new Set<string>()
-    seenIds.forEach(id => {
-      if (ativeIds.has(id)) cleaned.add(id)
-      else changed = true
+    setReadIds(prev => {
+      const ativos = new Set(pendencias.map(p => p.id))
+      const cleaned = new Set([...prev].filter(id => ativos.has(id)))
+      if (cleaned.size !== prev.size) { writeReadIds(cleaned); return cleaned }
+      return prev
     })
-    if (changed) { setSeenIds(cleaned); writeSeen(cleaned) }
-  }, [pendencias])  // eslint-disable-line react-hooks/exhaustive-deps
+  }, [pendencias])
 
-  // Pendências NÃO-vistas (novas desde a última abertura do popover)
-  const unseen = useMemo(
-    () => pendencias.filter(p => !seenIds.has(p.id)),
-    [pendencias, seenIds],
+  // Pendências NÃO-lidas
+  const unread = useMemo(
+    () => pendencias.filter(p => !readIds.has(p.id)),
+    [pendencias, readIds],
   )
 
-  // Animação do sino — pula quando psicóloga entra (mount com unseen > 0)
-  // OU quando chega uma nova pendência durante a navegação.
-  // Inicializa em 0 propositalmente pra disparar o shake no primeiro render.
-  const prevUnseenCount = useRef(0)
+  // Animação do sino — pula quando o nº de não-lidas AUMENTA (nova pendência).
+  const prevUnreadCount = useRef(0)
   const [bellShake, setBellShake] = useState(false)
   useEffect(() => {
-    if (unseen.length > prevUnseenCount.current) {
+    if (unread.length > prevUnreadCount.current) {
       setBellShake(true)
       const t = setTimeout(() => setBellShake(false), 1400)
-      prevUnseenCount.current = unseen.length
+      prevUnreadCount.current = unread.length
       return () => clearTimeout(t)
     }
-    prevUnseenCount.current = unseen.length
-  }, [unseen.length])
+    prevUnreadCount.current = unread.length
+  }, [unread.length])
 
-  // Marca todas como vistas ao abrir o popover
-  function openBell() {
-    setBellOpen(true)
-    const next = new Set(seenIds)
-    pendencias.forEach(p => next.add(p.id))
-    setSeenIds(next); writeSeen(next)
+  function marcarLida(id: string) {
+    setReadIds(prev => { const next = new Set(prev); next.add(id); writeReadIds(next); return next })
+  }
+  function marcarTodasLidas() {
+    const next = new Set(pendencias.map(p => p.id))
+    setReadIds(next); writeReadIds(next)
   }
 
   // Re-sincroniza com o estado real do banco a cada navegação. Necessário porque
@@ -188,22 +188,24 @@ export function Topbar({ initialSessaoAtiva, initialPendencias }: Props) {
         {/* Notificações */}
         <div style={{ position: 'relative' }}>
           <button
-            className={`btn-ico${unseen.length > 0 ? ' has-unread' : ''}${bellShake ? ' is-shaking' : ''}`}
-            onClick={() => bellOpen ? setBellOpen(false) : openBell()}
-            title={unseen.length > 0 ? `${unseen.length} novas notificações` : 'Notificações'}
+            className={`btn-ico${unread.length > 0 ? ' has-unread' : ''}${bellShake ? ' is-shaking' : ''}`}
+            onClick={() => setBellOpen(o => !o)}
+            title={unread.length > 0 ? `${unread.length} notificações não lidas` : 'Notificações'}
             aria-label="Notificações"
           >
             <Bell size={16} />
-            {unseen.length > 0 && (
+            {unread.length > 0 && (
               <span className="bell-badge" aria-hidden="true">
-                {unseen.length > 9 ? '9+' : unseen.length}
+                {unread.length > 9 ? '9+' : unread.length}
               </span>
             )}
           </button>
           {bellOpen && (
             <NotificationsPopover
               pendencias={pendencias}
-              unseenIds={new Set(unseen.map(p => p.id))}
+              readIds={readIds}
+              onMarcarLida={marcarLida}
+              onMarcarTodas={marcarTodasLidas}
               onClose={() => setBellOpen(false)}
             />
           )}
@@ -224,19 +226,41 @@ export function Topbar({ initialSessaoAtiva, initialPendencias }: Props) {
   )
 }
 
-function NotificationsPopover({ pendencias, unseenIds, onClose }: { pendencias: Pendencia[]; unseenIds: Set<string>; onClose: () => void }) {
+function NotificationsPopover({ pendencias, readIds, onMarcarLida, onMarcarTodas, onClose }: {
+  pendencias: Pendencia[]
+  readIds: Set<string>
+  onMarcarLida: (id: string) => void
+  onMarcarTodas: () => void
+  onClose: () => void
+}) {
+  const naoLidas = pendencias.filter(p => !readIds.has(p.id)).length
+  // Não-lidas primeiro, depois as lidas.
+  const ordenadas = [...pendencias].sort(
+    (a, b) => (readIds.has(a.id) ? 1 : 0) - (readIds.has(b.id) ? 1 : 0),
+  )
+
   return (
     <>
       {/* clicar fora fecha */}
       <div onClick={onClose} style={{ position: 'fixed', inset: 0, zIndex: 80 }} />
       <div className="card" style={{
         position: 'absolute', right: 0, top: 'calc(100% + 8px)',
-        width: 340, padding: 0, zIndex: 81, maxHeight: 460, overflow: 'hidden',
+        width: 360, padding: 0, zIndex: 81, maxHeight: 460, overflow: 'hidden',
         display: 'flex', flexDirection: 'column',
       }}>
-        <div className="card-h" style={{ padding: '12px 16px' }}>
-          <span className="card-title">Notificações</span>
-          <button className="btn ghost sm" onClick={onClose} aria-label="Fechar"><X size={14} /></button>
+        <div className="card-h" style={{ padding: '12px 16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+          <span className="card-title">
+            Notificações
+            {naoLidas > 0 && <span style={{ color: 'var(--amber)', fontWeight: 500 }}> · {naoLidas} não lida{naoLidas > 1 ? 's' : ''}</span>}
+          </span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+            {naoLidas > 0 && (
+              <button className="btn ghost sm" onClick={onMarcarTodas} title="Marcar todas como lidas">
+                Marcar todas
+              </button>
+            )}
+            <button className="btn ghost sm" onClick={onClose} aria-label="Fechar"><X size={14} /></button>
+          </div>
         </div>
         <div style={{ overflowY: 'auto', maxHeight: 380 }}>
           {pendencias.length === 0 ? (
@@ -244,21 +268,30 @@ function NotificationsPopover({ pendencias, unseenIds, onClose }: { pendencias: 
               ✓ Tudo em dia.
             </div>
           ) : (
-            pendencias.map(p => {
-              const isNew = unseenIds.has(p.id)
+            ordenadas.map(p => {
+              const naoLida = !readIds.has(p.id)
               return (
-                <Link
-                  key={p.id}
-                  href={p.href}
-                  onClick={onClose}
-                  className={`pend-row in-popover${isNew ? ' is-new' : ''}`}
-                >
-                  {isNew && <span className="pend-dot" aria-hidden="true" />}
-                  <span className="pend-ico">{PEND_ICON[p.tipo]}</span>
-                  <span className="pend-lbl">{p.label}</span>
-                  {isNew && <span className="pend-new-tag">Nova</span>}
-                  <span className="pend-act">→</span>
-                </Link>
+                <div key={p.id} className={`pend-row in-popover${naoLida ? ' is-new' : ''}`}>
+                  {naoLida && <span className="pend-dot" aria-hidden="true" />}
+                  <Link
+                    href={p.href}
+                    onClick={() => { onMarcarLida(p.id); onClose() }}
+                    style={{ display: 'flex', alignItems: 'center', gap: 10, flex: 1, minWidth: 0, textDecoration: 'none', color: 'inherit' }}
+                  >
+                    <span className="pend-ico">{PEND_ICON[p.tipo]}</span>
+                    <span className="pend-lbl">{p.label}</span>
+                  </Link>
+                  {naoLida
+                    ? (
+                      <button
+                        className="pend-check"
+                        title="Marcar como lida"
+                        aria-label="Marcar como lida"
+                        onClick={(e) => { e.stopPropagation(); onMarcarLida(p.id) }}
+                      >✓</button>
+                    )
+                    : <span className="pend-read-tag">lida</span>}
+                </div>
               )
             })
           )}
