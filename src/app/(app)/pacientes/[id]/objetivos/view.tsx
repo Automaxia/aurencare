@@ -8,6 +8,7 @@ import {
 } from './actions'
 import { BulletChart } from './BulletChart'
 import { NovoObjetivoWizard } from './NovoObjetivoWizard'
+import { estadoObjetivo, ESTADO_META, prazoEstado, haQuanto } from '@/lib/objetivos'
 
 export function ObjetivosView({ pacienteId, initial }: { pacienteId: string; initial: Objetivo[] }) {
   const [objs, setObjs] = useState(initial)
@@ -134,6 +135,10 @@ function ObjetivoCard({ o, onStatus, onDelete, onUpsert }: {
   // Sinal direcional pra header (↑ aumentar / ↓ diminuir)
   const setaDirecao = o.metricaDirecao === 'aumentar' ? '↑' : '↓'
 
+  const estado = estadoObjetivo(o)
+  const meta = ESTADO_META[estado]
+  const prazo = prazoEstado(o.prazoEm)
+
   return (
     <li className="card">
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12, marginBottom: 14 }}>
@@ -147,15 +152,21 @@ function ObjetivoCard({ o, onStatus, onDelete, onUpsert }: {
           {o.descricao && (
             <div style={{ fontSize: 12, color: 'var(--muted)', marginTop: 4, lineHeight: 1.5 }}>{o.descricao}</div>
           )}
-          {o.prazoEm && (
-            <div style={{ fontSize: 11, color: 'var(--faint)', marginTop: 4 }}>prazo {formatPrazo(o.prazoEm)}</div>
-          )}
+          <div style={{ fontSize: 11, marginTop: 5, display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+            {prazo && <span style={{ color: prazo.cor }}>{prazo.texto}</span>}
+            {o.status === 'ativo' && <span style={{ color: 'var(--faint)' }}>atualizado {haQuanto(o.updatedAt)}</span>}
+          </div>
         </div>
-        <div style={{ display: 'flex', gap: 4, fontSize: 11, flexShrink: 0 }}>
-          {o.status !== 'concluido' && <button className="btn ghost" onClick={() => onStatus(o, 'concluido')}>Concluir</button>}
-          {o.status === 'ativo' && <button className="btn ghost" onClick={() => onStatus(o, 'pausado')}>Pausar</button>}
-          {o.status !== 'ativo' && <button className="btn ghost" onClick={() => onStatus(o, 'ativo')}>Reativar</button>}
-          <button className="btn ghost" onClick={() => onDelete(o)} title="Remover">×</button>
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 6, fontSize: 11, flexShrink: 0 }}>
+          <span style={{ padding: '3px 9px', borderRadius: 999, background: meta.bg, color: meta.cor, fontSize: 11, fontWeight: 500, whiteSpace: 'nowrap' }}>
+            {meta.emoji} {meta.label}
+          </span>
+          <div style={{ display: 'flex', gap: 4 }}>
+            {o.status !== 'concluido' && <button className="btn ghost" onClick={() => onStatus(o, 'concluido')}>Concluir</button>}
+            {o.status === 'ativo' && <button className="btn ghost" onClick={() => onStatus(o, 'pausado')}>Pausar</button>}
+            {o.status !== 'ativo' && <button className="btn ghost" onClick={() => onStatus(o, 'ativo')}>Reativar</button>}
+            <button className="btn ghost" onClick={() => onDelete(o)} title="Remover">×</button>
+          </div>
         </div>
       </div>
 

@@ -5,6 +5,7 @@ import { PatientSelector } from '@/components/PatientSelector'
 import { requirePsicologo } from '@/server/lib/auth'
 import { db } from '@/server/db/pool'
 import { listarObjetivos } from '@/server/services/objetivos'
+import { estadoObjetivo } from '@/lib/objetivos'
 import { tryDecrypt } from '@/server/lib/crypto'
 import { formatDateBR } from '@/lib/formatters'
 import { ObjetivosView } from './view'
@@ -32,6 +33,11 @@ export default async function ObjetivosPage({ params }: { params: { id: string }
     ).then(r => r.rows),
   ])
 
+  const ativosCount = objetivos.filter(o => o.status === 'ativo').length
+  const concluidos  = objetivos.filter(o => o.status === 'concluido').length
+  const pausados    = objetivos.filter(o => o.status === 'pausado').length
+  const emRisco     = objetivos.filter(o => o.status === 'ativo' && estadoObjetivo(o) === 'em_risco').length
+
   return (
     <div>
       <PageHeader title="Objetivos e Progresso" subtitle="Continuidade terapêutica" withCfp />
@@ -41,16 +47,46 @@ export default async function ObjetivosPage({ params }: { params: { id: string }
         segment="objetivos"
       />
 
-      {/* ───── Bloco 1: Objetivos terapêuticos ───── */}
-      <section style={{ marginBottom: 24 }}>
-        <div className="sec-lbl" style={{ marginBottom: 10 }}>Objetivos terapêuticos</div>
-        <ObjetivosView pacienteId={params.id} initial={objetivos} />
+      {/* Modelo mental: Temas → Objetivos → Evolução */}
+      <nav className="obj-mental">
+        <Link href={`/pacientes/${params.id}/temas`}><b>Temas</b> · o que acontece</Link>
+        <span className="sep">→</span>
+        <span><b>Objetivos</b> · o que queremos mudar</span>
+        <span className="sep">→</span>
+        <Link href={`/pacientes/${params.id}/evolucao`}><b>Evolução</b> · o que mudou</Link>
+      </nav>
+
+      {/* Resumo dos objetivos */}
+      <div className="obj-resumo">
+        {[
+          { n: ativosCount, label: 'ativos', alerta: false },
+          { n: concluidos,  label: 'concluídos', alerta: false },
+          { n: pausados,    label: 'pausados', alerta: false },
+          { n: emRisco,     label: 'em risco', alerta: emRisco > 0 },
+        ].map(r => (
+          <div key={r.label} className={`item${r.alerta ? ' alerta' : ''}`}>
+            <div className="n" style={r.alerta ? { color: 'var(--rose)' } : undefined}>{r.n}</div>
+            <div className="l">{r.label}</div>
+          </div>
+        ))}
+      </div>
+
+      {/* Objetivos — protagonista */}
+      <ObjetivosView pacienteId={params.id} initial={objetivos} />
+
+      {/* Marcos do processo — a jornada terapêutica */}
+      <section style={{ marginTop: 24 }}>
+        <div className="sec-lbl" style={{ marginBottom: 10 }}>Marcos do processo</div>
+        <MarcosCliente pacienteId={params.id} />
       </section>
 
-      <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr', gap: 16 }}>
-        {/* ───── Bloco 2: Histórico de sessões ───── */}
-        <section>
-          <div className="sec-lbl" style={{ marginBottom: 10 }}>Histórico de sessões</div>
+      {/* Histórico de sessões — apoio, recolhido */}
+      <details className="bloco-recolhivel" style={{ marginTop: 18 }}>
+        <summary>
+          <span>Histórico de sessões</span>
+          <span className="resumo">{historico.length} {historico.length === 1 ? 'sessão' : 'sessões'}</span>
+        </summary>
+        <div className="bloco-conteudo">
           {historico.length === 0 ? (
             <div className="empty">Sem sessões registradas ainda.</div>
           ) : (
@@ -80,11 +116,8 @@ export default async function ObjetivosPage({ params }: { params: { id: string }
               })}
             </ol>
           )}
-        </section>
-
-        {/* ───── Bloco 3: Marcos do processo (IA, lazy) ───── */}
-        <MarcosCliente pacienteId={params.id} />
-      </div>
+        </div>
+      </details>
     </div>
   )
 }
