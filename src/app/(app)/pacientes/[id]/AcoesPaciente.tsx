@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import {
   atualizarPacienteAction, arquivarPacienteAction,
@@ -24,8 +24,18 @@ type Modal = null | 'editar' | 'arquivar' | 'reativar' | 'excluir'
 export function AcoesPaciente({ pacienteId, inicial, totalSessoes }: Props) {
   const [aberto, setAberto] = useState(false)
   const [modal, setModal] = useState<Modal>(null)
+  const menuRef = useRef<HTMLDivElement>(null)
 
   function abrir(m: Modal) { setAberto(false); setModal(m) }
+
+  // Menu: fecha no ESC e foca o primeiro item ao abrir (acessibilidade).
+  useEffect(() => {
+    if (!aberto) return
+    menuRef.current?.querySelector<HTMLButtonElement>('button')?.focus()
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setAberto(false) }
+    document.addEventListener('keydown', onKey)
+    return () => document.removeEventListener('keydown', onKey)
+  }, [aberto])
 
   const arquivado = inicial.status === 'inativo'
 
@@ -36,6 +46,7 @@ export function AcoesPaciente({ pacienteId, inicial, totalSessoes }: Props) {
           type="button" className="btn ghost"
           onClick={() => setAberto(a => !a)}
           title="Ações do paciente"
+          aria-haspopup="menu" aria-expanded={aberto}
           style={{ padding: '6px 12px' }}
         >
           ⋯
@@ -43,7 +54,7 @@ export function AcoesPaciente({ pacienteId, inicial, totalSessoes }: Props) {
         {aberto && (
           <>
             <div onClick={() => setAberto(false)} style={{ position: 'fixed', inset: 0, zIndex: 70 }} />
-            <div style={{
+            <div ref={menuRef} role="menu" aria-label="Ações do paciente" style={{
               position: 'absolute', right: 0, top: '100%', marginTop: 4, zIndex: 71,
               minWidth: 200, background: 'white', borderRadius: 10,
               border: '1px solid var(--border)',
@@ -95,7 +106,7 @@ function ItemMenu({ icone, label, onClick, vermelho }: {
 }) {
   return (
     <button
-      type="button" onClick={onClick}
+      type="button" role="menuitem" onClick={onClick}
       style={{
         width: '100%', textAlign: 'left',
         padding: '10px 14px', background: 'transparent', border: 'none',
@@ -116,10 +127,24 @@ function ItemMenu({ icone, label, onClick, vermelho }: {
 
 // ─── Modal genérico ─────────────────────────────────────────────────
 
-function Backdrop({ children, onClose }: { children: React.ReactNode; onClose: () => void }) {
+function Backdrop({ children, onClose, label }: { children: React.ReactNode; onClose: () => void; label?: string }) {
+  const cardRef = useRef<HTMLDivElement>(null)
+  const onCloseRef = useRef(onClose)
+  onCloseRef.current = onClose
+
+  // Fecha no ESC; foca o diálogo ao abrir e devolve o foco ao fechar.
+  // Roda só na montagem (ref evita re-focar e roubar o cursor a cada render).
+  useEffect(() => {
+    const anterior = document.activeElement as HTMLElement | null
+    cardRef.current?.focus()
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onCloseRef.current() }
+    document.addEventListener('keydown', onKey)
+    return () => { document.removeEventListener('keydown', onKey); anterior?.focus?.() }
+  }, [])
+
   return (
     <div
-      role="dialog" aria-modal="true"
+      role="dialog" aria-modal="true" aria-label={label}
       onClick={onClose}
       style={{
         position: 'fixed', inset: 0, zIndex: 80,
@@ -128,9 +153,10 @@ function Backdrop({ children, onClose }: { children: React.ReactNode; onClose: (
       }}
     >
       <div
+        ref={cardRef} tabIndex={-1}
         className="card"
         onClick={e => e.stopPropagation()}
-        style={{ maxWidth: 480, width: '100%', padding: 28 }}
+        style={{ maxWidth: 480, width: '100%', padding: 28, outline: 'none' }}
       >
         {children}
       </div>
@@ -143,7 +169,7 @@ function CabecalhoModal({ titulo, onClose }: { titulo: string; onClose: () => vo
     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12, marginBottom: 18 }}>
       <h3 style={{ fontFamily: 'var(--font-display)', fontSize: 22, fontWeight: 400, margin: 0 }}>{titulo}</h3>
       <button
-        type="button" onClick={onClose}
+        type="button" onClick={onClose} aria-label="Fechar"
         style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: 'var(--muted)', fontSize: 18, padding: 0 }}
         title="Fechar"
       >×</button>
@@ -180,7 +206,7 @@ function ModalEditar({ pacienteId, inicial, onFechar }: {
   }
 
   return (
-    <Backdrop onClose={() => !salvando && onFechar()}>
+    <Backdrop onClose={() => !salvando && onFechar()} label="Editar paciente">
       <CabecalhoModal titulo="Editar paciente" onClose={onFechar} />
 
       <form onSubmit={submit} style={{ display: 'grid', gap: 12 }}>
@@ -242,7 +268,7 @@ function ModalArquivar({ pacienteId, nome, onFechar }: { pacienteId: string; nom
   }
 
   return (
-    <Backdrop onClose={onFechar}>
+    <Backdrop onClose={onFechar} label="Arquivar paciente">
       <CabecalhoModal titulo="Arquivar paciente" onClose={onFechar} />
       <p style={{ fontSize: 13, color: 'var(--ink-soft)', lineHeight: 1.6, margin: '0 0 18px' }}>
         <strong>{nome}</strong> ficará marcado como inativo e some dos atalhos do dia-a-dia.
@@ -274,7 +300,7 @@ function ModalReativar({ pacienteId, nome, onFechar }: { pacienteId: string; nom
   }
 
   return (
-    <Backdrop onClose={onFechar}>
+    <Backdrop onClose={onFechar} label="Reativar paciente">
       <CabecalhoModal titulo="Reativar paciente" onClose={onFechar} />
       <p style={{ fontSize: 13, color: 'var(--ink-soft)', lineHeight: 1.6, margin: '0 0 20px' }}>
         <strong>{nome}</strong> voltará a aparecer nas listas e atalhos. Pode agendar novas sessões normalmente.
@@ -316,7 +342,7 @@ function ModalExcluir({ pacienteId, nome, totalSessoes, onFechar }: {
   }
 
   return (
-    <Backdrop onClose={() => !salvando && onFechar()}>
+    <Backdrop onClose={() => !salvando && onFechar()} label="Excluir definitivamente">
       <CabecalhoModal titulo="Excluir definitivamente" onClose={onFechar} />
 
       {bloqueado ? (
