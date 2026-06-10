@@ -23,6 +23,8 @@ export type PacienteComBadge = Paciente & {
   proximaSessao: { id: string; dataHora: string } | null
   ultimaSessaoEm: string | null
   sessoesTotais: number
+  /** Sessão concluída e NÃO assinada mais recente (alvo do CTA "Assinar"). */
+  sessaoRegistroId: string | null
 }
 
 export type BadgeInfo = { label: string; color: 'rose' | 'amber' | 'info' | 'sage' }
@@ -77,7 +79,7 @@ export async function listarPacientes(
   if (pacientes.length === 0) return []
 
   const { rows: sessoes } = await db.query(
-    `SELECT paciente_id, data_hora, status, assinada
+    `SELECT id, paciente_id, data_hora, status, assinada
        FROM sessoes
       WHERE psicologo_id = $1
       ORDER BY data_hora DESC`,
@@ -86,18 +88,23 @@ export async function listarPacientes(
 
   return pacientes.map(p => {
     const ses = sessoes.filter(s => s.paciente_id === p.id).map(s => ({
-      dataHora: s.data_hora, status: s.status, assinada: s.assinada,
+      id: s.id as string, dataHora: s.data_hora, status: s.status, assinada: s.assinada,
     }))
     const futuras = ses.filter(s => +new Date(s.dataHora) > Date.now())
                        .sort((a, b) => +new Date(a.dataHora) - +new Date(b.dataHora))
     const passadas = ses.filter(s => +new Date(s.dataHora) <= Date.now())
+    // Mais recente concluída e não assinada → alvo do "Assinar →".
+    const registro = [...ses]
+      .sort((a, b) => +new Date(b.dataHora) - +new Date(a.dataHora))
+      .find(s => s.status === 'concluida' && !s.assinada)
     return {
       ...rowToPaciente(p),
       sessoesTotais: ses.length,
       proximaSessao: futuras[0]
-        ? { id: '', dataHora: futuras[0].dataHora }
+        ? { id: futuras[0].id, dataHora: futuras[0].dataHora }
         : null,
       ultimaSessaoEm: passadas[0]?.dataHora ?? null,
+      sessaoRegistroId: registro?.id ?? null,
       badge: calcularBadge({ sessoes: ses }),
     }
   })

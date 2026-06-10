@@ -60,7 +60,10 @@ function badgeTagClass(label: string): 'info' | 'ok' | 'warn' | 'alert' | 'mute'
 }
 
 function pickPrincipalCta(p: any): { label: string; href: string } {
-  if (p.badge?.label === 'Registrar') return { label: 'Assinar →', href: `/pacientes/${p.id}` }
+  // "Assinar →" leva à REVISÃO da sessão não assinada (onde se assina), não à
+  // tela de dados do paciente. Só mostra se há de fato uma sessão pra assinar.
+  if (p.badge?.label === 'Registrar' && p.sessaoRegistroId)
+    return { label: 'Assinar →', href: `/sessao/${p.sessaoRegistroId}` }
   if (p.proximaSessao?.id)             return { label: 'Sessão →', href: `/sessao/${p.proximaSessao.id}` }
   return { label: '+ Sessão', href: `/agenda/nova` }
 }
