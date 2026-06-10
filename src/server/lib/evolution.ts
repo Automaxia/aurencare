@@ -57,16 +57,22 @@ Como prefere pagar?
    * NÃO pede método aqui — cron dispara fluxo2_perguntarMetodo 48h antes
    * de cada sessão. Evita inundar o paciente com 4 perguntas idênticas.
    */
-  fluxo2_serieInformativa: (params: { nome: string; datas: string[]; valor: number }) =>
-    `Olá, ${params.nome.split(' ')[0]}!
+  fluxo2_serieInformativa: (params: { nome: string; datas: string[]; valor: number; gratuita?: boolean }) => {
+    const lista = params.datas.map((d, i) => `${i + 1}. ${d}`).join('\n')
+    const cabecalho = params.gratuita
+      ? `Foram agendadas ${params.datas.length} sessões pra você:`
+      : `Foram agendadas ${params.datas.length} sessões pra você (R$ ${params.valor.toFixed(2)} cada):`
+    const metodo = params.gratuita
+      ? ''
+      : `\n\nVou te perguntar o método de pagamento (PIX, crédito ou débito) ~48h antes de cada uma.`
+    return `Olá, ${params.nome.split(' ')[0]}!
 
-Foram agendadas ${params.datas.length} sessões pra você (R$ ${params.valor.toFixed(2)} cada):
+${cabecalho}
 
-${params.datas.map((d, i) => `${i + 1}. ${d}`).join('\n')}
+${lista}${metodo}
 
-Vou te perguntar o método de pagamento (PIX, crédito ou débito) ~48h antes de cada uma.
-
-Qualquer mudança, é só responder por aqui.`,
+Qualquer mudança, é só responder por aqui.`
+  },
 
   fluxo2_pix: (qrcodeUrl: string, valor: number) =>
     `Aqui está seu QR Code PIX (R$ ${valor.toFixed(2)}).
@@ -112,6 +118,7 @@ Responda *CONFIRMAR* ou *CANCELAR*.`,
     psicologa: string
     janela: string
     linkConfirmacao: string
+    gratuita?: boolean
   }) =>
     `Olá, ${params.nomePaciente.split(' ')[0]}!
 
@@ -123,7 +130,9 @@ Sua sessão de hoje às ${params.horaSessao} com ${params.psicologa} ocorreu com
 Você também pode confirmar pelo link:
 ${params.linkConfirmacao}
 
-Sem resposta ${params.janela}, o pagamento é liberado automaticamente.`,
+${params.gratuita
+  ? `Sem resposta ${params.janela}, consideramos que ocorreu normalmente.`
+  : `Sem resposta ${params.janela}, o pagamento é liberado automaticamente.`}`,
 
   fluxo7_confirmado: () =>
     `Obrigada por confirmar. Bom descanso.`,

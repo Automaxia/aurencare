@@ -315,6 +315,7 @@ export async function criarSerie(input: CriarSerieInput): Promise<CriarSerieResu
           nome: pac[0].nome,
           datas: datasFormatadas,
           valor: input.valor,
+          gratuita,
         }),
       ).catch(err => log.err('criarSerie', 'falha WA', err)),
       psiS[0] ? enviarEmailPacientePorId(

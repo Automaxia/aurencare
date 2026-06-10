@@ -62,11 +62,12 @@ export async function enviarConfirmacaoPosSessao(sessaoId: string): Promise<Envi
     paciente_nome: string; paciente_telefone: string;
     psicologa_nome: string;
     confirmacao_enviada_em: string | null;
+    valor: string | null; pagamento_status: string | null;
   }>(
     `SELECT s.id, s.data_hora, s.numero,
             p.nome AS paciente_nome, p.telefone AS paciente_telefone,
             ps.nome AS psicologa_nome,
-            s.confirmacao_enviada_em
+            s.confirmacao_enviada_em, s.valor, s.pagamento_status
        FROM sessoes s
        JOIN pacientes p ON p.id = s.paciente_id
        JOIN psicologos ps ON ps.id = s.psicologo_id
@@ -85,6 +86,8 @@ export async function enviarConfirmacaoPosSessao(sessaoId: string): Promise<Envi
   const expira = calcularJanelaConfirmacao(agora)
   const token = randomBytes(24).toString('base64url')
   const horaSessao = new Date(s.data_hora).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
+  // Sessão grátis: o aviso não menciona pagamento (não há cobrança a liberar).
+  const gratuita = Number(s.valor ?? 0) <= 0 || s.pagamento_status === 'isento'
 
   await db.query(
     `UPDATE sessoes SET
@@ -101,6 +104,7 @@ export async function enviarConfirmacaoPosSessao(sessaoId: string): Promise<Envi
     psicologa: s.psicologa_nome,
     janela: descreverJanela(expira, agora),
     linkConfirmacao: `${env.appUrl}/confirmar/${token}`,
+    gratuita,
   }))
 
   log.ok('confirmacao', `enviada sessao=${sessaoId} expira=${expira.toISOString()}`)
