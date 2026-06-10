@@ -11,7 +11,7 @@ import { NovoObjetivoWizard } from './NovoObjetivoWizard'
 import { estadoObjetivo, ESTADO_META, prazoEstado, haQuanto } from '@/lib/objetivos'
 import { Sparkline } from './Sparkline'
 
-export function ObjetivosView({ pacienteId, initial, valoresIniciais }: { pacienteId: string; initial: Objetivo[]; valoresIniciais: Record<string, number[]> }) {
+export function ObjetivosView({ pacienteId, initial, valoresIniciais, observacoes }: { pacienteId: string; initial: Objetivo[]; valoresIniciais: Record<string, number[]>; observacoes: Record<string, string> }) {
   const [objs, setObjs] = useState(initial)
   const [showForm, setShowForm] = useState(false)
 
@@ -52,9 +52,9 @@ export function ObjetivosView({ pacienteId, initial, valoresIniciais }: { pacien
         />
       )}
 
-      <Section title="Ativos" items={ativos} valores={valoresIniciais} onStatus={updateStatus} onDelete={remover} onUpsert={upsert} />
-      {pausados.length > 0   && <Section title="Pausados"  items={pausados}   valores={valoresIniciais} onStatus={updateStatus} onDelete={remover} onUpsert={upsert} />}
-      {concluidos.length > 0 && <Section title="Concluídos" items={concluidos} valores={valoresIniciais} onStatus={updateStatus} onDelete={remover} onUpsert={upsert} />}
+      <Section title="Ativos" items={ativos} valores={valoresIniciais} observacoes={observacoes} onStatus={updateStatus} onDelete={remover} onUpsert={upsert} />
+      {pausados.length > 0   && <Section title="Pausados"  items={pausados}   valores={valoresIniciais} observacoes={observacoes} onStatus={updateStatus} onDelete={remover} onUpsert={upsert} />}
+      {concluidos.length > 0 && <Section title="Concluídos" items={concluidos} valores={valoresIniciais} observacoes={observacoes} onStatus={updateStatus} onDelete={remover} onUpsert={upsert} />}
 
       {objs.length === 0 && (
         <div className="empty">Nenhum objetivo cadastrado ainda.</div>
@@ -65,10 +65,11 @@ export function ObjetivosView({ pacienteId, initial, valoresIniciais }: { pacien
 
 // ─── Lista ─────────────────────────────────────────────────────────────
 
-function Section({ title, items, valores, onStatus, onDelete, onUpsert }: {
+function Section({ title, items, valores, observacoes, onStatus, onDelete, onUpsert }: {
   title: string
   items: Objetivo[]
   valores: Record<string, number[]>
+  observacoes: Record<string, string>
   onStatus: (o: Objetivo, s: Objetivo['status']) => void
   onDelete: (o: Objetivo) => void
   onUpsert: (o: Objetivo) => void
@@ -92,15 +93,16 @@ function Section({ title, items, valores, onStatus, onDelete, onUpsert }: {
         )}
       </div>
       <ul style={{ margin: 0, padding: 0, listStyle: 'none', display: 'grid', gap: 10 }}>
-        {items.map(o => <ObjetivoCard key={o.id} o={o} valores={valores[o.id] ?? []} onStatus={onStatus} onDelete={onDelete} onUpsert={onUpsert} />)}
+        {items.map(o => <ObjetivoCard key={o.id} o={o} valores={valores[o.id] ?? []} observacao={observacoes[o.id]} onStatus={onStatus} onDelete={onDelete} onUpsert={onUpsert} />)}
       </ul>
     </section>
   )
 }
 
-function ObjetivoCard({ o, valores, onStatus, onDelete, onUpsert }: {
+function ObjetivoCard({ o, valores, observacao, onStatus, onDelete, onUpsert }: {
   o: Objetivo
   valores: number[]
+  observacao?: string
   onStatus: (o: Objetivo, s: Objetivo['status']) => void
   onDelete: (o: Objetivo) => void
   onUpsert: (o: Objetivo) => void
@@ -194,6 +196,17 @@ function ObjetivoCard({ o, valores, onStatus, onDelete, onUpsert }: {
           </div>
         ) : null
       })()}
+
+      {observacao && (
+        <div style={{
+          display: 'flex', gap: 8, alignItems: 'baseline', marginTop: 12,
+          padding: '8px 11px', borderRadius: 8, background: 'var(--accent-lo)',
+          fontSize: 12.5, color: 'var(--ink-soft)', lineHeight: 1.45,
+        }}>
+          <span aria-hidden="true">💡</span>
+          <span>{observacao}</span>
+        </div>
+      )}
 
       <button onClick={toggle} className="btn ghost sm" style={{ marginTop: 14, padding: '4px 10px', fontSize: 11 }}>
         {expandido ? '▲ Fechar histórico' : '▼ Registrar / ver histórico'}
