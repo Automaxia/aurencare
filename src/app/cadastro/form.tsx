@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { signIn } from 'next-auth/react'
 import { Field } from '@/components/form/Field'
+import { PasswordInput } from '@/components/form/PasswordInput'
 import { cadastrarAction } from './actions'
 
 export function CadastroForm() {
@@ -79,7 +80,7 @@ export function CadastroForm() {
       </Field>
 
       <Field label="Senha" error={campoErro === 'senha' ? error : undefined}>
-        <input type="password" required value={senha} onChange={e => setSenha(e.target.value)} placeholder="mínimo 8 caracteres" autoComplete="new-password" />
+        <PasswordInput required value={senha} onChange={e => setSenha(e.target.value)} placeholder="mínimo 8 caracteres" autoComplete="new-password" />
       </Field>
 
       <label style={{ display: 'flex', gap: 8, alignItems: 'flex-start', fontSize: 12, color: 'var(--ink-soft)', lineHeight: 1.5, marginTop: 4, cursor: 'pointer' }}>

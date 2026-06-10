@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { signIn } from 'next-auth/react'
 import { Field } from '@/components/form/Field'
+import { PasswordInput } from '@/components/form/PasswordInput'
 import { redefinirSenhaAction } from './actions'
 
 export function RedefinirForm({ token }: { token: string }) {
@@ -38,10 +39,10 @@ export function RedefinirForm({ token }: { token: string }) {
       </p>
       <form onSubmit={onSubmit} className="auth-form" style={{ display: 'grid', gap: 12 }}>
         <Field label="Nova senha">
-          <input type="password" required value={senha} onChange={e => setSenha(e.target.value)} autoComplete="new-password" autoFocus placeholder="mínimo 8 caracteres" />
+          <PasswordInput required value={senha} onChange={e => setSenha(e.target.value)} autoComplete="new-password" autoFocus placeholder="mínimo 8 caracteres" />
         </Field>
         <Field label="Confirmar senha">
-          <input type="password" required value={confirma} onChange={e => setConfirma(e.target.value)} autoComplete="new-password" />
+          <PasswordInput required value={confirma} onChange={e => setConfirma(e.target.value)} autoComplete="new-password" />
         </Field>
         {error && <div style={{ color: 'var(--rose)', fontSize: 12 }}>{error}</div>}
         <button type="submit" className="btn primary" disabled={loading} style={{ justifyContent: 'center' }}>

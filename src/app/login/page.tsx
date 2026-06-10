@@ -6,6 +6,7 @@ import { Suspense, useState } from 'react'
 import Link from 'next/link'
 import { Logo } from '@/components/brand/Logo'
 import { Field } from '@/components/form/Field'
+import { PasswordInput } from '@/components/form/PasswordInput'
 
 /**
  * Pra fazer o build estático, useSearchParams() exige envelopar em Suspense.
@@ -60,13 +61,20 @@ function LoginForm() {
             />
           </Field>
           <Field label="Senha">
-            <input
-              type="password" required value={password}
+            <PasswordInput
+              required value={password}
               onChange={e => setPassword(e.target.value)}
               autoComplete="current-password"
             />
           </Field>
-          {error && <div style={{ color: 'var(--rose)', fontSize: 12 }}>{error}</div>}
+          {error && (
+            <div style={{ fontSize: 12 }}>
+              <div style={{ color: 'var(--rose)' }}>{error}</div>
+              <div style={{ color: 'var(--muted)', marginTop: 4, lineHeight: 1.4 }}>
+                Se tem certeza da senha e não entra, tente uma <strong>aba anônima</strong> — cookies antigos podem travar o login.
+              </div>
+            </div>
+          )}
           <button type="submit" className="btn primary" disabled={loading} style={{ justifyContent: 'center' }}>
             {loading ? 'Entrando…' : 'Entrar'}
           </button>

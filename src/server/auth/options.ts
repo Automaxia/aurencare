@@ -5,11 +5,9 @@ import bcrypt from 'bcrypt'
 import { db } from '@/server/db/pool'
 
 export const authOptions: NextAuthOptions = {
-  // Timeout absoluto a partir do login. updateAge fica no padrão (>maxAge), então
-  // o token NÃO é re-emitido: é um teto fixo, não desliza com o uso.
-  // ⚠️ 30min é menor que uma sessão (~50min) — desloga no meio do atendimento.
-  // Para evitar isso: aumentar maxAge, ou trocar p/ inatividade (updateAge < maxAge).
-  session: { strategy: 'jwt', maxAge: 60 * 30 },
+  // Timeout absoluto a partir do login (8h — cobre um dia de atendimentos sem
+  // deslogar no meio da sessão). O teste de 30min foi revertido.
+  session: { strategy: 'jwt', maxAge: 60 * 60 * 8 },
   pages: { signIn: '/login' },
   providers: [
     CredentialsProvider({
