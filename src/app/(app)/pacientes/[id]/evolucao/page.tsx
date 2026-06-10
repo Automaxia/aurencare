@@ -5,6 +5,7 @@ import { Sparkline } from '@/components/Sparkline'
 import { requirePsicologo } from '@/server/lib/auth'
 import { db } from '@/server/db/pool'
 import { lerEvolucaoEstatisticas } from '@/server/services/evolucao'
+import { resumoEvolucao } from '@/server/services/resumoEvolucao'
 import { EvolucaoChat } from './chat'
 import { ObservacoesCliente } from './Observacoes'
 
@@ -19,7 +20,10 @@ export default async function EvolucaoPage({ params }: { params: { id: string } 
   if (!paciente) notFound()
   if (paciente.psicologo_id !== user.id) redirect('/pacientes')
 
-  const dados = await lerEvolucaoEstatisticas(params.id, paciente.nome)
+  const [dados, resumo] = await Promise.all([
+    lerEvolucaoEstatisticas(params.id, paciente.nome),
+    resumoEvolucao(params.id),
+  ])
 
   return (
     <div>
@@ -44,6 +48,22 @@ export default async function EvolucaoPage({ params }: { params: { id: string } 
         basePath="/pacientes"
         segment="evolucao"
       />
+
+      {/* Resumo da Evolução — síntese determinística (Fase 1) */}
+      <section className="card" style={{ padding: 18, marginBottom: 16 }}>
+        <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: 10 }}>
+          <span style={{ fontSize: 11, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '.07em', fontWeight: 600 }}>
+            Resumo da evolução
+          </span>
+          {!resumo.suficiente && <span style={{ fontSize: 11, color: 'var(--amber)' }}>dados ainda em formação</span>}
+        </div>
+        <div style={{ fontSize: 13.5, color: 'var(--ink-soft)', lineHeight: 1.65 }}>
+          {resumo.frases.map((f, i) => <p key={i} style={{ margin: i === 0 ? 0 : '6px 0 0' }}>{f}</p>)}
+        </div>
+        <div style={{ fontSize: 10.5, color: 'var(--faint)', marginTop: 10 }}>
+          Observação a partir do histórico — não diagnóstico · CFP 09/2024
+        </div>
+      </section>
 
       <div className="orient-grid">
         <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
@@ -136,15 +156,31 @@ function SparksRow({ sparkHumor, sparkRitmo }: { sparkHumor: number[]; sparkRitm
 }
 
 function SparkBlock({ title, hint, values, color, showDots }: { title: string; hint: string; values: number[]; color: string; showDots?: boolean }) {
+  const t = tendencia(values)
   return (
     <div>
-      <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: 6 }}>
+      <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 8, marginBottom: 6 }}>
         <span style={{ fontSize: 10, color: 'var(--faint)', textTransform: 'uppercase', letterSpacing: 1.5, fontWeight: 500 }}>{title}</span>
-        <span style={{ fontSize: 11, color: 'var(--muted)' }}>{hint}</span>
+        <span style={{ fontSize: 11, color: 'var(--muted)', whiteSpace: 'nowrap' }}>
+          {t.seta} {t.delta > 0 ? '+' : ''}{t.delta} · {hint}
+        </span>
       </div>
       <Sparkline values={values} width={180} height={32} color={color} showDots={showDots} ariaLabel={title} />
     </div>
   )
+}
+
+/** Tendência de uma série: compara a janela recente com a anterior. */
+function tendencia(valores: number[], janela = 4): { seta: string; delta: number } {
+  if (valores.length < 2) return { seta: '→', delta: 0 }
+  const n = valores.length
+  const j = Math.min(janela, Math.max(1, Math.floor(n / 2)))
+  const recente = valores.slice(-j)
+  const anterior = valores.slice(0, n - j)
+  const avg = (a: number[]) => a.reduce((x, y) => x + y, 0) / a.length
+  const delta = avg(recente) - (anterior.length ? avg(anterior) : recente[0])
+  const d = Math.round(delta * 10) / 10
+  return { seta: Math.abs(d) < 0.1 ? '→' : d > 0 ? '↑' : '↓', delta: d }
 }
 
 function formatEstadoLabel(estado: number): string {
