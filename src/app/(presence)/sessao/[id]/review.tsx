@@ -1,6 +1,7 @@
 'use client'
 
 import { isValidElement, useState } from 'react'
+import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { CfpBadge } from '@/components/brand/CfpBadge'
 import type { Sessao } from '@/server/services/sessoes'
@@ -20,6 +21,15 @@ const MARK_COLOR: Record<string, 'accent' | 'rose' | 'sage'> = {
   insight: 'accent', comportamento: 'rose', avanco: 'sage',
 }
 
+const lbl: React.CSSProperties = {
+  display: 'block', fontSize: 11, color: 'var(--muted)',
+  textTransform: 'uppercase', letterSpacing: '.06em', marginBottom: 6,
+}
+const ta: React.CSSProperties = {
+  width: '100%', boxSizing: 'border-box', fontFamily: 'inherit',
+  fontSize: 13, padding: '10px 12px', resize: 'vertical', lineHeight: 1.5,
+}
+
 export function SessionReview({ sessao }: { sessao: Sessao }) {
   const [insight, setInsight] = useState<string | null>(null)
   const [loadingInsight, setLoadingInsight] = useState(false)
@@ -27,6 +37,37 @@ export function SessionReview({ sessao }: { sessao: Sessao }) {
 
   const ind = sessao.indicadores ?? {}
   const turnos = parseTranscriptionToTurns(sessao.transcricao ?? '')
+
+  // Assinatura inline — resolve a pendência "Registrar" (sessão concluída e não
+  // assinada). Antes a revisão era só leitura e não havia como resolver.
+  const router = useRouter()
+  const [resumoEdit, setResumoEdit] = useState(sessao.resumoIa ?? '')
+  const [notaEdit, setNotaEdit] = useState(sessao.notaClinica ?? '')
+  const [assinando, setAssinando] = useState(false)
+  const [assinadoAgora, setAssinadoAgora] = useState(false)
+  const [assinarErro, setAssinarErro] = useState<string | null>(null)
+  const assinada = sessao.assinada || assinadoAgora
+  const podeAssinar = sessao.status === 'concluida' && !assinada
+
+  async function assinarRegistro() {
+    if (!resumoEdit.trim()) { setAssinarErro('Escreva um resumo antes de assinar.'); return }
+    setAssinando(true); setAssinarErro(null)
+    try {
+      const res = await fetch(`/api/sessao/${sessao.id}/assinar`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ resumoFinal: resumoEdit, notaClinica: notaEdit }),
+      })
+      const json = await res.json().catch(() => ({} as any))
+      if (res.ok) { setAssinadoAgora(true); router.refresh() }
+      else if (json.error === 'termos_proibidos') setAssinarErro('O texto contém termos clínicos/diagnósticos não permitidos. Reformule antes de assinar.')
+      else if (json.error === 'resumo_vazio') setAssinarErro('Escreva um resumo antes de assinar.')
+      else setAssinarErro('Falha ao assinar. Tente novamente.')
+    } catch {
+      setAssinarErro('Falha ao assinar. Tente novamente.')
+    } finally {
+      setAssinando(false)
+    }
+  }
 
   async function carregarInsight() {
     setLoadingInsight(true); setInsightError(null)
@@ -51,7 +92,9 @@ export function SessionReview({ sessao }: { sessao: Sessao }) {
           </span>
         </div>
         <div className="pb-actions">
-          {sessao.assinada && <span style={{ fontSize: 12, color: 'var(--sage)' }}>✓ Assinada</span>}
+          {assinada
+            ? <span style={{ fontSize: 12, color: 'var(--sage)' }}>✓ Assinada</span>
+            : sessao.status === 'concluida' && <span style={{ fontSize: 12, color: 'var(--amber)' }}>⚠ Registro pendente</span>}
           <Link href={`/pacientes/${sessao.pacienteId}/evolucao`} className="btn ghost">Ver evolução</Link>
           <Link href="/agenda" className="btn ghost">← Agenda</Link>
         </div>
@@ -60,16 +103,46 @@ export function SessionReview({ sessao }: { sessao: Sessao }) {
       <div style={{ padding: '20px 24px', display: 'grid', gridTemplateColumns: '1fr 380px', gap: 16, maxWidth: 1240, margin: '0 auto', width: '100%' }}>
         {/* Coluna esquerda — transcrição com marcações */}
         <div>
-          <Section title="Resumo (assinado)">
-            {sessao.resumoIa ? (
-              <p style={{ whiteSpace: 'pre-wrap', margin: 0, fontSize: 13, color: 'var(--ink-soft)', lineHeight: 1.6 }}>{sessao.resumoIa}</p>
-            ) : <Empty>Sessão sem resumo.</Empty>}
-            {sessao.assinaturaTimestamp && (
-              <div style={{ fontSize: 11, color: 'var(--sage)', marginTop: 8 }}>
-                ✓ Assinada em {new Date(sessao.assinaturaTimestamp).toLocaleString('pt-BR')}
+          {podeAssinar ? (
+            <Section title="Registrar sessão">
+              <div style={{ fontSize: 12.5, color: 'var(--ink-soft)', marginBottom: 12, lineHeight: 1.5 }}>
+                Esta sessão está <strong style={{ color: 'var(--amber)' }}>pendente de registro</strong>.
+                Revise o resumo e <strong>assine</strong> para concluir — é isto que resolve a
+                notificação “Registrar — {sessao.pacienteNome}”.
               </div>
-            )}
-          </Section>
+              <label style={lbl}>Resumo (rascunho · revise antes de assinar)</label>
+              <textarea
+                value={resumoEdit} onChange={e => setResumoEdit(e.target.value)} rows={6}
+                placeholder="Resumo da sessão em linguagem de observação (sem diagnóstico)…"
+                style={ta}
+              />
+              <label style={{ ...lbl, marginTop: 12 }}>Nota clínica privada (opcional)</label>
+              <textarea value={notaEdit} onChange={e => setNotaEdit(e.target.value)} rows={3} style={ta} />
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 12 }}>
+                <CfpBadge />
+                <div style={{ flex: 1 }} />
+                <button className="btn primary" onClick={assinarRegistro} disabled={assinando || !resumoEdit.trim()}>
+                  {assinando ? 'Assinando…' : 'Assinar registro'}
+                </button>
+              </div>
+              {assinarErro && <div style={{ color: 'var(--rose)', fontSize: 12, marginTop: 8 }}>{assinarErro}</div>}
+            </Section>
+          ) : (
+            <Section title="Resumo (assinado)">
+              {(assinadoAgora ? resumoEdit : sessao.resumoIa) ? (
+                <p style={{ whiteSpace: 'pre-wrap', margin: 0, fontSize: 13, color: 'var(--ink-soft)', lineHeight: 1.6 }}>
+                  {assinadoAgora ? resumoEdit : sessao.resumoIa}
+                </p>
+              ) : <Empty>Sessão sem resumo.</Empty>}
+              {(assinadoAgora || sessao.assinaturaTimestamp) && (
+                <div style={{ fontSize: 11, color: 'var(--sage)', marginTop: 8 }}>
+                  {assinadoAgora
+                    ? '✓ Assinada agora — pendência resolvida.'
+                    : `✓ Assinada em ${new Date(sessao.assinaturaTimestamp!).toLocaleString('pt-BR')}`}
+                </div>
+              )}
+            </Section>
+          )}
 
           {sessao.notaClinica && (
             <Section title="Nota clínica privada">

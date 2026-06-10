@@ -296,6 +296,11 @@ function NotificationsPopover({ pendencias, readIds, onMarcarLida, onMarcarTodas
             })
           )}
         </div>
+        {pendencias.length > 0 && (
+          <div style={{ padding: '10px 16px', borderTop: '1px solid var(--border)', fontSize: 11, color: 'var(--faint)', lineHeight: 1.5 }}>
+            As pendências ficam aqui até serem <strong>resolvidas</strong> (ex.: abrir a sessão e <strong>assinar o registro</strong>). “Marcar como lida” só silencia o aviso — não resolve.
+          </div>
+        )}
       </div>
     </>
   )
