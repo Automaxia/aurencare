@@ -42,12 +42,19 @@ export async function chat(
   }
 
   try {
+    const modelo = MODEL_IDS[opts.model ?? 'fast']
     const res = await c.messages.create({
-      model: MODEL_IDS[opts.model ?? 'fast'],
+      model: modelo,
       max_tokens: opts.maxTokens ?? 1000,
       system: systemPrompt,
       messages: messages.slice(-8),
     })
+    // Registra custo (tokens reais). Best-effort, não bloqueia a resposta.
+    import('@/server/services/custos').then(m => m.registrarCustoAnthropic({
+      operacao: opts.scope, modelo,
+      tokensEntrada: res.usage?.input_tokens ?? 0,
+      tokensSaida: res.usage?.output_tokens ?? 0,
+    })).catch(() => {})
     const raw = res.content.find(b => b.type === 'text')?.text ?? ''
     return validarTextoIA(raw) ? raw : sanitizarTextoIA(raw)
   } catch (err) {

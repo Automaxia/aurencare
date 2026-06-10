@@ -1,3 +1,4 @@
+import Link from 'next/link'
 import { requireRole } from '@/server/lib/auth'
 import { PageHeader } from '@/components/PageHeader'
 import { obterCockpit, listarUsuariosAdmin } from '@/server/services/admin'
@@ -21,7 +22,11 @@ export default async function AdminPage() {
 
   return (
     <div>
-      <PageHeader title="Administração" subtitle="Cockpit de gestão da plataforma" />
+      <PageHeader
+        title="Administração"
+        subtitle="Cockpit de gestão da plataforma"
+        actions={<Link href="/admin/custos" className="btn ghost">Custos de API →</Link>}
+      />
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 12, marginBottom: 20 }}>
         {cards.map(c => (
