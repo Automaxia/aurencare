@@ -3,6 +3,7 @@ import { Topbar } from '@/components/layout/Topbar'
 import { AppShell } from '@/components/layout/AppShell'
 import { OnboardingBanner } from '@/components/layout/OnboardingBanner'
 import { PlanoUsoBanner } from '@/components/layout/PlanoUsoBanner'
+import { ToastProvider } from '@/components/feedback/Toast'
 import { getServerSession } from 'next-auth/next'
 import { authOptions } from '@/server/auth/options'
 import { redirect } from 'next/navigation'
@@ -36,9 +37,11 @@ export default async function AppLayout({ children }: { children: React.ReactNod
           initialSessaoAtiva={atalhos.sessaoAtiva}
           initialPendencias={atalhos.pendencias}
         />
-        {!onboarding.completo && <OnboardingBanner />}
-        {planoBanner && <PlanoUsoBanner motivo={planoBanner} cap={assinatura.cap} />}
-        <main className="app-content">{children}</main>
+        <ToastProvider>
+          {!onboarding.completo && <OnboardingBanner />}
+          {planoBanner && <PlanoUsoBanner motivo={planoBanner} cap={assinatura.cap} />}
+          <main className="app-content">{children}</main>
+        </ToastProvider>
       </div>
     </AppShell>
   )

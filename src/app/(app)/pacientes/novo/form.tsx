@@ -2,10 +2,12 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
+import { useToast } from '@/components/feedback/Toast'
 import { criarPacienteAction } from './actions'
 
 export function NewPatientForm({ psicologoNome }: { psicologoNome: string }) {
   const router = useRouter()
+  const { toast } = useToast()
   const [nome, setNome] = useState('')
   const [telefone, setTelefone] = useState('')
   const [email, setEmail] = useState('')
@@ -17,8 +19,10 @@ export function NewPatientForm({ psicologoNome }: { psicologoNome: string }) {
     setLoading(true); setError(null)
     const result = await criarPacienteAction({ nome, telefone, email: email || null })
     setLoading(false)
-    if (result.ok) router.push('/pacientes')
-    else setError(result.error)
+    if (result.ok) {
+      toast(`${(nome.split(' ')[0] || 'Paciente').trim()} cadastrado — convite enviado no WhatsApp`)
+      router.push('/pacientes')
+    } else setError(result.error)
   }
 
   const previewName = (nome.split(' ')[0] || 'Paciente').trim()

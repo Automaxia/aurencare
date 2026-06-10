@@ -3,6 +3,7 @@
 import { useMemo, useState } from 'react'
 import { salvarCondicoesAction } from './actions'
 import { CidAutocomplete } from '@/components/CidAutocomplete'
+import { SavedBadge } from '@/components/brand/Feedback'
 
 type Condicoes = { cid?: string[]; medicacoes?: { nome: string; dose?: string }[]; alertas?: string[]; observacoes?: string }
 
@@ -75,7 +76,7 @@ export function PatientProfileForm({ pacienteId, initial }: { pacienteId: string
       </Field>
 
       {error && <div style={{ color: 'var(--rose)', fontSize: 12 }}>{error}</div>}
-      {saved && <div style={{ color: 'var(--sage)', fontSize: 12 }}>✓ Salvo</div>}
+      {saved && <div><SavedBadge label="Condições salvas" /></div>}
 
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
         <span style={{ fontSize: 11, color: 'var(--faint)' }}>

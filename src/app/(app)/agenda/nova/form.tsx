@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
+import { useToast } from '@/components/feedback/Toast'
 import { criarSessaoAction, criarSerieAction, conflitosSerieAction } from './actions'
 
 type Modo = 'avulsa' | 'serie'
@@ -11,6 +12,7 @@ const SEMANAS_PT = ['domingo', 'segunda', 'terça', 'quarta', 'quinta', 'sexta',
 
 export function NewSessionForm({ pacientes }: { pacientes: { id: string; nome: string }[] }) {
   const router = useRouter()
+  const { toast } = useToast()
   const today = new Date()
   const defaultDate = new Date(today.getTime() + 24 * 60 * 60 * 1000).toISOString().slice(0, 10)
 
@@ -63,7 +65,7 @@ export function NewSessionForm({ pacientes }: { pacientes: { id: string; nome: s
     if (modo === 'avulsa') {
       const r = await criarSessaoAction({ pacienteId, dataHora: iso, duracaoMin: duracao, modalidade, valor })
       setLoading(false)
-      if (r.ok) router.push('/agenda')
+      if (r.ok) { toast('Sessão agendada'); router.push('/agenda') }
       else setError(r.error)
     } else {
       const r = await criarSerieAction({
@@ -71,7 +73,7 @@ export function NewSessionForm({ pacientes }: { pacientes: { id: string; nome: s
         duracaoMin: duracao, modalidade, valor,
       })
       setLoading(false)
-      if (r.ok) router.push('/agenda')
+      if (r.ok) { toast(`Série de ${quantidade} sessões agendada`); router.push('/agenda') }
       else setError(r.error)
     }
   }

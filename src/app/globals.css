@@ -120,6 +120,33 @@ input:user-invalid:focus, textarea:user-invalid:focus, select:user-invalid:focus
 
 ::selection { background: var(--accent-lo); color: var(--ink); }
 
+/* ── Toast (feedback de ação) ── */
+.toast-wrap {
+  position: fixed; right: 18px; bottom: 18px; z-index: 200;
+  display: flex; flex-direction: column; gap: 8px; pointer-events: none;
+}
+.toast {
+  pointer-events: auto; display: flex; align-items: center; gap: 9px;
+  background: var(--card); border: 1px solid var(--border); border-left: 3px solid var(--sage);
+  box-shadow: 0 8px 28px rgba(26,24,37,.14);
+  padding: 11px 15px; border-radius: 10px; font-size: 13px; color: var(--ink-soft);
+  max-width: 360px; animation: toast-in .22s var(--ease);
+}
+.toast-error { border-left-color: var(--rose); }
+.toast-info  { border-left-color: var(--accent); }
+.toast-ico {
+  display: inline-flex; width: 18px; height: 18px; border-radius: 50%; flex: none;
+  background: var(--sage); color: #fff; align-items: center; justify-content: center;
+  font-size: 11px; font-weight: 700;
+}
+.toast-error .toast-ico { background: var(--rose); }
+.toast-info  .toast-ico { background: var(--accent); }
+@keyframes toast-in { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+@media (max-width: 600px) {
+  .toast-wrap { left: 12px; right: 12px; bottom: 12px; }
+  .toast { max-width: none; }
+}
+
 /* ────────────────────────────────────────────────────────────────────────
    LAYOUT SHELL
    ──────────────────────────────────────────────────────────────────────── */
