@@ -96,7 +96,7 @@ export async function buscarPacientePorTelefone(telefone: string): Promise<{ id:
   const tel = normalizar(telefone)
   const { rows } = await db.query<{ id: string; psicologo_id: string; nome: string }>(
     `SELECT id, psicologo_id, nome FROM pacientes
-      WHERE right(telefone, 11) = right($1, 11) LIMIT 1`,
+      WHERE tel_canon(telefone) = tel_canon($1) LIMIT 1`,
     [tel],
   )
   return rows[0] ? { id: rows[0].id, psicologoId: rows[0].psicologo_id, nome: rows[0].nome } : null

@@ -198,16 +198,15 @@ export async function liberarSilenciosos(): Promise<number> {
  * Usa a sessão mais recente com confirmação pendente.
  */
 export async function acharSessaoPendentePorTelefone(telefone: string): Promise<string | null> {
-  const tel = telefone.replace(/\D/g, '')
   const { rows } = await db.query<{ id: string }>(
     `SELECT s.id FROM sessoes s
        JOIN pacientes p ON p.id = s.paciente_id
-      WHERE regexp_replace(p.telefone, '\\D', '', 'g') = $1
+      WHERE tel_canon(p.telefone) = tel_canon($1)
         AND s.confirmacao_resposta IS NULL
         AND s.confirmacao_token IS NOT NULL
       ORDER BY s.confirmacao_enviada_em DESC NULLS LAST
       LIMIT 1`,
-    [tel],
+    [telefone],
   )
   return rows[0]?.id ?? null
 }

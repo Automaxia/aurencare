@@ -245,7 +245,7 @@ async function responderPacienteConhecido(
 async function processarComandoPagamento(opts: { telefone: string; cmd: string }) {
   const { telefone, cmd } = opts
   const { rows: pRows } = await db.query<{ id: string }>(
-    `SELECT id FROM pacientes WHERE right(telefone, 11) = right($1, 11) LIMIT 1`,
+    `SELECT id FROM pacientes WHERE tel_canon(telefone) = tel_canon($1) LIMIT 1`,
     [telefone],
   )
   const paciente = pRows[0]
