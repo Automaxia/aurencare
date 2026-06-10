@@ -129,7 +129,7 @@ input:user-invalid:focus, textarea:user-invalid:focus, select:user-invalid:focus
 ::selection { background: var(--accent-lo); color: var(--ink); }
 
 /* Blocos recolhíveis (Informações clínicas / Dados cadastrais no perfil) */
-.bloco-recolhivel { margin-top: 14px; border-top: 1px solid var(--border); }
+.bloco-recolhivel { margin-top: 14px; border-top: 1px solid var(--border); scroll-margin-top: 70px; }
 .bloco-recolhivel > summary {
   list-style: none; cursor: pointer; padding: 12px 2px 12px 0;
   display: flex; align-items: center; gap: 10px;

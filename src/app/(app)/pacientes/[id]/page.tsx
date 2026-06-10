@@ -114,9 +114,9 @@ export default async function PacientePerfilPage({ params }: { params: { id: str
       {(alertas.length > 0 || !p.consentimento_aceito) && (
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 12 }}>
           {alertas.length > 0 && (
-            <span style={{ fontSize: 12, fontWeight: 500, padding: '4px 11px', borderRadius: 999, background: 'rgba(196,96,122,.12)', color: 'var(--rose)' }}>
-              ⚠ {alertas.length} alerta{alertas.length > 1 ? 's' : ''} clínico{alertas.length > 1 ? 's' : ''}
-            </span>
+            <a href="#info-clinica" style={{ fontSize: 12, fontWeight: 500, padding: '4px 11px', borderRadius: 999, background: 'rgba(196,96,122,.12)', color: 'var(--rose)', textDecoration: 'none' }}>
+              ⚠ {alertas.length} alerta{alertas.length > 1 ? 's' : ''} clínico{alertas.length > 1 ? 's' : ''} →
+            </a>
           )}
           {!p.consentimento_aceito && (
             <span style={{ fontSize: 12, fontWeight: 500, padding: '4px 11px', borderRadius: 999, background: 'rgba(176,125,64,.14)', color: 'var(--amber)' }}>
@@ -135,7 +135,7 @@ export default async function PacientePerfilPage({ params }: { params: { id: str
         proximaSessaoId={proximaRows?.id ?? null}
       />
 
-      <details className="bloco-recolhivel">
+      <details className="bloco-recolhivel" id="info-clinica" open={alertas.length > 0}>
         <summary>
           <span>Informações clínicas</span>
           <span className="resumo">{resumoClinico(condicoes)}</span>
