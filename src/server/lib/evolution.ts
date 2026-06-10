@@ -32,6 +32,44 @@ export async function enviarWA(telefone: string, texto: string): Promise<void> {
   }
 }
 
+/** URL que a instância Evolution deve chamar pra entregar eventos ao app. */
+export function webhookUrlEvolution(): string {
+  const base = `${env.appUrl.replace(/\/$/, '')}/api/webhooks/evolution`
+  return env.evolutionWebhookTok ? `${base}?token=${encodeURIComponent(env.evolutionWebhookTok)}` : base
+}
+
+/** Lê o webhook atualmente configurado na instância (diagnóstico). */
+export async function lerWebhookEvolution(): Promise<any> {
+  if (!integrationStatus.evolution) return { mock: true }
+  const { data } = await axios.get(
+    `${env.evolutionUrl}/webhook/find/${env.evolutionInstance}`,
+    { headers: { apikey: env.evolutionKey! }, timeout: 12_000 },
+  )
+  return data
+}
+
+/**
+ * Aponta o webhook da instância pro app, com os eventos necessários
+ * (principalmente MESSAGES_UPSERT — sem ele, as respostas do paciente não chegam).
+ */
+export async function configurarWebhookEvolution(): Promise<{ ok: boolean; url: string; resposta?: any; erro?: string }> {
+  const url = webhookUrlEvolution()
+  if (!integrationStatus.evolution) return { ok: false, url, erro: 'evolution_nao_configurado' }
+  try {
+    const { data } = await axios.post(
+      `${env.evolutionUrl}/webhook/set/${env.evolutionInstance}`,
+      { webhook: { enabled: true, url, events: ['MESSAGES_UPSERT', 'QRCODE_UPDATED', 'CONNECTION_UPDATE'] } },
+      { headers: { apikey: env.evolutionKey!, 'Content-Type': 'application/json' }, timeout: 12_000 },
+    )
+    log.ok('evolution', `webhook configurado → ${url}`)
+    return { ok: true, url, resposta: data }
+  } catch (err: any) {
+    const erro = err?.response?.data ? JSON.stringify(err.response.data) : (err instanceof Error ? err.message : String(err))
+    log.err('evolution', 'falha ao configurar webhook', erro)
+    return { ok: false, url, erro }
+  }
+}
+
 /**
  * Templates de mensagem dos 6 fluxos. §10.
  */
