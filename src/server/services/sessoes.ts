@@ -25,6 +25,8 @@ export type Sessao = {
   pacienteNome: string
   pacienteTelefone: string
   pacienteEmail: string | null
+  /** 'ativo' | 'inativo' (arquivado). Usado pra não contar pendência de arquivado. */
+  pacienteStatus: string | null
   numero: number
   dataHora: string
   duracaoMin: number
@@ -54,6 +56,7 @@ function rowToSessao(r: any): Sessao {
   return {
     id: r.id, psicologoId: r.psicologo_id, pacienteId: r.paciente_id,
     pacienteNome: r.paciente_nome, pacienteTelefone: r.paciente_telefone, pacienteEmail: r.paciente_email,
+    pacienteStatus: r.paciente_status ?? null,
     numero: r.numero, dataHora: r.data_hora, duracaoMin: r.duracao_min, modalidade: r.modalidade,
     status: r.status, pagamentoStatus: r.pagamento_status, pagamentoMetodo: r.pagamento_metodo,
     pagamentoParcelas: r.pagamento_parcelas,
@@ -76,7 +79,8 @@ const SELECT_SESSAO_BASE = `
   SELECT s.*,
          p.nome AS paciente_nome,
          p.telefone AS paciente_telefone,
-         p.email AS paciente_email
+         p.email AS paciente_email,
+         p.status AS paciente_status
     FROM sessoes s
     JOIN pacientes p ON p.id = s.paciente_id
 `
@@ -108,6 +112,7 @@ export async function listarSessoesEntre(psicologoId: string, inicioIso: string,
             p.nome AS paciente_nome,
             p.telefone AS paciente_telefone,
             p.email AS paciente_email,
+            p.status AS paciente_status,
             ss.serie_posicao,
             ss.serie_total
        FROM sessoes s
@@ -138,6 +143,7 @@ export async function sessoesPendentesAssinatura(psicologoId: string): Promise<S
   const { rows } = await db.query(
     `${SELECT_SESSAO_BASE}
       WHERE s.psicologo_id = $1 AND s.status = 'concluida' AND s.assinada = FALSE
+        AND p.status = 'ativo'
       ORDER BY s.data_hora DESC
       LIMIT 6`,
     [psicologoId],

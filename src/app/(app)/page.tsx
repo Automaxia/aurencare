@@ -62,7 +62,8 @@ export default async function InicioPage() {
   const sessaoEmAndamento = sessoesHoje.find(s => s.status === 'em_curso')
   const sessoesEmAndamento = sessoesHoje.filter(s => s.status === 'em_curso').length
   const cobrancasPendentes = sessoesSemana.filter(s =>
-    s.pagamentoStatus === 'pendente' && (s.status === 'aguardando_metodo' || s.status === 'aguardando_pagamento'),
+    s.pagamentoStatus === 'pendente' && (s.status === 'aguardando_metodo' || s.status === 'aguardando_pagamento')
+    && s.pacienteStatus === 'ativo',   // paciente arquivado não gera cobrança pendente
   ).length
   const pendenciasCount = pendentes.length + cobrancasPendentes
   // Destino contextual da pílula "pendências": sessão pra assinar > financeiro
