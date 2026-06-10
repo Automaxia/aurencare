@@ -7,10 +7,11 @@ type Props = {
   token: string
   pacienteNome: string
   psicologaNome: string
-  dataHora: string
+  /** Data/hora JÁ formatada no servidor (timezone fixo) — evita mismatch de hidratação. */
+  horaSessao: string
   numero: number
   respostaAtual: string | null
-  janelaExpiraEm: string | null
+  janelaExpirou: boolean
 }
 
 export function ConfirmarClient(props: Props) {
@@ -18,7 +19,7 @@ export function ConfirmarClient(props: Props) {
   const [enviando, setEnviando] = useState<'sim' | 'contestou' | null>(null)
   const [erro, setErro] = useState<string | null>(null)
 
-  const janelaExpirou = props.janelaExpiraEm && new Date(props.janelaExpiraEm) < new Date()
+  const janelaExpirou = props.janelaExpirou
   const ja = resposta === 'sim' || resposta === 'contestou'
 
   async function responder(r: 'sim' | 'contestou') {
@@ -45,9 +46,7 @@ export function ConfirmarClient(props: Props) {
     }
   }
 
-  const horaSessao = new Date(props.dataHora).toLocaleString('pt-BR', {
-    weekday: 'long', day: '2-digit', month: 'long', hour: '2-digit', minute: '2-digit',
-  })
+  const horaSessao = props.horaSessao
 
   // Estados terminais
   if (resposta === 'sim') return (
