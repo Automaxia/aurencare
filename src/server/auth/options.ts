@@ -31,9 +31,10 @@ export const authOptions: NextAuthOptions = {
         if (!u) return null
         const ok = await bcrypt.compare(String(creds.password), u.senha_hash)
         if (!ok) return null
-        // Gestão: conta suspensa/inativa não loga. Fail-open: só bloqueia valores
-        // explícitos de bloqueio — nunca trava por status inesperado/nulo.
-        if (u.status && ['suspenso', 'inativo', 'bloqueado'].includes(u.status)) return null
+        // Gestão: conta SUSPENSA não loga. Bloqueia SÓ 'suspenso' — o único valor
+        // que a gestão seta (ciclo ativo↔suspenso). Não bloqueia 'inativo' nem
+        // outros (podem ser status legado de psicólogo e travariam por engano).
+        if (u.status === 'suspenso') return null
         return { id: u.id, name: u.nome, email: u.email, crp: u.crp, role: u.role ?? 'psicologo' } as any
       },
     }),
