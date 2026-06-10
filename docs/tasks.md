@@ -56,6 +56,10 @@ Legenda prioridade: **P0** crítico (segurança/risco) · **P1** importante · *
 
 ## Futuro (fora do MVP)
 
+- 🔮 **Modelo `usuarios` + papéis (admin)** — separar autenticação dos perfis
+  `psicologos`/`pacientes` para suportar administrador/backoffice. Plano completo
+  (5 fases, baixo risco) em [`usuarios-papeis.md`](./usuarios-papeis.md). Gatilho:
+  surgir necessidade concreta de admin.
 - 🔮 Modo supervisor (Fase 3).
 - 🔮 Agendamento inbound pelo paciente via WhatsApp (TODO `WA.3`).
 - 🔮 UI de escolha de parcelas (1–6x) no fluxo de cartão.
