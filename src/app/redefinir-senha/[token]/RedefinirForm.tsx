@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { signIn } from 'next-auth/react'
+import { Field } from '@/components/form/Field'
 import { redefinirSenhaAction } from './actions'
 
 export function RedefinirForm({ token }: { token: string }) {
@@ -35,34 +36,18 @@ export function RedefinirForm({ token }: { token: string }) {
       <p style={{ fontSize: 13, color: 'var(--muted)', textAlign: 'center', marginBottom: 16 }}>
         Escolha uma senha com pelo menos 8 caracteres.
       </p>
-      <form onSubmit={onSubmit} style={{ display: 'grid', gap: 12 }}>
-        <label style={{ display: 'grid', gap: 5 }}>
-          <span style={{ fontSize: 11, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '.06em' }}>Nova senha</span>
+      <form onSubmit={onSubmit} className="auth-form" style={{ display: 'grid', gap: 12 }}>
+        <Field label="Nova senha">
           <input type="password" required value={senha} onChange={e => setSenha(e.target.value)} autoComplete="new-password" autoFocus placeholder="mínimo 8 caracteres" />
-        </label>
-        <label style={{ display: 'grid', gap: 5 }}>
-          <span style={{ fontSize: 11, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '.06em' }}>Confirmar senha</span>
+        </Field>
+        <Field label="Confirmar senha">
           <input type="password" required value={confirma} onChange={e => setConfirma(e.target.value)} autoComplete="new-password" />
-        </label>
+        </Field>
         {error && <div style={{ color: 'var(--rose)', fontSize: 12 }}>{error}</div>}
         <button type="submit" className="btn primary" disabled={loading} style={{ justifyContent: 'center' }}>
           {loading ? 'Salvando…' : 'Salvar e entrar'}
         </button>
       </form>
-
-      <style jsx>{`
-        form input {
-          width: 100%; box-sizing: border-box; display: block;
-          padding: 11px 13px; border-radius: var(--field-radius);
-          border: 1px solid var(--field-border); background: var(--field-bg);
-          font-size: 15px; font-family: inherit; color: var(--ink);
-          outline: none; transition: border-color .15s var(--ease), box-shadow .15s var(--ease);
-        }
-        form input:hover { border-color: var(--field-border-hover); }
-        form input:focus { border-color: var(--accent); box-shadow: var(--field-ring); }
-        form input:user-invalid { border-color: var(--rose); }
-        form input:user-invalid:focus { box-shadow: var(--field-ring-error); }
-      `}</style>
     </>
   )
 }

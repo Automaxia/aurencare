@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { signIn } from 'next-auth/react'
+import { Field } from '@/components/form/Field'
 import { cadastrarAction } from './actions'
 
 export function CadastroForm() {
@@ -51,7 +52,7 @@ export function CadastroForm() {
   }
 
   return (
-    <form onSubmit={onSubmit} style={{ display: 'grid', gap: 12 }}>
+    <form onSubmit={onSubmit} className="auth-form" style={{ display: 'grid', gap: 12 }}>
       <Field label="Nome completo" error={campoErro === 'nome' ? error : undefined}>
         <input required value={nome} onChange={e => setNome(e.target.value)} autoComplete="name" placeholder="Ex: Ana Pereira" />
       </Field>
@@ -98,31 +99,6 @@ export function CadastroForm() {
       <button type="submit" className="btn primary" disabled={loading} style={{ justifyContent: 'center', marginTop: 6 }}>
         {loading ? 'Criando sua conta…' : 'Criar conta'}
       </button>
-
-      <style jsx>{`
-        input {
-          width: 100%; padding: 9px 12px; border-radius: var(--field-radius);
-          border: 1px solid var(--field-border); background: var(--field-bg);
-          font-size: 13px; font-family: inherit; color: var(--ink); outline: none;
-          transition: border-color .15s var(--ease), box-shadow .15s var(--ease);
-        }
-        input:not([type=checkbox]):hover { border-color: var(--field-border-hover); }
-        input:not([type=checkbox]):focus { border-color: var(--accent); box-shadow: var(--field-ring); }
-        input:not([type=checkbox]):user-invalid { border-color: var(--rose); }
-        input:not([type=checkbox]):user-invalid:focus { box-shadow: var(--field-ring-error); }
-        input[type=checkbox] { width: auto; padding: 0; }
-      `}</style>
     </form>
-  )
-}
-
-function Field({ label, hint, error, children }: { label: string; hint?: string; error?: string | null; children: React.ReactNode }) {
-  return (
-    <label style={{ display: 'grid', gap: 4 }}>
-      <span style={{ fontSize: 11, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '.06em' }}>{label}</span>
-      {children}
-      {hint && !error && <span style={{ fontSize: 11, color: 'var(--faint)' }}>{hint}</span>}
-      {error && <span style={{ fontSize: 11, color: 'var(--rose)' }}>{error}</span>}
-    </label>
   )
 }

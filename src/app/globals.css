@@ -118,6 +118,14 @@ textarea:user-invalid, select:user-invalid { border-color: var(--rose); }
 input:user-invalid:focus, textarea:user-invalid:focus, select:user-invalid:focus { box-shadow: var(--field-ring-error); }
 ::placeholder { color: var(--muted); opacity: 1; }
 
+/* Forms de autenticação (login/cadastro/recuperar/redefinir) — tamanho único,
+   confortável. Substitui os <style jsx> que divergiam (15px vs 13px). */
+.auth-form input:not([type=checkbox]):not([type=radio]),
+.auth-form select {
+  width: 100%; box-sizing: border-box; display: block;
+  font-size: 15px; padding: 11px 13px;
+}
+
 ::selection { background: var(--accent-lo); color: var(--ink); }
 
 /* ── Toast (feedback de ação) ── */

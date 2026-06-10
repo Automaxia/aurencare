@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import Link from 'next/link'
 import { Logo } from '@/components/brand/Logo'
+import { Field } from '@/components/form/Field'
 import { solicitarResetAction } from './actions'
 
 export default function RecuperarSenhaPage() {
@@ -53,15 +54,14 @@ export default function RecuperarSenhaPage() {
             <p style={{ fontSize: 13, color: 'var(--muted)', textAlign: 'center', marginBottom: 16 }}>
               Informe seu email e enviaremos um link para criar uma nova senha.
             </p>
-            <form onSubmit={onSubmit} style={{ display: 'grid', gap: 12 }}>
-              <label style={{ display: 'grid', gap: 5 }}>
-                <span style={{ fontSize: 11, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '.06em' }}>Email</span>
+            <form onSubmit={onSubmit} className="auth-form" style={{ display: 'grid', gap: 12 }}>
+              <Field label="Email">
                 <input
                   type="email" required value={email}
                   onChange={e => setEmail(e.target.value)}
                   autoComplete="email" autoFocus
                 />
-              </label>
+              </Field>
               <button type="submit" className="btn primary" disabled={loading} style={{ justifyContent: 'center' }}>
                 {loading ? 'Enviando…' : 'Enviar link de recuperação'}
               </button>
@@ -73,20 +73,6 @@ export default function RecuperarSenhaPage() {
           <Link href="/login" style={{ color: 'var(--accent)' }}>← Voltar para entrar</Link>
         </div>
       </div>
-
-      <style jsx>{`
-        form input {
-          width: 100%; box-sizing: border-box; display: block;
-          padding: 11px 13px; border-radius: var(--field-radius);
-          border: 1px solid var(--field-border); background: var(--field-bg);
-          font-size: 15px; font-family: inherit; color: var(--ink);
-          outline: none; transition: border-color .15s var(--ease), box-shadow .15s var(--ease);
-        }
-        form input:hover { border-color: var(--field-border-hover); }
-        form input:focus { border-color: var(--accent); box-shadow: var(--field-ring); }
-        form input:user-invalid { border-color: var(--rose); }
-        form input:user-invalid:focus { box-shadow: var(--field-ring-error); }
-      `}</style>
     </div>
   )
 }

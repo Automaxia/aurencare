@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import { Suspense, useState } from 'react'
 import Link from 'next/link'
 import { Logo } from '@/components/brand/Logo'
+import { Field } from '@/components/form/Field'
 
 /**
  * Pra fazer o build estático, useSearchParams() exige envelopar em Suspense.
@@ -50,7 +51,7 @@ function LoginForm() {
         </div>
         <h2 style={{ textAlign: 'center', marginBottom: 16 }}>Entrar</h2>
 
-        <form onSubmit={onSubmit} style={{ display: 'grid', gap: 12 }}>
+        <form onSubmit={onSubmit} className="auth-form" style={{ display: 'grid', gap: 12 }}>
           <Field label="Email">
             <input
               type="email" required value={email}
@@ -80,32 +81,6 @@ function LoginForm() {
         </div>
       </div>
 
-      {/* Estilo dos inputs mora AQUI (onde os <input> são criados): styled-jsx só
-          escopa elementos do próprio componente — em Field eles vêm via children
-          e a regra não casava, por isso ficavam sem borda. */}
-      <style jsx>{`
-        form input {
-          width: 100%; box-sizing: border-box; display: block;
-          padding: 11px 13px; border-radius: var(--field-radius);
-          border: 1px solid var(--field-border); background: var(--field-bg);
-          font-size: 15px; font-family: inherit; color: var(--ink);
-          outline: none; transition: border-color .15s var(--ease), box-shadow .15s var(--ease);
-        }
-        form input:hover { border-color: var(--field-border-hover); }
-        form input:focus { border-color: var(--accent); box-shadow: var(--field-ring); }
-        /* Obrigatório/inválido — só após tentativa de envio ou interação (:user-invalid) */
-        form input:user-invalid { border-color: var(--rose); }
-        form input:user-invalid:focus { box-shadow: var(--field-ring-error); }
-      `}</style>
     </div>
-  )
-}
-
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
-  return (
-    <label style={{ display: 'grid', gap: 5 }}>
-      <span style={{ fontSize: 11, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '.06em' }}>{label}</span>
-      {children}
-    </label>
   )
 }
