@@ -9,8 +9,9 @@ import {
 import { BulletChart } from './BulletChart'
 import { NovoObjetivoWizard } from './NovoObjetivoWizard'
 import { estadoObjetivo, ESTADO_META, prazoEstado, haQuanto } from '@/lib/objetivos'
+import { Sparkline } from './Sparkline'
 
-export function ObjetivosView({ pacienteId, initial }: { pacienteId: string; initial: Objetivo[] }) {
+export function ObjetivosView({ pacienteId, initial, valoresIniciais }: { pacienteId: string; initial: Objetivo[]; valoresIniciais: Record<string, number[]> }) {
   const [objs, setObjs] = useState(initial)
   const [showForm, setShowForm] = useState(false)
 
@@ -51,9 +52,9 @@ export function ObjetivosView({ pacienteId, initial }: { pacienteId: string; ini
         />
       )}
 
-      <Section title="Ativos" items={ativos} onStatus={updateStatus} onDelete={remover} onUpsert={upsert} />
-      {pausados.length > 0   && <Section title="Pausados"  items={pausados}   onStatus={updateStatus} onDelete={remover} onUpsert={upsert} />}
-      {concluidos.length > 0 && <Section title="Concluídos" items={concluidos} onStatus={updateStatus} onDelete={remover} onUpsert={upsert} />}
+      <Section title="Ativos" items={ativos} valores={valoresIniciais} onStatus={updateStatus} onDelete={remover} onUpsert={upsert} />
+      {pausados.length > 0   && <Section title="Pausados"  items={pausados}   valores={valoresIniciais} onStatus={updateStatus} onDelete={remover} onUpsert={upsert} />}
+      {concluidos.length > 0 && <Section title="Concluídos" items={concluidos} valores={valoresIniciais} onStatus={updateStatus} onDelete={remover} onUpsert={upsert} />}
 
       {objs.length === 0 && (
         <div className="empty">Nenhum objetivo cadastrado ainda.</div>
@@ -64,9 +65,10 @@ export function ObjetivosView({ pacienteId, initial }: { pacienteId: string; ini
 
 // ─── Lista ─────────────────────────────────────────────────────────────
 
-function Section({ title, items, onStatus, onDelete, onUpsert }: {
+function Section({ title, items, valores, onStatus, onDelete, onUpsert }: {
   title: string
   items: Objetivo[]
+  valores: Record<string, number[]>
   onStatus: (o: Objetivo, s: Objetivo['status']) => void
   onDelete: (o: Objetivo) => void
   onUpsert: (o: Objetivo) => void
@@ -90,14 +92,15 @@ function Section({ title, items, onStatus, onDelete, onUpsert }: {
         )}
       </div>
       <ul style={{ margin: 0, padding: 0, listStyle: 'none', display: 'grid', gap: 10 }}>
-        {items.map(o => <ObjetivoCard key={o.id} o={o} onStatus={onStatus} onDelete={onDelete} onUpsert={onUpsert} />)}
+        {items.map(o => <ObjetivoCard key={o.id} o={o} valores={valores[o.id] ?? []} onStatus={onStatus} onDelete={onDelete} onUpsert={onUpsert} />)}
       </ul>
     </section>
   )
 }
 
-function ObjetivoCard({ o, onStatus, onDelete, onUpsert }: {
+function ObjetivoCard({ o, valores, onStatus, onDelete, onUpsert }: {
   o: Objetivo
+  valores: number[]
   onStatus: (o: Objetivo, s: Objetivo['status']) => void
   onDelete: (o: Objetivo) => void
   onUpsert: (o: Objetivo) => void
@@ -180,6 +183,17 @@ function ObjetivoCard({ o, onStatus, onDelete, onUpsert }: {
         unidade={null}
         delta={delta}
       />
+
+      {/* Sparkline de tendência — medições no tempo (Fase 2) */}
+      {(() => {
+        const serie = evolucao?.medicoes?.length ? evolucao.medicoes.map(m => m.valor) : valores
+        return serie.length >= 2 ? (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 10 }}>
+            <span style={{ fontSize: 11, color: 'var(--muted)' }}>tendência</span>
+            <Sparkline valores={serie} direcao={o.metricaDirecao} />
+          </div>
+        ) : null
+      })()}
 
       <button onClick={toggle} className="btn ghost sm" style={{ marginTop: 14, padding: '4px 10px', fontSize: 11 }}>
         {expandido ? '▲ Fechar histórico' : '▼ Registrar / ver histórico'}

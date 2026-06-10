@@ -180,6 +180,24 @@ export async function listarMedicoes(objetivoId: string): Promise<Medicao[]> {
   return rows.map(rowToMedicao)
 }
 
+/**
+ * Valores das medições de TODOS os objetivos do paciente, em ordem cronológica,
+ * por objetivo. Leve (só o número) — alimenta o sparkline de tendência dos cards.
+ */
+export async function valoresMedicoesPorObjetivo(pacienteId: string): Promise<Record<string, number[]>> {
+  const { rows } = await db.query<{ objetivo_id: string; valor: string }>(
+    `SELECT m.objetivo_id, m.valor
+       FROM objetivo_medicoes m
+       JOIN objetivos o ON o.id = m.objetivo_id
+      WHERE o.paciente_id = $1
+      ORDER BY m.medido_em ASC, m.created_at ASC`,
+    [pacienteId],
+  )
+  const map: Record<string, number[]> = {}
+  for (const r of rows) (map[r.objetivo_id] ??= []).push(parseFloat(r.valor))
+  return map
+}
+
 export async function deletarMedicao(id: string, objetivoId: string): Promise<void> {
   await db.query('DELETE FROM objetivo_medicoes WHERE id = $1', [id])
   await recalcularProgresso(objetivoId)

@@ -4,7 +4,7 @@ import { PageHeader } from '@/components/PageHeader'
 import { PatientSelector } from '@/components/PatientSelector'
 import { requirePsicologo } from '@/server/lib/auth'
 import { db } from '@/server/db/pool'
-import { listarObjetivos } from '@/server/services/objetivos'
+import { listarObjetivos, valoresMedicoesPorObjetivo } from '@/server/services/objetivos'
 import { estadoObjetivo } from '@/lib/objetivos'
 import { tryDecrypt } from '@/server/lib/crypto'
 import { formatDateBR } from '@/lib/formatters'
@@ -22,7 +22,7 @@ export default async function ObjetivosPage({ params }: { params: { id: string }
   if (!paciente) notFound()
   if (paciente.psicologo_id !== user.id) redirect('/pacientes')
 
-  const [objetivos, historico] = await Promise.all([
+  const [objetivos, historico, medicoesMap] = await Promise.all([
     listarObjetivos(params.id),
     db.query<{ id: string; numero: number; data_hora: string; status: string; assinada: boolean; resumo_ia: string | null }>(
       `SELECT id, numero, data_hora, status, assinada, resumo_ia
@@ -31,6 +31,7 @@ export default async function ObjetivosPage({ params }: { params: { id: string }
         ORDER BY data_hora DESC LIMIT 12`,
       [params.id],
     ).then(r => r.rows),
+    valoresMedicoesPorObjetivo(params.id),
   ])
 
   const ativosCount = objetivos.filter(o => o.status === 'ativo').length
@@ -72,7 +73,7 @@ export default async function ObjetivosPage({ params }: { params: { id: string }
       </div>
 
       {/* Objetivos — protagonista */}
-      <ObjetivosView pacienteId={params.id} initial={objetivos} />
+      <ObjetivosView pacienteId={params.id} initial={objetivos} valoresIniciais={medicoesMap} />
 
       {/* Marcos do processo — a jornada terapêutica */}
       <section style={{ marginTop: 24 }}>
