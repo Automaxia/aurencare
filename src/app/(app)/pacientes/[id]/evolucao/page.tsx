@@ -8,6 +8,7 @@ import { lerEvolucaoEstatisticas } from '@/server/services/evolucao'
 import { resumoEvolucao } from '@/server/services/resumoEvolucao'
 import { EvolucaoChat } from './chat'
 import { ObservacoesCliente } from './Observacoes'
+import { LinhaDoTempo } from './LinhaDoTempo'
 
 export const dynamic = 'force-dynamic'
 
@@ -78,6 +79,8 @@ export default async function EvolucaoPage({ params }: { params: { id: string } 
             sparkHumor={dados.perfil.sparkHumor}
             sparkRitmo={dados.perfil.sparkRitmo}
           />
+
+          <LinhaDoTempo pacienteId={params.id} />
 
           <ObservacoesCliente pacienteId={params.id} />
         </div>
