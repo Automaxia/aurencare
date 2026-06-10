@@ -96,7 +96,7 @@ export function SessionReview({ sessao }: { sessao: Sessao }) {
             ? <span style={{ fontSize: 12, color: 'var(--sage)' }}>✓ Assinada</span>
             : sessao.status === 'concluida' && <span style={{ fontSize: 12, color: 'var(--amber)' }}>⚠ Registro pendente</span>}
           <Link href={`/pacientes/${sessao.pacienteId}/evolucao`} className="btn ghost">Ver evolução</Link>
-          <Link href="/agenda" className="btn ghost">← Agenda</Link>
+          <Link href={`/pacientes/${sessao.pacienteId}`} className="btn ghost">← Paciente</Link>
         </div>
       </div>
 

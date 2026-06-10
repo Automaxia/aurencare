@@ -397,7 +397,7 @@ export function PresenceClient(props: Props) {
           <button className="btn primary" onClick={encerrar} disabled={encerrando}>
             {encerrando ? 'Encerrando…' : 'Encerrar'}
           </button>
-          <a className="btn ghost" href="/">← Voltar</a>
+          <a className="btn ghost" href={`/pacientes/${props.pacienteId}`}>← Voltar ao paciente</a>
         </div>
       </div>
 
