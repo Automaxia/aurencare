@@ -158,13 +158,36 @@ export function NewSessionForm({ pacientes }: { pacientes: { id: string; nome: s
         </Field>
       </div>
 
-      <label style={{ display: 'inline-flex', alignItems: 'center', gap: 8, fontSize: 13, color: 'var(--ink-soft)', cursor: 'pointer' }}>
-        <input
-          type="checkbox" checked={gratuita}
-          onChange={e => { setGratuita(e.target.checked); if (e.target.checked) setValor(0) }}
-        />
-        Não cobrar esta sessão (gratuita) — sem pedido de pagamento ao paciente
-      </label>
+      <button
+        type="button"
+        role="switch"
+        aria-checked={gratuita}
+        onClick={() => { const v = !gratuita; setGratuita(v); if (v) setValor(0) }}
+        style={{
+          display: 'flex', alignItems: 'center', gap: 11, width: '100%',
+          padding: '10px 12px', borderRadius: 10, cursor: 'pointer', textAlign: 'left',
+          border: `1px solid ${gratuita ? 'var(--sage)' : 'var(--field-border)'}`,
+          background: gratuita ? 'rgba(90,158,138,.08)' : 'var(--field-bg)',
+          transition: 'border-color .15s var(--ease), background .15s var(--ease)',
+        }}
+      >
+        <span style={{
+          width: 36, height: 21, borderRadius: 999, flex: 'none', position: 'relative',
+          background: gratuita ? 'var(--sage)' : 'var(--faint)', transition: 'background .15s var(--ease)',
+        }}>
+          <span style={{
+            position: 'absolute', top: 2, left: gratuita ? 17 : 2, width: 17, height: 17,
+            borderRadius: '50%', background: '#fff', boxShadow: '0 1px 2px rgba(0,0,0,.2)',
+            transition: 'left .15s var(--ease)',
+          }} />
+        </span>
+        <span style={{ flex: 1, minWidth: 0 }}>
+          <span style={{ fontSize: 13, fontWeight: 500, color: 'var(--ink-soft)', display: 'block' }}>Sessão gratuita</span>
+          <span style={{ fontSize: 11, color: 'var(--muted)', display: 'block', marginTop: 1 }}>
+            {gratuita ? 'Sem cobrança — o paciente não recebe pedido de pagamento.' : 'Por padrão, a sessão é cobrada do paciente.'}
+          </span>
+        </span>
+      </button>
 
       {error && <div style={{ color: 'var(--rose)', fontSize: 12 }}>{error}</div>}
 
