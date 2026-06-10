@@ -1114,9 +1114,20 @@ a.pip:hover .pip-d { transform: scale(1.25); transition: transform .15s ease; }
 }
 .turn-txt { max-width: 100%; }
 
-/* Layout fixo (sem responsividade): mantém 1fr + 600px sempre.
-   Em telas estreitas o body ganha scroll horizontal — preferimos isso a
-   reflow do layout, que estava confundindo a leitura dos widgets. */
+/* Desktop e iPad deitado mantêm 1fr + 600px (lado a lado).
+   No iPad em pé / celular (≤900px), empilha: transcrição em cima, widgets
+   embaixo, e a página rola na vertical em vez de scroll horizontal. */
+@media (max-width: 900px) {
+  .sess-layout {
+    grid-template-columns: 1fr;
+    height: auto; min-height: calc(100vh - 46px);
+  }
+  .sess-left, .sess-right { overflow-y: visible; height: auto; }
+}
+/* Telas bem estreitas: widgets em coluna única. */
+@media (max-width: 640px) {
+  .sess-right { grid-template-columns: 1fr; }
+}
 
 /* ────────────────────────────────────────────────────────────────────────
    DASHBOARD (page-home) — alinhado ao protótipo v12.5
