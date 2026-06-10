@@ -29,11 +29,13 @@ export function ConfirmarClient(props: Props) {
       if (res.ok) {
         setResposta(res.resposta)
       } else {
-        setErro({
+        const MENSAGENS: Record<string, string> = {
           token_invalido: 'Link inválido. Talvez já tenha sido respondido.',
           janela_expirada: 'A janela de confirmação já passou. O pagamento foi liberado automaticamente.',
           sessao_invalida: 'Sessão inválida.',
-        }[res.razao])
+          erro_interno: 'Tivemos um problema técnico ao registrar. Tente novamente em instantes.',
+        }
+        setErro(MENSAGENS[res.razao] ?? 'Não foi possível registrar agora. Tente novamente.')
       }
     } catch {
       // Nunca deixar o botão preso em "Confirmando…": mostra erro e libera o retry.

@@ -137,7 +137,12 @@ export async function processarResposta(
   )
   const s = rows[0]
   if (!s) return { ok: false, razao: 'token_invalido' }
-  if (!s.confirmacao_janela_expira_em) return { ok: false, razao: 'sessao_invalida' }
+  // Token válido basta pra registrar a resposta. A janela só importa pro cron de
+  // silêncio; se estiver nula (sessão antiga / edge de dados), NÃO bloqueamos o
+  // paciente — antes isso devolvia "Sessão inválida" e travava a confirmação (#8).
+  if (!s.confirmacao_janela_expira_em) {
+    log.warn('confirmacao', `sessao ${s.id} sem janela definida — registrando resposta mesmo assim`)
+  }
 
   // Já respondeu antes → idempotente
   if (s.confirmacao_resposta === 'sim' || s.confirmacao_resposta === 'contestou') {

@@ -17,8 +17,9 @@ export async function responderConfirmacaoAction(token: string, resposta: Respos
     )
   } catch (err) {
     // Captura a causa real no log do pod (a tela do paciente já trata o erro).
+    // razao distinta de 'sessao_invalida' pra não confundir exceção com dado nulo.
     log.err('confirmacao.action', `falha ao registrar resposta token=${token?.slice(0, 8)}…`,
       err instanceof Error ? `${err.message}\n${err.stack}` : err)
-    return { ok: false as const, razao: 'sessao_invalida' as const }
+    return { ok: false as const, razao: 'erro_interno' as const }
   }
 }
