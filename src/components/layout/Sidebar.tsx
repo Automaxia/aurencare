@@ -36,6 +36,21 @@ export function Sidebar() {
       <nav className="sb-nav">
         <Group label="Mundo Clínico" items={CLINICO} active={active} mundo="clinico" collapsed={collapsed} />
         <Group label="Mundo Prática" items={PRATICA} active={active} mundo="pratica" collapsed={collapsed} />
+        {(session?.user as any)?.role === 'admin' && (
+          <div className="sb-group">
+            {!collapsed && <div className="sb-label">Gestão</div>}
+            <Link
+              href="/admin"
+              className="sb-item"
+              data-world="pratica"
+              data-active={pathname.startsWith('/admin') ? 'true' : 'false'}
+              title="Administração"
+            >
+              <span className="sb-icon" aria-hidden="true">⚙</span>
+              {!collapsed && <span className="sb-lbl">Administração</span>}
+            </Link>
+          </div>
+        )}
       </nav>
 
       <div className="sb-bot">
