@@ -11,9 +11,12 @@ import { NovoObjetivoWizard } from './NovoObjetivoWizard'
 import { estadoObjetivo, ESTADO_META, prazoEstado, haQuanto } from '@/lib/objetivos'
 import { Sparkline } from './Sparkline'
 
-export function ObjetivosView({ pacienteId, initial, valoresIniciais, observacoes }: { pacienteId: string; initial: Objetivo[]; valoresIniciais: Record<string, number[]>; observacoes: Record<string, string> }) {
+export function ObjetivosView({ pacienteId, initial, valoresIniciais, observacoes, sugestoes }: { pacienteId: string; initial: Objetivo[]; valoresIniciais: Record<string, number[]>; observacoes: Record<string, string>; sugestoes: { titulo: string; tema: string }[] }) {
   const [objs, setObjs] = useState(initial)
   const [showForm, setShowForm] = useState(false)
+  const [tituloSugerido, setTituloSugerido] = useState('')
+
+  function abrirComTitulo(t: string) { setTituloSugerido(t); setShowForm(true) }
 
   function upsert(o: Objetivo) {
     setObjs(prev => {
@@ -39,7 +42,7 @@ export function ObjetivosView({ pacienteId, initial, valoresIniciais, observacoe
   return (
     <div>
       <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 12 }}>
-        <button className="btn primary" onClick={() => setShowForm(s => !s)}>
+        <button className="btn primary" onClick={() => { if (!showForm) setTituloSugerido(''); setShowForm(s => !s) }}>
           {showForm ? 'Fechar' : '+ Novo objetivo SMART'}
         </button>
       </div>
@@ -47,6 +50,7 @@ export function ObjetivosView({ pacienteId, initial, valoresIniciais, observacoe
       {showForm && (
         <NovoObjetivoWizard
           pacienteId={pacienteId}
+          tituloInicial={tituloSugerido}
           onCriado={(o) => { upsert(o); setShowForm(false) }}
           onCancelar={() => setShowForm(false)}
         />
@@ -56,8 +60,30 @@ export function ObjetivosView({ pacienteId, initial, valoresIniciais, observacoe
       {pausados.length > 0   && <Section title="Pausados"  items={pausados}   valores={valoresIniciais} observacoes={observacoes} onStatus={updateStatus} onDelete={remover} onUpsert={upsert} />}
       {concluidos.length > 0 && <Section title="Concluídos" items={concluidos} valores={valoresIniciais} observacoes={observacoes} onStatus={updateStatus} onDelete={remover} onUpsert={upsert} />}
 
-      {objs.length === 0 && (
-        <div className="empty">Nenhum objetivo cadastrado ainda.</div>
+      {objs.length === 0 && !showForm && (
+        <div className="card" style={{ padding: 22 }}>
+          <div style={{ fontWeight: 500, marginBottom: 4 }}>Nenhum objetivo ainda — mas dá pra partir de algo.</div>
+          {sugestoes.length > 0 ? (
+            <>
+              <p style={{ fontSize: 12.5, color: 'var(--muted)', margin: '0 0 14px', lineHeight: 1.5 }}>
+                A Audere observou estes temas nas suas sessões. São <strong>sugestões de partida</strong> — não criam nada sozinhas:
+              </p>
+              <div style={{ display: 'grid', gap: 8 }}>
+                {sugestoes.map(s => (
+                  <div key={s.titulo} style={{ display: 'flex', alignItems: 'center', gap: 10, justifyContent: 'space-between', padding: '8px 12px', border: '1px solid var(--border)', borderRadius: 8, flexWrap: 'wrap' }}>
+                    <span style={{ fontSize: 13 }}>🎯 {s.titulo}</span>
+                    <button className="btn ghost sm" onClick={() => abrirComTitulo(s.titulo)}>Transformar em objetivo SMART →</button>
+                  </div>
+                ))}
+              </div>
+              <button className="btn ghost sm" style={{ marginTop: 12 }} onClick={() => abrirComTitulo('')}>+ Criar objetivo do zero</button>
+            </>
+          ) : (
+            <p style={{ fontSize: 12.5, color: 'var(--muted)', margin: 0, lineHeight: 1.5 }}>
+              Conforme você assina sessões com transcrição, a Audere passa a sugerir objetivos a partir dos temas observados. Ou crie um agora com <strong>+ Novo objetivo SMART</strong>.
+            </p>
+          )}
+        </div>
       )}
     </div>
   )

@@ -6,6 +6,7 @@ import { requirePsicologo } from '@/server/lib/auth'
 import { db } from '@/server/db/pool'
 import { listarObjetivos, valoresMedicoesPorObjetivo } from '@/server/services/objetivos'
 import { observacoesObjetivos } from '@/server/services/observacoesObjetivos'
+import { sugestoesObjetivos } from '@/server/services/sugestoesObjetivos'
 import { estadoObjetivo } from '@/lib/objetivos'
 import { tryDecrypt } from '@/server/lib/crypto'
 import { formatDateBR } from '@/lib/formatters'
@@ -40,6 +41,7 @@ export default async function ObjetivosPage({ params }: { params: { id: string }
   const concluidos  = objetivos.filter(o => o.status === 'concluido').length
   const pausados    = objetivos.filter(o => o.status === 'pausado').length
   const emRisco     = objetivos.filter(o => o.status === 'ativo' && estadoObjetivo(o) === 'em_risco').length
+  const sugestoes   = objetivos.length === 0 ? await sugestoesObjetivos(params.id) : []
 
   return (
     <div>
@@ -75,7 +77,7 @@ export default async function ObjetivosPage({ params }: { params: { id: string }
       </div>
 
       {/* Objetivos — protagonista */}
-      <ObjetivosView pacienteId={params.id} initial={objetivos} valoresIniciais={medicoesMap} observacoes={observacoes} />
+      <ObjetivosView pacienteId={params.id} initial={objetivos} valoresIniciais={medicoesMap} observacoes={observacoes} sugestoes={sugestoes} />
 
       {/* Marcos do processo — a jornada terapêutica */}
       <section style={{ marginTop: 24 }}>

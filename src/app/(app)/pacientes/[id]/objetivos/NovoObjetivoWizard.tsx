@@ -22,16 +22,17 @@ import { criarObjetivoAction } from './actions'
 
 type Props = {
   pacienteId: string
+  tituloInicial?: string
   onCriado: (o: Objetivo) => void
   onCancelar: () => void
 }
 
 type Step = 'tipo' | 's' | 'r' | 'm' | 'a' | 't' | 'revisao'
 
-export function NovoObjetivoWizard({ pacienteId, onCriado, onCancelar }: Props) {
+export function NovoObjetivoWizard({ pacienteId, tituloInicial, onCriado, onCancelar }: Props) {
   // ── Estado dos campos ────────────────────────────────────────────
   const [tipo, setTipo]           = useState<MetricaTipo>('absoluta')
-  const [titulo, setTitulo]       = useState('')
+  const [titulo, setTitulo]       = useState(tituloInicial ?? '')
   const [descricao, setDescricao] = useState('')   // R — relevância clínica
   const [unidade, setUnidade]     = useState('')
   const [baseline, setBaseline]   = useState('')
