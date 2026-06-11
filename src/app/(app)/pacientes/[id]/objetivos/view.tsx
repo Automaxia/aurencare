@@ -64,7 +64,11 @@ export function ObjetivosView({ pacienteId, initial, valoresIniciais, observacoe
         <NovoObjetivoWizard
           pacienteId={pacienteId}
           tituloInicial={tituloSugerido}
-          onCriado={(o) => { upsert(o); setShowForm(false) }}
+          onCriado={(o, gas) => {
+            upsert(o)
+            if (gas) setGasMap(prev => ({ ...prev, [o.id]: [...(prev[o.id] ?? []), gas] }))
+            setShowForm(false)
+          }}
           onCancelar={() => setShowForm(false)}
         />
       )}

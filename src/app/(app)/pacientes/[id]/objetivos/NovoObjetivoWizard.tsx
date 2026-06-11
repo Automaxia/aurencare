@@ -2,7 +2,8 @@
 
 import { useState } from 'react'
 import type { Objetivo, MetricaTipo, MetricaDirecao } from '@/server/services/objetivos'
-import { criarObjetivoAction } from './actions'
+import type { GasEscala } from '@/server/services/gasObjetivos'
+import { criarObjetivoAction, criarGasAction } from './actions'
 
 /**
  * Wizard de criação de objetivo no padrão SMART, inspirado em planejadores
@@ -23,11 +24,20 @@ import { criarObjetivoAction } from './actions'
 type Props = {
   pacienteId: string
   tituloInicial?: string
-  onCriado: (o: Objetivo) => void
+  onCriado: (o: Objetivo, gas?: GasEscala) => void
   onCancelar: () => void
 }
 
-type Step = 'tipo' | 's' | 'r' | 'm' | 'a' | 't' | 'revisao' | 'livre'
+type Step = 'tipo' | 'gasq' | 'gascfg' | 's' | 'r' | 'm' | 'a' | 't' | 'revisao' | 'livre'
+
+const GAS_NIVEIS = [
+  { campo: 'nivelP2', v: 2,  rotulo: '+2 · muito acima do esperado' },
+  { campo: 'nivelP1', v: 1,  rotulo: '+1 · acima do esperado' },
+  { campo: 'nivel0',  v: 0,  rotulo: '0 · nível esperado' },
+  { campo: 'nivelM1', v: -1, rotulo: '−1 · abaixo do esperado' },
+  { campo: 'nivelM2', v: -2, rotulo: '−2 · muito abaixo do esperado' },
+] as const
+const sinalN = (n: number) => (n > 0 ? `+${n}` : `${n}`)
 
 /** Espelha SmartSugestao do server (copilotoObjetivos) — tipo local pra não
  *  importar módulo server-only no client. */
@@ -52,6 +62,13 @@ export function NovoObjetivoWizard({ pacienteId, tituloInicial, onCriado, onCanc
   const [alvo, setAlvo]           = useState('')
   const [subPassos, setSubPassos] = useState('')   // A — sub-passos/recursos/obstáculos (texto livre)
   const [prazo, setPrazo]         = useState('')
+
+  // GAS opcional dentro do fluxo SMART (perguntado logo após escolher o método)
+  const [usarGas, setUsarGas]         = useState(false)
+  const [gasTitulo, setGasTitulo]     = useState('')
+  const [gasNv, setGasNv]             = useState<Record<string, string>>({ nivelP2: '', nivelP1: '', nivel0: '', nivelM1: '', nivelM2: '' })
+  const [gasPartida, setGasPartida]   = useState(-1)
+  const [gasEsperado, setGasEsperado] = useState(2)
 
   // ── Wizard state ─────────────────────────────────────────────────
   const [step, setStep]           = useState<Step>('tipo')
@@ -102,10 +119,10 @@ export function NovoObjetivoWizard({ pacienteId, tituloInicial, onCriado, onCanc
     setStep(tipoAplicado === 'absoluta' ? 'revisao' : 'livre')
   }
 
-  // Dois métodos: SMART + GAS (absoluta, fluxo completo) ou Livre (nenhuma, entrada única).
+  // Dois métodos: SMART (absoluta) pergunta GAS logo após o método; Livre (nenhuma) é entrada única.
   const sequencia: Step[] = tipo === 'absoluta'
-    ? ['tipo', 's', 'r', 'm', 'a', 't', 'revisao']   // SMART + GAS
-    : ['tipo', 'livre']                               // Objetivo Terapêutico Simples — livre é livre
+    ? ['tipo', 'gasq', ...(usarGas ? ['gascfg' as Step] : []), 's', 'r', 'm', 'a', 't', 'revisao']
+    : ['tipo', 'livre']
   const idx       = sequencia.indexOf(step)
   const primeiro  = idx === 0
   const ultimo    = idx === sequencia.length - 1
@@ -127,6 +144,11 @@ export function NovoObjetivoWizard({ pacienteId, tituloInicial, onCriado, onCanc
         return true
       case 'livre':
         if (titulo.trim().length < 4) { setErro('Escreva o objetivo (mínimo 4 caracteres).'); return false }
+        return true
+      case 'gasq':
+        return true
+      case 'gascfg':
+        if (gasTitulo.trim().length < 2) { setErro('Dê um nome à escala GAS (ex: "Relação com o chefe").'); return false }
         return true
       case 'r':
         // Descricao opcional, mas recomendada — não bloqueia
@@ -173,9 +195,21 @@ export function NovoObjetivoWizard({ pacienteId, tituloInicial, onCriado, onCanc
       metricaDirecao: tipo === 'absoluta' ? direcao : 'aumentar',
       prazoEm: prazo || null,
     })
+    if (!r) { setSalvando(false); setErro('Não foi possível criar agora.'); return }
+
+    // GAS opcional configurado no fluxo SMART → cria a escala junto.
+    let gasCriado: GasEscala | undefined
+    if (tipo === 'absoluta' && usarGas && gasTitulo.trim()) {
+      const g = await criarGasAction(r.id, {
+        titulo: gasTitulo.trim(),
+        nivelM2: gasNv.nivelM2.trim() || null, nivelM1: gasNv.nivelM1.trim() || null, nivel0: gasNv.nivel0.trim() || null,
+        nivelP1: gasNv.nivelP1.trim() || null, nivelP2: gasNv.nivelP2.trim() || null,
+        nivelPartida: gasPartida, nivelEsperado: gasEsperado,
+      })
+      gasCriado = g ?? undefined
+    }
     setSalvando(false)
-    if (r) onCriado(r)
-    else setErro('Não foi possível criar agora.')
+    onCriado(r, gasCriado)
   }
 
   // ── Render ───────────────────────────────────────────────────────
@@ -192,13 +226,15 @@ export function NovoObjetivoWizard({ pacienteId, tituloInicial, onCriado, onCanc
       <Stepper sequencia={sequencia} atual={step} />
 
       {step === 'tipo'    && <PassoTipo   tipo={tipo} onChange={setTipo} />}
+      {step === 'gasq'    && <PassoGasQuestion usar={usarGas} onChange={setUsarGas} />}
+      {step === 'gascfg'  && <PassoGasConfig titulo={gasTitulo} setTitulo={setGasTitulo} nv={gasNv} setNv={setGasNv} partida={gasPartida} setPartida={setGasPartida} esperado={gasEsperado} setEsperado={setGasEsperado} />}
       {step === 'livre'   && <PassoLivre  titulo={titulo} setTitulo={setTitulo} descricao={descricao} setDescricao={setDescricao} prazo={prazo} setPrazo={setPrazo} />}
       {step === 's'       && <PassoS      titulo={titulo} onChange={setTitulo} />}
       {step === 'r'       && <PassoR      descricao={descricao} onChange={setDescricao} />}
       {step === 'm'       && <PassoM      tipo={tipo} unidade={unidade} setUnidade={setUnidade} baseline={baseline} setBaseline={setBaseline} alvo={alvo} setAlvo={setAlvo} direcaoSugerida={!isNaN(baselineN) && !isNaN(alvoN) && baselineN !== alvoN ? direcao : null} />}
       {step === 'a'       && <PassoA      subPassos={subPassos} onChange={setSubPassos} />}
       {step === 't'       && <PassoT      prazo={prazo} onChange={setPrazo} />}
-      {step === 'revisao' && <Revisao     {...{ tipo, titulo, descricao, unidade, baseline, alvo, direcao, subPassos, prazo }} />}
+      {step === 'revisao' && <Revisao     {...{ tipo, titulo, descricao, unidade, baseline, alvo, direcao, subPassos, prazo, usarGas, gasTitulo }} />}
 
       {erro && <div style={{ color: 'var(--rose)', fontSize: 12 }}>{erro}</div>}
 
@@ -295,6 +331,8 @@ function CopilotoObjetivos({ sugestoes, carregando, erro, onPedir, onAplicar }: 
 
 const STEP_LABELS: Record<Step, string> = {
   tipo:    'Método',
+  gasq:    'GAS?',
+  gascfg:  'Escala GAS',
   s:       'Específico',
   r:       'Relevante',
   m:       'Mensurável',
@@ -441,6 +479,65 @@ function OpcaoCard({ ativo, onClick, titulo, corpo }: { ativo: boolean; onClick:
       <div style={{ fontSize: 14, fontWeight: 500, color: 'var(--ink)' }}>{titulo}</div>
       <div style={{ fontSize: 12, color: 'var(--muted)', lineHeight: 1.55 }}>{corpo}</div>
     </button>
+  )
+}
+
+function PassoGasQuestion({ usar, onChange }: { usar: boolean; onChange: (v: boolean) => void }) {
+  return (
+    <div style={{ display: 'grid', gap: 14 }}>
+      <HeaderPasso letra="◬" titulo="Quer acompanhar com uma escala GAS?" sub="O GAS é opcional. Configure agora, no mesmo fluxo, ou adicione depois na tela da meta." />
+      <div style={{ display: 'grid', gap: 10 }}>
+        <OpcaoCard
+          ativo={usar}
+          onClick={() => onChange(true)}
+          titulo="Sim, configurar GAS agora"
+          corpo="Defina os 5 níveis (−2 a +2) com partida e esperado. A escala é criada junto com a meta e você já registra os andamentos."
+        />
+        <OpcaoCard
+          ativo={!usar}
+          onClick={() => onChange(false)}
+          titulo="Não, seguir sem GAS"
+          corpo="A meta SMART é criada normalmente. Se quiser, você adiciona uma ou mais escalas GAS depois, na tela da meta."
+        />
+      </div>
+    </div>
+  )
+}
+
+function PassoGasConfig({ titulo, setTitulo, nv, setNv, partida, setPartida, esperado, setEsperado }: {
+  titulo: string; setTitulo: (v: string) => void
+  nv: Record<string, string>; setNv: (updater: (s: Record<string, string>) => Record<string, string>) => void
+  partida: number; setPartida: (v: number) => void
+  esperado: number; setEsperado: (v: number) => void
+}) {
+  return (
+    <div style={{ display: 'grid', gap: 14 }}>
+      <HeaderPasso letra="◬" titulo="Escala GAS" sub="Descreva os 5 níveis e marque partida e esperado. Depois de criada, a escala não é editável — só pausar ou excluir." />
+      <input value={titulo} onChange={e => setTitulo(e.target.value)} placeholder="Nome da escala (ex: Relação com o chefe)" className="gas-inp" autoFocus />
+      <div style={{ display: 'grid', gap: 7 }}>
+        {GAS_NIVEIS.map(n => (
+          <div key={n.v} style={{ display: 'grid', gridTemplateColumns: '56px 1fr', gap: 8, alignItems: 'start' }}>
+            <span style={{ fontSize: 12, fontWeight: 600, color: n.v === 0 ? 'var(--accent)' : 'var(--muted)', paddingTop: 9, fontVariantNumeric: 'tabular-nums' }}>{sinalN(n.v)}</span>
+            <textarea value={nv[n.campo]} onChange={e => setNv(s => ({ ...s, [n.campo]: e.target.value }))} rows={1} placeholder={n.rotulo} className="gas-inp gas-area" />
+          </div>
+        ))}
+      </div>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+        <label style={{ display: 'grid', gap: 4 }}>
+          <span style={{ fontSize: 11, color: 'var(--muted)' }}>Nível de partida</span>
+          <select value={partida} onChange={e => setPartida(Number(e.target.value))} className="gas-inp">{[2, 1, 0, -1, -2].map(v => <option key={v} value={v}>{sinalN(v)}</option>)}</select>
+        </label>
+        <label style={{ display: 'grid', gap: 4 }}>
+          <span style={{ fontSize: 11, color: 'var(--muted)' }}>Nível esperado (meta)</span>
+          <select value={esperado} onChange={e => setEsperado(Number(e.target.value))} className="gas-inp">{[2, 1, 0, -1, -2].map(v => <option key={v} value={v}>{sinalN(v)}</option>)}</select>
+        </label>
+      </div>
+      <style jsx>{`
+        .gas-inp { width: 100%; box-sizing: border-box; padding: 11px 13px; border-radius: 9px; border: 1px solid var(--border); background: white; font-size: 14px; font-family: inherit; color: var(--ink); outline: none; transition: border-color .15s var(--ease); }
+        .gas-inp:focus { border-color: var(--accent); }
+        .gas-area { resize: vertical; min-height: 34px; line-height: 1.4; }
+      `}</style>
+    </div>
   )
 }
 
@@ -684,6 +781,8 @@ function Revisao(p: {
   direcao: MetricaDirecao
   subPassos: string
   prazo: string
+  usarGas: boolean
+  gasTitulo: string
 }) {
   return (
     <div style={{ display: 'grid', gap: 14 }}>
@@ -706,6 +805,7 @@ function Revisao(p: {
         )}
         {p.subPassos && <RevisaoLinha letra="A" titulo="Atingível · plano" valor={p.subPassos} multiLinha />}
         <RevisaoLinha letra="T" titulo="Temporal" valor={p.prazo ? formatPrazo(p.prazo) : '—'} />
+        <RevisaoLinha letra="◬" titulo="GAS" valor={p.usarGas && p.gasTitulo.trim() ? `Escala "${p.gasTitulo.trim()}" será criada junto` : 'Sem escala GAS (pode adicionar depois na meta)'} />
       </div>
     </div>
   )
