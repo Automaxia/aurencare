@@ -5,8 +5,8 @@ import { db } from '@/server/db/pool'
 import { salvarCondicoesPaciente, type Condicoes } from '@/server/services/contexto'
 import {
   atualizarPaciente, arquivarPaciente, reativarPaciente, excluirPacienteDefinitivo,
-  salvarDadosCadastro, type DadosCadastro,
-  type AtualizarPacienteInput, type AtualizarPacienteResult, type ExcluirResult,
+  salvarDadosCadastro, reenviarConsentimento, type DadosCadastro,
+  type AtualizarPacienteInput, type AtualizarPacienteResult, type ExcluirResult, type ReenviarResult,
 } from '@/server/services/pacientes'
 import { revalidatePath } from 'next/cache'
 
@@ -56,6 +56,11 @@ export async function reativarPacienteAction(pacienteId: string): Promise<{ ok: 
     revalidatePath('/pacientes')
   }
   return { ok }
+}
+
+export async function reenviarConsentimentoAction(pacienteId: string): Promise<ReenviarResult> {
+  const user = await requirePsicologo()
+  return reenviarConsentimento(user.id, pacienteId, user.name ?? 'sua psicóloga')
 }
 
 export async function excluirPacienteAction(pacienteId: string): Promise<ExcluirResult> {

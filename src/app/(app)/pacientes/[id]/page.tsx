@@ -9,6 +9,7 @@ import { gerarMemoriaClinica } from '@/server/services/memoriaClinica'
 import { formatPhone } from '@/lib/formatters'
 import { PatientProfileForm } from './profile-form'
 import { DadosCadastroForm } from './DadosCadastroForm'
+import { ConsentimentoPendente } from './ConsentimentoPendente'
 import { ExportarProntuario } from './ExportarProntuario'
 import { AcoesPaciente } from './AcoesPaciente'
 import { OndeEstamos } from './OndeEstamos'
@@ -119,11 +120,7 @@ export default async function PacientePerfilPage({ params }: { params: { id: str
               ⚠ {alertas.length} alerta{alertas.length > 1 ? 's' : ''} clínico{alertas.length > 1 ? 's' : ''} →
             </a>
           )}
-          {!p.consentimento_aceito && (
-            <span style={{ fontSize: 12, fontWeight: 500, padding: '4px 11px', borderRadius: 999, background: 'rgba(176,125,64,.14)', color: 'var(--amber)' }}>
-              Aguardando consentimento
-            </span>
-          )}
+          {!p.consentimento_aceito && <ConsentimentoPendente pacienteId={p.id} />}
         </div>
       )}
 

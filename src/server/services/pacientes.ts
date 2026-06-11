@@ -186,6 +186,48 @@ export async function criarPaciente(input: CriarPacienteInput): Promise<Paciente
   return paciente
 }
 
+/**
+ * Reenvia o convite de consentimento (boas-vindas · WhatsApp + email) reaproveitando
+ * o token existente. Usado quando o paciente ainda não aceitou os termos.
+ * Verifica posse pelo psicologoId. Best-effort por canal — nunca lança.
+ */
+export type ReenviarResult = { ok: true; canais: string[] } | { ok: false; error: string }
+
+export async function reenviarConsentimento(psicologoId: string, pacienteId: string, psicologoNome: string): Promise<ReenviarResult> {
+  const { rows } = await db.query<{
+    nome: string; telefone: string; email: string | null; consentimento_token: string | null;
+    consentimento_aceito: boolean; status: string;
+  }>(
+    `SELECT nome, telefone, email, consentimento_token, consentimento_aceito, status
+       FROM pacientes WHERE id = $1 AND psicologo_id = $2 LIMIT 1`,
+    [pacienteId, psicologoId],
+  )
+  const p = rows[0]
+  if (!p) return { ok: false, error: 'Paciente não encontrado.' }
+  if (p.consentimento_aceito) return { ok: false, error: 'Este paciente já aceitou os termos.' }
+  if (!p.consentimento_token) return { ok: false, error: 'Sem link de consentimento — edite e salve o paciente para gerar um.' }
+
+  const link = `${env.appUrl}/onboard/${p.consentimento_token}`
+  const { rows: psis } = await db.query<{ crp: string; email: string }>(
+    `SELECT crp, email FROM psicologos WHERE id = $1 LIMIT 1`, [psicologoId],
+  )
+  const psi = psis[0]
+  const canais: string[] = []
+
+  await Promise.all([
+    enviarWA(p.telefone, WA_TEMPLATES.fluxo1_boasVindas(p.nome, link, psicologoNome))
+      .then(() => { canais.push('WhatsApp') })
+      .catch(err => log.err('paciente.reenviar', 'falha WA', err)),
+    p.email && psi ? enviarEmail({
+      to: p.email, replyTo: psi.email,
+      ...tplPacienteBoasVindas({ nomePaciente: p.nome, psicologoNome, psicologoCrp: psi.crp, psicologoEmail: psi.email, link }),
+    }).then(() => { canais.push('email') }).catch(err => log.err('paciente.reenviar', 'falha email', err)) : Promise.resolve(),
+  ])
+
+  if (canais.length === 0) return { ok: false, error: 'Não foi possível enviar agora. Tente novamente.' }
+  return { ok: true, canais }
+}
+
 // ─── Edição / Arquivar / Excluir ─────────────────────────────────────
 
 export type AtualizarPacienteInput = {
