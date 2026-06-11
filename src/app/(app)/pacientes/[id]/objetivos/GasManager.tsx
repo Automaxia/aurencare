@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import type { GasEscala } from '@/server/services/gasObjetivos'
+import type { GasEscala, GasAndamento } from '@/server/services/gasObjetivos'
 import { criarGasAction, atualizarGasAction, removerGasAction, registrarAndamentoGasAction } from './actions'
 
 /**
@@ -161,15 +161,20 @@ function GasCard({ escala, onPausa, onRemover, onRegistrar }: {
         </div>
       )}
 
-      {/* Histórico de andamentos */}
+      {/* Histórico de andamentos — gráfico + chips */}
       {escala.andamentos.length > 0 && (
-        <div style={{ marginTop: 10, display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
-          <span style={{ fontSize: 10.5, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '.05em' }}>andamentos:</span>
-          {escala.andamentos.map((a, i) => (
-            <span key={i} style={{ fontSize: 11, padding: '2px 8px', borderRadius: 999, background: 'var(--surface)', color: 'var(--ink-soft)', fontVariantNumeric: 'tabular-nums' }}>
-              {formatData(a.medidoEm)} <strong style={{ color: a.nivel >= escala.nivelEsperado ? 'var(--sage)' : 'var(--ink)' }}>{sinal(a.nivel)}</strong>
-            </span>
-          ))}
+        <div style={{ marginTop: 12, paddingTop: 12, borderTop: '1px dashed var(--border)' }}>
+          <div style={{ fontSize: 10.5, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '.05em', marginBottom: 6 }}>
+            Evolução do andamento
+          </div>
+          <GasChart andamentos={escala.andamentos} partida={escala.nivelPartida} esperado={escala.nivelEsperado} />
+          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center', marginTop: 8 }}>
+            {escala.andamentos.map((a, i) => (
+              <span key={i} style={{ fontSize: 11, padding: '2px 8px', borderRadius: 999, background: 'var(--surface)', color: 'var(--ink-soft)', fontVariantNumeric: 'tabular-nums' }}>
+                {formatData(a.medidoEm)} <strong style={{ color: a.nivel >= escala.nivelEsperado ? 'var(--sage)' : 'var(--ink)' }}>{sinal(a.nivel)}</strong>
+              </span>
+            ))}
+          </div>
         </div>
       )}
     </div>
@@ -238,6 +243,41 @@ function GasForm({ salvando, onSalvar, onCancelar }: {
         <button type="button" className="btn primary" onClick={submit} disabled={salvando}>{salvando ? 'Salvando…' : '+ Criar escala'}</button>
       </div>
     </div>
+  )
+}
+
+/** Gráfico do andamento GAS — domínio fixo −2..+2, com linhas de referência de
+ *  partida (âmbar) e esperado (sage). Mostra a partir de 1 ponto. */
+function GasChart({ andamentos, partida, esperado }: { andamentos: GasAndamento[]; partida: number; esperado: number }) {
+  const W = 320, H = 120, padL = 26, padR = 10, padT = 10, padB = 18
+  const innerW = W - padL - padR, innerH = H - padT - padB
+  const n = andamentos.length
+  const yFor = (v: number) => padT + ((2 - v) / 4) * innerH
+  const xFor = (i: number) => padL + (n <= 1 ? innerW / 2 : (i / (n - 1)) * innerW)
+  const pontos = andamentos.map((a, i) => ({ x: xFor(i), y: yFor(a.nivel), a }))
+  const ultimo = andamentos[n - 1].nivel
+
+  return (
+    <svg viewBox={`0 0 ${W} ${H}`} style={{ width: '100%', height: 'auto', display: 'block' }} role="img" aria-label="Gráfico de andamento GAS">
+      {/* grade horizontal nos níveis */}
+      {[2, 1, 0, -1, -2].map(v => (
+        <g key={v}>
+          <line x1={padL} y1={yFor(v)} x2={W - padR} y2={yFor(v)} stroke="var(--border)" strokeWidth={v === 0 ? 1 : 0.5} />
+          <text x={padL - 6} y={yFor(v) + 3} textAnchor="end" fontSize="9" fill="var(--faint)">{v > 0 ? `+${v}` : v}</text>
+        </g>
+      ))}
+      {/* referências partida / esperado */}
+      <line x1={padL} y1={yFor(esperado)} x2={W - padR} y2={yFor(esperado)} stroke="var(--sage)" strokeWidth="1.2" strokeDasharray="4 3" opacity="0.8" />
+      <line x1={padL} y1={yFor(partida)} x2={W - padR} y2={yFor(partida)} stroke="var(--amber)" strokeWidth="1.2" strokeDasharray="4 3" opacity="0.7" />
+      {/* linha do andamento */}
+      {n >= 2 && (
+        <polyline points={pontos.map(p => `${p.x},${p.y}`).join(' ')} fill="none" stroke="var(--accent)" strokeWidth="2" strokeLinejoin="round" strokeLinecap="round" />
+      )}
+      {/* pontos */}
+      {pontos.map((p, i) => (
+        <circle key={i} cx={p.x} cy={p.y} r={i === n - 1 ? 4 : 3} fill={ultimo >= esperado && i === n - 1 ? 'var(--sage)' : 'var(--accent)'} stroke="var(--card)" strokeWidth="1.5" />
+      ))}
+    </svg>
   )
 }
 
