@@ -29,6 +29,19 @@ type Props = {
 
 type Step = 'tipo' | 's' | 'r' | 'm' | 'a' | 't' | 'revisao'
 
+/** Espelha SmartSugestao do server (copilotoObjetivos) — tipo local pra não
+ *  importar módulo server-only no client. */
+type SmartSugestao = {
+  titulo: string
+  relevancia: string
+  metricaTipo: 'absoluta' | 'gas'
+  unidade: string | null
+  baseline: number | null
+  alvo: number | null
+  prazoSemanas: number | null
+  tema: string | null
+}
+
 export function NovoObjetivoWizard({ pacienteId, tituloInicial, onCriado, onCancelar }: Props) {
   // ── Estado dos campos ────────────────────────────────────────────
   const [tipo, setTipo]           = useState<MetricaTipo>('absoluta')
@@ -44,6 +57,45 @@ export function NovoObjetivoWizard({ pacienteId, tituloInicial, onCriado, onCanc
   const [step, setStep]           = useState<Step>('tipo')
   const [erro, setErro]           = useState<string | null>(null)
   const [salvando, setSalvando]   = useState(false)
+
+  // ── Copiloto da Audere (sugestões SMART por IA, sob demanda) ─────
+  const [sugIa, setSugIa]               = useState<SmartSugestao[] | null>(null)
+  const [carregandoIa, setCarregandoIa] = useState(false)
+  const [erroIa, setErroIa]             = useState<string | null>(null)
+
+  async function pedirCopiloto() {
+    setCarregandoIa(true); setErroIa(null)
+    try {
+      const res = await fetch(`/api/pacientes/${pacienteId}/objetivos/copiloto`, { method: 'POST' })
+      const json = await res.json().catch(() => ({}))
+      if (!res.ok) { setErroIa('Não consegui sugerir agora. Tente de novo.'); setSugIa(null) }
+      else if (!json.sugestoes?.length) { setErroIa('Ainda não há temas suficientes para sugerir — registre mais sessões.'); setSugIa([]) }
+      else { setSugIa(json.sugestoes); setErroIa(null) }
+    } catch {
+      setErroIa('Não consegui sugerir agora. Tente de novo.')
+    } finally {
+      setCarregandoIa(false)
+    }
+  }
+
+  function aplicarSugestao(s: SmartSugestao) {
+    setTipo(s.metricaTipo)
+    setTitulo(s.titulo)
+    setDescricao(s.relevancia)
+    if (s.metricaTipo === 'absoluta') {
+      setUnidade(s.unidade ?? '')
+      setBaseline(s.baseline != null ? String(s.baseline) : '')
+      setAlvo(s.alvo != null ? String(s.alvo) : '')
+    } else {
+      setUnidade(''); setBaseline(''); setAlvo('')
+    }
+    if (s.prazoSemanas && s.prazoSemanas > 0) {
+      const d = new Date(); d.setDate(d.getDate() + s.prazoSemanas * 7)
+      setPrazo(d.toISOString().slice(0, 10))
+    }
+    setSugIa(null); setErroIa(null); setErro(null)
+    setStep('revisao')
+  }
 
   // Passos a percorrer (varia conforme tipo)
   const sequencia: Step[] = tipo === 'gas'
@@ -121,6 +173,14 @@ export function NovoObjetivoWizard({ pacienteId, tituloInicial, onCriado, onCanc
   // ── Render ───────────────────────────────────────────────────────
   return (
     <div className="card" style={{ display: 'grid', gap: 18, marginBottom: 16, padding: 22 }}>
+      <CopilotoObjetivos
+        sugestoes={sugIa}
+        carregando={carregandoIa}
+        erro={erroIa}
+        onPedir={pedirCopiloto}
+        onAplicar={aplicarSugestao}
+      />
+
       <Stepper sequencia={sequencia} atual={step} />
 
       {step === 'tipo'    && <PassoTipo   tipo={tipo} onChange={setTipo} />}
@@ -155,6 +215,69 @@ export function NovoObjetivoWizard({ pacienteId, tituloInicial, onCriado, onCanc
           )}
         </div>
       </div>
+    </div>
+  )
+}
+
+// ─── Copiloto da Audere ─────────────────────────────────────────────────
+
+function CopilotoObjetivos({ sugestoes, carregando, erro, onPedir, onAplicar }: {
+  sugestoes: SmartSugestao[] | null
+  carregando: boolean
+  erro: string | null
+  onPedir: () => void
+  onAplicar: (s: SmartSugestao) => void
+}) {
+  return (
+    <div style={{
+      borderRadius: 12, border: '1px solid var(--border)', padding: 14,
+      background: 'linear-gradient(135deg, rgba(106,78,200,.06), rgba(90,158,138,.045))',
+    }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 9 }}>
+          <span style={{ fontSize: 16 }}>✨</span>
+          <div>
+            <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--ink)' }}>Copiloto da Audere</div>
+            <div style={{ fontSize: 11.5, color: 'var(--muted)', lineHeight: 1.4 }}>
+              Sugestões de metas SMART a partir dos temas observados nas sessões.
+            </div>
+          </div>
+        </div>
+        {!sugestoes?.length && (
+          <button type="button" className="btn ghost" onClick={onPedir} disabled={carregando}
+            style={{ whiteSpace: 'nowrap', fontSize: 12.5 }}>
+            {carregando ? 'Pensando…' : '✨ Sugerir metas'}
+          </button>
+        )}
+      </div>
+
+      {erro && <div style={{ fontSize: 12, color: 'var(--muted)', marginTop: 10, lineHeight: 1.5 }}>{erro}</div>}
+
+      {!!sugestoes?.length && (
+        <div style={{ display: 'grid', gap: 10, marginTop: 12 }}>
+          {sugestoes.map((s, i) => (
+            <div key={i} style={{ padding: 14, borderRadius: 10, background: 'var(--card)', border: '1px solid var(--border)', display: 'grid', gap: 7 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10, alignItems: 'flex-start' }}>
+                <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--ink)', lineHeight: 1.3 }}>{s.titulo}</div>
+                <button type="button" className="btn primary" onClick={() => onAplicar(s)}
+                  style={{ flex: 'none', fontSize: 12, padding: '7px 12px', whiteSpace: 'nowrap' }}>
+                  Usar esta meta →
+                </button>
+              </div>
+              <div style={{ fontSize: 12.5, color: 'var(--ink-soft)', lineHeight: 1.5 }}>{s.relevancia}</div>
+              <div style={{ fontSize: 11, color: 'var(--muted)', fontFamily: 'var(--font-mono), monospace' }}>
+                {s.metricaTipo === 'absoluta'
+                  ? `${s.unidade ?? 'unidade'} · ${s.baseline ?? '—'} → ${s.alvo ?? '—'}`
+                  : 'GAS · escala −2…+2'}
+                {s.prazoSemanas ? ` · ${s.prazoSemanas} sem` : ''}
+              </div>
+            </div>
+          ))}
+          <div style={{ fontSize: 10.5, color: 'var(--faint)', lineHeight: 1.5 }}>
+            Rascunho gerado pela Audere · revise e ajuste cada campo antes de salvar · observação, não diagnóstico · CFP 09/2024
+          </div>
+        </div>
+      )}
     </div>
   )
 }

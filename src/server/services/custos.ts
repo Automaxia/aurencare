@@ -61,6 +61,7 @@ const SQL_FUNCIONALIDADE = `
     WHEN operacao IN ('prontuario.ia','marcos')                                                          THEN 'memoria'
     WHEN operacao IN ('evolucao.obs','chat.evolucao','anthropic.resumo')                                 THEN 'evolucao'
     WHEN operacao IN ('insight.temas','temas.validar','chat.temas')                                      THEN 'temas'
+    WHEN operacao = 'objetivos.copiloto'                                                                  THEN 'objetivos'
     WHEN operacao = 'saude.insights'                                                                      THEN 'saude'
     WHEN operacao IN ('ia.tom','ia.risco','ia.falante','ia.marcar-turnos','ia.obs-viva','insight.sessao','contexto.topicos') THEN 'sessao'
     ELSE 'outros'

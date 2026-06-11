@@ -21,6 +21,7 @@ const FUNC_META: Record<string, { label: string; cor: string }> = {
   memoria: { label: 'Memória Clínica', cor: 'var(--accent)' },
   evolucao: { label: 'Evolução Registrada', cor: 'var(--accent)' },
   temas: { label: 'Temas Recorrentes', cor: 'var(--accent)' },
+  objetivos: { label: 'Objetivos (copiloto)', cor: 'var(--accent)' },
   saude: { label: 'Saúde da Prática', cor: 'var(--accent)' },
   outros: { label: 'Outros', cor: 'var(--muted)' },
 }
