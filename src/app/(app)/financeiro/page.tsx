@@ -1,5 +1,6 @@
 import { PageHeader, EmptyState } from '@/components/PageHeader'
 import { requirePsicologo } from '@/server/lib/auth'
+import { db } from '@/server/db/pool'
 import { lerFinanceiro, type Periodo, type StatusConfirmacao, type StatusNf } from '@/server/services/financeiro'
 import { formatBRL, formatDateTimeBR } from '@/lib/formatters'
 import { FinanceiroFilters } from './filters'
@@ -26,6 +27,24 @@ export default async function FinanceiroPage({ searchParams }: { searchParams: S
 
   const f = await lerFinanceiro(user.id, new Date().toISOString(), periodo)
   const agora = Date.now()
+
+  // Resumo operacional do período
+  const registradas = f.cobrancas.length
+  const semCobranca  = f.cobrancas.filter(c => c.pagamentoStatus === 'isento').length
+  const cobradas     = registradas - semCobranca
+  // Receita prevista pela agenda (sessões futuras não canceladas)
+  const receitaPrevista = await db.query<{ v: number }>(
+    `SELECT COALESCE(SUM(valor), 0)::float AS v FROM sessoes
+      WHERE psicologo_id = $1 AND data_hora > NOW() AND status NOT IN ('cancelada','no_show')`,
+    [user.id],
+  ).then(r => r.rows[0]?.v ?? 0)
+
+  // Resumo textual (Melhoria 1)
+  const resumoFrases: string[] = []
+  resumoFrases.push(f.totaisMes.recebido > 0
+    ? `Você recebeu ${formatBRL(f.totaisMes.recebido)} neste período.`
+    : 'Nenhum valor recebido neste período.')
+  if (f.totaisMes.pendente > 0) resumoFrases.push(`Existem ${formatBRL(f.totaisMes.pendente)} pendentes de confirmação.`)
 
   const filtradas = f.cobrancas.filter(c => {
     if (busca && !c.pacienteNome.toLowerCase().includes(busca)) return false
@@ -61,11 +80,19 @@ export default async function FinanceiroPage({ searchParams }: { searchParams: S
       <FinanceiroTabs ativo="cobrancas" />
       <PageHeader title="Financeiro" subtitle={subtituloPeriodo(periodo)} />
 
+      {/* Resumo textual do período (Melhoria 1) */}
+      <div className="card" style={{ padding: '14px 16px', marginBottom: 14 }}>
+        <div style={{ fontSize: 11, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '.06em', marginBottom: 6 }}>Resumo do período</div>
+        <div style={{ fontSize: 14, color: 'var(--ink-soft)', lineHeight: 1.6 }}>
+          {resumoFrases.map((frase, i) => <span key={i}>{frase}{i < resumoFrases.length - 1 ? ' ' : ''}</span>)}
+        </div>
+      </div>
+
       {/* Linha 1 — visão geral */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12, marginBottom: 16 }}>
         <Kpi label={`Recebido (${labelPeriodoCurto(periodo)})`} value={formatBRL(f.totaisMes.recebido)} color="sage" />
         <Kpi label="Líquido estimado"     value={formatBRL(f.liquidoEstimado)} hint="Bruto − taxas Pagar.me" />
-        <Kpi label="A receber em 30 dias" value={formatBRL(f.aReceber30d)}    hint="Cartão demora ~30d" />
+        <Kpi label="Previsão de recebimento" value={formatBRL(f.aReceber30d)} hint="Próximos 30 dias" />
         <Kpi label="Pendente"             value={formatBRL(f.totaisMes.pendente)} color="amber" />
       </div>
 
@@ -98,10 +125,28 @@ export default async function FinanceiroPage({ searchParams }: { searchParams: S
         countSemNf={semNf}
       />
 
+      {/* Resumo operacional + receita prevista (Melhorias 5 e 6) */}
+      {registradas > 0 && (
+        <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 16, padding: '10px 14px', marginBottom: 14, background: 'var(--surface)', borderRadius: 8, fontSize: 12.5, color: 'var(--ink-soft)' }}>
+          <span><strong>{labelPeriodoCurto(periodo)}:</strong></span>
+          <span>{registradas} {registradas === 1 ? 'sessão registrada' : 'sessões registradas'}</span>
+          <span style={{ color: 'var(--faint)' }}>·</span>
+          <span>{cobradas} {cobradas === 1 ? 'cobrada' : 'cobradas'}</span>
+          <span style={{ color: 'var(--faint)' }}>·</span>
+          <span>{semCobranca} sem cobrança</span>
+          {f.totaisMes.pendente > 0 && (<><span style={{ color: 'var(--faint)' }}>·</span><span style={{ color: 'var(--amber)' }}>{formatBRL(f.totaisMes.pendente)} pendentes</span></>)}
+          {receitaPrevista > 0 && (
+            <span style={{ marginLeft: 'auto', color: 'var(--muted)' }}>
+              Receita prevista (agenda): <strong style={{ color: 'var(--ink-soft)' }}>{formatBRL(receitaPrevista)}</strong>
+            </span>
+          )}
+        </div>
+      )}
+
       {filtradas.length === 0 ? (
         <EmptyState>
           {f.cobrancas.length === 0
-            ? 'Sem cobranças no período.'
+            ? 'Nenhuma cobrança registrada neste período. As sessões realizadas aparecem aqui automaticamente.'
             : 'Nenhuma cobrança bate com esses filtros.'}
         </EmptyState>
       ) : (
@@ -197,7 +242,7 @@ function ConfirmBadge({ status }: { status: StatusConfirmacao }) {
   const map = {
     aguardando: { label: 'Aguardando', color: 'amber' },
     sim:        { label: 'Confirmado', color: 'sage' },
-    silencio:   { label: 'Auto-liberado', color: 'muted' },
+    silencio:   { label: 'Confirmação automática', color: 'muted' },
     contestou:  { label: 'Contestado', color: 'rose' },
   } as const
   const m = map[status]
@@ -214,6 +259,7 @@ function Td({ children, style }: { children: React.ReactNode; style?: React.CSSP
 function pagamentoColor(s: string) {
   if (s === 'pago')        return 'sage'
   if (s === 'reembolsado') return 'muted'
+  if (s === 'isento')      return 'muted'
   if (s === 'falhou')      return 'rose'
   if (s === 'contestado')  return 'rose'
   return 'amber'
@@ -222,6 +268,7 @@ function labelPagamento(s: string) {
   return ({
     pago: 'Pago', pendente: 'Pendente', falhou: 'Falhou',
     reembolsado: 'Reembolsado', contestado: 'Contestado',
+    isento: 'Sessão sem cobrança',
   } as Record<string, string>)[s] ?? s
 }
 function metodoLabel(m: string | null, parcelas: number): string {
