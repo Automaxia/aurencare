@@ -158,7 +158,7 @@ export default async function InicioPage() {
         </>
       ) : (
         <div className="card" style={{ textAlign: 'center', marginBottom: 22 }}>
-          <div style={{ color: 'var(--muted)', marginBottom: 12 }}>Nenhum atendimento futuro confirmado.</div>
+          <div style={{ color: 'var(--muted)', marginBottom: 12 }}>Nenhum atendimento futuro confirmado após hoje.</div>
           <div style={{ display: 'flex', gap: 8, justifyContent: 'center' }}>
             <Link href="/agenda/nova" className="btn primary">+ Agendar sessão</Link>
             <Link href="/agenda" className="btn ghost">Ver agenda</Link>
@@ -217,7 +217,10 @@ export default async function InicioPage() {
             <div className="card-h"><span className="card-title">Pendências</span></div>
             <div style={{ padding: '4px 0' }}>
               {pendentes.length === 0 && cobrancasPendentes === 0 && agg.objetivos_estagnados === 0 ? (
-                <div style={{ padding: '10px 0', fontSize: 12, color: 'var(--faint)' }}>Tudo em dia.</div>
+                <div style={{ padding: '10px 0', fontSize: 12, color: 'var(--faint)', lineHeight: 1.55 }}>
+                  Tudo em dia.<br />
+                  <span style={{ fontSize: 11 }}>Nenhuma ação necessária no momento.</span>
+                </div>
               ) : (
                 <>
                   {pendentes.slice(0, 3).map(p => (
@@ -261,21 +264,31 @@ export default async function InicioPage() {
             className="card-warm"
             style={{ display: 'block', padding: '16px 18px', textDecoration: 'none', color: 'inherit', borderRadius: 'var(--r)' }}
           >
-            <div className="sec-lbl" style={{ marginBottom: 8 }}>Continuidade clínica</div>
+            <div className="sec-lbl" style={{ marginBottom: 6 }}>Continuidade clínica</div>
+            <div style={{ fontSize: 12.5, color: 'var(--accent)', fontWeight: 500, marginBottom: 8 }}>
+              {(agg.assinadas_total > 0 || agg.objetivos_ativos > 0) ? 'Processo terapêutico ativo' : 'Processo em formação'}
+            </div>
             <div style={{ fontSize: 13, color: 'var(--ink-soft)', lineHeight: 1.7 }}>
               {agg.assinadas_total} {agg.assinadas_total === 1 ? 'sessão registrada' : 'sessões registradas'}<br />
-              {agg.objetivos_ativos} {agg.objetivos_ativos === 1 ? 'objetivo ativo' : 'objetivos ativos'}<br />
-              {ultimaEvolStr ? `última evolução · ${ultimaEvolStr}` : 'sem evolução registrada ainda'}<br />
+              {agg.objetivos_ativos} {agg.objetivos_ativos === 1 ? 'objetivo em acompanhamento' : 'objetivos em acompanhamento'}<br />
+              {ultimaEvolStr ? `Última evolução registrada em ${ultimaEvolStr}` : 'Ainda sem evolução registrada'}<br />
               <span style={{ color: agg.objetivos_estagnados > 0 ? 'var(--amber)' : 'var(--muted)' }}>
                 {agg.objetivos_estagnados > 0
                   ? `${agg.objetivos_estagnados} ${agg.objetivos_estagnados === 1 ? 'objetivo sem atualização' : 'objetivos sem atualização'}`
-                  : 'nenhuma pendência clínica'}
+                  : 'Nenhuma pendência clínica identificada'}
               </span>
             </div>
             <div style={{ fontSize: 12, color: 'var(--accent)', marginTop: 10 }}>Abrir Evolução →</div>
           </Link>
 
-          {/* Previsão do mês */}
+          {/* Pacientes — linguagem natural (perto do clínico) */}
+          <Link href="/pacientes?filtro=ativos" className="kpi-quiet" style={{ background: 'var(--card)' }}>
+            <div className="kl">Pacientes</div>
+            <div className="kv">{ativos} <span style={{ fontSize: 14, fontWeight: 300, color: 'var(--muted)' }}>{ativos === 1 ? 'ativo' : 'ativos'}</span></div>
+            <div className="kn">Ver lista →</div>
+          </Link>
+
+          {/* Previsão do mês — financeiro é suporte, fica por último */}
           <Link href="/financeiro" className="card-warm" style={{
             display: 'block', padding: '18px 20px', textDecoration: 'none', color: 'inherit',
             cursor: 'pointer', borderRadius: 'var(--r)',
@@ -287,13 +300,6 @@ export default async function InicioPage() {
             <div style={{ fontSize: 12, color: 'var(--muted)' }}>
               com agenda atual → ver detalhes
             </div>
-          </Link>
-
-          {/* Pacientes ativos */}
-          <Link href="/pacientes?filtro=ativos" className="kpi-quiet" style={{ background: 'var(--card)' }}>
-            <div className="kl">Pacientes ativos</div>
-            <div className="kv">{ativos}</div>
-            <div className="kn">ver lista →</div>
           </Link>
         </div>
       </div>
