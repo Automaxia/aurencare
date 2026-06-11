@@ -79,9 +79,11 @@ export function NovoObjetivoWizard({ pacienteId, tituloInicial, onCriado, onCanc
   }
 
   function aplicarSugestao(s: SmartSugestao) {
-    // Copiloto sugere 'gas' p/ metas subjetivas → vira 'nenhuma' (descritiva);
-    // o GAS é configurado depois, na tela da meta.
-    const tipoAplicado: MetricaTipo = s.metricaTipo === 'absoluta' ? 'absoluta' : 'nenhuma'
+    // Se o psicólogo já escolheu o método Simples (nenhuma) ou está no passo livre,
+    // a sugestão é mantida como Simples. Senão, segue o tipo da sugestão
+    // ('gas' subjetiva → 'nenhuma'; o GAS é configurado na tela da meta).
+    const querSimples = tipo === 'nenhuma' || step === 'livre'
+    const tipoAplicado: MetricaTipo = querSimples ? 'nenhuma' : (s.metricaTipo === 'absoluta' ? 'absoluta' : 'nenhuma')
     setTipo(tipoAplicado)
     setTitulo(s.titulo)
     setDescricao(s.relevancia)

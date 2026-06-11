@@ -8,8 +8,8 @@ import {
   type Objetivo, type AtualizarObjetivoPatch, type CriarObjetivoInput, type Medicao, type EvolucaoObjetivo,
 } from '@/server/services/objetivos'
 import {
-  criarGas, atualizarGas, removerGas,
-  type GasEscala, type GasInput,
+  criarGas, atualizarGas, removerGas, registrarAndamentoGas,
+  type GasEscala, type GasInput, type GasAndamento,
 } from '@/server/services/gasObjetivos'
 import {
   criarNota, removerNota, type NotaProgresso,
@@ -84,6 +84,11 @@ export async function removerGasAction(objetivoId: string, gasId: string): Promi
   try { await ownObjective(objetivoId) } catch { return false }
   await removerGas(gasId)
   return true
+}
+
+export async function registrarAndamentoGasAction(objetivoId: string, gasId: string, nivel: number, medidoEm?: string | null): Promise<GasAndamento | null> {
+  try { await ownObjective(objetivoId) } catch { return null }
+  return registrarAndamentoGas(objetivoId, gasId, nivel, medidoEm)
 }
 
 // ── Marcos de progresso (anotações livres da Meta) ───────────────────────

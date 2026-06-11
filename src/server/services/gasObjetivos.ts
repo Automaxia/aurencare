@@ -7,6 +7,8 @@ import { db } from '@/server/db/pool'
  * pelo psicólogo, com marcação de partida e esperado.
  */
 
+export type GasAndamento = { medidoEm: string; nivel: number }
+
 export type GasEscala = {
   id: string
   objetivoId: string
@@ -19,6 +21,7 @@ export type GasEscala = {
   nivelPartida: number
   nivelEsperado: number
   ativo: boolean
+  andamentos: GasAndamento[]   // registros do nível ao longo do tempo (cronológico)
 }
 
 function rowToGas(r: any): GasEscala {
@@ -26,23 +29,58 @@ function rowToGas(r: any): GasEscala {
     id: r.id, objetivoId: r.objetivo_id, titulo: r.titulo,
     nivelM2: r.nivel_m2, nivelM1: r.nivel_m1, nivel0: r.nivel_0, nivelP1: r.nivel_p1, nivelP2: r.nivel_p2,
     nivelPartida: r.nivel_partida ?? -1,
-    nivelEsperado: r.nivel_esperado ?? 0,
+    nivelEsperado: r.nivel_esperado ?? 2,
     ativo: r.ativo ?? true,
+    andamentos: [],
   }
 }
 
-/** Todas as escalas GAS das Metas de um paciente, agrupadas por objetivo. */
+/** Todas as escalas GAS das Metas de um paciente (com andamentos), agrupadas por objetivo. */
 export async function listarGasPorPaciente(pacienteId: string): Promise<Record<string, GasEscala[]>> {
-  const { rows } = await db.query(
-    `SELECT g.* FROM objetivo_gas g
-       JOIN objetivos o ON o.id = g.objetivo_id
-      WHERE o.paciente_id = $1
-      ORDER BY g.created_at ASC`,
-    [pacienteId],
-  )
+  const [escRes, andRes] = await Promise.all([
+    db.query(
+      `SELECT g.* FROM objetivo_gas g
+         JOIN objetivos o ON o.id = g.objetivo_id
+        WHERE o.paciente_id = $1
+        ORDER BY g.created_at ASC`,
+      [pacienteId],
+    ),
+    db.query<{ gas_id: string; medido_em: string; valor: string }>(
+      `SELECT m.gas_id, m.medido_em, m.valor FROM objetivo_medicoes m
+         JOIN objetivo_gas g ON g.id = m.gas_id
+         JOIN objetivos o ON o.id = g.objetivo_id
+        WHERE o.paciente_id = $1 AND m.gas_id IS NOT NULL
+        ORDER BY m.medido_em ASC, m.created_at ASC`,
+      [pacienteId],
+    ),
+  ])
+
+  const porGas: Record<string, GasAndamento[]> = {}
+  for (const a of andRes.rows) {
+    (porGas[a.gas_id] ??= []).push({ medidoEm: new Date(a.medido_em).toISOString().slice(0, 10), nivel: Math.round(parseFloat(a.valor)) })
+  }
+
   const map: Record<string, GasEscala[]> = {}
-  for (const r of rows) (map[r.objetivo_id] ??= []).push(rowToGas(r))
+  for (const r of escRes.rows) {
+    const esc = rowToGas(r)
+    esc.andamentos = porGas[esc.id] ?? []
+    ;(map[r.objetivo_id] ??= []).push(esc)
+  }
   return map
+}
+
+/** Registra o nível atual da escala GAS (−2..+2) numa data — reusa objetivo_medicoes via gas_id. */
+export async function registrarAndamentoGas(
+  objetivoId: string, gasId: string, nivel: number, medidoEm?: string | null,
+): Promise<GasAndamento> {
+  const data = medidoEm || new Date().toISOString().slice(0, 10)
+  const n = clampNivel(nivel, 0)
+  await db.query(
+    `INSERT INTO objetivo_medicoes (objetivo_id, gas_id, medido_em, valor, origem)
+     VALUES ($1, $2, $3, $4, 'psicologa')`,
+    [objetivoId, gasId, data, n],
+  )
+  return { medidoEm: data, nivel: n }
 }
 
 export type GasInput = {
@@ -68,7 +106,7 @@ export async function criarGas(objetivoId: string, input: GasInput): Promise<Gas
     [
       objetivoId, input.titulo.trim(),
       input.nivelM2 ?? null, input.nivelM1 ?? null, input.nivel0 ?? null, input.nivelP1 ?? null, input.nivelP2 ?? null,
-      clampNivel(input.nivelPartida, -1), clampNivel(input.nivelEsperado, 0),
+      clampNivel(input.nivelPartida, -1), clampNivel(input.nivelEsperado, 2),
     ],
   )
   return rowToGas(rows[0])
