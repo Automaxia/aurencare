@@ -10,17 +10,23 @@ import { BulletChart } from './BulletChart'
 import { NovoObjetivoWizard } from './NovoObjetivoWizard'
 import { GasManager } from './GasManager'
 import type { GasEscala } from '@/server/services/gasObjetivos'
+import { MarcosProgresso } from './MarcosProgresso'
+import type { NotaProgresso } from '@/server/services/notasObjetivos'
 import { estadoObjetivo, ESTADO_META, prazoEstado, haQuanto } from '@/lib/objetivos'
 import { Sparkline } from './Sparkline'
 
-export function ObjetivosView({ pacienteId, initial, valoresIniciais, observacoes, sugestoes, gasInicial }: { pacienteId: string; initial: Objetivo[]; valoresIniciais: Record<string, number[]>; observacoes: Record<string, string>; sugestoes: { titulo: string; tema: string }[]; gasInicial: Record<string, GasEscala[]> }) {
+export function ObjetivosView({ pacienteId, initial, valoresIniciais, observacoes, sugestoes, gasInicial, notasInicial }: { pacienteId: string; initial: Objetivo[]; valoresIniciais: Record<string, number[]>; observacoes: Record<string, string>; sugestoes: { titulo: string; tema: string }[]; gasInicial: Record<string, GasEscala[]>; notasInicial: Record<string, NotaProgresso[]> }) {
   const [objs, setObjs] = useState(initial)
   const [gasMap, setGasMap] = useState(gasInicial)
+  const [notasMap, setNotasMap] = useState(notasInicial)
   const [showForm, setShowForm] = useState(false)
   const [tituloSugerido, setTituloSugerido] = useState('')
 
   function onGasChange(objId: string, escalas: GasEscala[]) {
     setGasMap(prev => ({ ...prev, [objId]: escalas }))
+  }
+  function onNotasChange(objId: string, notas: NotaProgresso[]) {
+    setNotasMap(prev => ({ ...prev, [objId]: notas }))
   }
 
   function abrirComTitulo(t: string) { setTituloSugerido(t); setShowForm(true) }
@@ -63,9 +69,9 @@ export function ObjetivosView({ pacienteId, initial, valoresIniciais, observacoe
         />
       )}
 
-      <Section title="Ativos" items={ativos} valores={valoresIniciais} observacoes={observacoes} gas={gasMap} onStatus={updateStatus} onDelete={remover} onUpsert={upsert} onGasChange={onGasChange} />
-      {pausados.length > 0   && <Section title="Pausados"  items={pausados}   valores={valoresIniciais} observacoes={observacoes} gas={gasMap} onStatus={updateStatus} onDelete={remover} onUpsert={upsert} onGasChange={onGasChange} />}
-      {concluidos.length > 0 && <Section title="Concluídos" items={concluidos} valores={valoresIniciais} observacoes={observacoes} gas={gasMap} onStatus={updateStatus} onDelete={remover} onUpsert={upsert} onGasChange={onGasChange} />}
+      <Section title="Ativos" items={ativos} valores={valoresIniciais} observacoes={observacoes} gas={gasMap} notas={notasMap} onStatus={updateStatus} onDelete={remover} onUpsert={upsert} onGasChange={onGasChange} onNotasChange={onNotasChange} />
+      {pausados.length > 0   && <Section title="Pausados"  items={pausados}   valores={valoresIniciais} observacoes={observacoes} gas={gasMap} notas={notasMap} onStatus={updateStatus} onDelete={remover} onUpsert={upsert} onGasChange={onGasChange} onNotasChange={onNotasChange} />}
+      {concluidos.length > 0 && <Section title="Concluídos" items={concluidos} valores={valoresIniciais} observacoes={observacoes} gas={gasMap} notas={notasMap} onStatus={updateStatus} onDelete={remover} onUpsert={upsert} onGasChange={onGasChange} onNotasChange={onNotasChange} />}
 
       {objs.length === 0 && !showForm && (
         <div className="card" style={{ padding: 22 }}>
@@ -98,16 +104,18 @@ export function ObjetivosView({ pacienteId, initial, valoresIniciais, observacoe
 
 // ─── Lista ─────────────────────────────────────────────────────────────
 
-function Section({ title, items, valores, observacoes, gas, onStatus, onDelete, onUpsert, onGasChange }: {
+function Section({ title, items, valores, observacoes, gas, notas, onStatus, onDelete, onUpsert, onGasChange, onNotasChange }: {
   title: string
   items: Objetivo[]
   valores: Record<string, number[]>
   observacoes: Record<string, string>
   gas: Record<string, GasEscala[]>
+  notas: Record<string, NotaProgresso[]>
   onStatus: (o: Objetivo, s: Objetivo['status']) => void
   onDelete: (o: Objetivo) => void
   onUpsert: (o: Objetivo) => void
   onGasChange: (objId: string, escalas: GasEscala[]) => void
+  onNotasChange: (objId: string, notas: NotaProgresso[]) => void
 }) {
   if (items.length === 0) return null
   // Conta quantos estão "no alvo" (progresso ≥ 100%)
@@ -128,21 +136,23 @@ function Section({ title, items, valores, observacoes, gas, onStatus, onDelete, 
         )}
       </div>
       <ul style={{ margin: 0, padding: 0, listStyle: 'none', display: 'grid', gap: 10 }}>
-        {items.map(o => <ObjetivoCard key={o.id} o={o} valores={valores[o.id] ?? []} observacao={observacoes[o.id]} gas={gas[o.id] ?? []} onStatus={onStatus} onDelete={onDelete} onUpsert={onUpsert} onGasChange={onGasChange} />)}
+        {items.map(o => <ObjetivoCard key={o.id} o={o} valores={valores[o.id] ?? []} observacao={observacoes[o.id]} gas={gas[o.id] ?? []} notas={notas[o.id] ?? []} onStatus={onStatus} onDelete={onDelete} onUpsert={onUpsert} onGasChange={onGasChange} onNotasChange={onNotasChange} />)}
       </ul>
     </section>
   )
 }
 
-function ObjetivoCard({ o, valores, observacao, gas, onStatus, onDelete, onUpsert, onGasChange }: {
+function ObjetivoCard({ o, valores, observacao, gas, notas, onStatus, onDelete, onUpsert, onGasChange, onNotasChange }: {
   o: Objetivo
   valores: number[]
   observacao?: string
   gas: GasEscala[]
+  notas: NotaProgresso[]
   onStatus: (o: Objetivo, s: Objetivo['status']) => void
   onDelete: (o: Objetivo) => void
   onUpsert: (o: Objetivo) => void
   onGasChange: (objId: string, escalas: GasEscala[]) => void
+  onNotasChange: (objId: string, notas: NotaProgresso[]) => void
 }) {
   const [expandido, setExpandido] = useState(false)
   const [evolucao, setEvolucao] = useState<EvolucaoObjetivo | null>(null)
@@ -283,6 +293,9 @@ function ObjetivoCard({ o, valores, observacao, gas, onStatus, onDelete, onUpser
               }}
             />
           )}
+
+          {/* Marcos de progresso — anotações livres (ambos os métodos) */}
+          <MarcosProgresso objetivoId={o.id} notas={notas} onChange={(n) => onNotasChange(o.id, n)} />
 
           {/* GAS — acompanhamento da meta (opcional, múltiplo) */}
           <GasManager objetivoId={o.id} escalas={gas} onChange={(e) => onGasChange(o.id, e)} />

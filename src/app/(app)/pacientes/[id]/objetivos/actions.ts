@@ -11,6 +11,9 @@ import {
   criarGas, atualizarGas, removerGas,
   type GasEscala, type GasInput,
 } from '@/server/services/gasObjetivos'
+import {
+  criarNota, removerNota, type NotaProgresso,
+} from '@/server/services/notasObjetivos'
 
 async function checkAccess(pacienteId: string): Promise<string> {
   const user = await requirePsicologo()
@@ -80,5 +83,19 @@ export async function atualizarGasAction(objetivoId: string, gasId: string, patc
 export async function removerGasAction(objetivoId: string, gasId: string): Promise<boolean> {
   try { await ownObjective(objetivoId) } catch { return false }
   await removerGas(gasId)
+  return true
+}
+
+// ── Marcos de progresso (anotações livres da Meta) ───────────────────────
+
+export async function criarNotaAction(objetivoId: string, input: { texto: string; marcoEm?: string | null }): Promise<NotaProgresso | null> {
+  try { await ownObjective(objetivoId) } catch { return null }
+  if (!input.texto?.trim()) return null
+  return criarNota(objetivoId, input)
+}
+
+export async function removerNotaAction(objetivoId: string, notaId: string): Promise<boolean> {
+  try { await ownObjective(objetivoId) } catch { return false }
+  await removerNota(notaId)
   return true
 }
