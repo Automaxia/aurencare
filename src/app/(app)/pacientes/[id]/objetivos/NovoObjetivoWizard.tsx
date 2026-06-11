@@ -27,7 +27,7 @@ type Props = {
   onCancelar: () => void
 }
 
-type Step = 'tipo' | 's' | 'r' | 'm' | 'a' | 't' | 'revisao'
+type Step = 'tipo' | 's' | 'r' | 'm' | 'a' | 't' | 'revisao' | 'livre'
 
 /** Espelha SmartSugestao do server (copilotoObjetivos) — tipo local pra não
  *  importar módulo server-only no client. */
@@ -97,17 +97,16 @@ export function NovoObjetivoWizard({ pacienteId, tituloInicial, onCriado, onCanc
       setPrazo(d.toISOString().slice(0, 10))
     }
     setSugIa(null); setErroIa(null); setErro(null)
-    setStep('revisao')
+    setStep(tipoAplicado === 'absoluta' ? 'revisao' : 'livre')
   }
 
-  // Passos a percorrer (varia conforme tipo)
-  // Dois métodos: SMART + GAS (absoluta, fluxo completo) ou Simples (nenhuma, livre/curto).
+  // Dois métodos: SMART + GAS (absoluta, fluxo completo) ou Livre (nenhuma, entrada única).
   const sequencia: Step[] = tipo === 'absoluta'
     ? ['tipo', 's', 'r', 'm', 'a', 't', 'revisao']   // SMART + GAS
-    : ['tipo', 's', 'r', 't', 'revisao']             // Objetivo Terapêutico Simples (livre)
+    : ['tipo', 'livre']                               // Objetivo Terapêutico Simples — livre é livre
   const idx       = sequencia.indexOf(step)
   const primeiro  = idx === 0
-  const ultimo    = step === 'revisao'
+  const ultimo    = idx === sequencia.length - 1
 
   // ── Direção sugerida (Métrica absoluta) ──────────────────────────
   const baselineN = parseFloat(baseline.replace(',', '.'))
@@ -123,6 +122,9 @@ export function NovoObjetivoWizard({ pacienteId, tituloInicial, onCriado, onCanc
     switch (step) {
       case 's':
         if (titulo.trim().length < 4) { setErro('Descreva o objetivo de forma específica (mínimo 4 caracteres).'); return false }
+        return true
+      case 'livre':
+        if (titulo.trim().length < 4) { setErro('Escreva o objetivo (mínimo 4 caracteres).'); return false }
         return true
       case 'r':
         // Descricao opcional, mas recomendada — não bloqueia
@@ -188,6 +190,7 @@ export function NovoObjetivoWizard({ pacienteId, tituloInicial, onCriado, onCanc
       <Stepper sequencia={sequencia} atual={step} />
 
       {step === 'tipo'    && <PassoTipo   tipo={tipo} onChange={setTipo} />}
+      {step === 'livre'   && <PassoLivre  titulo={titulo} setTitulo={setTitulo} descricao={descricao} setDescricao={setDescricao} prazo={prazo} setPrazo={setPrazo} />}
       {step === 's'       && <PassoS      titulo={titulo} onChange={setTitulo} />}
       {step === 'r'       && <PassoR      descricao={descricao} onChange={setDescricao} />}
       {step === 'm'       && <PassoM      tipo={tipo} unidade={unidade} setUnidade={setUnidade} baseline={baseline} setBaseline={setBaseline} alvo={alvo} setAlvo={setAlvo} direcaoSugerida={!isNaN(baselineN) && !isNaN(alvoN) && baselineN !== alvoN ? direcao : null} />}
@@ -289,13 +292,14 @@ function CopilotoObjetivos({ sugestoes, carregando, erro, onPedir, onAplicar }: 
 // ─── Stepper visual ─────────────────────────────────────────────────────
 
 const STEP_LABELS: Record<Step, string> = {
-  tipo:    'Métrica',
+  tipo:    'Método',
   s:       'Específico',
   r:       'Relevante',
   m:       'Mensurável',
   a:       'Atingível',
   t:       'Temporal',
   revisao: 'Revisão',
+  livre:   'Objetivo',
 }
 
 function Stepper({ sequencia, atual }: { sequencia: Step[]; atual: Step }) {
@@ -403,16 +407,16 @@ function PassoTipo({ tipo, onChange }: { tipo: MetricaTipo; onChange: (t: Metric
       <HeaderPasso letra="·" titulo="Como você quer registrar os objetivos?" sub="Escolha o método. Você pode misturar os dois na mesma terapia — cada meta no formato que fizer sentido." />
       <div style={{ display: 'grid', gap: 10 }}>
         <OpcaoCard
-          ativo={tipo === 'nenhuma'}
-          onClick={() => onChange('nenhuma')}
-          titulo="Objetivo Terapêutico Simples"
-          corpo="Preenchimento livre, no seu ritmo clínico. Descreva a meta do jeito que fizer sentido — sem campos obrigatórios nem métricas. Rápido de criar; você ainda pode acompanhar com escalas GAS depois, se quiser."
-        />
-        <OpcaoCard
           ativo={tipo === 'absoluta'}
           onClick={() => onChange('absoluta')}
           titulo="Objetivos SMART + GAS"
           corpo="Método estruturado: meta específica, mensurável (unidade, baseline e alvo) e temporal — com acompanhamento por escalas GAS. Para quando você quer medir a evolução com precisão."
+        />
+        <OpcaoCard
+          ativo={tipo === 'nenhuma'}
+          onClick={() => onChange('nenhuma')}
+          titulo="Objetivo Terapêutico Simples"
+          corpo="Livre é livre: uma única caixa de texto, do seu jeito. Sem campos obrigatórios nem etapas. Você ainda pode acompanhar com escalas GAS depois, se quiser."
         />
       </div>
     </div>
@@ -435,6 +439,41 @@ function OpcaoCard({ ativo, onClick, titulo, corpo }: { ativo: boolean; onClick:
       <div style={{ fontSize: 14, fontWeight: 500, color: 'var(--ink)' }}>{titulo}</div>
       <div style={{ fontSize: 12, color: 'var(--muted)', lineHeight: 1.55 }}>{corpo}</div>
     </button>
+  )
+}
+
+function PassoLivre({ titulo, setTitulo, descricao, setDescricao, prazo, setPrazo }: {
+  titulo: string; setTitulo: (v: string) => void
+  descricao: string; setDescricao: (v: string) => void
+  prazo: string; setPrazo: (v: string) => void
+}) {
+  return (
+    <div style={{ display: 'grid', gap: 14 }}>
+      <HeaderPasso letra="·" titulo="Objetivo Terapêutico Simples" sub="Livre é livre. Escreva do seu jeito — sem campos obrigatórios nem etapas." />
+      <input
+        autoFocus value={titulo} onChange={e => setTitulo(e.target.value)}
+        placeholder="Escreva o objetivo…" className="liv-inp"
+      />
+      <label style={{ display: 'grid', gap: 5 }}>
+        <span style={{ fontSize: 11, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '.06em' }}>Detalhes (opcional)</span>
+        <textarea value={descricao} onChange={e => setDescricao(e.target.value)} rows={4}
+          placeholder="Contexto, o que observar, como saberá que avançou…" className="liv-inp liv-area" />
+      </label>
+      <label style={{ display: 'grid', gap: 5 }}>
+        <span style={{ fontSize: 11, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '.06em' }}>Prazo (opcional)</span>
+        <input type="date" value={prazo} onChange={e => setPrazo(e.target.value)} className="liv-inp" style={{ maxWidth: 200 }} />
+      </label>
+      <style jsx>{`
+        .liv-inp {
+          width: 100%; box-sizing: border-box; padding: 13px 16px; border-radius: 10px;
+          border: 1px solid var(--border); background: white;
+          font-size: 15px; font-family: inherit; color: var(--ink); outline: none;
+          transition: border-color .15s var(--ease);
+        }
+        .liv-inp:focus { border-color: var(--accent); }
+        .liv-area { font-size: 14px; resize: vertical; min-height: 90px; line-height: 1.5; }
+      `}</style>
+    </div>
   )
 }
 
