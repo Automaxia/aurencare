@@ -27,52 +27,96 @@ export default async function SaudePage() {
     duracaoMin: r.duracao_min, valor: parseFloat(r.valor ?? 0), assinada: r.assinada,
   }))
 
+  const pendente = await db.query<{ v: number }>(
+    `SELECT COALESCE(SUM(valor), 0)::float AS v FROM sessoes WHERE psicologo_id = $1 AND pagamento_status = 'pendente'`,
+    [user.id],
+  ).then(r => r.rows[0]?.v ?? 0)
+
+  // Resumo determinístico — "se a Audere fosse consultora de gestão, o que diria da prática hoje?"
+  const itens: { ok: boolean; texto: string }[] = []
+  itens.push(s.taxaComparecimentoPct >= 80
+    ? { ok: true, texto: 'Comparecimento excelente.' }
+    : s.taxaComparecimentoPct < 60
+      ? { ok: false, texto: 'Comparecimento abaixo do ideal.' }
+      : { ok: true, texto: 'Comparecimento dentro do esperado.' })
+  if (s.cancelamentos90d === 0 && s.noShows90d === 0) itens.push({ ok: true, texto: 'Nenhuma falta ou cancelamento recente.' })
+  else if (s.taxaCancelamentoPct > 25) itens.push({ ok: false, texto: 'Faltas e cancelamentos acima do usual.' })
+  if (s.pacientesAtivos > 0 && s.pacientesComRecente30d < s.pacientesAtivos)
+    itens.push({ ok: false, texto: `${s.pacientesComRecente30d} de ${s.pacientesAtivos} pacientes ativos teve sessão nos últimos 30 dias.` })
+  else if (s.pacientesAtivos > 0)
+    itens.push({ ok: true, texto: 'Todos os pacientes ativos tiveram sessão recente.' })
+  if (pendente > 0) itens.push({ ok: false, texto: `Existem ${formatBRL(pendente)} aguardando recebimento.` })
+  const saudavel = itens.every(i => i.ok)
+
   return (
     <div>
       <PageHeader
         title="Saúde da Prática"
-        subtitle="Como a sua prática está esta semana."
+        subtitle="Como está o seu consultório."
       />
 
-      {/* KPIs com formulação corrigida */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12, marginBottom: 16 }}>
-        <Kpi label="Sessões esta semana" value={s.sessoesSemana} />
-        <Kpi label="Sessões este mês"    value={s.sessoesMes} />
-        <Kpi label="Pacientes ativos"    value={s.pacientesAtivos} />
-        <Kpi label="Valor médio por sessão" value={formatBRL(s.ticketMedio)} />
+      {/* Bloco 1 — Resumo da saúde da prática (síntese, primeiro elemento) */}
+      <section className="card" style={{ padding: 20, marginBottom: 16 }}>
+        <div style={{ fontFamily: 'var(--f-display)', fontSize: 23, lineHeight: 1.15, color: saudavel ? 'var(--sage)' : 'var(--ink)', marginBottom: 14 }}>
+          {saudavel ? 'Sua prática está saudável.' : 'Alguns pontos merecem sua atenção.'}
+        </div>
+        <ul style={{ listStyle: 'none', margin: 0, padding: 0, display: 'grid', gap: 9 }}>
+          {itens.map((it, i) => (
+            <li key={i} style={{ display: 'flex', gap: 9, alignItems: 'baseline', fontSize: 13.5, color: 'var(--ink-soft)', lineHeight: 1.45 }}>
+              <span style={{ color: it.ok ? 'var(--sage)' : 'var(--amber)', flex: 'none', fontWeight: 600 }}>{it.ok ? '✓' : '⚠'}</span>
+              <span>{it.texto}</span>
+            </li>
+          ))}
+        </ul>
+      </section>
+
+      {/* Bloco 2 — Observações da Audere (protagonismo, logo abaixo do resumo) */}
+      <div style={{ marginBottom: 22 }}>
+        <SaudeInsights />
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12, marginBottom: 20 }}>
+      {/* Bloco 3 — Indicadores principais (saúde operacional) */}
+      <div className="sec-lbl" style={{ marginBottom: 10 }}>Indicadores principais</div>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12, marginBottom: 22 }}>
         <KpiBig
-          label="Taxa de comparecimento"
+          label="Comparecimento"
           value={`${s.taxaComparecimentoPct.toFixed(0)}%`}
           color={s.taxaComparecimentoPct >= 80 ? 'sage' : s.taxaComparecimentoPct < 60 ? 'rose' : 'amber'}
-          hint={`${s.sessoesConcluidas90d} de ${s.sessoesPassadas90d} sessões dos últimos 90 dias`}
+          hint={`${s.sessoesConcluidas90d} de ${s.sessoesPassadas90d} sessões (90 dias)`}
+        />
+        <KpiBig label="Pacientes ativos" value={String(s.pacientesAtivos)} />
+        <KpiBig
+          label="Retenção recente"
+          value={`${s.pacientesComRecente30d} de ${s.pacientesAtivos}`}
+          color={s.pacientesAtivos > 0 && s.pacientesComRecente30d < s.pacientesAtivos ? 'amber' : 'sage'}
+          hint="pacientes ativos com sessão nos últimos 30 dias"
         />
         <KpiBig
           label="Faltas + cancelamentos"
           value={`${s.taxaCancelamentoPct.toFixed(0)}%`}
           color={s.taxaCancelamentoPct < 15 ? 'sage' : s.taxaCancelamentoPct > 25 ? 'rose' : 'amber'}
-          hint={`${s.noShows90d} sem comparecimento · ${s.cancelamentos90d} cancelamentos (90d)`}
-        />
-        <KpiBig
-          label="Retenção (30 dias)"
-          value={`${s.retencaoPct.toFixed(0)}%`}
-          color={s.retencaoPct >= 70 ? 'sage' : s.retencaoPct < 50 ? 'amber' : undefined}
-          hint={`${s.pacientesComRecente30d} de ${s.pacientesAtivos} pacientes ativos tiveram sessão`}
+          hint={`${s.noShows90d} faltas · ${s.cancelamentos90d} cancelamentos (90d)`}
         />
       </div>
 
-      {/* Insights amigáveis da IA */}
-      <div style={{ marginBottom: 20 }}>
-        <SaudeInsights />
+      {/* Bloco 4 — Indicadores secundários (contexto complementar, menor destaque) */}
+      <div className="sec-lbl" style={{ marginBottom: 10 }}>Contexto</div>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12, marginBottom: 22 }}>
+        <Kpi label="Sessões este mês"    value={s.sessoesMes} />
+        <Kpi label="Sessões esta semana" value={s.sessoesSemana} />
+        <Kpi label="Valor médio por sessão" value={formatBRL(s.ticketMedio)} />
       </div>
 
-      {/* Tabela detalhada de sessões (90 dias) com filtros */}
-      <section>
-        <div className="sec-lbl" style={{ marginBottom: 10 }}>Sessões — últimos 90 dias</div>
-        <SessoesTable sessoes={tabela} />
-      </section>
+      {/* Bloco 5 — Histórico operacional (recolhido, sem dominar a página) */}
+      <details className="bloco-recolhivel">
+        <summary>
+          <span>Últimas sessões</span>
+          <span className="resumo">{tabela.length} nos últimos 90 dias</span>
+        </summary>
+        <div className="bloco-conteudo">
+          <SessoesTable sessoes={tabela} />
+        </div>
+      </details>
     </div>
   )
 }
