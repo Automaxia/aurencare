@@ -50,10 +50,13 @@ Qualquer dúvida, é só responder por aqui.`
           <input
             required
             value={telefone}
-            onChange={e => setTelefone(e.target.value.replace(/[^\d() -]/g, ''))}
-            placeholder="(11) 99999-9999"
+            onChange={e => setTelefone(e.target.value.replace(/[^\d()+\s-]/g, ''))}
+            placeholder="(11) 99999-9999 ou +1 555 123 4567"
             inputMode="tel"
           />
+          <span style={{ fontSize: 11, color: 'var(--faint)', lineHeight: 1.4 }}>
+            Fora do Brasil, comece com <strong>+</strong> e o código do país.
+          </span>
         </Field>
         <Field label="Email (opcional)">
           <input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="email@exemplo.com" />

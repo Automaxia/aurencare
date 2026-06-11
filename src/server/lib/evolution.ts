@@ -10,6 +10,8 @@ import { log } from './log'
 
 function toNumber(telefone: string): string {
   const digits = telefone.replace(/\D/g, '')
+  // Internacional (E.164 com '+'): usa o DDI como veio, sem assumir Brasil.
+  if (telefone.trim().startsWith('+')) return digits
   return digits.startsWith('55') ? digits : `55${digits}`
 }
 

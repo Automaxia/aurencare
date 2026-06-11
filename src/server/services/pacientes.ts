@@ -124,6 +124,17 @@ export type CriarPacienteInput = {
  *  de aceite. Se removido, o link é anexado ao final (nunca se perde). */
 export const LINK_TOKEN = '[link de termos]'
 
+/**
+ * Normaliza o telefone preservando números internacionais. Com `+` (ex: +1, +351),
+ * mantém o prefixo — o envio WhatsApp usa o DDI como veio, sem assumir Brasil.
+ * Sem `+`, guarda só os dígitos (DDD + número) e o DDI 55 é aplicado no envio.
+ */
+export function normalizarTelefone(raw: string): string {
+  const internacional = raw.trim().startsWith('+')
+  const digits = raw.replace(/\D/g, '')
+  return internacional ? `+${digits}` : digits
+}
+
 function aplicarLinkBoasVindas(mensagem: string, link: string): string {
   const m = mensagem.trim()
   if (m.includes(LINK_TOKEN)) return m.split(LINK_TOKEN).join(link)
@@ -136,7 +147,7 @@ export async function criarPaciente(input: CriarPacienteInput): Promise<Paciente
     `INSERT INTO pacientes (psicologo_id, nome, telefone, email, consentimento_token)
      VALUES ($1, $2, $3, $4, $5)
      RETURNING *`,
-    [input.psicologoId, input.nome.trim(), input.telefone.replace(/\D/g, ''), input.email?.trim() || null, token],
+    [input.psicologoId, input.nome.trim(), normalizarTelefone(input.telefone), input.email?.trim() || null, token],
   )
   const paciente = rowToPaciente(rows[0])
 
