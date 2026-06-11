@@ -81,7 +81,7 @@ export function ListaEsperaForm() {
         <textarea
           value={mensagem} onChange={e => setMensagem(e.target.value)}
           rows={2}
-          placeholder="Ex: estou procurando uma forma de organizar pagamentos e WhatsApp em um só lugar."
+          placeholder="Ex: quero acompanhar melhor a continuidade dos meus processos terapêuticos."
         />
       </Field>
 
@@ -90,11 +90,11 @@ export function ListaEsperaForm() {
       )}
 
       <button type="submit" className="fb" disabled={enviando}>
-        {enviando ? 'Enviando…' : 'Entrar na lista de espera →'}
+        {enviando ? 'Enviando…' : 'Solicitar acesso antecipado →'}
       </button>
 
       <p style={{ fontSize: 11, color: 'var(--faint)', textAlign: 'center', lineHeight: 1.55, marginTop: 4 }}>
-        Sem spam. Só o aviso quando seu acesso abrir.
+        Beta por convite · sem mensalidade durante o beta · avisamos quando seu acesso abrir.
       </p>
 
       <style jsx>{`

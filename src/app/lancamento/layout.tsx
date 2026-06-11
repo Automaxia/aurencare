@@ -1,9 +1,9 @@
 import type { Metadata } from 'next'
 
 export const metadata: Metadata = {
-  title: 'Audere — Sistema Operacional da Prática Clínica',
+  title: 'Audere — A primeira plataforma de Continuidade Terapêutica do Brasil',
   description:
-    'Audere: agenda, pagamentos, sala de vídeo e transcrição — tudo conectado, com a Audere, sua assistente de clínica com memória. Para psicólogos clínicos privados. A Audere organiza e observa; a decisão clínica é sempre sua.',
+    'A Audere organiza, acompanha e conecta tudo o que acontece entre uma sessão e outra — memória clínica longitudinal, objetivos terapêuticos e evolução registrada. Para psicólogos que acompanham processos ao longo do tempo. A Audere observa; a decisão clínica é sempre sua.',
 }
 
 /**

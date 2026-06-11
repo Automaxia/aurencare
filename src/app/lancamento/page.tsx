@@ -8,13 +8,19 @@ export default function LancamentoPage() {
     <div style={{ background: 'var(--page)', color: 'var(--ink)', overflowX: 'clip' }}>
       <NavTopo />
       <Hero />
-      {/* Lidera com o diferenciador (memória/continuidade), depois a sessão e a
-          operação. Ética e privacidade ficam pro fim — pra quem já se interessou. */}
-      <Continuidade />
+      {/* Narrativa de categoria: problema → o que é continuidade → o que a Audere
+          lembra → grafo (protagonista) → objetivos/evolução → sessão (menor) →
+          infraestrutura → privacidade → manifesto → prova social → acesso. */}
+      <Problema />
+      <OQueEContinuidade />
+      <LembraPorVoce />
+      <ContinuidadeLongitudinal />
+      <AcompanheEvolucao />
       <ModoPresenca />
       <PraticaIntegrada />
       <Privacidade />
       <Manifesto />
+      <ProvaSocial />
       <CtaFinal />
       <FooterLanding />
       <Styles />
@@ -38,50 +44,20 @@ function NavTopo() {
         <a href="/lancamento" style={{ display: 'flex', textDecoration: 'none' }}>
           <Logo size={32} />
         </a>
-        <nav style={{ display: 'flex', gap: 22, fontSize: 13 }}>
+        <nav style={{ display: 'flex', gap: 20, fontSize: 13 }}>
           <a href="#continuidade" className="lp-link">Continuidade</a>
-          <a href="#presenca"     className="lp-link">Sessão</a>
-          <a href="#gestao"       className="lp-link">Gestão</a>
+          <a href="#observar"     className="lp-link">O que ela lembra</a>
+          <a href="#sessao"       className="lp-link">Sessão</a>
           <a href="#privacidade"  className="lp-link">Privacidade</a>
-          <a href="#lista"        className="lp-link" style={{ color: 'var(--accent)' }}>Lista de espera</a>
+          <a href="#acesso"       className="lp-link" style={{ color: 'var(--accent)' }}>Acesso antecipado</a>
         </nav>
       </div>
     </header>
   )
 }
 
-// ─── Atmosfera orgânica (blobs suaves nas cores da marca) ───────────────
+// ─── Croqui (figura solta de /public/landing/) ─────────────────────────
 
-function OrganicBlobs() {
-  const blobs: { pos: React.CSSProperties; size: number; cor: string }[] = [
-    { pos: { top: '-12%', left: '-8%' },  size: 380, cor: 'rgba(106,78,200,.16)' }, // accent
-    { pos: { top: '8%',  right: '-10%' }, size: 440, cor: 'rgba(90,158,138,.15)' }, // sage
-    { pos: { bottom: '-18%', left: '20%' }, size: 320, cor: 'rgba(176,125,64,.11)' }, // amber
-    { pos: { top: '46%', left: '42%' },   size: 280, cor: 'rgba(196,96,122,.09)' }, // rose
-  ]
-  return (
-    <div aria-hidden style={{ position: 'absolute', inset: 0, overflow: 'hidden', pointerEvents: 'none', zIndex: 0 }}>
-      {blobs.map((b, i) => (
-        <div key={i} style={{
-          position: 'absolute', ...b.pos,
-          width: b.size, height: b.size, borderRadius: '50%',
-          background: `radial-gradient(circle at 32% 30%, ${b.cor}, transparent 70%)`,
-          filter: 'blur(26px)',
-        }} />
-      ))}
-    </div>
-  )
-}
-
-// ─── Croqui (estilo estilista de moda) — figura alongada, traço solto ──
-
-/**
- * Slot de ilustração — renderiza um sketch de `/public/landing/` via
- * background-image. Os PNGs têm fundo creme (não transparente), então usamos
- * `mix-blend-mode: multiply`: o fundo claro se funde com a seção e só o traço
- * aparece — integra sobre qualquer fundo sem mostrar retângulo. Sem o arquivo,
- * fica invisível (não quebra o layout).
- */
 function Figura({ src, style, opacity = 1 }: {
   src: string; style?: React.CSSProperties; opacity?: number
 }) {
@@ -96,7 +72,7 @@ function Figura({ src, style, opacity = 1 }: {
   )
 }
 
-// ─── Hero ──────────────────────────────────────────────────────────────
+// ─── Hero — posicionamento de categoria ────────────────────────────────
 
 function Hero() {
   return (
@@ -107,42 +83,48 @@ function Hero() {
       backgroundImage: 'url(/landing/conversa.png)',
       backgroundSize: 'cover', backgroundPosition: 'center', backgroundRepeat: 'no-repeat',
     }}>
-      {/* Véu radial: clareia o centro (legibilidade do texto) e mantém as
-          figuras visíveis nas laterais. */}
       <div aria-hidden style={{
         position: 'absolute', inset: 0, zIndex: 0, pointerEvents: 'none',
-        background: 'radial-gradient(ellipse 60% 66% at 50% 48%, rgba(249,248,245,.92) 0%, rgba(249,248,245,.62) 40%, rgba(249,248,245,0) 72%)',
+        background: 'radial-gradient(ellipse 62% 68% at 50% 48%, rgba(249,248,245,.93) 0%, rgba(249,248,245,.64) 40%, rgba(249,248,245,0) 73%)',
       }} />
-      <div className="lp-wrap" style={{ display: 'grid', gridTemplateColumns: '1fr', gap: 28, textAlign: 'center', maxWidth: 820, position: 'relative', zIndex: 1 }}>
+      <div className="lp-wrap" style={{ display: 'grid', gridTemplateColumns: '1fr', gap: 26, textAlign: 'center', maxWidth: 860, position: 'relative', zIndex: 1 }}>
+        <div style={{
+          fontSize: 12, color: 'var(--accent)', textTransform: 'uppercase',
+          letterSpacing: '.16em', fontWeight: 600,
+        }}>
+          Continuidade Terapêutica
+        </div>
+
         <h1 style={{
           fontFamily: 'var(--font-display)', fontSize: 56, fontWeight: 300,
-          color: '#291860', lineHeight: 1.08, letterSpacing: '-.01em',
-          margin: '8px 0',
+          color: '#291860', lineHeight: 1.08, letterSpacing: '-.015em',
+          margin: '4px 0',
         }}>
-          Sua assistente de clínica com{' '}
+          A primeira plataforma de{' '}
           <em style={{
             fontStyle: 'italic',
             background: 'linear-gradient(90deg, #6a4ec8, #5c9d88)',
             WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent',
             backgroundClip: 'text',
-          }}>memória.</em>
+          }}>Continuidade Terapêutica</em>{' '}
+          do Brasil.
         </h1>
 
         <p style={{
           fontSize: 18, color: 'var(--ink-soft)', lineHeight: 1.55,
-          maxWidth: 640, margin: '0 auto',
+          maxWidth: 660, margin: '0 auto',
         }}>
-          Agenda, pagamentos, sala de vídeo e transcrição — todos integrados. E um
-          mapa vivo do processo terapêutico que cresce sessão a sessão.{' '}
-          <strong>A Audere organiza, observa e sugere — a decisão clínica é sempre sua.</strong>
+          A Audere organiza, acompanha e conecta tudo o que acontece entre uma
+          sessão e outra — para que você <strong>nunca precise reconstruir sozinho a
+          história de um paciente.</strong>
         </p>
 
-        <div style={{ display: 'flex', justifyContent: 'center', gap: 12, marginTop: 6 }}>
-          <a href="#lista" className="lp-btn-primary">
-            Entrar na lista de espera →
+        <div style={{ display: 'flex', justifyContent: 'center', gap: 12, marginTop: 6, flexWrap: 'wrap' }}>
+          <a href="#acesso" className="lp-btn-primary">
+            Solicitar acesso antecipado →
           </a>
-          <a href="#continuidade" className="lp-btn-ghost">
-            Como funciona
+          <a href="#observar" className="lp-btn-ghost">
+            O que a Audere lembra por você
           </a>
         </div>
 
@@ -154,9 +136,128 @@ function Hero() {
   )
 }
 
-// ─── Continuidade longitudinal (1ª seção de produto · o diferenciador) ──
+// ─── Bloco 1 — O problema ──────────────────────────────────────────────
 
-function Continuidade() {
+function Problema() {
+  const linhas = [
+    'Depois de dezenas de sessões, é natural esquecer detalhes importantes.',
+    'Temas reaparecem. Padrões se repetem. Objetivos evoluem.',
+    'Anotações se acumulam — e parte da história acaba ficando dispersa.',
+  ]
+  return (
+    <section style={{ padding: '80px 0', borderTop: '1px solid var(--border)' }}>
+      <div className="lp-wrap" style={{ maxWidth: 760 }}>
+        <Eyebrow>O problema</Eyebrow>
+        <H2>A terapia acontece ao longo do tempo.<br />A memória humana não.</H2>
+        <div style={{ display: 'grid', gap: 12, marginTop: 22 }}>
+          {linhas.map((l, i) => (
+            <p key={i} style={{ fontSize: 17, color: 'var(--ink-soft)', lineHeight: 1.6, margin: 0 }}>{l}</p>
+          ))}
+        </div>
+        <p style={{
+          fontFamily: 'var(--font-display)', fontSize: 22, fontWeight: 300, fontStyle: 'italic',
+          color: '#291860', lineHeight: 1.4, margin: '26px 0 0',
+        }}>
+          A Audere foi criada para resolver exatamente isso.
+        </p>
+      </div>
+    </section>
+  )
+}
+
+// ─── Bloco 2 — O que é Continuidade Terapêutica (a cadeia) ─────────────
+
+function OQueEContinuidade() {
+  const etapas = ['Sessões', 'Temas', 'Objetivos', 'Evolução', 'Memória Clínica']
+  return (
+    <section style={{
+      padding: '80px 0',
+      background: 'var(--surface)',
+      borderTop: '1px solid var(--border)',
+    }}>
+      <div className="lp-wrap">
+        <Eyebrow>O que a Audere faz é diferente</Eyebrow>
+        <H2>A maioria dos sistemas organiza agenda.<br />A Audere organiza continuidade.</H2>
+        <P>
+          Ela conecta tudo o que acontece ao longo do processo numa única linha do
+          tempo terapêutica — em vez de deixar cada peça num lugar diferente.
+        </P>
+
+        <div className="lp-chain" style={{ marginTop: 40 }}>
+          {etapas.map((e, i) => (
+            <span key={e} style={{ display: 'contents' }}>
+              <span className="lp-chain-pill">{e}</span>
+              {i < etapas.length - 1 && <span className="lp-chain-arrow" aria-hidden>→</span>}
+            </span>
+          ))}
+        </div>
+
+        <p style={{ textAlign: 'center', fontSize: 14, color: 'var(--muted)', marginTop: 22 }}>
+          Tudo dentro de uma única linha do tempo terapêutica.
+        </p>
+      </div>
+    </section>
+  )
+}
+
+// ─── Bloco 3 — O que a Audere lembra por você ──────────────────────────
+
+function LembraPorVoce() {
+  const obs = [
+    'Cobrança apareceu em 8 sessões.',
+    'Ansiedade costuma surgir associada ao trabalho.',
+    'O objetivo de autoestima evoluiu 60%.',
+    'Paciente mencionou a mãe em 12 sessões.',
+    'O tema sono desapareceu nas últimas 5 sessões.',
+  ]
+  return (
+    <section id="observar" style={{
+      padding: '80px 0', borderTop: '1px solid var(--border)',
+      position: 'relative', overflow: 'hidden',
+    }}>
+      <div className="lp-wrap">
+        <Eyebrow>Memória clínica longitudinal</Eyebrow>
+        <H2>O que a Audere lembra por você.</H2>
+        <P>
+          Observações factuais que emergem do próprio histórico — disponíveis num
+          olhar, antes da sessão começar.
+        </P>
+
+        <div className="lp-grid-3" style={{ marginTop: 36 }}>
+          {obs.map((o, i) => (
+            <div key={i} style={{
+              padding: 24, borderRadius: 14,
+              background: 'var(--card)', border: '1px solid var(--border)',
+              display: 'flex', alignItems: 'flex-start', gap: 12,
+            }}>
+              <span style={{ color: 'var(--accent)', fontSize: 18, lineHeight: 1, marginTop: 2, flexShrink: 0 }}>◍</span>
+              <p style={{
+                fontFamily: 'var(--font-display)', fontSize: 18, fontWeight: 400,
+                color: 'var(--ink)', lineHeight: 1.4, margin: 0,
+              }}>
+                &ldquo;{o}&rdquo;
+              </p>
+            </div>
+          ))}
+          <div style={{
+            padding: 24, borderRadius: 14,
+            background: 'linear-gradient(135deg, rgba(106,78,200,.07), rgba(90,158,138,.07))',
+            border: '1px solid var(--border)', display: 'flex', alignItems: 'center',
+          }}>
+            <p style={{ fontSize: 14, color: 'var(--ink-soft)', lineHeight: 1.6, margin: 0 }}>
+              A Audere <strong>não interpreta</strong>. Apenas ajuda você a observar — frequência,
+              padrão, co-ocorrência. A leitura clínica é sempre sua.
+            </p>
+          </div>
+        </div>
+      </div>
+    </section>
+  )
+}
+
+// ─── Bloco 4 — Continuidade longitudinal (grafo · protagonista) ────────
+
+function ContinuidadeLongitudinal() {
   return (
     <section id="continuidade" style={{
       padding: '80px 0',
@@ -167,31 +268,13 @@ function Continuidade() {
       <Figura src="/landing/figura-1.png" opacity={0.6}
         style={{ left: '-2%', bottom: '-4%', width: 'min(300px, 30%)', height: '78%', zIndex: 0 }} />
       <div className="lp-wrap" style={{ position: 'relative', zIndex: 1 }}>
-        <Eyebrow>Entre uma sessão e outra</Eyebrow>
-        <H2>Continuidade longitudinal.</H2>
+        <Eyebrow>O diferencial competitivo</Eyebrow>
+        <H2>Sessões viram conhecimento estruturado.</H2>
         <P>
-          Em vez de relembrar à mão o que aconteceu três semanas atrás, a Audere
-          mantém um mapa vivo do processo clínico — pra você abrir antes da sessão e ver de onde
-          retomar.
+          Cada sessão alimenta um mapa vivo do processo. Temas Recorrentes mostram
+          o que se conecta com o quê ao longo do tempo — o caso inteiro num olhar,
+          não perdido em meses de anotação.
         </P>
-
-        <div className="lp-grid-3" style={{ marginTop: 36 }}>
-          <FeatCard
-            titulo="Temas Recorrentes"
-            corpo="Grafo de palavras-chave por cluster (emocional, relacional, situacional, cognitivo) construído a partir das transcrições. Co-ocorrências mostram quais temas aparecem juntos ao longo do processo."
-            tag="grafo"
-          />
-          <FeatCard
-            titulo="Objetivos SMART"
-            corpo="Cada objetivo terapêutico tem métrica, baseline, alvo e prazo. Suporta GAS (Goal Attainment Scaling) para metas subjetivas. Bullet chart mostra a posição atual em relação ao alvo."
-            tag="bullet chart"
-          />
-          <FeatCard
-            titulo="Evolução Registrada"
-            corpo="Painel longitudinal com humor, ritmo, frequência de presença e abertura ao longo do tempo. Marcos do processo extraídos automaticamente das sessões anteriores."
-            tag="histórico"
-          />
-        </div>
 
         <GrafoDemo />
       </div>
@@ -200,7 +283,6 @@ function Continuidade() {
 }
 
 function GrafoDemo() {
-  // Nós = temas (cor por cluster, raio por frequência). Coords em viewBox 340×220.
   const nodes = [
     { id: 'ansiedade',  x: 152, y: 112, r: 27, cor: '#6a4ec8' },
     { id: 'cobrança',   x: 256, y: 64,  r: 20, cor: '#b07d40' },
@@ -223,7 +305,6 @@ function GrafoDemo() {
       background: 'var(--card)', border: '1px solid var(--border)',
       display: 'flex', flexWrap: 'wrap', gap: 28, alignItems: 'center',
     }}>
-      {/* Grafo */}
       <div style={{ flex: '1 1 300px', minWidth: 280 }}>
         <div style={{
           fontSize: 10, color: 'var(--faint)', textTransform: 'uppercase',
@@ -244,7 +325,6 @@ function GrafoDemo() {
         </svg>
       </div>
 
-      {/* Valor pro psicólogo */}
       <div style={{ flex: '1 1 240px', minWidth: 220 }}>
         <p style={{ fontSize: 14, color: 'var(--ink-soft)', lineHeight: 1.6, margin: '0 0 14px' }}>
           Cada tema vira um <strong>nó</strong> — quanto mais aparece nas sessões, maior.
@@ -269,6 +349,36 @@ function ValorItem({ children }: { children: React.ReactNode }) {
   )
 }
 
+// ─── Bloco 5+6 — Objetivos + Evolução (acompanhar ao longo do tempo) ───
+
+function AcompanheEvolucao() {
+  return (
+    <section style={{
+      padding: '80px 0',
+      background: 'linear-gradient(180deg, var(--page), rgba(106,78,200,.04) 60%, var(--page))',
+      borderTop: '1px solid var(--border)',
+    }}>
+      <div className="lp-wrap">
+        <Eyebrow>Ao longo do tempo</Eyebrow>
+        <H2>Você finalmente acompanha a evolução —<br />não apenas registra sessões.</H2>
+
+        <div className="lp-grid-2" style={{ marginTop: 36 }}>
+          <FeatCard
+            tag="objetivos · SMART + GAS"
+            titulo="Objetivos Terapêuticos"
+            corpo="Cada objetivo tem métrica, baseline, alvo e prazo — com suporte a GAS (Goal Attainment Scaling) para metas subjetivas. O bullet chart mostra a posição atual em relação ao alvo, sessão após sessão. Acompanhar evolução, não só anotar a intenção."
+          />
+          <FeatCard
+            tag="evolução · longitudinal"
+            titulo="Evolução Registrada"
+            corpo="Um painel longitudinal acompanha humor, ritmo, presença e abertura ao longo do processo. Marcos são extraídos automaticamente das sessões anteriores. A Audere acompanha as mudanças — não apenas guarda o registro."
+          />
+        </div>
+      </div>
+    </section>
+  )
+}
+
 function FeatCard({ titulo, corpo, tag }: { titulo: string; corpo: string; tag: string }) {
   return (
     <div style={{
@@ -289,41 +399,38 @@ function FeatCard({ titulo, corpo, tag }: { titulo: string; corpo: string; tag: 
   )
 }
 
-// ─── Modo Presença (a sessão) ──────────────────────────────────────────
+// ─── Bloco 7 — Durante a sessão (reduzido) ─────────────────────────────
 
 function ModoPresenca() {
   return (
-    <section id="presenca" style={{
-      padding: '80px 0',
-      background: 'linear-gradient(180deg, var(--page), rgba(106,78,200,.04) 60%, var(--page))',
+    <section id="sessao" style={{
+      padding: '72px 0',
+      background: 'var(--surface)',
       borderTop: '1px solid var(--border)',
       position: 'relative', overflow: 'hidden',
     }}>
-      <Figura src="/landing/figura-2.png" opacity={0.6}
-        style={{ right: '-2%', top: '6%', width: 'min(300px, 30%)', height: '78%', zIndex: 0 }} />
       <div className="lp-wrap" style={{ position: 'relative', zIndex: 1 }}>
         <Eyebrow>Durante a sessão</Eyebrow>
-        <H2>A ferramenta que se ajusta<br />à sua prática — não o contrário.</H2>
+        <H2>E quando a sessão começa,<br />o contexto já está com você.</H2>
         <P>
-          Como um GPS que calcula a rota enquanto você dirige — as informações
-          estão disponíveis quando você quer, invisíveis quando não quer. Painéis
-          reposicionáveis, ou desligados por completo.
+          O registro acontece sozinho. Quando um tema reaparece, a Audere já sabe
+          quando surgiu antes. As informações ficam disponíveis quando você quer,
+          invisíveis quando não quer — painéis reposicionáveis, ou desligados.
         </P>
 
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 40, alignItems: 'start', marginTop: 36 }}>
           <PresencaMockup />
 
           <div style={{ display: 'grid', gap: 12 }}>
-            <NotaCard rotulo="Ritmo de fala — por que importa">
-              Estudos em psicoterapia mostram que, quando o paciente fala a maior
-              parte do tempo, costuma haver descoberta guiada — conclusões chegando
-              por caminhos próprios, vínculo sendo construído. Proporção invertida
-              por longos trechos merece atenção.
-            </NotaCard>
             <NotaCard rotulo="Temas ao vivo + histórico">
               Quando &ldquo;sumir&rdquo; aparece na sessão de hoje, a Audere já sabe
               que surgiu nas sessões 4 e 7. Você não precisa lembrar — está visível,
               com o contexto de quando e como apareceu antes.
+            </NotaCard>
+            <NotaCard rotulo="Ritmo de fala">
+              Quando o paciente fala a maior parte do tempo, costuma haver descoberta
+              guiada. Proporção invertida por longos trechos merece atenção — a Audere
+              mostra, você lê.
             </NotaCard>
             <NotaCard rotulo="Marcação manual">
               Um botão marca o instante com uma categoria — insight, avanço, ponto a
@@ -442,21 +549,21 @@ function RiscoMini() {
   )
 }
 
-// ─── Prática integrada (gestão) ────────────────────────────────────────
+// ─── Bloco 8 — Infraestrutura da prática (reposicionado pra baixo) ─────
 
 function PraticaIntegrada() {
   return (
     <section id="gestao" style={{
-      padding: '80px 0',
-      background: 'var(--surface)',
+      padding: '72px 0',
       borderTop: '1px solid var(--border)',
     }}>
       <div className="lp-wrap">
-        <Eyebrow>O outro lado da prática</Eyebrow>
-        <H2>Tudo que sustenta o consultório,<br />numa só interface.</H2>
+        <Eyebrow>Infraestrutura da prática</Eyebrow>
+        <H2>Operar o consultório já vem incluído.</H2>
         <P>
-          Sem alternar entre sistemas que não conversam entre si. Agenda,
-          pagamentos, WhatsApp e vídeo — no mesmo lugar onde a inteligência clínica vive.
+          Agenda, pagamentos, WhatsApp e vídeo estão integrados — não como o
+          diferencial, mas como a base que sustenta a prática. Tudo no mesmo lugar
+          onde a continuidade clínica vive.
         </P>
 
         <div className="lp-grid-2" style={{ marginTop: 36 }}>
@@ -468,7 +575,7 @@ function PraticaIntegrada() {
           <BlocoOperacional
             icone="◑"
             titulo="Pagamentos seguros"
-            corpo="PIX, crédito e débito em ambiente seguro — para as sessões que seus pacientes pagam e para o seu acesso ao Audere. O valor das sessões cai direto na sua conta."
+            corpo="PIX, crédito e débito em ambiente seguro. O valor das sessões cai direto na sua conta."
           />
           <BlocoOperacional
             icone="◐"
@@ -478,7 +585,7 @@ function PraticaIntegrada() {
           <BlocoOperacional
             icone="▶"
             titulo="Sala de vídeo embutida"
-            corpo="Atendimento online com termo CFP 11/2018. Link gerado por sessão, válido por 4h. Áudio processado — vídeo nunca gravado."
+            corpo="Atendimento online com termo CFP 11/2018. Link por sessão, válido por 4h. Áudio processado — vídeo nunca gravado."
           />
         </div>
       </div>
@@ -509,7 +616,7 @@ function BlocoOperacional({ icone, titulo, corpo }: { icone: string; titulo: str
   )
 }
 
-// ─── Privacidade e ética (penúltima · pra quem já se interessou) ────────
+// ─── Bloco 9 — Privacidade ─────────────────────────────────────────────
 
 function Privacidade() {
   return (
@@ -530,7 +637,6 @@ function Privacidade() {
         </P>
 
         <div className="lp-grid-2" style={{ marginTop: 36, alignItems: 'start' }}>
-          {/* Camadas técnicas */}
           <div style={{ padding: '6px 22px', borderRadius: 12, background: 'var(--card)', border: '1px solid var(--border)' }}>
             <ChkRow
               titulo="AES-256-GCM em repouso · TLS 1.3 em trânsito"
@@ -550,15 +656,14 @@ function Privacidade() {
             />
             <ChkRow
               titulo="Pagamentos com padrão bancário"
-              corpo="Processamento certificado PCI DSS Nível 1 — o mais alto padrão de segurança — com criptografia, antifraude, autenticação 3DS 2.0 e tokenização de cartão. Em conformidade com o Banco Central."
+              corpo="Processamento certificado PCI DSS Nível 1 — com criptografia, antifraude, autenticação 3DS 2.0 e tokenização de cartão. Em conformidade com o Banco Central."
             />
             <ChkRow
               titulo="Audere não toca seu dinheiro"
-              corpo="O que seus pacientes pagam cai direto na sua conta, por processamento de pagamento certificado e independente do Audere. Um problema no Audere não afeta o seu recebimento."
+              corpo="O que seus pacientes pagam cai direto na sua conta, por processamento de pagamento certificado e independente do Audere."
             />
           </div>
 
-          {/* Ética da IA — dissolvida aqui, no fim, em vez de no topo */}
           <div style={{ display: 'grid', gap: 12 }}>
             <NotaCard rotulo="A Audere observa · você decide">
               Toda sugestão usa linguagem observacional — frequência, padrão,
@@ -592,34 +697,63 @@ function ChkRow({ titulo, corpo }: { titulo: string; corpo: string }) {
   )
 }
 
-// ─── Manifesto (fechamento emocional, compacto, antes do form) ─────────
+// ─── Bloco 10 — Manifesto (seção visual própria) ───────────────────────
 
 function Manifesto() {
   const linhas = [
     'A Audere age muito, aparece pouco.',
-    'Presente, não gravando.',
-    'Frequência e observação, nunca diagnóstico.',
+    'Observação. Nunca diagnóstico.',
     'Rascunho até você assinar.',
-    'Você é a(o) psicóloga(o). Audere é seu sistema.',
+    'Você decide. A tecnologia apoia.',
+    'O cuidado continua humano.',
   ]
   return (
     <section style={{
-      padding: '64px 0',
-      background: 'linear-gradient(135deg, rgba(106,78,200,.06), rgba(90,158,138,.06))',
+      padding: '88px 0',
+      background: 'linear-gradient(135deg, rgba(106,78,200,.08), rgba(90,158,138,.08))',
       borderTop: '1px solid var(--border)',
     }}>
-      <div className="lp-wrap" style={{ maxWidth: 720, textAlign: 'center' }}>
-        <Eyebrow>Manifesto · resumo em cinco linhas</Eyebrow>
-        <div style={{ display: 'grid', gap: 14, marginTop: 24 }}>
+      <div className="lp-wrap" style={{ maxWidth: 760, textAlign: 'center' }}>
+        <Eyebrow>Manifesto Audere</Eyebrow>
+        <div style={{ display: 'grid', gap: 16, marginTop: 26 }}>
           {linhas.map((l, i) => (
             <p key={i} style={{
-              fontFamily: 'var(--font-display)', fontSize: 23, fontWeight: 300,
+              fontFamily: 'var(--font-display)', fontSize: 26, fontWeight: 300,
               fontStyle: 'italic',
               color: i === linhas.length - 1 ? '#291860' : 'var(--ink-soft)',
-              lineHeight: 1.35, margin: 0, letterSpacing: '-.01em',
+              lineHeight: 1.32, margin: 0, letterSpacing: '-.01em',
             }}>
               {l}
             </p>
+          ))}
+        </div>
+      </div>
+    </section>
+  )
+}
+
+// ─── Bloco 11 — Prova social (sem números inventados) ──────────────────
+
+function ProvaSocial() {
+  const itens = [
+    { t: 'Desenvolvido junto a psicólogos brasileiros', c: 'Cada decisão de produto nasce da prática clínica real — não de um genérico de software.' },
+    { t: 'Construído sobre CFP 09/2024, CFP 11/2018 e LGPD', c: 'Ética e privacidade são a fundação, não um adendo. Linguagem observacional, nunca diagnóstica.' },
+    { t: 'Beta por convite, acompanhado de perto', c: 'Abrimos acesso em ondas pequenas para acompanhar cada conta na fase inicial.' },
+  ]
+  return (
+    <section style={{ padding: '72px 0', borderTop: '1px solid var(--border)' }}>
+      <div className="lp-wrap">
+        <Eyebrow>Por que confiar</Eyebrow>
+        <H2>Feito com psicólogos, para psicólogos.</H2>
+        <div className="lp-grid-3" style={{ marginTop: 32 }}>
+          {itens.map((it, i) => (
+            <div key={i} style={{
+              padding: 24, borderRadius: 14,
+              background: 'var(--card)', border: '1px solid var(--border)',
+            }}>
+              <div style={{ fontSize: 15, fontWeight: 500, color: 'var(--ink)', lineHeight: 1.35, marginBottom: 8 }}>{it.t}</div>
+              <p style={{ fontSize: 13, color: 'var(--ink-soft)', lineHeight: 1.6, margin: 0 }}>{it.c}</p>
+            </div>
           ))}
         </div>
       </div>
@@ -631,11 +765,14 @@ function Manifesto() {
 
 function CtaFinal() {
   return (
-    <section id="lista" style={{ padding: '80px 0', borderTop: '1px solid var(--border)' }}>
+    <section id="acesso" style={{
+      padding: '80px 0', borderTop: '1px solid var(--border)',
+      background: 'var(--surface)',
+    }}>
       <div className="lp-wrap" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 60, alignItems: 'center' }}>
         <div>
           <Eyebrow>Acesso antecipado</Eyebrow>
-          <H2>Entre na lista de espera.</H2>
+          <H2>Participe do programa beta.</H2>
           <P>
             Estamos abrindo acesso por convite, em ondas pequenas, pra acompanhar
             cada conta de perto durante a fase inicial. Deixe seu email — avisamos
@@ -670,8 +807,8 @@ function FooterLanding() {
       <div className="lp-wrap" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 24, alignItems: 'flex-start' }}>
         <div>
           <Logo size={28} />
-          <p style={{ fontSize: 12, color: 'var(--muted)', marginTop: 12, lineHeight: 1.55, maxWidth: 320 }}>
-            Sistema operacional da prática clínica.
+          <p style={{ fontSize: 12, color: 'var(--muted)', marginTop: 12, lineHeight: 1.55, maxWidth: 340 }}>
+            A primeira plataforma de Continuidade Terapêutica do Brasil.
           </p>
         </div>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 6, fontSize: 12, color: 'var(--muted)', alignItems: 'flex-end' }}>
@@ -748,15 +885,27 @@ function Styles() {
       .lp-grid-2 { display: grid; gap: 18px; grid-template-columns: 1fr 1fr; }
       .lp-grid-3 { display: grid; gap: 18px; grid-template-columns: repeat(3, 1fr); }
 
+      /* Cadeia da continuidade — pills + setas */
+      .lp-chain {
+        display: flex; flex-wrap: wrap; align-items: center; justify-content: center;
+        gap: 10px 8px;
+      }
+      .lp-chain-pill {
+        padding: 11px 20px; border-radius: 999px;
+        background: var(--card); border: 1px solid var(--border);
+        font-family: var(--font-display), serif; font-size: 17px; color: #291860;
+        white-space: nowrap;
+      }
+      .lp-chain-arrow { color: var(--accent); font-size: 18px; }
+
       @media (max-width: 900px) {
-        /* Colapsa qualquer grid de 2 colunas no mobile. Usa substring "1fr 1fr"
-           (sem depender do espaço após ':', que o React não serializa) e cobre
-           tanto o .lp-wrap-grid quanto grids aninhados. */
         .lp-wrap[style*="1fr 1fr"],
         .lp-wrap [style*="1fr 1fr"] { grid-template-columns: 1fr !important; }
         .lp-grid-2, .lp-grid-3 { grid-template-columns: 1fr; }
         h1 { font-size: 38px !important; }
         h2 { font-size: 30px !important; }
+        .lp-chain { flex-direction: column; }
+        .lp-chain-arrow { transform: rotate(90deg); }
       }
     ` }} />
   )
