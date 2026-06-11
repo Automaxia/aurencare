@@ -75,7 +75,7 @@ export async function obterCockpitProduto(): Promise<CockpitProduto> {
         (SELECT count(DISTINCT psicologo_id) FROM pacientes)                                     AS com_pacientes,
         (SELECT count(DISTINCT psicologo_id) FROM sessoes WHERE status = 'concluida')            AS com_sessao,
         (SELECT count(DISTINCT psicologo_id) FROM sessoes WHERE assinada = TRUE)                 AS com_evolucao,
-        (SELECT count(DISTINCT psicologo_id) FROM objetivos)                                     AS com_objetivos,
+        (SELECT count(DISTINCT pa.psicologo_id) FROM objetivos o JOIN pacientes pa ON pa.id = o.paciente_id) AS com_objetivos,
         (SELECT count(DISTINCT psicologo_id) FROM prontuarios_ia)                                AS com_memoria,
         (SELECT count(*) FROM psicologos p
             WHERE EXISTS (SELECT 1 FROM pacientes pa WHERE pa.psicologo_id = p.id)
