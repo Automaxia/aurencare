@@ -37,7 +37,7 @@ export function ObjetivosView({ pacienteId, initial, valoresIniciais, observacoe
     if (upd) upsert(upd)
   }
   async function remover(o: Objetivo) {
-    if (!confirm(`Remover objetivo "${o.titulo}"?`)) return
+    // Confirmação é feita inline no card (sim/não).
     await deletarObjetivoAction(o.id)
     setObjs(prev => prev.filter(x => x.id !== o.id))
   }
@@ -147,6 +147,7 @@ function ObjetivoCard({ o, valores, observacao, gas, onStatus, onDelete, onUpser
   const [expandido, setExpandido] = useState(false)
   const [evolucao, setEvolucao] = useState<EvolucaoObjetivo | null>(null)
   const [carregando, setCarregando] = useState(false)
+  const [confirma, setConfirma] = useState<{ texto: string; perigo?: boolean; run: () => void } | null>(null)
 
   async function carregar() {
     if (evolucao) return
@@ -206,12 +207,28 @@ function ObjetivoCard({ o, valores, observacao, gas, onStatus, onDelete, onUpser
           <span style={{ padding: '3px 9px', borderRadius: 999, background: meta.bg, color: meta.cor, fontSize: 11, fontWeight: 500, whiteSpace: 'nowrap' }}>
             {meta.emoji} {meta.label}
           </span>
-          <div style={{ display: 'flex', gap: 4 }}>
-            {o.status !== 'concluido' && <button className="btn ghost" onClick={() => onStatus(o, 'concluido')}>Concluir</button>}
-            {o.status === 'ativo' && <button className="btn ghost" onClick={() => onStatus(o, 'pausado')}>Pausar</button>}
-            {o.status !== 'ativo' && <button className="btn ghost" onClick={() => onStatus(o, 'ativo')}>Reativar</button>}
-            <button className="btn ghost" onClick={() => onDelete(o)} title="Remover">×</button>
-          </div>
+          {confirma ? (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+              <span style={{ fontSize: 11.5, color: confirma.perigo ? 'var(--rose)' : 'var(--ink-soft)', fontWeight: 500 }}>{confirma.texto}</span>
+              <div style={{ display: 'flex', gap: 5 }}>
+                <button style={acaoBtn('var(--muted)')} onClick={() => setConfirma(null)}>Não</button>
+                <button style={acaoBtn(confirma.perigo ? 'var(--rose)' : 'var(--sage)', true)} onClick={() => { confirma.run(); setConfirma(null) }}>Sim</button>
+              </div>
+            </div>
+          ) : (
+            <div style={{ display: 'flex', gap: 5 }}>
+              {o.status !== 'concluido' && (
+                <button style={acaoBtn('var(--sage)')} onClick={() => setConfirma({ texto: 'Concluir esta meta?', run: () => onStatus(o, 'concluido') })}>✓ Concluir</button>
+              )}
+              {o.status === 'ativo' && (
+                <button style={acaoBtn('var(--amber)')} onClick={() => setConfirma({ texto: 'Pausar esta meta?', run: () => onStatus(o, 'pausado') })}>Pausar</button>
+              )}
+              {o.status !== 'ativo' && (
+                <button style={acaoBtn('var(--accent)')} onClick={() => setConfirma({ texto: 'Reativar esta meta?', run: () => onStatus(o, 'ativo') })}>Reativar</button>
+              )}
+              <button style={acaoBtn('var(--rose)')} title="Remover" onClick={() => setConfirma({ texto: 'Remover esta meta? Não dá pra desfazer.', perigo: true, run: () => onDelete(o) })}>✕</button>
+            </div>
+          )}
         </div>
       </div>
 
@@ -294,6 +311,18 @@ function estimarAtualPorProgresso(o: Objetivo): number | null {
  */
 function deltaNaDirecao(anterior: number, atual: number, dir: 'aumentar' | 'diminuir'): number {
   return dir === 'aumentar' ? (atual - anterior) : (anterior - atual)
+}
+
+/** Botão de ação do card — mais destaque que o ghost: borda + leve preenchimento
+ *  na cor. `solido` = preenchimento mais forte (usado no "Sim" da confirmação). */
+function acaoBtn(cor: string, solido = false): React.CSSProperties {
+  return {
+    fontSize: 11.5, fontWeight: 600, padding: '5px 11px', borderRadius: 7,
+    border: `1px solid color-mix(in srgb, ${cor} 38%, transparent)`,
+    background: `color-mix(in srgb, ${cor} ${solido ? 18 : 9}%, transparent)`,
+    color: cor, cursor: 'pointer', whiteSpace: 'nowrap', lineHeight: 1.2,
+    fontFamily: 'inherit',
+  }
 }
 
 // ─── Painel de evolução ───────────────────────────────────────────────
