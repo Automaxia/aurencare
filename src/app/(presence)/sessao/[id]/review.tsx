@@ -175,7 +175,7 @@ export function SessionReview({ sessao }: { sessao: Sessao }) {
         <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
           <div className="card">
             <div className="widget-title">Indicadores</div>
-            <Row label="Pagamento" value={sessao.pagamentoStatus === 'isento' ? 'sessão sem cobrança' : sessao.pagamentoStatus} />
+            <Row label="Pagamento" value={String(sessao.pagamentoStatus) === 'isento' ? 'sessão sem cobrança' : sessao.pagamentoStatus} />
             {sessao.pagamentoMetodo && <Row label="Método" value={sessao.pagamentoMetodo} />}
             <Row label="Duração" value={`${sessao.duracaoMin} min`} />
             <Row label="Modalidade" value={sessao.modalidade} />
