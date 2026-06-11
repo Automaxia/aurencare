@@ -58,7 +58,11 @@ export function CadastroForm() {
         <input required value={nome} onChange={e => setNome(e.target.value)} autoComplete="name" placeholder="Ex: Ana Pereira" />
       </Field>
 
-      <Field label="CRP" error={campoErro === 'crp' ? error : undefined}>
+      <Field
+        label="CRP"
+        hint="Seu registro profissional — validamos o acesso exclusivo para psicólogos."
+        error={campoErro === 'crp' ? error : undefined}
+      >
         <input required value={crp} onChange={e => setCrp(e.target.value)} placeholder="CRP 06/12345" />
       </Field>
 
@@ -67,8 +71,8 @@ export function CadastroForm() {
       </Field>
 
       <Field
-        label="Telefone WhatsApp"
-        hint="O número que receberá as mensagens de pacientes. Pode ser igual ao do seu celular pessoal."
+        label="WhatsApp profissional"
+        hint="Receberá mensagens, lembretes e comunicações da sua prática. Pode ser o mesmo número do celular pessoal."
         error={campoErro === 'telefone' ? error : undefined}
       >
         <input
@@ -89,16 +93,19 @@ export function CadastroForm() {
           style={{ marginTop: 3 }}
         />
         <span>
-          Concordo com o uso da plataforma para apoio à minha prática.
-          Os dados das sessões ficam <strong>criptografados</strong>, sob minha responsabilidade clínica,
-          e <strong>não são usados para treinar IA</strong>. CFP 09/2024.
+          Estou ciente de que os dados permanecem <strong>criptografados</strong>, sob minha
+          responsabilidade clínica, e <strong>não são utilizados para treinamento de modelos de IA</strong>.
         </span>
       </label>
+      <a href="/lancamento#privacidade" target="_blank" rel="noreferrer"
+        style={{ fontSize: 11.5, color: 'var(--accent)', marginTop: -4, marginLeft: 24, textDecoration: 'none' }}>
+        Ver detalhes de privacidade →
+      </a>
 
       {error && !campoErro && <div style={{ color: 'var(--rose)', fontSize: 12 }}>{error}</div>}
 
       <button type="submit" className="btn primary" disabled={loading} style={{ justifyContent: 'center', marginTop: 6 }}>
-        {loading ? 'Criando sua conta…' : 'Criar conta'}
+        {loading ? 'Criando sua conta…' : 'Criar minha conta'}
       </button>
     </form>
   )
