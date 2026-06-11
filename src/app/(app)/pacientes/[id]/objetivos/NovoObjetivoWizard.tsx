@@ -79,10 +79,13 @@ export function NovoObjetivoWizard({ pacienteId, tituloInicial, onCriado, onCanc
   }
 
   function aplicarSugestao(s: SmartSugestao) {
-    setTipo(s.metricaTipo)
+    // Copiloto sugere 'gas' p/ metas subjetivas → vira 'nenhuma' (descritiva);
+    // o GAS é configurado depois, na tela da meta.
+    const tipoAplicado: MetricaTipo = s.metricaTipo === 'absoluta' ? 'absoluta' : 'nenhuma'
+    setTipo(tipoAplicado)
     setTitulo(s.titulo)
     setDescricao(s.relevancia)
-    if (s.metricaTipo === 'absoluta') {
+    if (tipoAplicado === 'absoluta') {
       setUnidade(s.unidade ?? '')
       setBaseline(s.baseline != null ? String(s.baseline) : '')
       setAlvo(s.alvo != null ? String(s.alvo) : '')
@@ -98,9 +101,10 @@ export function NovoObjetivoWizard({ pacienteId, tituloInicial, onCriado, onCanc
   }
 
   // Passos a percorrer (varia conforme tipo)
-  const sequencia: Step[] = tipo === 'gas'
-    ? ['tipo', 's', 'r', 'a', 't', 'revisao']
-    : ['tipo', 's', 'r', 'm', 'a', 't', 'revisao']
+  // 'm' (mensurável numérico) só entra quando a meta tem métrica numérica (absoluta).
+  const sequencia: Step[] = tipo === 'absoluta'
+    ? ['tipo', 's', 'r', 'm', 'a', 't', 'revisao']
+    : ['tipo', 's', 'r', 'a', 't', 'revisao']
   const idx       = sequencia.indexOf(step)
   const primeiro  = idx === 0
   const ultimo    = step === 'revisao'
@@ -396,19 +400,19 @@ function HeaderPasso({ letra, titulo, sub }: { letra: string; titulo: string; su
 function PassoTipo({ tipo, onChange }: { tipo: MetricaTipo; onChange: (t: MetricaTipo) => void }) {
   return (
     <div style={{ display: 'grid', gap: 14 }}>
-      <HeaderPasso letra="·" titulo="Como vamos medir esse objetivo?" sub="O modo de medição muda o que você preenche nos próximos passos." />
+      <HeaderPasso letra="·" titulo="Como vamos medir esta meta?" sub="A métrica numérica é opcional. Metas subjetivas podem ser acompanhadas por escalas GAS na tela da meta, depois de criada." />
       <div style={{ display: 'grid', gap: 10 }}>
         <OpcaoCard
           ativo={tipo === 'absoluta'}
           onClick={() => onChange('absoluta')}
-          titulo="Métrica absoluta"
-          corpo="O objetivo tem uma unidade clara que pode ser contada (ex: ataques por semana, minutos de respiração por dia, horas de sono). Use para metas com baseline e alvo numéricos definidos."
+          titulo="Com métrica numérica"
+          corpo="A meta tem uma unidade que pode ser contada (ex: ataques por semana, minutos de respiração por dia, horas de sono). Você acompanha por números — baseline e alvo."
         />
         <OpcaoCard
-          ativo={tipo === 'gas'}
-          onClick={() => onChange('gas')}
-          titulo="GAS — Goal Attainment Scale (−2 a +2)"
-          corpo="Escala padronizada quando a meta é subjetiva ou sem unidade clara (ex: reduzir senso de culpa, melhorar relação com chefe). 0 = baseline, +2 = muito melhor que esperado, −2 = muito pior."
+          ativo={tipo === 'nenhuma'}
+          onClick={() => onChange('nenhuma')}
+          titulo="Sem métrica numérica (descritiva)"
+          corpo="Meta subjetiva ou sem unidade clara (ex: reduzir senso de culpa, melhorar relação com o chefe). O acompanhamento é por escalas GAS — opcional e múltiplo — configuradas na tela da meta."
         />
       </div>
     </div>
@@ -657,7 +661,7 @@ function Revisao(p: {
             valor={`${p.unidade || '—'} · de ${p.baseline || '—'} para ${p.alvo || '—'} (${p.direcao === 'aumentar' ? 'aumentar' : 'reduzir'})`}
           />
         ) : (
-          <RevisaoLinha letra="M+A" titulo="Métrica" valor="GAS — Goal Attainment Scale (−2 a +2)" />
+          <RevisaoLinha letra="M" titulo="Métrica" valor="Sem métrica numérica · acompanhe com escalas GAS na tela da meta (opcional)" />
         )}
         {p.subPassos && <RevisaoLinha letra="A" titulo="Atingível · plano" valor={p.subPassos} multiLinha />}
         <RevisaoLinha letra="T" titulo="Temporal" valor={p.prazo ? formatPrazo(p.prazo) : '—'} />

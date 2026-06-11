@@ -7,6 +7,10 @@ import {
   lerEvolucaoObjetivo,
   type Objetivo, type AtualizarObjetivoPatch, type CriarObjetivoInput, type Medicao, type EvolucaoObjetivo,
 } from '@/server/services/objetivos'
+import {
+  criarGas, atualizarGas, removerGas,
+  type GasEscala, type GasInput,
+} from '@/server/services/gasObjetivos'
 
 async function checkAccess(pacienteId: string): Promise<string> {
   const user = await requirePsicologo()
@@ -58,4 +62,23 @@ export async function deletarMedicaoAction(medicaoId: string, objetivoId: string
 export async function lerEvolucaoAction(objetivoId: string): Promise<EvolucaoObjetivo | null> {
   try { await ownObjective(objetivoId) } catch { return null }
   return lerEvolucaoObjetivo(objetivoId)
+}
+
+// ── Escalas GAS (acompanhamento da Meta) ─────────────────────────────────
+
+export async function criarGasAction(objetivoId: string, input: GasInput): Promise<GasEscala | null> {
+  try { await ownObjective(objetivoId) } catch { return null }
+  if (!input.titulo?.trim()) return null
+  return criarGas(objetivoId, input)
+}
+
+export async function atualizarGasAction(objetivoId: string, gasId: string, patch: Partial<GasInput> & { ativo?: boolean }): Promise<GasEscala | null> {
+  try { await ownObjective(objetivoId) } catch { return null }
+  return atualizarGas(gasId, patch)
+}
+
+export async function removerGasAction(objetivoId: string, gasId: string): Promise<boolean> {
+  try { await ownObjective(objetivoId) } catch { return false }
+  await removerGas(gasId)
+  return true
 }

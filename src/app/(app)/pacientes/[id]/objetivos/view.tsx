@@ -8,13 +8,20 @@ import {
 } from './actions'
 import { BulletChart } from './BulletChart'
 import { NovoObjetivoWizard } from './NovoObjetivoWizard'
+import { GasManager } from './GasManager'
+import type { GasEscala } from '@/server/services/gasObjetivos'
 import { estadoObjetivo, ESTADO_META, prazoEstado, haQuanto } from '@/lib/objetivos'
 import { Sparkline } from './Sparkline'
 
-export function ObjetivosView({ pacienteId, initial, valoresIniciais, observacoes, sugestoes }: { pacienteId: string; initial: Objetivo[]; valoresIniciais: Record<string, number[]>; observacoes: Record<string, string>; sugestoes: { titulo: string; tema: string }[] }) {
+export function ObjetivosView({ pacienteId, initial, valoresIniciais, observacoes, sugestoes, gasInicial }: { pacienteId: string; initial: Objetivo[]; valoresIniciais: Record<string, number[]>; observacoes: Record<string, string>; sugestoes: { titulo: string; tema: string }[]; gasInicial: Record<string, GasEscala[]> }) {
   const [objs, setObjs] = useState(initial)
+  const [gasMap, setGasMap] = useState(gasInicial)
   const [showForm, setShowForm] = useState(false)
   const [tituloSugerido, setTituloSugerido] = useState('')
+
+  function onGasChange(objId: string, escalas: GasEscala[]) {
+    setGasMap(prev => ({ ...prev, [objId]: escalas }))
+  }
 
   function abrirComTitulo(t: string) { setTituloSugerido(t); setShowForm(true) }
 
@@ -43,7 +50,7 @@ export function ObjetivosView({ pacienteId, initial, valoresIniciais, observacoe
     <div>
       <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 12 }}>
         <button className="btn primary" onClick={() => { if (!showForm) setTituloSugerido(''); setShowForm(s => !s) }}>
-          {showForm ? 'Fechar' : '+ Novo objetivo SMART'}
+          {showForm ? 'Fechar' : '+ Nova meta SMART'}
         </button>
       </div>
 
@@ -56,9 +63,9 @@ export function ObjetivosView({ pacienteId, initial, valoresIniciais, observacoe
         />
       )}
 
-      <Section title="Ativos" items={ativos} valores={valoresIniciais} observacoes={observacoes} onStatus={updateStatus} onDelete={remover} onUpsert={upsert} />
-      {pausados.length > 0   && <Section title="Pausados"  items={pausados}   valores={valoresIniciais} observacoes={observacoes} onStatus={updateStatus} onDelete={remover} onUpsert={upsert} />}
-      {concluidos.length > 0 && <Section title="Concluídos" items={concluidos} valores={valoresIniciais} observacoes={observacoes} onStatus={updateStatus} onDelete={remover} onUpsert={upsert} />}
+      <Section title="Ativos" items={ativos} valores={valoresIniciais} observacoes={observacoes} gas={gasMap} onStatus={updateStatus} onDelete={remover} onUpsert={upsert} onGasChange={onGasChange} />
+      {pausados.length > 0   && <Section title="Pausados"  items={pausados}   valores={valoresIniciais} observacoes={observacoes} gas={gasMap} onStatus={updateStatus} onDelete={remover} onUpsert={upsert} onGasChange={onGasChange} />}
+      {concluidos.length > 0 && <Section title="Concluídos" items={concluidos} valores={valoresIniciais} observacoes={observacoes} gas={gasMap} onStatus={updateStatus} onDelete={remover} onUpsert={upsert} onGasChange={onGasChange} />}
 
       {objs.length === 0 && !showForm && (
         <div className="card" style={{ padding: 22 }}>
@@ -91,14 +98,16 @@ export function ObjetivosView({ pacienteId, initial, valoresIniciais, observacoe
 
 // ─── Lista ─────────────────────────────────────────────────────────────
 
-function Section({ title, items, valores, observacoes, onStatus, onDelete, onUpsert }: {
+function Section({ title, items, valores, observacoes, gas, onStatus, onDelete, onUpsert, onGasChange }: {
   title: string
   items: Objetivo[]
   valores: Record<string, number[]>
   observacoes: Record<string, string>
+  gas: Record<string, GasEscala[]>
   onStatus: (o: Objetivo, s: Objetivo['status']) => void
   onDelete: (o: Objetivo) => void
   onUpsert: (o: Objetivo) => void
+  onGasChange: (objId: string, escalas: GasEscala[]) => void
 }) {
   if (items.length === 0) return null
   // Conta quantos estão "no alvo" (progresso ≥ 100%)
@@ -119,19 +128,21 @@ function Section({ title, items, valores, observacoes, onStatus, onDelete, onUps
         )}
       </div>
       <ul style={{ margin: 0, padding: 0, listStyle: 'none', display: 'grid', gap: 10 }}>
-        {items.map(o => <ObjetivoCard key={o.id} o={o} valores={valores[o.id] ?? []} observacao={observacoes[o.id]} onStatus={onStatus} onDelete={onDelete} onUpsert={onUpsert} />)}
+        {items.map(o => <ObjetivoCard key={o.id} o={o} valores={valores[o.id] ?? []} observacao={observacoes[o.id]} gas={gas[o.id] ?? []} onStatus={onStatus} onDelete={onDelete} onUpsert={onUpsert} onGasChange={onGasChange} />)}
       </ul>
     </section>
   )
 }
 
-function ObjetivoCard({ o, valores, observacao, onStatus, onDelete, onUpsert }: {
+function ObjetivoCard({ o, valores, observacao, gas, onStatus, onDelete, onUpsert, onGasChange }: {
   o: Objetivo
   valores: number[]
   observacao?: string
+  gas: GasEscala[]
   onStatus: (o: Objetivo, s: Objetivo['status']) => void
   onDelete: (o: Objetivo) => void
   onUpsert: (o: Objetivo) => void
+  onGasChange: (objId: string, escalas: GasEscala[]) => void
 }) {
   const [expandido, setExpandido] = useState(false)
   const [evolucao, setEvolucao] = useState<EvolucaoObjetivo | null>(null)
@@ -177,7 +188,10 @@ function ObjetivoCard({ o, valores, observacao, onStatus, onDelete, onUpsert }: 
           <div style={{ fontWeight: 500, color: 'var(--ink)', display: 'flex', alignItems: 'baseline', gap: 8, flexWrap: 'wrap' }}>
             <span>{o.titulo}</span>
             <span style={{ fontSize: 11, color: 'var(--faint)', fontWeight: 400 }}>
-              {setaDirecao} {o.metricaTipo === 'gas' ? 'GAS' : (o.metricaUnidade ?? 'sem métrica')}
+              {o.metricaTipo === 'absoluta'
+                ? `${setaDirecao} ${o.metricaUnidade ?? 'sem unidade'}`
+                : o.metricaTipo === 'gas' ? 'GAS' : 'descritiva'}
+              {gas.length > 0 && ` · ${gas.length} GAS`}
             </span>
           </div>
           {o.descricao && (
@@ -201,16 +215,18 @@ function ObjetivoCard({ o, valores, observacao, onStatus, onDelete, onUpsert }: 
         </div>
       </div>
 
-      {/* Bullet chart — apresentação principal */}
-      <BulletChart
-        baseline={o.metricaBaseline}
-        alvo={o.metricaAlvo}
-        atual={atualEstimado}
-        direcao={o.metricaDirecao}
-        tipo={o.metricaTipo}
-        unidade={null}
-        delta={delta}
-      />
+      {/* Bullet chart — só quando há métrica numérica (baseline + alvo) */}
+      {o.metricaBaseline != null && o.metricaAlvo != null && (
+        <BulletChart
+          baseline={o.metricaBaseline}
+          alvo={o.metricaAlvo}
+          atual={atualEstimado}
+          direcao={o.metricaDirecao}
+          tipo={o.metricaTipo}
+          unidade={null}
+          delta={delta}
+        />
+      )}
 
       {/* Sparkline de tendência — medições no tempo (Fase 2) */}
       {(() => {
@@ -241,7 +257,7 @@ function ObjetivoCard({ o, valores, observacao, onStatus, onDelete, onUpsert }: 
       {expandido && (
         <div style={{ marginTop: 14, paddingTop: 14, borderTop: '1px solid var(--border)' }}>
           {carregando && <div style={{ fontSize: 12, color: 'var(--muted)' }}>Carregando…</div>}
-          {evolucao && (
+          {evolucao && o.metricaTipo === 'absoluta' && (
             <EvolucaoPanel
               evolucao={evolucao}
               onMudou={(nova) => {
@@ -250,6 +266,9 @@ function ObjetivoCard({ o, valores, observacao, onStatus, onDelete, onUpsert }: 
               }}
             />
           )}
+
+          {/* GAS — acompanhamento da meta (opcional, múltiplo) */}
+          <GasManager objetivoId={o.id} escalas={gas} onChange={(e) => onGasChange(o.id, e)} />
         </div>
       )}
     </li>

@@ -1,7 +1,9 @@
 import 'server-only'
 import { db } from '@/server/db/pool'
 
-export type MetricaTipo = 'absoluta' | 'gas'
+// 'absoluta' = métrica numérica · 'nenhuma' = Meta descritiva (acompanha por GAS) ·
+// 'gas' = legado (GAS era um tipo de métrica; agora é camada à parte em objetivo_gas).
+export type MetricaTipo = 'absoluta' | 'gas' | 'nenhuma'
 export type MetricaDirecao = 'aumentar' | 'diminuir'
 
 export type Objetivo = {
@@ -97,10 +99,12 @@ export type CriarObjetivoInput = {
 
 export async function criarObjetivo(pacienteId: string, input: CriarObjetivoInput): Promise<Objetivo> {
   const tipo: MetricaTipo = input.metricaTipo ?? 'absoluta'
-  // GAS força baseline=0 e alvo=+2 (escala padrão).
-  const baseline = tipo === 'gas' ? 0 : (input.metricaBaseline ?? null)
-  const alvo     = tipo === 'gas' ? 2 : (input.metricaAlvo ?? null)
-  const direcao: MetricaDirecao = tipo === 'gas' ? 'aumentar' : (input.metricaDirecao ?? 'aumentar')
+  // Só a métrica 'absoluta' tem unidade/baseline/alvo. 'nenhuma' (descritiva, acompanhada
+  // por GAS) e 'gas' (legado) não guardam números aqui.
+  const numerica = tipo === 'absoluta'
+  const baseline = numerica ? (input.metricaBaseline ?? null) : null
+  const alvo     = numerica ? (input.metricaAlvo ?? null) : null
+  const direcao: MetricaDirecao = numerica ? (input.metricaDirecao ?? 'aumentar') : 'aumentar'
 
   const { rows } = await db.query(
     `INSERT INTO objetivos (
@@ -111,7 +115,7 @@ export async function criarObjetivo(pacienteId: string, input: CriarObjetivoInpu
      RETURNING *`,
     [
       pacienteId, input.titulo, input.descricao ?? null,
-      tipo, tipo === 'gas' ? null : (input.metricaUnidade ?? null),
+      tipo, numerica ? (input.metricaUnidade ?? null) : null,
       baseline, alvo, direcao,
       input.prazoEm ?? null,
     ],

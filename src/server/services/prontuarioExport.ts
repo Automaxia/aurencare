@@ -50,7 +50,7 @@ export type ProntuarioObjetivo = {
   titulo: string
   descricao: string | null
   status: string
-  metricaTipo: 'absoluta' | 'gas'
+  metricaTipo: 'absoluta' | 'gas' | 'nenhuma'
   metricaUnidade: string | null
   metricaBaseline: number | null
   metricaAlvo: number | null
