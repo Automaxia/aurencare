@@ -101,10 +101,10 @@ export function NovoObjetivoWizard({ pacienteId, tituloInicial, onCriado, onCanc
   }
 
   // Passos a percorrer (varia conforme tipo)
-  // 'm' (mensurável numérico) só entra quando a meta tem métrica numérica (absoluta).
+  // Dois métodos: SMART + GAS (absoluta, fluxo completo) ou Simples (nenhuma, livre/curto).
   const sequencia: Step[] = tipo === 'absoluta'
-    ? ['tipo', 's', 'r', 'm', 'a', 't', 'revisao']
-    : ['tipo', 's', 'r', 'a', 't', 'revisao']
+    ? ['tipo', 's', 'r', 'm', 'a', 't', 'revisao']   // SMART + GAS
+    : ['tipo', 's', 'r', 't', 'revisao']             // Objetivo Terapêutico Simples (livre)
   const idx       = sequencia.indexOf(step)
   const primeiro  = idx === 0
   const ultimo    = step === 'revisao'
@@ -400,19 +400,19 @@ function HeaderPasso({ letra, titulo, sub }: { letra: string; titulo: string; su
 function PassoTipo({ tipo, onChange }: { tipo: MetricaTipo; onChange: (t: MetricaTipo) => void }) {
   return (
     <div style={{ display: 'grid', gap: 14 }}>
-      <HeaderPasso letra="·" titulo="Como vamos medir esta meta?" sub="A métrica numérica é opcional. Metas subjetivas podem ser acompanhadas por escalas GAS na tela da meta, depois de criada." />
+      <HeaderPasso letra="·" titulo="Como você quer registrar os objetivos?" sub="Escolha o método. Você pode misturar os dois na mesma terapia — cada meta no formato que fizer sentido." />
       <div style={{ display: 'grid', gap: 10 }}>
-        <OpcaoCard
-          ativo={tipo === 'absoluta'}
-          onClick={() => onChange('absoluta')}
-          titulo="Com métrica numérica"
-          corpo="A meta tem uma unidade que pode ser contada (ex: ataques por semana, minutos de respiração por dia, horas de sono). Você acompanha por números — baseline e alvo."
-        />
         <OpcaoCard
           ativo={tipo === 'nenhuma'}
           onClick={() => onChange('nenhuma')}
-          titulo="Sem métrica numérica (descritiva)"
-          corpo="Meta subjetiva ou sem unidade clara (ex: reduzir senso de culpa, melhorar relação com o chefe). O acompanhamento é por escalas GAS — opcional e múltiplo — configuradas na tela da meta."
+          titulo="Objetivo Terapêutico Simples"
+          corpo="Preenchimento livre, no seu ritmo clínico. Descreva a meta do jeito que fizer sentido — sem campos obrigatórios nem métricas. Rápido de criar; você ainda pode acompanhar com escalas GAS depois, se quiser."
+        />
+        <OpcaoCard
+          ativo={tipo === 'absoluta'}
+          onClick={() => onChange('absoluta')}
+          titulo="Objetivos SMART + GAS"
+          corpo="Método estruturado: meta específica, mensurável (unidade, baseline e alvo) e temporal — com acompanhamento por escalas GAS. Para quando você quer medir a evolução com precisão."
         />
       </div>
     </div>
@@ -661,7 +661,7 @@ function Revisao(p: {
             valor={`${p.unidade || '—'} · de ${p.baseline || '—'} para ${p.alvo || '—'} (${p.direcao === 'aumentar' ? 'aumentar' : 'reduzir'})`}
           />
         ) : (
-          <RevisaoLinha letra="M" titulo="Métrica" valor="Sem métrica numérica · acompanhe com escalas GAS na tela da meta (opcional)" />
+          <RevisaoLinha letra="·" titulo="Método" valor="Objetivo Terapêutico Simples · preenchimento livre. Acompanhe com escalas GAS na tela da meta, se quiser (opcional)." />
         )}
         {p.subPassos && <RevisaoLinha letra="A" titulo="Atingível · plano" valor={p.subPassos} multiLinha />}
         <RevisaoLinha letra="T" titulo="Temporal" valor={p.prazo ? formatPrazo(p.prazo) : '—'} />

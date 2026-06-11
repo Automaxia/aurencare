@@ -50,7 +50,7 @@ export function ObjetivosView({ pacienteId, initial, valoresIniciais, observacoe
     <div>
       <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 12 }}>
         <button className="btn primary" onClick={() => { if (!showForm) setTituloSugerido(''); setShowForm(s => !s) }}>
-          {showForm ? 'Fechar' : '+ Nova meta SMART'}
+          {showForm ? 'Fechar' : '+ Nova meta'}
         </button>
       </div>
 
@@ -190,7 +190,7 @@ function ObjetivoCard({ o, valores, observacao, gas, onStatus, onDelete, onUpser
             <span style={{ fontSize: 11, color: 'var(--faint)', fontWeight: 400 }}>
               {o.metricaTipo === 'absoluta'
                 ? `${setaDirecao} ${o.metricaUnidade ?? 'sem unidade'}`
-                : o.metricaTipo === 'gas' ? 'GAS' : 'descritiva'}
+                : o.metricaTipo === 'gas' ? 'GAS' : 'simples'}
               {gas.length > 0 && ` · ${gas.length} GAS`}
             </span>
           </div>
