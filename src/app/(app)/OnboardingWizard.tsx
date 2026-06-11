@@ -6,7 +6,8 @@ import type { OnboardingStatus } from '@/server/services/onboarding'
  * quando há memória clínica (status.completo). CTA aparece só no próximo passo
  * pendente, pra guiar o foco sem poluir.
  */
-export function OnboardingWizard({ status }: { status: OnboardingStatus }) {
+export function OnboardingWizard({ status, nome }: { status: OnboardingStatus; nome: string }) {
+  const novato = status.concluidos === 0
   const evolHref = status.pacienteEvolucaoId
     ? `/pacientes/${status.pacienteEvolucaoId}/evolucao`
     : '/pacientes'
@@ -27,11 +28,13 @@ export function OnboardingWizard({ status }: { status: OnboardingStatus }) {
     }}>
       <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 12, marginBottom: 16 }}>
         <div>
-          <div style={{ fontFamily: 'var(--f-display)', fontSize: 21, color: 'var(--ink)', lineHeight: 1.1 }}>
-            Seus primeiros passos na Audere
+          <div style={{ fontFamily: 'var(--f-display)', fontSize: 21, color: 'var(--ink)', lineHeight: 1.15 }}>
+            {novato ? <>Bem-vindo(a) à Audere, <em style={{ fontStyle: 'italic', color: 'var(--accent)' }}>{nome}</em>.</> : 'Seus primeiros passos na Audere'}
           </div>
           <div style={{ fontSize: 12.5, color: 'var(--muted)', marginTop: 3 }}>
-            Em poucos minutos você chega à primeira memória clínica.
+            {novato
+              ? 'Vamos do zero à sua primeira memória clínica — quatro passos rápidos.'
+              : 'Em poucos minutos você chega à primeira memória clínica.'}
           </div>
         </div>
         <div style={{ fontSize: 12, color: 'var(--accent)', fontWeight: 600, whiteSpace: 'nowrap' }}>

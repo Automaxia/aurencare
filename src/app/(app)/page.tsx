@@ -10,6 +10,7 @@ import { statusOnboarding } from '@/server/services/onboarding'
 import { formatTimeBR, formatBRL } from '@/lib/formatters'
 import { IntelSection } from './intel'
 import { OnboardingWizard } from './OnboardingWizard'
+import { OnboardingCelebration } from './OnboardingCelebration'
 
 export const dynamic = 'force-dynamic'
 
@@ -107,7 +108,8 @@ export default async function InicioPage() {
     <div style={{ position: 'relative' }}>
       <SpiralWatermark />
 
-      {!onb.completo && <OnboardingWizard status={onb} />}
+      {!onb.completo && <OnboardingWizard status={onb} nome={firstName(user.name)} />}
+      <OnboardingCelebration completo={onb.completo} />
 
       {/* ── Saudação ── */}
       <div className="greeting">
