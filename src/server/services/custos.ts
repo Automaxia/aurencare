@@ -48,13 +48,26 @@ export type ResumoCustos = {
   totalUsd: number
   porProviderMes: { provider: string; usd: number; estimado: boolean }[]
   porOperacaoMes: { operacao: string; provider: string; usd: number; chamadas: number }[]
+  porFuncionalidadeMes: { func: string; usd: number }[]
   sessoesMes: number
   custoPorSessaoMesUsd: number | null
   primeiroRegistro: string | null
 }
 
+/** Mapeia o `scope` técnico (operacao) → funcionalidade de produto, pro custo por feature. */
+const SQL_FUNCIONALIDADE = `
+  CASE
+    WHEN provider = 'assemblyai'                                                                          THEN 'transcricao'
+    WHEN operacao IN ('prontuario.ia','marcos')                                                          THEN 'memoria'
+    WHEN operacao IN ('evolucao.obs','chat.evolucao','anthropic.resumo')                                 THEN 'evolucao'
+    WHEN operacao IN ('insight.temas','temas.validar','chat.temas')                                      THEN 'temas'
+    WHEN operacao = 'saude.insights'                                                                      THEN 'saude'
+    WHEN operacao IN ('ia.tom','ia.risco','ia.falante','ia.marcar-turnos','ia.obs-viva','insight.sessao','contexto.topicos') THEN 'sessao'
+    ELSE 'outros'
+  END`
+
 export async function resumoCustos(): Promise<ResumoCustos> {
-  const [mes, total, prov, op, sess, primeiro] = await Promise.all([
+  const [mes, total, prov, op, func, sess, primeiro] = await Promise.all([
     db.query<{ usd: string }>(`SELECT COALESCE(SUM(custo_usd),0) AS usd FROM api_custos WHERE created_at >= date_trunc('month', NOW())`),
     db.query<{ usd: string }>(`SELECT COALESCE(SUM(custo_usd),0) AS usd FROM api_custos`),
     db.query<{ provider: string; usd: string; estimado: boolean }>(
@@ -66,6 +79,10 @@ export async function resumoCustos(): Promise<ResumoCustos> {
               COALESCE(SUM(custo_usd),0) AS usd, COUNT(*) AS chamadas
          FROM api_custos WHERE created_at >= date_trunc('month', NOW())
         GROUP BY operacao, provider ORDER BY usd DESC LIMIT 12`),
+    db.query<{ func: string; usd: string }>(
+      `SELECT ${SQL_FUNCIONALIDADE} AS func, COALESCE(SUM(custo_usd),0) AS usd
+         FROM api_custos WHERE created_at >= date_trunc('month', NOW())
+        GROUP BY 1 ORDER BY usd DESC`),
     db.query<{ n: string }>(
       `SELECT COUNT(DISTINCT sessao_id) AS n FROM api_custos
         WHERE sessao_id IS NOT NULL AND created_at >= date_trunc('month', NOW())`),
@@ -79,6 +96,7 @@ export async function resumoCustos(): Promise<ResumoCustos> {
     totalUsd: Number(total.rows[0].usd),
     porProviderMes: prov.rows.map(r => ({ provider: r.provider, usd: Number(r.usd), estimado: r.estimado })),
     porOperacaoMes: op.rows.map(r => ({ operacao: r.operacao, provider: r.provider, usd: Number(r.usd), chamadas: Number(r.chamadas) })),
+    porFuncionalidadeMes: func.rows.map(r => ({ func: r.func, usd: Number(r.usd) })),
     sessoesMes,
     custoPorSessaoMesUsd: sessoesMes > 0 ? mesTotalUsd / sessoesMes : null,
     primeiroRegistro: primeiro.rows[0].ts,

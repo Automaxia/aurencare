@@ -42,6 +42,7 @@ export type CockpitProduto = {
   novos30: number
   ativosConta: number
   pagantes: number
+  pacientesAtivos: number
   // Adoção (psicólogos distintos que chegaram a cada etapa)
   comPacientes: number
   comSessao: number
@@ -72,6 +73,7 @@ export async function obterCockpitProduto(): Promise<CockpitProduto> {
         (SELECT count(*) FROM psicologos WHERE created_at >= NOW() - INTERVAL '30 days')         AS novos30,
         (SELECT count(*) FROM psicologos WHERE status = 'ativo')                                 AS ativos_conta,
         (SELECT count(*) FROM psicologos WHERE plano IS NOT NULL AND plano <> 'free' AND plano_status = 'ativo') AS pagantes,
+        (SELECT count(*) FROM pacientes WHERE status = 'ativo')                                  AS pacientes_ativos,
         (SELECT count(DISTINCT psicologo_id) FROM pacientes)                                     AS com_pacientes,
         (SELECT count(DISTINCT psicologo_id) FROM sessoes WHERE status = 'concluida')            AS com_sessao,
         (SELECT count(DISTINCT psicologo_id) FROM sessoes WHERE assinada = TRUE)                 AS com_evolucao,
@@ -96,6 +98,7 @@ export async function obterCockpitProduto(): Promise<CockpitProduto> {
   const r = esc.rows[0]
   return {
     usuarios: Number(r.usuarios), novos30: Number(r.novos30), ativosConta: Number(r.ativos_conta), pagantes: Number(r.pagantes),
+    pacientesAtivos: Number(r.pacientes_ativos),
     comPacientes: Number(r.com_pacientes), comSessao: Number(r.com_sessao), comEvolucao: Number(r.com_evolucao),
     comObjetivos: Number(r.com_objetivos), comMemoria: Number(r.com_memoria), ativados: Number(r.ativados),
     sessoesRegistradas: Number(r.sessoes_registradas), evolucoesAssinadas: Number(r.evolucoes_assinadas),
