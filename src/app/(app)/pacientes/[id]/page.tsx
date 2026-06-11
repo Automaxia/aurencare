@@ -139,7 +139,7 @@ export default async function PacientePerfilPage({ params }: { params: { id: str
         <MemoriaClinica dados={memoria} pacienteId={p.id} />
       </div>
 
-      <details className="bloco-recolhivel" id="info-clinica" open={alertas.length > 0}>
+      <details className="bloco-recolhivel" id="info-clinica" open>
         <summary>
           <span>Informações clínicas</span>
           <span className="resumo">{resumoClinico(condicoes)}</span>
@@ -149,7 +149,7 @@ export default async function PacientePerfilPage({ params }: { params: { id: str
         </div>
       </details>
 
-      <details className="bloco-recolhivel">
+      <details className="bloco-recolhivel" open>
         <summary>
           <span>Dados cadastrais</span>
           <span className="resumo">{formatPhone(p.telefone)}{p.email ? ' · ' + p.email : ''}</span>
