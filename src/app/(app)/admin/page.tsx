@@ -48,7 +48,12 @@ export default async function AdminPage() {
       <PageHeader
         title="Administração"
         subtitle="Cockpit de produto — o Audere está gerando valor?"
-        actions={<Link href="/admin/custos" className="btn ghost">Economia da plataforma →</Link>}
+        actions={
+          <span style={{ display: 'flex', gap: 8 }}>
+            <Link href="/admin/leads" className="btn ghost">Lista de espera →</Link>
+            <Link href="/admin/custos" className="btn ghost">Economia da plataforma →</Link>
+          </span>
+        }
       />
 
       {/* BLOCO 1 — CRESCIMENTO */}

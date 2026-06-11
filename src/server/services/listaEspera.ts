@@ -66,6 +66,28 @@ export async function entrarListaEspera(input: EntrarListaInput): Promise<Entrar
   }
 }
 
+export type ListaEsperaItem = {
+  id: string
+  nome: string
+  email: string
+  crp: string | null
+  mensagem: string | null
+  origem: string | null
+  createdAt: string
+}
+
+/** Lista os inscritos na lista de espera (mais recentes primeiro) — pro painel admin. */
+export async function listarListaEspera(): Promise<ListaEsperaItem[]> {
+  const { rows } = await db.query<any>(
+    `SELECT id, nome, email, crp, mensagem, origem, created_at
+       FROM lista_espera ORDER BY created_at DESC`,
+  )
+  return rows.map((r: any) => ({
+    id: r.id, nome: r.nome, email: r.email, crp: r.crp, mensagem: r.mensagem,
+    origem: r.origem, createdAt: r.created_at,
+  }))
+}
+
 export async function contarListaEspera(): Promise<number> {
   try {
     const { rows } = await db.query<{ n: number }>(
