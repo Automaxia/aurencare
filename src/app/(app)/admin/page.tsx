@@ -110,7 +110,7 @@ export default async function AdminPage() {
       </Section>
 
       {/* BLOCO 5 — ECONOMIA DA IA (unit economics) */}
-      <Section title="Economia da IA" hint="mês corrente" right={<Link href="/admin/custos" className="lnk" style={{ fontSize: 12 }}>Detalhes →</Link>}>
+      <Section title="Economia da IA" hint="mês corrente" right={<Link href="/admin/custos" style={{ fontSize: 12, color: 'var(--accent)', textDecoration: 'none' }}>Detalhes →</Link>}>
         <Grid min={150}>
           <Metric label="Custo total (mês)" value={brl(custoMesBrl)} />
           <Metric label="Custo por sessão" value={custoSessaoBrl != null ? brl(custoSessaoBrl) : '—'} hint={`${custos.sessoesMes} sessões c/ IA no mês`} />
