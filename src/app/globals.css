@@ -128,6 +128,10 @@ input:user-invalid:focus, textarea:user-invalid:focus, select:user-invalid:focus
 
 ::selection { background: var(--accent-lo); color: var(--ink); }
 
+/* Novo paciente — cadastro (menor) + mensagem do WhatsApp (maior, texto longo) */
+.novo-paciente-grid { display: grid; grid-template-columns: 0.82fr 1.18fr; gap: 24px; align-items: start; }
+@media (max-width: 760px) { .novo-paciente-grid { grid-template-columns: 1fr; } }
+
 /* ── Login — split posicionamento (esq.) + acesso (dir.) ── */
 .login-split { min-height: 100vh; display: grid; grid-template-columns: 1.08fr .92fr; }
 .login-aside {

@@ -41,7 +41,7 @@ Qualquer dúvida, é só responder por aqui.`
   const editada = mensagem !== null
 
   return (
-    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 24, alignItems: 'start' }}>
+    <div className="novo-paciente-grid">
       <form onSubmit={onSubmit} className="card" style={{ display: 'grid', gap: 14 }}>
         <Field label="Nome completo">
           <input required value={nome} onChange={e => setNome(e.target.value)} placeholder="Ex: Fernanda K." />
