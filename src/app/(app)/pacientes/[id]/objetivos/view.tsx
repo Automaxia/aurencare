@@ -246,8 +246,8 @@ function ObjetivoCard({ o, valores, observacao, gas, notas, onStatus, onDelete, 
         </div>
       </div>
 
-      {/* Bullet chart — só quando há métrica numérica (baseline + alvo) */}
-      {o.metricaBaseline != null && o.metricaAlvo != null && (
+      {/* Progresso — bullet chart (métrica numérica) ou slider manual (objetivo simples) */}
+      {o.metricaBaseline != null && o.metricaAlvo != null ? (
         <BulletChart
           baseline={o.metricaBaseline}
           alvo={o.metricaAlvo}
@@ -257,7 +257,9 @@ function ObjetivoCard({ o, valores, observacao, gas, notas, onStatus, onDelete, 
           unidade={null}
           delta={delta}
         />
-      )}
+      ) : o.metricaTipo === 'nenhuma' ? (
+        <ProgressoSlider objetivoId={o.id} valor={o.progresso} onSalvo={onUpsert} />
+      ) : null}
 
       {/* Sparkline de tendência — medições no tempo (Fase 2) */}
       {(() => {
@@ -328,6 +330,44 @@ function estimarAtualPorProgresso(o: Objetivo): number | null {
  */
 function deltaNaDirecao(anterior: number, atual: number, dir: 'aumentar' | 'diminuir'): number {
   return dir === 'aumentar' ? (atual - anterior) : (anterior - atual)
+}
+
+/** Slider de progresso 0–100 para objetivos simples (sem métrica numérica).
+ *  O psicólogo arrasta pra marcar o andamento; salva ao soltar. */
+function ProgressoSlider({ objetivoId, valor, onSalvo }: { objetivoId: string; valor: number; onSalvo: (o: Objetivo) => void }) {
+  const [v, setV] = useState(valor)
+  const [estado, setEstado] = useState<'idle' | 'salvando' | 'ok'>('idle')
+
+  async function salvar() {
+    if (v === valor) return
+    setEstado('salvando')
+    const o = await atualizarObjetivoAction(objetivoId, { progresso: v })
+    if (o) { onSalvo(o); setEstado('ok'); setTimeout(() => setEstado('idle'), 1500) }
+    else setEstado('idle')
+  }
+
+  return (
+    <div style={{ marginTop: 2 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 6 }}>
+        <span style={{ fontSize: 11, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '.06em' }}>Progresso</span>
+        <span style={{ fontFamily: 'var(--f-display)', fontSize: 20, color: 'var(--accent)', fontVariantNumeric: 'tabular-nums' }}>
+          {v}%
+          {estado === 'salvando' && <span style={{ fontSize: 11, color: 'var(--muted)', marginLeft: 8 }}>salvando…</span>}
+          {estado === 'ok' && <span style={{ fontSize: 11, color: 'var(--sage)', marginLeft: 8 }}>✓ salvo</span>}
+        </span>
+      </div>
+      <input
+        type="range" min={0} max={100} step={5} value={v}
+        onChange={e => setV(Number(e.target.value))}
+        onPointerUp={salvar} onKeyUp={salvar}
+        aria-label="Progresso do objetivo"
+        style={{ width: '100%', accentColor: 'var(--accent)', cursor: 'pointer' }}
+      />
+      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10, color: 'var(--faint)', marginTop: 2 }}>
+        <span>0</span><span>50</span><span>100</span>
+      </div>
+    </div>
+  )
 }
 
 /** Botão de ação do card — mais destaque que o ghost: borda + leve preenchimento
