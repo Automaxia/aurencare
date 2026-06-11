@@ -5,6 +5,9 @@ import { useRouter } from 'next/navigation'
 import { useToast } from '@/components/feedback/Toast'
 import { criarPacienteAction } from './actions'
 
+// Mantido em sincronia com LINK_TOKEN em server/services/pacientes.ts.
+const LINK_TOKEN = '[link de termos]'
+
 export function NewPatientForm({ psicologoNome }: { psicologoNome: string }) {
   const router = useRouter()
   const { toast } = useToast()
@@ -13,11 +16,13 @@ export function NewPatientForm({ psicologoNome }: { psicologoNome: string }) {
   const [email, setEmail] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  // null = usa o texto padrão (que acompanha o nome digitado); string = editado pelo psicólogo.
+  const [mensagem, setMensagem] = useState<string | null>(null)
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault()
     setLoading(true); setError(null)
-    const result = await criarPacienteAction({ nome, telefone, email: email || null })
+    const result = await criarPacienteAction({ nome, telefone, email: email || null, mensagem })
     setLoading(false)
     if (result.ok) {
       toast(`${(nome.split(' ')[0] || 'Paciente').trim()} cadastrado — convite enviado no WhatsApp`)
@@ -26,12 +31,14 @@ export function NewPatientForm({ psicologoNome }: { psicologoNome: string }) {
   }
 
   const previewName = (nome.split(' ')[0] || 'Paciente').trim()
-  const preview = `Olá, ${previewName}! Sou da equipe de ${psicologoNome}.
+  const mensagemPadrao = `Olá, ${previewName}! Sou da equipe de ${psicologoNome}.
 
 Para começar, leia e aceite os termos no link:
-https://aurencare.ia.br/onboard/…
+${LINK_TOKEN}
 
 Qualquer dúvida, é só responder por aqui.`
+  const mensagemValor = mensagem ?? mensagemPadrao
+  const editada = mensagem !== null
 
   return (
     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 24, alignItems: 'start' }}>
@@ -74,19 +81,43 @@ Qualquer dúvida, é só responder por aqui.`
           input:user-invalid { border-color: var(--rose); }
           input:user-invalid:focus { box-shadow: var(--field-ring-error); }
         `}</style>
+        <style jsx global>{`
+          .wa-msg {
+            width: 100%; box-sizing: border-box; padding: 14px;
+            border-radius: var(--field-radius); border: 1px solid var(--field-border);
+            background: var(--surface); color: var(--ink-soft);
+            font-size: 13px; font-family: var(--font-mono), monospace; line-height: 1.5;
+            outline: none; resize: vertical; min-height: 180px;
+            transition: border-color .15s var(--ease), box-shadow .15s var(--ease);
+          }
+          .wa-msg:hover { border-color: var(--field-border-hover); }
+          .wa-msg:focus { border-color: var(--accent); box-shadow: var(--field-ring); }
+        `}</style>
       </form>
 
       <aside>
-        <div style={{ fontSize: 11, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '.06em', marginBottom: 8 }}>
-          Pré-visualização da mensagem
+        <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 8, marginBottom: 8 }}>
+          <div style={{ fontSize: 11, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '.06em' }}>
+            Mensagem do WhatsApp · editável
+          </div>
+          {editada && (
+            <button type="button" onClick={() => setMensagem(null)}
+              style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--accent)', fontSize: 11.5, padding: 0 }}>
+              Restaurar padrão
+            </button>
+          )}
         </div>
-        <div className="card" style={{
-          padding: 14, fontSize: 13, fontFamily: 'var(--font-mono), monospace',
-          color: 'var(--ink-soft)', whiteSpace: 'pre-wrap', lineHeight: 1.5,
-          background: 'var(--surface)',
-        }}>
-          {preview}
-        </div>
+        <textarea
+          className="wa-msg"
+          value={mensagemValor}
+          onChange={e => setMensagem(e.target.value)}
+          rows={9}
+          aria-label="Mensagem de boas-vindas do WhatsApp"
+        />
+        <p style={{ fontSize: 11, color: 'var(--faint)', lineHeight: 1.5, marginTop: 8 }}>
+          Edite à vontade. Mantenha <code>{LINK_TOKEN}</code> onde o link de aceite dos termos deve aparecer —
+          se você remover, ele é adicionado automaticamente ao final.
+        </p>
       </aside>
     </div>
   )

@@ -116,6 +116,18 @@ export type CriarPacienteInput = {
   nome: string
   telefone: string
   email?: string | null
+  /** Mensagem de boas-vindas (WhatsApp) editada pelo psicólogo. Null = template padrão. */
+  mensagemCustom?: string | null
+}
+
+/** Token que o psicólogo mantém na mensagem editada — substituído pelo link real
+ *  de aceite. Se removido, o link é anexado ao final (nunca se perde). */
+export const LINK_TOKEN = '[link de termos]'
+
+function aplicarLinkBoasVindas(mensagem: string, link: string): string {
+  const m = mensagem.trim()
+  if (m.includes(LINK_TOKEN)) return m.split(LINK_TOKEN).join(link)
+  return `${m}\n\n${link}`
 }
 
 export async function criarPaciente(input: CriarPacienteInput): Promise<Paciente> {
@@ -140,8 +152,12 @@ export async function criarPaciente(input: CriarPacienteInput): Promise<Paciente
   // Fluxo 1: boas-vindas em paralelo (WhatsApp + Email).
   // Errors não bloqueiam — paciente é criado mesmo se algum canal falhar.
   await Promise.all([
-    enviarWA(paciente.telefone, WA_TEMPLATES.fluxo1_boasVindas(paciente.nome, link, input.psicologoNome))
-      .catch(err => log.err('paciente.criar', 'falha WA boas-vindas', err)),
+    enviarWA(
+      paciente.telefone,
+      input.mensagemCustom?.trim()
+        ? aplicarLinkBoasVindas(input.mensagemCustom, link)
+        : WA_TEMPLATES.fluxo1_boasVindas(paciente.nome, link, input.psicologoNome),
+    ).catch(err => log.err('paciente.criar', 'falha WA boas-vindas', err)),
 
     paciente.email && psi ? enviarEmail({
       to: paciente.email,

@@ -6,7 +6,7 @@ import { criarPaciente } from '@/server/services/pacientes'
 
 type Result = { ok: true; pacienteId: string } | { ok: false; error: string }
 
-export async function criarPacienteAction(input: { nome: string; telefone: string; email: string | null }): Promise<Result> {
+export async function criarPacienteAction(input: { nome: string; telefone: string; email: string | null; mensagem?: string | null }): Promise<Result> {
   const user = await requirePsicologo()
 
   const nome = input.nome.trim()
@@ -14,11 +14,15 @@ export async function criarPacienteAction(input: { nome: string; telefone: strin
   if (nome.length < 2) return { ok: false, error: 'Informe o nome completo.' }
   if (tel.length < 10) return { ok: false, error: 'Telefone inválido (DDD + número).' }
 
+  const mensagem = input.mensagem?.trim() || null
+  if (mensagem && mensagem.length > 1200) return { ok: false, error: 'Mensagem muito longa (máx. 1200 caracteres).' }
+
   try {
     const p = await criarPaciente({
       psicologoId: user.id,
       psicologoNome: user.name ?? 'sua psicóloga',
       nome, telefone: tel, email: input.email,
+      mensagemCustom: mensagem,
     })
     revalidatePath('/pacientes')
     return { ok: true, pacienteId: p.id }
