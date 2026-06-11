@@ -6,8 +6,10 @@ import {
   proximaSessao, listarSessoesEntre, sessoesPendentesAssinatura,
 } from '@/server/services/sessoes'
 import { listarPacientes } from '@/server/services/pacientes'
+import { statusOnboarding } from '@/server/services/onboarding'
 import { formatTimeBR, formatBRL } from '@/lib/formatters'
 import { IntelSection } from './intel'
+import { OnboardingWizard } from './OnboardingWizard'
 
 export const dynamic = 'force-dynamic'
 
@@ -45,13 +47,14 @@ export default async function InicioPage() {
   const fimSemanaAnt = new Date(inicioSemana); fimSemanaAnt.setDate(inicioSemana.getDate() - 1); fimSemanaAnt.setHours(23, 59, 59, 999)
   const iniSemanaAnt = new Date(inicioSemana); iniSemanaAnt.setDate(inicioSemana.getDate() - 7)
 
-  const [proxima, sessoesHoje, sessoesSemana, sessoesAnt, pendentes, pacientes, agg] = await Promise.all([
+  const [proxima, sessoesHoje, sessoesSemana, sessoesAnt, pendentes, pacientes, onb, agg] = await Promise.all([
     proximaSessao(user.id),
     listarSessoesEntre(user.id, inicioDia.toISOString(), fimDia.toISOString()),
     listarSessoesEntre(user.id, inicioSemana.toISOString(), fimSemana.toISOString()),
     listarSessoesEntre(user.id, iniSemanaAnt.toISOString(), fimSemanaAnt.toISOString()),
     sessoesPendentesAssinatura(user.id),
     listarPacientes(user.id),
+    statusOnboarding(user.id),
     db.query<{ assinadas_total: number; concluidas_total: number; objetivos_ativos: number; objetivos_estagnados: number; ultima_evolucao: string | null; ultima_evolucao_paciente: string | null }>(`
       SELECT
         (SELECT count(*)::int FROM sessoes WHERE psicologo_id = $1 AND assinada = TRUE) AS assinadas_total,
@@ -103,6 +106,8 @@ export default async function InicioPage() {
   return (
     <div style={{ position: 'relative' }}>
       <SpiralWatermark />
+
+      {!onb.completo && <OnboardingWizard status={onb} />}
 
       {/* ── Saudação ── */}
       <div className="greeting">
