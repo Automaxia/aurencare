@@ -62,6 +62,8 @@ export function PostSessionModal(p: Props) {
           Sessão #{p.numero} · {p.pacienteNome} ·&nbsp;
           {p.pagamentoStatus === 'pago' ? (
             <span style={{ color: 'var(--sage)' }}>pagamento confirmado</span>
+          ) : p.pagamentoStatus === 'isento' ? (
+            <span style={{ color: 'var(--muted)' }}>sessão sem cobrança</span>
           ) : (
             <button className="btn ghost" style={{ padding: 0, color: 'var(--amber)' }} onClick={reenviarCobranca}>
               pagamento pendente · reenviar cobrança
