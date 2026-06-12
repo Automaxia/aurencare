@@ -20,6 +20,6 @@ export async function responderConfirmacaoAction(token: string, resposta: Respos
     // razao distinta de 'sessao_invalida' pra não confundir exceção com dado nulo.
     log.err('confirmacao.action', `falha ao registrar resposta token=${token?.slice(0, 8)}…`,
       err instanceof Error ? `${err.message}\n${err.stack}` : err)
-    return { ok: false as const, razao: 'erro_interno' as const }
+    return { ok: false as const, razao: 'erro_interno' as const, detalhe: err instanceof Error ? err.message : String(err) }
   }
 }

@@ -36,7 +36,8 @@ export function ConfirmarClient(props: Props) {
           sessao_invalida: 'Sessão inválida.',
           erro_interno: 'Tivemos um problema técnico ao registrar. Tente novamente em instantes.',
         }
-        setErro(MENSAGENS[res.razao] ?? 'Não foi possível registrar agora. Tente novamente.')
+        const det = (res as any).detalhe
+        setErro((MENSAGENS[res.razao] ?? 'Não foi possível registrar agora. Tente novamente.') + (det ? `\n\n[diagnóstico: ${det}]` : ''))
       }
     } catch {
       // Nunca deixar o botão preso em "Confirmando…": mostra erro e libera o retry.
