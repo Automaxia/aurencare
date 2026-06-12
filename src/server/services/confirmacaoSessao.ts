@@ -161,10 +161,10 @@ export async function processarResposta(
 
   await db.query(
     `UPDATE sessoes SET
-        confirmacao_resposta = $2,
+        confirmacao_resposta = $2::text,
         confirmacao_resposta_em = NOW(),
         confirmacao_evidencia = $3::jsonb,
-        pagamento_status = CASE WHEN $2 = 'contestou' THEN 'contestado' ELSE pagamento_status END
+        pagamento_status = CASE WHEN $2::text = 'contestou' THEN 'contestado' ELSE pagamento_status END
       WHERE id = $1`,
     [s.id, resposta, JSON.stringify(evid)],
   )
