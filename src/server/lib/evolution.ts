@@ -34,6 +34,38 @@ export async function enviarWA(telefone: string, texto: string): Promise<void> {
   }
 }
 
+/** Estado da conexão da instância WhatsApp (diagnóstico). state='open' = conectado. */
+export async function estadoConexaoEvolution(): Promise<{ configurado: boolean; instancia: string; state: string | null; erro?: string }> {
+  const instancia = env.evolutionInstance
+  if (!integrationStatus.evolution) return { configurado: false, instancia, state: null }
+  try {
+    const { data } = await axios.get(
+      `${env.evolutionUrl}/instance/connectionState/${instancia}`,
+      { headers: { apikey: env.evolutionKey! }, timeout: 8_000 },
+    )
+    const state = data?.instance?.state ?? data?.state ?? null
+    return { configurado: true, instancia, state }
+  } catch (err: any) {
+    return { configurado: true, instancia, state: null, erro: err?.response?.status ? `HTTP ${err.response.status}` : (err instanceof Error ? err.message : 'falha') }
+  }
+}
+
+/** Envia uma mensagem de teste e SURFACE o resultado real (não engole o erro). */
+export async function enviarWADiag(telefone: string, texto: string): Promise<{ ok: boolean; erro?: string }> {
+  if (!integrationStatus.evolution) return { ok: false, erro: 'Evolution não configurado (modo demonstração) — defina EVOLUTION_API_URL e EVOLUTION_API_KEY.' }
+  try {
+    await axios.post(
+      `${env.evolutionUrl}/message/sendText/${env.evolutionInstance}`,
+      { number: toNumber(telefone), text: texto },
+      { headers: { apikey: env.evolutionKey!, 'Content-Type': 'application/json' }, timeout: 12_000 },
+    )
+    return { ok: true }
+  } catch (err: any) {
+    const detalhe = err?.response?.data ? JSON.stringify(err.response.data).slice(0, 300) : (err instanceof Error ? err.message : 'falha')
+    return { ok: false, erro: detalhe }
+  }
+}
+
 /** URL que a instância Evolution deve chamar pra entregar eventos ao app. */
 export function webhookUrlEvolution(): string {
   const base = `${env.appUrl.replace(/\/$/, '')}/api/webhooks/evolution`
