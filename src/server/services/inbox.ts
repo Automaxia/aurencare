@@ -255,7 +255,7 @@ function detectarIntentPaciente(texto: string): IntentPaciente {
 
 function menuAjuda(nome?: string, psi?: string): string {
   const ola = nome ? `Oi, ${nome}! 💜 Que bom falar com você.` : `Oi! 💜 Que bom falar com você.`
-  const quem = psi ?? 'sua psicóloga'
+  const quem = psi ?? 'quem te atende'
   return `${ola}\n\n` +
     `Posso te ajudar com:\n\n` +
     `*1* — 📅 O dia e horário da sua próxima sessão\n` +
@@ -327,7 +327,7 @@ async function responderLinkSessao(tel: string, paciente: { id: string; nome: st
   }
   const dataFmt = formatDateTimeBR(s.data_hora)
   if (s.modalidade !== 'online') {
-    await enviarERegistrar(tel, `${nome}, sua próxima sessão (${dataFmt}) é presencial 🌿 — então não tem sala de vídeo. Qualquer dúvida do endereço, a ${psi} te ajuda. Até lá! 💜`)
+    await enviarERegistrar(tel, `${nome}, sua próxima sessão (${dataFmt}) é presencial 🌿 — então não tem sala de vídeo. Qualquer dúvida do endereço, ${psi} te ajuda. Até lá! 💜`)
     return
   }
   try {
@@ -360,7 +360,7 @@ async function responderPagamentoFAQ(tel: string, paciente: { id: string; nome: 
   }
   await enviarERegistrar(tel,
     `Sobre pagamento 💜\n\n` +
-    `Quando a ${psi} marca uma sessão, você recebe aqui o pedidinho — é só responder *PIX*, *CREDITO* ou *DEBITO* e o link chega na hora. A sessão confirma sozinha assim que o pagamento entra. 🤗\n\n` +
+    `Quando ${psi} marca uma sessão, você recebe aqui o pedidinho — é só responder *PIX*, *CREDITO* ou *DEBITO* e o link chega na hora. A sessão confirma sozinha assim que o pagamento entra. 🤗\n\n` +
     `Por enquanto está tudo em dia, ${nome} — nada pendente. 🌿`)
 }
 
@@ -377,7 +377,7 @@ async function processarComandoPagamento(opts: { telefone: string; cmd: string }
   )
   const paciente = pRows[0]
   if (!paciente) {
-    await enviarERegistrar(telefone, 'Não encontrei seu cadastro. Sua psicóloga foi avisada.')
+    await enviarERegistrar(telefone, 'Não encontrei seu cadastro. Avisei quem te atende.')
     log.warn('wa.inbox', `${telefone} respondeu ${cmd} mas não é cadastrado`)
     return
   }
@@ -394,7 +394,7 @@ async function processarComandoPagamento(opts: { telefone: string; cmd: string }
 
   if (['PIX', 'CREDITO', 'CRÉDITO', 'DEBITO', 'DÉBITO'].includes(cmd)) {
     if (!sessao) {
-      await enviarERegistrar(telefone, 'Não encontrei uma sessão aguardando pagamento. Sua psicóloga foi avisada.')
+      await enviarERegistrar(telefone, 'Não encontrei uma sessão aguardando pagamento. Avisei quem te atende.')
       return
     }
     try {
@@ -403,7 +403,7 @@ async function processarComandoPagamento(opts: { telefone: string; cmd: string }
       else                                                  await gerarCobrancaCartao(sessao.id, 'debito')
     } catch (err) {
       log.err('wa.inbox', 'falha ao gerar cobrança', err)
-      await enviarERegistrar(telefone, 'Tivemos um problema ao gerar a cobrança. Sua psicóloga foi notificada.')
+      await enviarERegistrar(telefone, 'Tivemos um problema ao gerar a cobrança. Avisei quem te atende.')
     }
     return
   }
