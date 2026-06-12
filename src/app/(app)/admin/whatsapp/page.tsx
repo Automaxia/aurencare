@@ -1,9 +1,10 @@
 import Link from 'next/link'
 import { requireRole } from '@/server/lib/auth'
 import { PageHeader } from '@/components/PageHeader'
-import { estadoConexaoEvolution, webhookUrlEvolution } from '@/server/lib/evolution'
+import { estadoConexaoEvolution, webhookUrlEvolution, lerWebhookEvolution } from '@/server/lib/evolution'
 import { TesteWhatsApp } from './TesteWhatsApp'
 import { RodarLembrete } from './RodarLembrete'
+import { ConfigurarWebhook } from './ConfigurarWebhook'
 
 export const dynamic = 'force-dynamic'
 
@@ -11,6 +12,8 @@ export default async function WhatsAppDiagPage() {
   await requireRole('admin')
   const c = await estadoConexaoEvolution()
   const conectado = c.state === 'open'
+  const wh = await lerWebhookEvolution().catch(() => null)
+  const webhookAtual: string | null = (wh as any)?.url ?? (wh as any)?.webhook?.url ?? null
 
   const status = !c.configurado
     ? { cor: 'var(--rose)', titulo: 'Não configurado (modo demonstração)', desc: 'EVOLUTION_API_URL e/ou EVOLUTION_API_KEY ausentes. Nenhuma mensagem de WhatsApp é enviada de verdade — só log. É a causa mais comum de "não chega".' }
@@ -43,6 +46,8 @@ export default async function WhatsAppDiagPage() {
         <Linha k="Estado da conexão" v={c.state ?? (c.configurado ? '—' : 'n/d')} />
         <Linha k="Webhook esperado" v={webhookUrlEvolution()} mono />
       </div>
+
+      <ConfigurarWebhook atual={webhookAtual} />
 
       <TesteWhatsApp habilitado={c.configurado} />
 

@@ -1,8 +1,14 @@
 'use server'
 
 import { requireRole } from '@/server/lib/auth'
-import { enviarWADiag } from '@/server/lib/evolution'
+import { enviarWADiag, configurarWebhookEvolution } from '@/server/lib/evolution'
 import { lembrete15min } from '@/server/lib/cron'
+
+export async function configurarWebhookAction(): Promise<{ ok: boolean; url: string; erro?: string }> {
+  await requireRole('admin')
+  const r = await configurarWebhookEvolution()
+  return { ok: r.ok, url: r.url, erro: r.erro }
+}
 
 export async function rodarLembrete15Action(): Promise<{ ok: boolean; count?: number; erro?: string }> {
   await requireRole('admin')
