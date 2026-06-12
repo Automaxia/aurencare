@@ -4,6 +4,8 @@ import { db } from '@/server/db/pool'
 import { enviarWA, WA_TEMPLATES } from '@/server/lib/evolution'
 import { log } from '@/server/lib/log'
 import { gerarCobrancaPix, gerarCobrancaCartao, cancelarSessao, buscarSessao } from './sessoes'
+import { criarOuObterSala } from './salaVideo'
+import { formatDateTimeBR } from '@/lib/formatters'
 import { obterConversa, atualizarConversa, registrarSaida, buscarPacientePorTelefone, resolverPsicologo, normalizar } from './wa-conversa'
 import { gerarMensagemSegura, type Intent } from './wa-voz'
 import { env } from '@/server/lib/env'
@@ -91,7 +93,7 @@ export async function processarMensagemRecebida(msg: Inbound): Promise<void> {
 
     case 'onboarded':
     case 'livre':
-      return responderPacienteConhecido(tel, cmd, pacienteExistente ?? null)
+      return responderPacienteConhecido(tel, cmd, pacienteExistente ?? null, psicologo)
 
     default:
       // Em estados intermediários de pagamento, se chegar algo não-comando,
@@ -223,19 +225,110 @@ async function receberConsent(tel: string, cmd: string, psicologo: { id: string;
   log.ok('wa.inbox', `paciente cadastrado via WhatsApp: ${nome} (${tel})`)
 }
 
+// ── Assistente do paciente (intents básicos por WhatsApp) ───────────────
+
+const semAcento = (s: string) => s.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '')
+type IntentPaciente = 'link' | 'agendar' | 'pagamento' | 'ajuda' | 'desconhecido'
+
+function detectarIntentPaciente(texto: string): IntentPaciente {
+  const t = ` ${semAcento(texto)} `
+  if (/\b(link|sala|entrar|acesso|video|chamada|reuniao|como entro|onde entro)\b/.test(t)) return 'link'
+  if (/\b(agendar|marcar|remarcar|remarca|reagendar|nova sessao|novo horario|horario|agenda|quero sessao|proxima sessao|disponibilidade)\b/.test(t)) return 'agendar'
+  if (/\b(pagar|pagamento|pix|cobranca|valor|preco|quanto custa|boleto|cartao|fatura|nota fiscal)\b/.test(t)) return 'pagamento'
+  if (/\b(ajuda|duvida|como funciona|menu|opcoes|oi|ola|bom dia|boa tarde|boa noite|obrigad)\b/.test(t) || texto.includes('?')) return 'ajuda'
+  return 'desconhecido'
+}
+
+const MENU_AJUDA =
+  `Posso te ajudar por aqui 🙂\n\n` +
+  `📅 *Agendar* — marcar ou remarcar uma sessão\n` +
+  `🔗 *Link* — receber o link da sua próxima sessão de vídeo\n` +
+  `💳 *Pagamento* — pagar ou tirar dúvidas de cobrança\n\n` +
+  `É só escrever o que você precisa.`
+
 async function responderPacienteConhecido(
   tel: string,
   texto: string,
   paciente: { id: string; psicologoId: string; nome: string } | null,
+  psicologo: { id: string; nome: string },
 ) {
-  const primeiroNome = (paciente?.nome ?? '').split(' ')[0] || 'você'
-  const msg = await gerarMensagemSegura({
-    kind: 'paciente_reconhecido',
-    contexto: { primeiroNome },
-  })
-  await enviarERegistrar(tel, msg)
-  // TODO: futura WA.3 — entrar em "escolhendo_horario" se mensagem indicar intenção
-  log.info('wa.inbox', `paciente conhecido respondeu: ${tel} · "${texto.slice(0, 60)}"`)
+  const intent = detectarIntentPaciente(texto)
+  log.info('wa.inbox', `paciente ${tel} intent=${intent} · "${texto.slice(0, 60)}"`)
+
+  if (!paciente) { await enviarERegistrar(tel, MENU_AJUDA); return }
+
+  switch (intent) {
+    case 'link':       return responderLinkSessao(tel, paciente, psicologo)
+    case 'pagamento':  return responderPagamentoFAQ(tel, paciente, psicologo)
+    case 'agendar':    return responderAgendar(tel, paciente, psicologo)
+    case 'ajuda':
+    default:           await enviarERegistrar(tel, MENU_AJUDA); return
+  }
+}
+
+/** Próxima sessão futura do paciente (não cancelada/concluída). */
+async function proximaSessaoPaciente(pacienteId: string): Promise<{ id: string; data_hora: string; modalidade: string; status: string } | null> {
+  const { rows } = await db.query<{ id: string; data_hora: string; modalidade: string; status: string }>(
+    `SELECT id, data_hora, modalidade, status FROM sessoes
+      WHERE paciente_id = $1
+        AND data_hora > NOW() - INTERVAL '1 hour'
+        AND status NOT IN ('cancelada','no_show','concluida')
+      ORDER BY data_hora ASC LIMIT 1`,
+    [pacienteId],
+  )
+  return rows[0] ?? null
+}
+
+async function responderLinkSessao(tel: string, paciente: { id: string; nome: string }, psicologo: { nome: string }) {
+  const s = await proximaSessaoPaciente(paciente.id)
+  if (!s) {
+    await enviarERegistrar(tel, `Você não tem nenhuma sessão agendada no momento. Para marcar, é só me escrever *agendar* — eu aviso ${psicologo.nome.split(' ')[0]}.`)
+    return
+  }
+  const dataFmt = formatDateTimeBR(s.data_hora)
+  if (s.modalidade !== 'online') {
+    await enviarERegistrar(tel, `Sua próxima sessão (${dataFmt}) é *presencial* — não tem sala de vídeo. Qualquer dúvida do endereço, fale com ${psicologo.nome.split(' ')[0]}.`)
+    return
+  }
+  try {
+    const sala = await criarOuObterSala(s.id, 4)
+    const link = `${env.appUrl.replace(/\/$/, '')}/sala/${sala.token}`
+    await enviarERegistrar(tel, `📹 Aqui está o link da sua sessão de ${dataFmt}:\n${link}\n\nVocê também recebe ele automaticamente ~15 minutos antes do horário.`)
+  } catch (err) {
+    log.err('wa.inbox', 'falha ao gerar sala', err)
+    await enviarERegistrar(tel, `Não consegui gerar o link agora. Tente de novo em instantes — e ele também chega ~15 min antes da sessão.`)
+  }
+}
+
+async function responderPagamentoFAQ(tel: string, paciente: { id: string }, psicologo: { nome: string }) {
+  const { rows } = await db.query<{ id: string; data_hora: string; valor: any; status: string }>(
+    `SELECT id, data_hora, valor, status FROM sessoes
+      WHERE paciente_id = $1 AND status IN ('aguardando_metodo','aguardando_pagamento')
+      ORDER BY data_hora ASC LIMIT 1`,
+    [paciente.id],
+  )
+  const pend = rows[0]
+  if (pend && pend.status === 'aguardando_metodo') {
+    await enviarERegistrar(tel, WA_TEMPLATES.fluxo2_perguntarMetodo(formatDateTimeBR(pend.data_hora), parseFloat(pend.valor ?? 0)))
+    return
+  }
+  if (pend && pend.status === 'aguardando_pagamento') {
+    await enviarERegistrar(tel, `Você tem um pagamento em aberto da sessão de ${formatDateTimeBR(pend.data_hora)}. Se o link expirou, responda *PIX*, *CREDITO* ou *DEBITO* que eu gero um novo.`)
+    return
+  }
+  await enviarERegistrar(tel,
+    `Sobre pagamento 💳\n\n` +
+    `Quando ${psicologo.nome.split(' ')[0]} agenda uma sessão paga, você recebe aqui o pedido — é só responder *PIX*, *CREDITO* ou *DEBITO* e o link chega na hora. A sessão confirma automaticamente após o pagamento.\n\n` +
+    `No momento você não tem nenhuma cobrança pendente.`)
+}
+
+async function responderAgendar(tel: string, paciente: { id: string; nome: string }, psicologo: { nome: string }) {
+  const primeiro = psicologo.nome.split(' ')[0]
+  await enviarERegistrar(tel,
+    `📅 As sessões são marcadas por ${primeiro}.\n\n` +
+    `Me diga o *dia e horário* que você prefere (ex: "terça às 15h") que eu registro o seu pedido para ${primeiro} confirmar com você.`)
+  // Registra a intenção pra acompanhamento (futuro: notificação no painel da psicóloga).
+  log.ok('wa.inbox', `PEDIDO DE AGENDAMENTO · paciente=${paciente.nome} tel=${tel}`)
 }
 
 // ──────────────────────────────────────────────────────────────────
