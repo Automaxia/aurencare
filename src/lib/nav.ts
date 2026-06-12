@@ -29,6 +29,7 @@ export const NAV: NavItem[] = [
   // ── Mundo Prática ──
   { href: '/financeiro', label: 'Financeiro',         icon: '◑', mundo: 'pratica', sidebar: true },
   { href: '/agenda',     label: 'Agenda',             icon: '◷', mundo: 'pratica', sidebar: true },
+  { href: '/conversas',  label: 'Conversas',          icon: '◐', mundo: 'pratica', sidebar: true },
   { href: '/saude',      label: 'Saúde da Prática',   icon: '◬', mundo: 'pratica', sidebar: true },
 ]
 

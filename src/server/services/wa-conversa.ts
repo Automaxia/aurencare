@@ -1,5 +1,6 @@
 import 'server-only'
 import { db } from '@/server/db/pool'
+import { log } from '@/server/lib/log'
 
 /**
  * Estado da conversa via WhatsApp.
@@ -89,6 +90,41 @@ export async function atualizarConversa(
 /** Marca a última mensagem enviada (pra dar contexto na próxima geração IA). */
 export async function registrarSaida(telefone: string, texto: string): Promise<void> {
   await atualizarConversa(telefone, { contexto: { ultimaSaida: texto.slice(0, 800) } })
+}
+
+/**
+ * Persiste uma mensagem no histórico (inbox). psicologo_id/paciente_id, se não
+ * passados, vêm da wa_conversas. Best-effort — nunca lança.
+ */
+export async function registrarMensagem(
+  telefone: string, direcao: 'in' | 'out', texto: string,
+  ids?: { psicologoId?: string | null; pacienteId?: string | null },
+): Promise<void> {
+  try {
+    const tel = normalizar(telefone)
+    let psicologoId = ids?.psicologoId ?? null
+    let pacienteId = ids?.pacienteId ?? null
+    if (psicologoId == null || pacienteId == null) {
+      const { rows } = await db.query<{ psicologo_id: string | null; paciente_id: string | null }>(
+        `SELECT psicologo_id, paciente_id FROM wa_conversas WHERE telefone = $1 LIMIT 1`, [tel],
+      )
+      psicologoId = psicologoId ?? rows[0]?.psicologo_id ?? null
+      pacienteId = pacienteId ?? rows[0]?.paciente_id ?? null
+    }
+    await db.query(
+      `INSERT INTO wa_mensagens (telefone, psicologo_id, paciente_id, direcao, texto)
+       VALUES ($1, $2, $3, $4, $5)`,
+      [tel, psicologoId, pacienteId, direcao, (texto ?? '').slice(0, 4000)],
+    )
+  } catch (err) {
+    log.err('wa.mensagens', 'falha ao registrar', err)
+  }
+}
+
+/** Marca a conversa como lida pela psicóloga (zera não-lidas). */
+export async function marcarConversaLida(telefone: string): Promise<void> {
+  await db.query(`UPDATE wa_conversas SET psi_lida_em = NOW() WHERE telefone = $1`, [normalizar(telefone)])
+    .catch(() => { /* */ })
 }
 
 /** Localiza paciente pelo telefone — qualquer psicóloga. */

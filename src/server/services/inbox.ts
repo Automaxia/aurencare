@@ -6,7 +6,7 @@ import { log } from '@/server/lib/log'
 import { gerarCobrancaPix, gerarCobrancaCartao, cancelarSessao, buscarSessao } from './sessoes'
 import { criarOuObterSala } from './salaVideo'
 import { formatDateTimeBR } from '@/lib/formatters'
-import { obterConversa, atualizarConversa, registrarSaida, buscarPacientePorTelefone, resolverPsicologo, normalizar } from './wa-conversa'
+import { obterConversa, atualizarConversa, registrarSaida, registrarMensagem, buscarPacientePorTelefone, resolverPsicologo, normalizar } from './wa-conversa'
 import { gerarMensagemSegura, type Intent } from './wa-voz'
 import { env } from '@/server/lib/env'
 import { processarResposta, acharSessaoPendentePorTelefone, type RespostaPaciente } from './confirmacaoSessao'
@@ -25,6 +25,14 @@ export async function processarMensagemRecebida(msg: Inbound): Promise<void> {
   const tel = normalizar(msg.telefone)
   const cmd = (msg.texto ?? '').trim()
   const cmdUpper = cmd.toUpperCase()
+
+  // Persiste a mensagem recebida no histórico (inbox). Resolve psi/paciente pra
+  // garantir que apareça na caixa de entrada da psicóloga, inclusive em comandos.
+  {
+    const psi = await resolverPsicologo(msg.instance).catch(() => null)
+    const pac = await buscarPacientePorTelefone(tel).catch(() => null)
+    await registrarMensagem(tel, 'in', cmd, { psicologoId: psi?.id ?? null, pacienteId: pac?.id ?? null })
+  }
 
   // ──────────────────────────────────────────────────────────────────
   // 0) Confirmação pós-sessão (Fluxo 7) — SIM/NAO/NÃO
@@ -395,6 +403,7 @@ async function processarComandoPagamento(opts: { telefone: string; cmd: string }
 async function enviarERegistrar(telefone: string, texto: string) {
   await enviarWA(telefone, texto)
   await registrarSaida(telefone, texto)
+  await registrarMensagem(telefone, 'out', texto)
 }
 
 function limparNome(input: string): string | null {
