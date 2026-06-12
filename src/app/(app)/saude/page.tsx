@@ -77,7 +77,7 @@ export default async function SaudePage() {
 
       {/* Bloco 3 — Indicadores principais (saúde operacional) */}
       <div className="sec-lbl" style={{ marginBottom: 10 }}>Indicadores principais</div>
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12, marginBottom: 22 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 12, marginBottom: 22 }}>
         <KpiBig
           label="Comparecimento"
           value={`${s.taxaComparecimentoPct.toFixed(0)}%`}
@@ -101,7 +101,7 @@ export default async function SaudePage() {
 
       {/* Bloco 4 — Indicadores secundários (contexto complementar, menor destaque) */}
       <div className="sec-lbl" style={{ marginBottom: 10 }}>Contexto</div>
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12, marginBottom: 22 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(170px, 1fr))', gap: 12, marginBottom: 22 }}>
         <Kpi label="Sessões este mês"    value={s.sessoesMes} />
         <Kpi label="Sessões esta semana" value={s.sessoesSemana} />
         <Kpi label="Valor médio por sessão" value={formatBRL(s.ticketMedio)} />

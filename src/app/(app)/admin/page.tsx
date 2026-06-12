@@ -90,7 +90,7 @@ export default async function AdminPage() {
 
       {/* BLOCO 3 — ATIVAÇÃO */}
       <Section title="Funil de ativação">
-        <div style={{ display: 'grid', gridTemplateColumns: '1.4fr 1fr 1fr', gap: 12 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 12 }}>
           <div className="card" style={{ padding: 18, background: ativacaoPct >= 40 ? 'var(--sage-lo)' : undefined }}>
             <div style={{ fontSize: 11, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '.06em' }}>Taxa de ativação</div>
             <div style={{ fontFamily: 'var(--f-display)', fontSize: 42, lineHeight: 1, marginTop: 4, color: ativacaoPct >= 40 ? 'var(--sage)' : ativacaoPct < 20 ? 'var(--amber)' : 'var(--ink)' }}>{ativacaoPct}%</div>

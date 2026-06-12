@@ -90,7 +90,7 @@ export default async function FinanceiroPage({ searchParams }: { searchParams: S
       </div>
 
       {/* Linha 1 — visão geral */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12, marginBottom: 16 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 12, marginBottom: 16 }}>
         <Kpi label={`Recebido (${labelPeriodoCurto(periodo)})`} value={formatBRL(f.totaisMes.recebido)} color="sage" />
         <Kpi label="Líquido estimado"     value={formatBRL(f.liquidoEstimado)} hint="Bruto − taxas Pagar.me" />
         <Kpi label="Previsão de recebimento" value={formatBRL(f.aReceber30d)} hint="Próximos 30 dias" />
@@ -161,7 +161,8 @@ export default async function FinanceiroPage({ searchParams }: { searchParams: S
               Total filtrado: {formatBRL(filtradas.reduce((a, c) => a + c.valor, 0))}
             </span>
           </div>
-          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+          <div style={{ overflowX: 'auto' }}>
+          <table style={{ width: '100%', minWidth: 760, borderCollapse: 'collapse', fontSize: 13 }}>
             <thead>
               <tr style={{ background: 'var(--surface)', textAlign: 'left' }}>
                 <Th>Sessão</Th><Th>Paciente</Th><Th>Método</Th><Th>Valor</Th>
@@ -210,6 +211,7 @@ export default async function FinanceiroPage({ searchParams }: { searchParams: S
               })}
             </tbody>
           </table>
+          </div>
         </div>
       )}
     </div>
