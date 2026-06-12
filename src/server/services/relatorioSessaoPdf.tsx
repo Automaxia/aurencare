@@ -268,7 +268,7 @@ function formatIndicadores(ind: any): string | null {
 function formatDataCurta(iso: string): string {
   try {
     return new Date(iso).toLocaleDateString('pt-BR', {
-      day: '2-digit', month: '2-digit', year: 'numeric',
+      day: '2-digit', month: '2-digit', year: 'numeric', timeZone: 'America/Sao_Paulo',
     })
   } catch { return iso }
 }

@@ -1,5 +1,6 @@
 import 'server-only'
 import { db } from '@/server/db/pool'
+import { dataBrasiliaISO, hojeBrasiliaISO } from '@/lib/formatters'
 
 // 'absoluta' = métrica numérica · 'nenhuma' = Meta descritiva (acompanha por GAS) ·
 // 'gas' = legado (GAS era um tipo de métrica; agora é camada à parte em objetivo_gas).
@@ -162,7 +163,7 @@ export type RegistrarMedicaoInput = {
 }
 
 export async function registrarMedicao(objetivoId: string, input: RegistrarMedicaoInput): Promise<Medicao> {
-  const medidoEm = input.medidoEm ?? new Date().toISOString().slice(0, 10)
+  const medidoEm = input.medidoEm ?? hojeBrasiliaISO()
   const { rows } = await db.query(
     `INSERT INTO objetivo_medicoes (objetivo_id, medido_em, valor, nota, origem, sessao_id)
      VALUES ($1, $2, $3, $4, $5, $6)
@@ -271,7 +272,7 @@ export async function lerEvolucaoObjetivo(objetivoId: string): Promise<EvolucaoO
     medicoes,
     sessoesNoPeriodo: ses.map(s => ({
       id: s.id, numero: s.numero,
-      data: new Date(s.data_hora).toISOString().slice(0, 10),
+      data: dataBrasiliaISO(s.data_hora),
     })),
   }
 }

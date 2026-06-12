@@ -85,7 +85,7 @@ export async function enviarConfirmacaoPosSessao(sessaoId: string): Promise<Envi
   const agora = new Date()
   const expira = calcularJanelaConfirmacao(agora)
   const token = randomBytes(24).toString('base64url')
-  const horaSessao = new Date(s.data_hora).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
+  const horaSessao = new Date(s.data_hora).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', timeZone: 'America/Sao_Paulo' })
   // Sessão grátis: o aviso não menciona pagamento (não há cobrança a liberar).
   const gratuita = Number(s.valor ?? 0) <= 0 || s.pagamento_status === 'isento'
 

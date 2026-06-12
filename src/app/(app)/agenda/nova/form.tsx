@@ -4,11 +4,11 @@ import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { useToast } from '@/components/feedback/Toast'
 import { criarSessaoAction, criarSerieAction, conflitosSerieAction } from './actions'
+import { horarioBrasiliaParaISO, TZ } from '@/lib/formatters'
 
 type Modo = 'avulsa' | 'serie'
 type Frequencia = 'semanal' | 'quinzenal'
 
-const SEMANAS_PT = ['domingo', 'segunda', 'terça', 'quarta', 'quinta', 'sexta', 'sábado']
 
 export function NewSessionForm({ pacientes }: { pacientes: { id: string; nome: string }[] }) {
   const router = useRouter()
@@ -53,7 +53,7 @@ export function NewSessionForm({ pacientes }: { pacientes: { id: string; nome: s
 
   const diaSemana = (() => {
     const iso = isoLocal(data, hora); if (!iso) return ''
-    return SEMANAS_PT[new Date(iso).getDay()]
+    return new Date(iso).toLocaleDateString('pt-BR', { weekday: 'long', timeZone: TZ })
   })()
 
   async function onSubmit(e: React.FormEvent) {
@@ -250,17 +250,14 @@ function ModoBtn({ ativo, onClick, children }: { ativo: boolean; onClick: () => 
   )
 }
 
-function isoLocal(data: string, hora: string): string | null {
-  if (!data || !hora) return null
-  const dt = new Date(`${data}T${hora}:00`)
-  if (Number.isNaN(+dt)) return null
-  return dt.toISOString()
-}
+// Horário digitado = horário de Brasília (fuso da clínica), não o do navegador.
+const isoLocal = horarioBrasiliaParaISO
 
 function formatarPreview(iso: string): string {
   const d = new Date(iso)
   return d.toLocaleString('pt-BR', {
     day: '2-digit', month: 'short',
     weekday: 'short', hour: '2-digit', minute: '2-digit',
+    timeZone: TZ,
   })
 }

@@ -105,8 +105,8 @@ export async function coletarExportacaoMensal(
     const tx = taxaPagarMe(s.pagamento_metodo, parcelas)
     const taxa = Math.round(valor * tx * 100) / 100
     return {
-      data: dt.toISOString().slice(0, 10),
-      hora: dt.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
+      data: dt.toLocaleDateString('en-CA', { timeZone: 'America/Sao_Paulo' }),
+      hora: dt.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', timeZone: 'America/Sao_Paulo' }),
       sessaoNumero: s.numero,
       pacienteNome: s.pac_nome,
       pacienteCpf: (s.pac_condicoes?.cpf as string | null) ?? null,

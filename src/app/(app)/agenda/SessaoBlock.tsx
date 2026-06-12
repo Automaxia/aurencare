@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { reagendarSessaoAction } from './actions'
+import { horarioBrasiliaParaISO, TZ } from '@/lib/formatters'
 
 const STATUS_LABEL: Record<string, string> = {
   agendada: 'Agendada', aguardando_metodo: 'Aguardando método de pagamento',
@@ -13,10 +14,14 @@ const PAG_LABEL: Record<string, string> = {
   pago: 'Pago', pendente: 'Pendente', isento: 'Sem cobrança', reembolsado: 'Reembolsado', falhou: 'Falhou', contestado: 'Contestado',
 }
 
+// Decompõe o instante em data/hora NO FUSO DE BRASÍLIA, pros inputs date/time —
+// independente do fuso do navegador (en-CA → YYYY-MM-DD; en-GB h23 → HH:mm).
 function partesLocais(iso: string): { data: string; hora: string } {
   const d = new Date(iso)
-  const p = (n: number) => String(n).padStart(2, '0')
-  return { data: `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`, hora: `${p(d.getHours())}:${p(d.getMinutes())}` }
+  return {
+    data: d.toLocaleDateString('en-CA', { timeZone: TZ }),
+    hora: d.toLocaleTimeString('en-GB', { timeZone: TZ, hour: '2-digit', minute: '2-digit', hour12: false }),
+  }
 }
 
 export function SessaoBlock({ sessao, className, style, children }: {
@@ -40,7 +45,8 @@ export function SessaoBlock({ sessao, className, style, children }: {
 
   async function salvar() {
     setErro(null)
-    const iso = new Date(`${data}T${hora}`).toISOString()
+    const iso = horarioBrasiliaParaISO(data, hora)
+    if (!iso) { setErro('Data/hora inválida.'); return }
     setSalvando(true)
     const r = await reagendarSessaoAction(sessao.id, { dataHora: iso, duracaoMin: duracao, modalidade })
     setSalvando(false)
@@ -48,7 +54,7 @@ export function SessaoBlock({ sessao, className, style, children }: {
     setAberto(false); router.refresh()
   }
 
-  const dtLabel = new Date(sessao.dataHora).toLocaleString('pt-BR', { weekday: 'short', day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })
+  const dtLabel = new Date(sessao.dataHora).toLocaleString('pt-BR', { weekday: 'short', day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit', timeZone: TZ })
 
   return (
     <>

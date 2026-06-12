@@ -1,5 +1,6 @@
 import 'server-only'
 import { db } from '@/server/db/pool'
+import { hojeBrasiliaISO } from '@/lib/formatters'
 
 /**
  * Escalas GAS (Goal Attainment Scaling) — ferramenta de acompanhamento da Meta.
@@ -73,7 +74,7 @@ export async function listarGasPorPaciente(pacienteId: string): Promise<Record<s
 export async function registrarAndamentoGas(
   objetivoId: string, gasId: string, nivel: number, medidoEm?: string | null,
 ): Promise<GasAndamento> {
-  const data = medidoEm || new Date().toISOString().slice(0, 10)
+  const data = medidoEm || hojeBrasiliaISO()
   const n = clampNivel(nivel, 0)
   await db.query(
     `INSERT INTO objetivo_medicoes (objetivo_id, gas_id, medido_em, valor, origem)

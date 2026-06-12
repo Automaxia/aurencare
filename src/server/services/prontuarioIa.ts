@@ -46,7 +46,7 @@ async function montarContexto(psicologoId: string, pacienteId: string): Promise<
   const linhas: string[] = []
   linhas.push(`PACIENTE: ${d.paciente.nome}`)
   linhas.push(`PROFISSIONAL RESPONSÁVEL: ${d.psicologo.nome} (${d.psicologo.crp})`)
-  linhas.push(`ATENDIMENTO INICIADO EM: ${new Date(d.paciente.cadastradoEm).toLocaleDateString('pt-BR')}`)
+  linhas.push(`ATENDIMENTO INICIADO EM: ${new Date(d.paciente.cadastradoEm).toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' })}`)
   linhas.push(`SESSÕES ASSINADAS: ${d.totaisAssinadas}`)
   linhas.push('')
 
@@ -55,7 +55,7 @@ async function montarContexto(psicologoId: string, pacienteId: string): Promise<
     // Inclui até as últimas 20 sessões pra controlar tokens
     const ultimas = d.sessoes.slice(-20)
     for (const s of ultimas) {
-      const data = new Date(s.dataHora).toLocaleDateString('pt-BR')
+      const data = new Date(s.dataHora).toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' })
       linhas.push(`Sessão #${s.numero} (${data}, ${s.duracaoMin}min, ${s.modalidade}):`)
       if (s.resumo) linhas.push(s.resumo)
       if (s.indicadores) {

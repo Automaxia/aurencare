@@ -33,6 +33,12 @@ spec:
           image: wesleyromualdo/aurencare-web:latest
           ports:
             - containerPort: 3000
+          env:
+            # Fuso da clínica (Brasília). Sem isso o container roda em UTC e todo
+            # `new Date()`/`toLocaleString` sem timeZone explícito sai 3h deslocado
+            # (janelas de "hoje" na agenda/dashboard, datas em PDFs/contexto de IA).
+            - name: TZ
+              value: "America/Sao_Paulo"
           envFrom:
             - secretRef:
                 name: aurencare-secrets

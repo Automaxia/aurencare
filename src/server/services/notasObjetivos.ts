@@ -1,5 +1,6 @@
 import 'server-only'
 import { db } from '@/server/db/pool'
+import { hojeBrasiliaISO } from '@/lib/formatters'
 
 /**
  * Marcos de progresso da Meta — anotações livres datadas. Disponíveis em qualquer
@@ -37,7 +38,7 @@ export async function listarNotasPorPaciente(pacienteId: string): Promise<Record
 }
 
 export async function criarNota(objetivoId: string, input: { texto: string; marcoEm?: string | null }): Promise<NotaProgresso> {
-  const marcoEm = input.marcoEm || new Date().toISOString().slice(0, 10)
+  const marcoEm = input.marcoEm || hojeBrasiliaISO()
   const { rows } = await db.query(
     `INSERT INTO objetivo_notas (objetivo_id, texto, marco_em) VALUES ($1, $2, $3) RETURNING *`,
     [objetivoId, input.texto.trim(), marcoEm],
