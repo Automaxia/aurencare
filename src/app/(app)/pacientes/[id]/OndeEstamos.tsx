@@ -39,7 +39,7 @@ export function OndeEstamos(props: OndeEstamosProps) {
           assina sessões, este painel passa a resumir <strong>onde o processo está</strong>.
         </p>
       ) : (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 20 }}>
+        <div className="onde-grid">
           {/* Coluna 1 — Objetivos */}
           <div>
             <Rotulo>Objetivos ativos</Rotulo>

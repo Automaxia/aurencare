@@ -168,6 +168,12 @@ input:user-invalid:focus, textarea:user-invalid:focus, select:user-invalid:focus
   .login-aside { padding: 26px 22px; gap: 12px; text-align: center; align-items: center; }
 }
 
+/* Painel "Onde estamos" — Objetivos | Temas+Evolução. minmax(0,1fr) deixa as
+   colunas encolherem (sem isso, títulos longos com nowrap estouram e a coluna
+   de Objetivos sobrepõe a de Temas). Colapsa pra 1 coluna no estreito. */
+.onde-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 20px; }
+@media (max-width: 600px) { .onde-grid { grid-template-columns: 1fr; } }
+
 /* Lista de pacientes (visão "Lista") — em tablet esconde a coluna Frequência
    e recalcula o grid pra 5 trilhas, pra não espremer nome/próxima. */
 @media (max-width: 860px) {
