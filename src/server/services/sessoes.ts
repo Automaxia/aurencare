@@ -205,6 +205,15 @@ export async function reagendarSessao(
   psicologoId: string, sessaoId: string,
   patch: { dataHora?: string; duracaoMin?: number; modalidade?: string },
 ): Promise<boolean> {
+  // Detecta se a data/hora realmente mudou (pra avisar o paciente só quando muda).
+  let mudouData = false
+  if (patch.dataHora !== undefined) {
+    const { rows } = await db.query<{ data_hora: string }>(
+      `SELECT data_hora FROM sessoes WHERE id = $1 AND psicologo_id = $2`, [sessaoId, psicologoId],
+    )
+    if (rows[0]) mudouData = new Date(rows[0].data_hora).getTime() !== new Date(patch.dataHora).getTime()
+  }
+
   const fields: string[] = []
   const vals: any[] = [sessaoId, psicologoId]
   const set = (col: string, v: any) => { fields.push(`${col} = $${vals.length + 1}`); vals.push(v) }
@@ -215,7 +224,17 @@ export async function reagendarSessao(
   const { rowCount } = await db.query(
     `UPDATE sessoes SET ${fields.join(', ')} WHERE id = $1 AND psicologo_id = $2`, vals,
   )
-  return (rowCount ?? 0) > 0
+  const ok = (rowCount ?? 0) > 0
+
+  // Avisa o paciente do novo horário por WhatsApp (best-effort, só se mudou a data/hora).
+  if (ok && mudouData) {
+    const sessao = await buscarSessao(sessaoId)
+    if (sessao?.pacienteTelefone) {
+      await enviarWA(sessao.pacienteTelefone, WA_TEMPLATES.fluxo2_remarcada(formatDateTimeBR(sessao.dataHora)))
+        .catch(err => log.err('reagendarSessao', 'falha WA remarcada', err))
+    }
+  }
+  return ok
 }
 
 // ── Séries recorrentes ────────────────────────────────────────────────────

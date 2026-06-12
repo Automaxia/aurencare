@@ -132,6 +132,12 @@ Não é necessário pagamento.
 
 Qualquer mudança, é só responder por aqui.`,
 
+  /** Sessão remarcada: avisa o paciente do novo horário. */
+  fluxo2_remarcada: (dataHora: string) =>
+    `📅 Sua sessão foi remarcada para ${dataHora}.
+
+Qualquer dúvida, é só responder por aqui.`,
+
   /**
    * Confirmação informativa de série recorrente (ex: 4 sessões toda sexta 15h).
    * NÃO pede método aqui — cron dispara fluxo2_perguntarMetodo 48h antes
