@@ -6,6 +6,7 @@ import { formatBRL, formatDateTimeBR } from '@/lib/formatters'
 import { FinanceiroFilters } from './filters'
 import { NfCell } from './NfCell'
 import { FinanceiroTabs } from './FinanceiroTabs'
+import { GerirCobranca } from './GerirCobranca'
 
 export const dynamic = 'force-dynamic'
 
@@ -164,7 +165,7 @@ export default async function FinanceiroPage({ searchParams }: { searchParams: S
             <thead>
               <tr style={{ background: 'var(--surface)', textAlign: 'left' }}>
                 <Th>Sessão</Th><Th>Paciente</Th><Th>Método</Th><Th>Valor</Th>
-                <Th>Status</Th><Th>NF</Th><Th>Confirmação</Th><Th>Cai em</Th>
+                <Th>Status</Th><Th>NF</Th><Th>Confirmação</Th><Th>Cai em</Th><Th>Ações</Th>
               </tr>
             </thead>
             <tbody>
@@ -200,6 +201,9 @@ export default async function FinanceiroPage({ searchParams }: { searchParams: S
                     <Td><ConfirmBadge status={c.confirmacao} /></Td>
                     <Td style={{ fontSize: 12, color: 'var(--muted)' }}>
                       {c.caiEm ? formatDateBR(c.caiEm) : '—'}
+                    </Td>
+                    <Td>
+                      <GerirCobranca sessaoId={c.id} valor={c.valor} pagamentoStatus={c.pagamentoStatus} dataHora={c.dataHora} paciente={c.pacienteNome} />
                     </Td>
                   </tr>
                 )
