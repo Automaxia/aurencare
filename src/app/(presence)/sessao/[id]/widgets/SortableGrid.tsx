@@ -10,6 +10,7 @@ import {
   rectSortingStrategy, useSortable,
 } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
+import { DragHandleContext } from '@/components/WidgetGrip'
 
 /**
  * Grid arrastável dos widgets do Modo Presença. Persiste ordem em localStorage.
@@ -86,11 +87,13 @@ export function SortableGrid({ defaultOrder, children }: Props) {
 }
 
 function SortableItem({ id, children, isDragging }: { id: string; children: React.ReactElement; isDragging: boolean }) {
-  const { attributes, listeners, setNodeRef, transform, transition, isDragging: sortDragging } = useSortable({ id })
+  const { attributes, listeners, setNodeRef, setActivatorNodeRef, transform, transition, isDragging: sortDragging } = useSortable({ id })
   // Detecta se é wide via classList no children (passa direto pra wrapper div)
   const childClass = (children.props.className as string) || ''
   const isWide = childClass.includes('wide')
 
+  // Os listeners do drag NÃO vão no wrapper inteiro — vão só no grip (via context).
+  // Assim o widget só move pelo grip e a barra de espaço funciona nos textareas.
   return (
     <div
       ref={setNodeRef}
@@ -101,10 +104,10 @@ function SortableItem({ id, children, isDragging }: { id: string; children: Reac
         opacity: sortDragging || isDragging ? .5 : 1,
         zIndex: sortDragging ? 10 : undefined,
       }}
-      {...attributes}
-      {...listeners}
     >
-      {children}
+      <DragHandleContext.Provider value={{ attributes, listeners, setRef: setActivatorNodeRef }}>
+        {children}
+      </DragHandleContext.Provider>
     </div>
   )
 }

@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
-import { Mic, MicOff, Video, VideoOff, PhoneOff, Maximize2, Minimize2, Aperture } from 'lucide-react'
+import { Mic, MicOff, Video, VideoOff, PhoneOff, Maximize2, Minimize2, Aperture, ScreenShare, ScreenShareOff } from 'lucide-react'
 import { useWebRTC, type WebRTCState } from '@/lib/useWebRTC'
 import { useBackgroundBlur } from '@/lib/useBackgroundBlur'
 
@@ -58,6 +58,23 @@ export function VideoCall({ token, role, caller, compact, onEncerrar, onRemoteSt
   const blurProc = useBackgroundBlur(ctrl.localStream, blur)
   const blurOk = !blurProc.error
 
+  // Compartilhamento de tela
+  const [screenStream, setScreenStream] = useState<MediaStream | null>(null)
+  const podeCompartilhar = typeof navigator !== 'undefined' && !!navigator.mediaDevices?.getDisplayMedia
+  async function toggleScreen() {
+    if (screenStream) {
+      screenStream.getTracks().forEach(t => t.stop())
+      setScreenStream(null)
+      return
+    }
+    try {
+      const s = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: false })
+      s.getVideoTracks()[0]?.addEventListener('ended', () => setScreenStream(null)) // parou pela UI do navegador
+      setBlur(false) // compartilhar tela desliga o desfoque
+      setScreenStream(s)
+    } catch { /* usuário cancelou */ }
+  }
+
   useEffect(() => {
     const h = () => setMaximized(!!document.fullscreenElement)
     document.addEventListener('fullscreenchange', h)
@@ -77,18 +94,19 @@ export function VideoCall({ token, role, caller, compact, onEncerrar, onRemoteSt
     } catch { /* */ }
   }
 
-  // Preview local: mostra o blurred quando ativo (igual ao que o outro vê), senão a câmera crua.
+  // Preview local: tela compartilhada > desfoque > câmera crua.
   useEffect(() => {
     const v = localRef.current
     if (!v) return
-    v.srcObject = (blur && blurProc.stream) ? blurProc.stream : ctrl.localStream
-  }, [ctrl.localStream, blur, blurProc.stream])
+    v.srcObject = screenStream ? screenStream : (blur && blurProc.stream) ? blurProc.stream : ctrl.localStream
+  }, [ctrl.localStream, blur, blurProc.stream, screenStream])
 
-  // Track ENVIADO: troca pelo blurred quando ativo, reverte quando off (seamless).
+  // Track ENVIADO: tela compartilhada > blurred > câmera (null reverte pra câmera).
   useEffect(() => {
-    if (blur && blurProc.stream) ctrl.replaceVideoTrack(blurProc.stream.getVideoTracks()[0] ?? null)
+    if (screenStream) ctrl.replaceVideoTrack(screenStream.getVideoTracks()[0] ?? null)
+    else if (blur && blurProc.stream) ctrl.replaceVideoTrack(blurProc.stream.getVideoTracks()[0] ?? null)
     else ctrl.replaceVideoTrack(null)
-  }, [blur, blurProc.stream, ctrl])
+  }, [screenStream, blur, blurProc.stream, ctrl])
 
   // Falhou (modelo não carregou / device fraco) → volta o botão pro off.
   useEffect(() => { if (blurProc.error) setBlur(false) }, [blurProc.error])
@@ -159,12 +177,15 @@ export function VideoCall({ token, role, caller, compact, onEncerrar, onRemoteSt
         }}
       />
 
-      <ControlsCall ctrl={ctrl} onEncerrar={onEncerrar} />
+      <ControlsCall ctrl={ctrl} onEncerrar={onEncerrar} sharing={!!screenStream} onToggleScreen={toggleScreen} podeCompartilhar={podeCompartilhar} />
     </div>
   )
 }
 
-function ControlsCall({ ctrl, onEncerrar }: { ctrl: WebRTCState; onEncerrar?: () => void }) {
+function ControlsCall({ ctrl, onEncerrar, sharing, onToggleScreen, podeCompartilhar }: {
+  ctrl: WebRTCState; onEncerrar?: () => void
+  sharing: boolean; onToggleScreen: () => void; podeCompartilhar: boolean
+}) {
   return (
     <div className="vc-controls">
       <button
@@ -181,6 +202,15 @@ function ControlsCall({ ctrl, onEncerrar }: { ctrl: WebRTCState; onEncerrar?: ()
       >
         {ctrl.camOn ? <Video size={16} /> : <VideoOff size={16} />}
       </button>
+      {podeCompartilhar && (
+        <button
+          className={`vc-ctrl${sharing ? ' on' : ''}`}
+          onClick={onToggleScreen}
+          title={sharing ? 'Parar de compartilhar a tela' : 'Compartilhar a tela'}
+        >
+          {sharing ? <ScreenShareOff size={16} /> : <ScreenShare size={16} />}
+        </button>
+      )}
       <button
         className="vc-ctrl danger"
         onClick={() => { ctrl.encerrar(); onEncerrar?.() }}

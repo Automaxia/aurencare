@@ -1719,6 +1719,7 @@ a.pip:hover .pip-d { transform: scale(1.25); transition: transform .15s ease; }
 }
 .vc-ctrl:hover { background: rgba(255,255,255,.18); }
 .vc-ctrl.off { background: rgba(196,96,122,.55); }
+.vc-ctrl.on { background: var(--accent); }
 .vc-ctrl.danger { background: var(--rose); }
 .vc-ctrl.danger:hover { background: #b04565; }
 
