@@ -4,6 +4,7 @@ import { db } from '@/server/db/pool'
 import { tryDecrypt } from '@/server/lib/crypto'
 import { listarObjetivos, listarMedicoes } from './objetivos'
 import { lerMarcos, type Marco } from './marcos'
+import type { DadosCadastro } from './pacientes'
 
 /**
  * Coleta os dados necessários pra exportação do prontuário em conformidade
@@ -31,6 +32,8 @@ export type ProntuarioPaciente = {
     aceitoEm: string | null
   }
   condicoes: { cid?: string; medicacoes?: string[]; alertas?: string[] } | null
+  /** Dados cadastrais/sociodemográficos (pacientes.dados_cadastro). */
+  dadosCadastro: DadosCadastro | null
 }
 
 export type ProntuarioSessao = {
@@ -99,10 +102,10 @@ export async function coletarDadosProntuario(
   const { rows: pacs } = await db.query<{
     id: string; nome: string; telefone: string; email: string | null;
     consentimento_aceito: boolean; consentimento_timestamp: string | null;
-    condicoes: any; created_at: string;
+    condicoes: any; dados_cadastro: DadosCadastro | null; created_at: string;
   }>(
     `SELECT id, nome, telefone, email,
-            consentimento_aceito, consentimento_timestamp, condicoes, created_at
+            consentimento_aceito, consentimento_timestamp, condicoes, dados_cadastro, created_at
        FROM pacientes WHERE id = $1 AND psicologo_id = $2 LIMIT 1`,
     [pacienteId, psicologoId],
   )
@@ -119,6 +122,7 @@ export async function coletarDadosProntuario(
       aceitoEm: p.consentimento_timestamp,
     },
     condicoes: p.condicoes ?? null,
+    dadosCadastro: p.dados_cadastro ?? null,
   }
 
   // ── Sessões assinadas ────────────────────────────────────────────────
