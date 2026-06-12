@@ -4,6 +4,7 @@ import { chat, type ChatMessage } from '@/server/lib/anthropic'
 import { CLINICAL_VOICE } from '@/server/lib/clinicalVoice'
 import { db } from '@/server/db/pool'
 import { tryDecrypt } from '@/server/lib/crypto'
+import { blocoPerfilParaIa } from '@/server/services/pacientePerfilContexto'
 
 const SYS_TEMAS = `${CLINICAL_VOICE}
 
@@ -51,16 +52,20 @@ export async function POST(req: Request) {
       es.map(e => `- ${e.palavra_a} + ${e.palavra_b} · ${e.weight}`).join('\n')
     }${foco ? `\n\nFoco da conversa: "${foco}"` : ''}`
   } else {
-    const { rows: ss } = await db.query<{ data_hora: string; numero: number; resumo_ia: string | null }>(
-      `SELECT data_hora, numero, resumo_ia FROM sessoes
-        WHERE paciente_id = $1 AND assinada = TRUE
-        ORDER BY data_hora ASC`, [pacienteId])
-    grounding = `Sessões assinadas (resumos):\n${
+    const [perfil, { rows: ss }] = await Promise.all([
+      blocoPerfilParaIa(pacienteId, user.id),
+      db.query<{ data_hora: string; numero: number; resumo_ia: string | null }>(
+        `SELECT data_hora, numero, resumo_ia FROM sessoes
+          WHERE paciente_id = $1 AND assinada = TRUE
+          ORDER BY data_hora ASC`, [pacienteId]),
+    ])
+    const sessoes = `Sessões assinadas (resumos):\n${
       ss.map(s => {
         const txt = tryDecrypt(s.resumo_ia) ?? '(sem resumo)'
-        return `Sessão #${s.numero} · ${new Date(s.data_hora).toLocaleDateString('pt-BR')}\n${txt}`
+        return `Sessão #${s.numero} · ${new Date(s.data_hora).toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' })}\n${txt}`
       }).join('\n\n')
     }`
+    grounding = perfil ? `${perfil}\n\n${sessoes}` : sessoes
   }
 
   const sys = (contexto === 'temas' ? SYS_TEMAS : SYS_EVOLUCAO) + `\n\n${grounding}`

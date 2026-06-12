@@ -2,6 +2,7 @@ import 'server-only'
 import { chat, type ChatMessage } from '@/server/lib/anthropic'
 import { CLINICAL_VOICE } from '@/server/lib/clinicalVoice'
 import { coletarDadosProntuario } from './prontuarioExport'
+import { formatCadastrais, formatClinicas } from './pacientePerfilContexto'
 
 /**
  * Chat IA para redação de prontuário em linguagem natural.
@@ -125,57 +126,6 @@ function formatIndicadores(ind: any): string | null {
     else if (med) partes.push('risco médio')
   }
   return partes.length > 0 ? partes.join(' · ') : null
-}
-
-/**
- * Dados cadastrais/sociodemográficos relevantes pra leitura clínica.
- * Omite CPF de propósito: é identificador administrativo, sem valor analítico
- * e sensível — não entra no contexto da IA. Contatos de emergência entram só
- * como contagem (rede de apoio), sem expor PII de terceiros.
- */
-function formatCadastrais(dc: any): string | null {
-  if (!dc || typeof dc !== 'object') return null
-  const partes: string[] = []
-  const add = (rotulo: string, v: any) => { if (v != null && String(v).trim()) partes.push(`${rotulo}: ${String(v).trim()}`) }
-  add('Nome social', dc.nomeSocial)
-  add('Gênero', dc.genero)
-  add('Raça/cor', dc.racaCor)
-  add('Estado civil', dc.estadoCivil)
-  add('Ocupação', dc.ocupacao)
-  add('Formação', dc.formacao)
-  const local = [dc.cidade, dc.estado, dc.pais].filter((x: any) => x && String(x).trim()).join(', ')
-  if (local) partes.push(`Localização: ${local}`)
-  add('Como chegou', dc.origem)
-  const contatos = Array.isArray(dc.contatosEmergencia)
-    ? dc.contatosEmergencia.filter((c: any) => c && (c.nome || c.telefone || c.email)).length
-    : 0
-  if (contatos > 0) partes.push(`Contatos de emergência cadastrados: ${contatos}`)
-  return partes.length > 0 ? partes.map(p => `- ${p}`).join('\n') : null
-}
-
-/**
- * Condições clínicas registradas pelo profissional (pacientes.condicoes).
- * Defensivo quanto à forma do JSONB (cid/medicações podem ser array ou string).
- */
-function formatClinicas(c: any): string | null {
-  if (!c || typeof c !== 'object') return null
-  const linhas: string[] = []
-
-  const cid = Array.isArray(c.cid) ? c.cid.filter(Boolean) : (c.cid ? [c.cid] : [])
-  if (cid.length) linhas.push(`- CID-10 registrado: ${cid.join(', ')}`)
-
-  const meds = Array.isArray(c.medicacoes) ? c.medicacoes : []
-  const medsFmt = meds.map((m: any) =>
-    typeof m === 'string' ? m : `${m?.nome ?? ''}${m?.dose ? ` (${m.dose})` : ''}`.trim(),
-  ).filter(Boolean)
-  if (medsFmt.length) linhas.push(`- Medicações: ${medsFmt.join('; ')}`)
-
-  const alertas = Array.isArray(c.alertas) ? c.alertas.filter(Boolean) : (c.alertas ? [c.alertas] : [])
-  if (alertas.length) linhas.push(`- Alertas: ${alertas.join('; ')}`)
-
-  if (c.observacoes && String(c.observacoes).trim()) linhas.push(`- Observações: ${String(c.observacoes).trim()}`)
-
-  return linhas.length > 0 ? linhas.join('\n') : null
 }
 
 export type ProntuarioIaInput = {
