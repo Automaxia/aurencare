@@ -15,6 +15,7 @@ import { SortableGrid } from './widgets/SortableGrid'
 import { WidgetGrip } from '@/components/WidgetGrip'
 import { LiveInsight } from './widgets/LiveInsight'
 import { VideoCall } from '@/components/video/VideoCall'
+import { MovableWindow } from '@/components/video/MovableWindow'
 import { Video } from 'lucide-react'
 
 type Props = {
@@ -495,14 +496,9 @@ export function PresenceClient(props: Props) {
         </div>
       )}
 
-      {/* VideoCall overlay quando chamada ativa */}
+      {/* Janela de vídeo arrastável pela tela inteira (alça no topo) */}
       {chamada && (
-        <div style={{
-          position: 'fixed', right: 20, bottom: 20,
-          width: 360, height: 260, zIndex: 40,
-          boxShadow: 'var(--sh-lg)', borderRadius: 'var(--rsm)',
-          overflow: 'hidden',
-        }}>
+        <MovableWindow width={360} height={282}>
           <VideoCall
             token={chamada.token}
             role="psicologo"
@@ -511,7 +507,7 @@ export function PresenceClient(props: Props) {
             onEncerrar={() => { setChamada(null); setRemoteStream(null) }}
             onRemoteStream={setRemoteStream}
           />
-        </div>
+        </MovableWindow>
       )}
 
       {showPostModal && (
