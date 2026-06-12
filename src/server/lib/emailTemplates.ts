@@ -107,9 +107,9 @@ export function tplPacienteBoasVindas(p: BoasVindasInput): { html: string; text:
               </p>
               <p style="margin:0;font-size:12px;color:#38324e;line-height:1.55;">
                 Audere usa inteligência artificial como apoio à continuidade clínica.
-                A IA NÃO emite diagnóstico. Notas e resumos são sempre rascunho até a
-                psicóloga assinar. Seus dados ficam criptografados e nunca são usados
-                pra treinar modelos.
+                A IA NÃO emite diagnóstico. Notas e resumos são sempre rascunho até
+                serem assinados pelo profissional responsável. Seus dados ficam
+                criptografados e nunca são usados pra treinar modelos.
               </p>
             </td></tr>
           </table>

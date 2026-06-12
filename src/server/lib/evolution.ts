@@ -234,5 +234,5 @@ ${params.gratuita
     `Recebemos seu retorno. Vamos avaliar e entrar em contato em até 1 dia útil.`,
 
   fluxoFallback: () =>
-    `Recebi sua mensagem. Vou avisar sua psicóloga — em breve te respondem por aqui.`,
+    `Recebi sua mensagem e já avisei quem te atende — em breve te respondem por aqui. 💜`,
 }

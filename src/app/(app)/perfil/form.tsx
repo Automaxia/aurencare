@@ -10,6 +10,7 @@ type InitialPerfil = {
   email: string
   telefone: string
   valorSessao: number | null
+  genero: 'f' | 'm' | null
 }
 
 type Props = {
@@ -23,6 +24,7 @@ export function PerfilForm({ initial, emailAtual, waConectado }: Props) {
   const [crp, setCrp] = useState(initial.crp)
   const [email, setEmail] = useState(initial.email)
   const [telefone, setTelefone] = useState(initial.telefone)
+  const [genero, setGenero] = useState<'f' | 'm' | ''>(initial.genero ?? '')
   const [valorSessao, setValor] = useState<string>(initial.valorSessao !== null ? String(initial.valorSessao) : '')
   const [novaSenha, setNovaSenha] = useState('')
   const [confirmarNovaSenha, setConfirmar] = useState('')
@@ -48,9 +50,10 @@ export function PerfilForm({ initial, emailAtual, waConectado }: Props) {
       trocandoEmail ||
       telAtual !== telInit ||
       valorAtual !== initial.valorSessao ||
+      (genero || null) !== initial.genero ||
       trocandoSenha
     )
-  }, [nome, crp, email, telefone, valorSessao, novaSenha, initial, trocandoEmail, trocandoSenha])
+  }, [nome, crp, email, telefone, genero, valorSessao, novaSenha, initial, trocandoEmail, trocandoSenha])
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -58,6 +61,7 @@ export function PerfilForm({ initial, emailAtual, waConectado }: Props) {
     const input: SalvarInput = {
       nome, crp, email, telefone,
       valorSessao: valorSessao === '' ? null : parseFloat(valorSessao.replace(',', '.')),
+      genero: genero === '' ? null : genero,
       novaSenha, confirmarNovaSenha, senhaAtual,
     }
     const r = await salvarPerfilAction(input)
@@ -114,6 +118,17 @@ export function PerfilForm({ initial, emailAtual, waConectado }: Props) {
           />
         </Field>
 
+        <Field
+          label="Como te chamamos"
+          hint="Define o título usado em mensagens e emails — “psicóloga”, “psicólogo” ou termo neutro."
+        >
+          <select value={genero} onChange={e => setGenero(e.target.value as 'f' | 'm' | '')}>
+            <option value="f">Psicóloga</option>
+            <option value="m">Psicólogo</option>
+            <option value="">Prefiro não informar (termo neutro)</option>
+          </select>
+        </Field>
+
         <div className="sec-lbl" style={{ marginTop: 8 }}>Alterar senha (opcional)</div>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
           <Field label="Nova senha" error={erroCampo === 'novaSenha' ? erro : undefined}>
@@ -151,14 +166,15 @@ export function PerfilForm({ initial, emailAtual, waConectado }: Props) {
         </div>
 
         <style jsx>{`
-          input {
+          input, select {
             width: 100%; padding: 8px 12px; border-radius: var(--field-radius);
             border: 1px solid var(--field-border); background: var(--field-bg);
             font-size: 13px; font-family: inherit; color: var(--ink); outline: none;
             transition: border-color .15s var(--ease), box-shadow .15s var(--ease);
           }
-          input:hover { border-color: var(--field-border-hover); }
-          input:focus { border-color: var(--accent); box-shadow: var(--field-ring); }
+          select { cursor: pointer; }
+          input:hover, select:hover { border-color: var(--field-border-hover); }
+          input:focus, select:focus { border-color: var(--accent); box-shadow: var(--field-ring); }
           input:user-invalid { border-color: var(--rose); }
           input:user-invalid:focus { box-shadow: var(--field-ring-error); }
         `}</style>
