@@ -30,7 +30,11 @@ export function Sidebar() {
       </button>
 
       <div className="sb-logo">
-        {collapsed ? <LogoMark size={28} /> : <Logo size={28} tagline />}
+        {collapsed ? (
+          <button className="sb-logo-btn" onClick={toggle} title="Expandir menu" aria-label="Expandir menu">
+            <LogoMark size={28} />
+          </button>
+        ) : <Logo size={28} tagline />}
       </div>
 
       <nav className="sb-nav">
