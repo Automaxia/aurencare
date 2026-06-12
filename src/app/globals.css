@@ -172,6 +172,9 @@ input:user-invalid:focus, textarea:user-invalid:focus, select:user-invalid:focus
    colunas encolherem (sem isso, títulos longos com nowrap estouram e a coluna
    de Objetivos sobrepõe a de Temas). Colapsa pra 1 coluna no estreito. */
 .onde-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 20px; }
+/* min-width:0 deixa as colunas encolherem; sem isso o conteúdo da coluna de
+   Objetivos (lista em grid de coluna 'auto' = max-content) estoura e sobrepõe Temas */
+.onde-grid > * { min-width: 0; }
 @media (max-width: 600px) { .onde-grid { grid-template-columns: 1fr; } }
 
 /* Lista de pacientes (visão "Lista") — em tablet esconde a coluna Frequência

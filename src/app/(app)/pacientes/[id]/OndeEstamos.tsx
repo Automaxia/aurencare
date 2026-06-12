@@ -48,9 +48,9 @@ export function OndeEstamos(props: OndeEstamosProps) {
                 Nenhum objetivo ativo. <Link href={`/pacientes/${pacienteId}/objetivos`} style={{ color: 'var(--accent)' }}>Definir →</Link>
               </Vazio>
             ) : (
-              <div style={{ display: 'grid', gap: 10 }}>
+              <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr)', gap: 10 }}>
                 {objetivos.map(o => (
-                  <Link key={o.id} href={`/pacientes/${pacienteId}/objetivos`} style={{ textDecoration: 'none', color: 'inherit' }}>
+                  <Link key={o.id} href={`/pacientes/${pacienteId}/objetivos`} style={{ display: 'block', minWidth: 0, textDecoration: 'none', color: 'inherit' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, color: 'var(--ink-soft)' }}>
                       <span style={{ flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>◬ {o.titulo}</span>
                       <span style={{ fontSize: 11, color: 'var(--muted)', fontVariantNumeric: 'tabular-nums' }}>{o.progresso}%</span>
