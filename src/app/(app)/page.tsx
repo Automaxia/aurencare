@@ -7,6 +7,7 @@ import {
 } from '@/server/services/sessoes'
 import { listarPacientes } from '@/server/services/pacientes'
 import { statusOnboarding } from '@/server/services/onboarding'
+import { temPacienteDemo } from '@/server/services/pacienteDemo'
 import { formatTimeBR, formatBRL } from '@/lib/formatters'
 import { IntelSection } from './intel'
 import { OnboardingWizard } from './OnboardingWizard'
@@ -48,7 +49,7 @@ export default async function InicioPage() {
   const fimSemanaAnt = new Date(inicioSemana); fimSemanaAnt.setDate(inicioSemana.getDate() - 1); fimSemanaAnt.setHours(23, 59, 59, 999)
   const iniSemanaAnt = new Date(inicioSemana); iniSemanaAnt.setDate(inicioSemana.getDate() - 7)
 
-  const [proxima, sessoesHoje, sessoesSemana, sessoesAnt, pendentes, pacientes, onb, agg] = await Promise.all([
+  const [proxima, sessoesHoje, sessoesSemana, sessoesAnt, pendentes, pacientes, onb, agg, demoId] = await Promise.all([
     proximaSessao(user.id),
     listarSessoesEntre(user.id, inicioDia.toISOString(), fimDia.toISOString()),
     listarSessoesEntre(user.id, inicioSemana.toISOString(), fimSemana.toISOString()),
@@ -68,6 +69,7 @@ export default async function InicioPage() {
         (SELECT max(data_hora) FROM sessoes WHERE psicologo_id = $1 AND assinada = TRUE) AS ultima_evolucao,
         (SELECT paciente_id FROM sessoes WHERE psicologo_id = $1 AND assinada = TRUE ORDER BY data_hora DESC LIMIT 1) AS ultima_evolucao_paciente
     `, [user.id]).then(r => r.rows[0]),
+    temPacienteDemo(user.id),
   ])
 
   const realizadasSemana = sessoesSemana.filter(s => s.status === 'concluida').length
@@ -108,7 +110,7 @@ export default async function InicioPage() {
     <div style={{ position: 'relative' }}>
       <SpiralWatermark />
 
-      {!onb.completo && <OnboardingWizard status={onb} nome={firstName(user.name)} />}
+      {!onb.completo && <OnboardingWizard status={onb} nome={firstName(user.name)} demoId={demoId} />}
       <OnboardingCelebration completo={onb.completo} />
 
       {/* ── Saudação ── */}

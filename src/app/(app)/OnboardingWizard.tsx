@@ -1,12 +1,13 @@
 import Link from 'next/link'
 import type { OnboardingStatus } from '@/server/services/onboarding'
+import { DemoControl } from './pacientes/DemoControl'
 
 /**
  * Wizard de ativação na Home — os 4 primeiros passos do psicólogo. Some sozinho
  * quando há memória clínica (status.completo). CTA aparece só no próximo passo
  * pendente, pra guiar o foco sem poluir.
  */
-export function OnboardingWizard({ status, nome }: { status: OnboardingStatus; nome: string }) {
+export function OnboardingWizard({ status, nome, demoId }: { status: OnboardingStatus; nome: string; demoId?: string | null }) {
   const novato = status.concluidos === 0
   const evolHref = status.pacienteEvolucaoId
     ? `/pacientes/${status.pacienteEvolucaoId}/evolucao`
@@ -81,6 +82,16 @@ export function OnboardingWizard({ status, nome }: { status: OnboardingStatus; n
           )
         })}
       </ol>
+
+      <div style={{
+        marginTop: 14, paddingTop: 14, borderTop: '1px solid var(--border)',
+        display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap',
+      }}>
+        <span style={{ fontSize: 12, color: 'var(--muted)', lineHeight: 1.4 }}>
+          Quer explorar antes de cadastrar um paciente real? Conheça a <strong style={{ color: 'var(--ink-soft)' }}>Maria Joana</strong> — uma paciente de demonstração com sessões, objetivos e temas.
+        </span>
+        <DemoControl demoId={demoId ?? null} variant="onboarding" />
+      </div>
     </section>
   )
 }
