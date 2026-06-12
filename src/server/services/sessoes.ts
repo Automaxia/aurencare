@@ -455,7 +455,7 @@ export async function marcarPagamentoConfirmado(pagarmeOrderId: string): Promise
   const { rows: psis } = await db.query<{ nome: string; email: string }>(
     `SELECT nome, email FROM psicologos WHERE id = $1 LIMIT 1`, [sessao.psicologoId])
   await Promise.all([
-    enviarWA(sessao.pacienteTelefone, WA_TEMPLATES.fluxo2_confirmado(formatDateTimeBR(sessao.dataHora)))
+    enviarWA(sessao.pacienteTelefone, WA_TEMPLATES.fluxo2_confirmado(formatDateTimeBR(sessao.dataHora), sessao.modalidade === 'online'))
       .catch(err => log.err('pagamento.confirmado', 'falha WA', err)),
     psis[0] ? enviarEmailPacientePorSessao(
       sessao.id,

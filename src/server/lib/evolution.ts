@@ -174,8 +174,9 @@ ${url}
 
 ⏳ Expira em 2 horas.`,
 
-  fluxo2_confirmado: (dataHora: string) =>
-    `✅ Pagamento confirmado. Sua sessão de ${dataHora} está confirmada.`,
+  fluxo2_confirmado: (dataHora: string, online?: boolean) =>
+    `✅ Pagamento confirmado. Sua sessão de ${dataHora} está confirmada.` +
+    (online ? `\n\n📹 Você vai receber o link da sala de vídeo aqui no WhatsApp ~15 minutos antes do horário.` : ''),
 
   fluxo3_lembrete24h: (dataHora: string) =>
     `Lembrete: você tem sessão amanhã, ${dataHora}.
