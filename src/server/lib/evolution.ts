@@ -185,6 +185,12 @@ Responda *CONFIRMAR* ou *CANCELAR*.`,
   fluxo3_lembrete2h: (dataHora: string) =>
     `Sua sessão é em 2h (${dataHora}). Até daqui a pouco!`,
 
+  /** Lembrete 15 min antes — com o link da sala de vídeo (quando online). */
+  fluxo3_lembrete15min: (dataHora: string, linkSala?: string | null) =>
+    `⏰ Sua sessão começa em ~15 minutos (${dataHora}).` +
+    (linkSala ? `\n\n📹 Entre pela sala de vídeo:\n${linkSala}` : '') +
+    `\n\nAté já!`,
+
   fluxo5_canceladaComReembolso: () =>
     `Sessão cancelada. O reembolso foi solicitado e deve cair em até 5 dias úteis.`,
 

@@ -207,6 +207,69 @@ export function tplSessaoConfirmada(p: SessaoConfirmadaInput): { html: string; t
   return { html, text, subject }
 }
 
+// ─── Lembrete 15 min antes (com link da sala) ────────────────────────
+
+type Lembrete15minInput = {
+  nomePaciente: string
+  psicologoNome: string
+  psicologoEmail: string
+  dataHora: string
+  modalidade: string
+  linkSala?: string | null
+}
+
+export function tplLembrete15min(p: Lembrete15minInput): { html: string; text: string; subject: string } {
+  const primeiroNome = p.nomePaciente.trim().split(/\s+/)[0]
+  const subject = `Sua sessão começa em ~15 min · ${p.dataHora}`
+  const modalidadeLbl = p.modalidade === 'presencial' ? 'Presencial' : 'Online'
+
+  const text = [
+    `Olá, ${primeiroNome}!`,
+    ``,
+    `Sua sessão com ${p.psicologoNome} começa em ~15 minutos:`,
+    ``,
+    `Data: ${p.dataHora}`,
+    `Modalidade: ${modalidadeLbl}`,
+    p.linkSala ? `Sala de vídeo: ${p.linkSala}` : '',
+    ``,
+    `Dúvidas? Responda este email — vai direto pra ${p.psicologoEmail}.`,
+    ``,
+    `Audere · CFP 09/2024 · LGPD`,
+  ].filter(Boolean).join('\n')
+
+  const html = baseHtml({
+    titulo: 'Sua sessão está quase começando',
+    saudacao: `Olá, ${primeiroNome}.`,
+    psicologoEmail: p.psicologoEmail,
+    corpo: `
+      <p style="margin:0 0 20px;font-size:14px;line-height:1.65;color:#38324e;">
+        Sua sessão com <strong>${escapeHtml(p.psicologoNome)}</strong> começa em <strong>~15 minutos</strong>.
+      </p>
+
+      <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="margin:0 0 22px;background:#f0eef9;border-radius:10px;border:1px solid rgba(106,78,200,.22);">
+        <tr><td style="padding:18px 20px;">
+          <p style="margin:0 0 6px;font-size:11px;color:#391d96;font-weight:700;letter-spacing:.4px;text-transform:uppercase;">⏰ Em ~15 minutos</p>
+          <p style="margin:0 0 4px;font-size:18px;font-family:Georgia,'Times New Roman',serif;font-weight:400;color:#1a1825;line-height:1.3;">${escapeHtml(p.dataHora)}</p>
+          <p style="margin:0;font-size:12px;color:#38324e;">${modalidadeLbl}</p>
+        </td></tr>
+      </table>
+
+      ${p.linkSala ? `
+      <table role="presentation" cellspacing="0" cellpadding="0" border="0" style="margin:0 0 22px;">
+        <tr><td style="background:#6a4ec8;border-radius:999px;">
+          <a href="${escapeHtml(p.linkSala)}"
+             style="display:inline-block;padding:13px 28px;color:#ffffff;font-size:14px;font-weight:600;font-family:'Helvetica Neue',Arial,sans-serif;text-decoration:none;letter-spacing:.2px;">
+            Entrar na sala →
+          </a>
+        </td></tr>
+      </table>
+      ` : ''}
+    `,
+  })
+
+  return { html, text, subject }
+}
+
 // ─── Lembrete 24h antes ──────────────────────────────────────────────
 
 type Lembrete24hInput = {
