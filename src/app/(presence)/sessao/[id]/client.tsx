@@ -25,6 +25,7 @@ type Props = {
   numeroSessao: number
   duracaoMin: number
   pagamentoStatus: string
+  status: string
 }
 
 const DEFAULT_ORDER = ['live-insight', 'ritmo', 'temas', 'humor', 'info', 'risco', 'ultima', 'topicos', 'nota']
@@ -38,6 +39,10 @@ export function PresenceClient(props: Props) {
   const [interim, setInterim] = useState('')
   const [armed, setArmed] = useState<TurnMark | null>(null)
   const [tempoSegundos, setTempo] = useState(0)
+  // A sessão clínica só "começa" quando o psicólogo aperta Iniciar sessão.
+  // Ao reentrar numa sessão já em curso, já vem iniciada.
+  const [sessaoIniciada, setSessaoIniciada] = useState(props.status === 'em_curso')
+  const [iniciandoSessao, setIniciandoSessao] = useState(false)
   const [recording, setRecording] = useState(false)
   const [encerrando, setEncerrando] = useState(false)
   const [showPostModal, setShowPostModal] = useState(false)
@@ -63,7 +68,6 @@ export function PresenceClient(props: Props) {
   // (paciente/tablet) detecta o idioma automaticamente.
   const [idioma, setIdioma] = useState('pt-BR')
 
-  const startedRef = useRef(false)
   // controle de quando rodar próxima observação ao vivo
   const lastObsAtCountRef = useRef<number>(0)
   // últimos finais do mic local (psicóloga) — janela curta pra dedupe contra eco do alto-falante
@@ -72,16 +76,12 @@ export function PresenceClient(props: Props) {
   const tomQueueRef = useRef<Array<{ id: string; texto: string; who: 'psicologo' | 'paciente' }>>([])
   const tomTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
+  // O cronômetro da sessão só corre depois de iniciada.
   useEffect(() => {
-    if (startedRef.current) return
-    startedRef.current = true
-    fetch(`/api/sessao/${props.sessaoId}/iniciar`, { method: 'POST' }).catch(() => {})
-  }, [props.sessaoId])
-
-  useEffect(() => {
+    if (!sessaoIniciada) return
     const id = setInterval(() => setTempo(t => t + 1), 1000)
     return () => clearInterval(id)
-  }, [])
+  }, [sessaoIniciada])
 
   // limpa o timer do lote de tom ao desmontar (evita flush após sair da tela)
   useEffect(() => () => { if (tomTimerRef.current) clearTimeout(tomTimerRef.current) }, [])
@@ -245,8 +245,21 @@ export function PresenceClient(props: Props) {
   const counts: Record<TurnMark, number> = { insight: 0, comportamento: 0, avanco: 0 }
   for (const t of turnos) if (t.mark) counts[t.mark]++
 
+  // Marca a sessão como em curso (status em_curso + pill no painel). É o gatilho
+  // que libera a transcrição/registro — antes disso o botão fica desabilitado.
+  async function iniciarSessaoClinica() {
+    if (sessaoIniciada || iniciandoSessao) return
+    setIniciandoSessao(true)
+    try {
+      await fetch(`/api/sessao/${props.sessaoId}/iniciar`, { method: 'POST' })
+    } catch { /* rede instável: não trava o atendimento, segue iniciada localmente */ }
+    setSessaoIniciada(true)
+    setIniciandoSessao(false)
+  }
+
   // Inicia o registro (transcrição/IA) após passar pelo gate de cota mensal.
   async function iniciarRegistro() {
+    if (!sessaoIniciada) return
     try {
       const r = await fetch(`/api/sessao/${props.sessaoId}/ia/iniciar`, { method: 'POST' })
       if (r.status === 403) {
@@ -363,7 +376,7 @@ export function PresenceClient(props: Props) {
         <div>
           <span className="pb-name">{props.pacienteNome}</span>
           <span className="pb-meta">
-            · Sessão {props.numeroSessao} · {recording ? (active ? 'Presente' : 'Iniciando…') : 'Pausado'} · {fmtTime(tempoSegundos)}
+            · Sessão {props.numeroSessao} · {!sessaoIniciada ? 'Não iniciada' : recording ? (active ? 'Presente' : 'Iniciando…') : 'Pausado'} · {fmtTime(tempoSegundos)}
           </span>
         </div>
         <div className="pb-actions">
@@ -381,8 +394,25 @@ export function PresenceClient(props: Props) {
               <option value="en-US">EN</option>
             </select>
           )}
+          {!sessaoIniciada && (
+            <button
+              className="btn primary"
+              onClick={iniciarSessaoClinica}
+              disabled={iniciandoSessao}
+              title="Marca a sessão como em curso e libera a transcrição"
+            >
+              {iniciandoSessao ? 'Iniciando…' : '▶ Iniciar sessão'}
+            </button>
+          )}
           {!recording ? (
-            <button className="btn" onClick={iniciarRegistro}>● Iniciar registro</button>
+            <button
+              className="btn"
+              onClick={iniciarRegistro}
+              disabled={!sessaoIniciada}
+              title={sessaoIniciada ? 'Iniciar transcrição e registro' : 'Inicie a sessão primeiro'}
+            >
+              ● Iniciar registro
+            </button>
           ) : (
             <button className="btn ghost" onClick={() => setRecording(false)}>⏸</button>
           )}
