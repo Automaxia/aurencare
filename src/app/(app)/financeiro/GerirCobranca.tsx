@@ -60,7 +60,12 @@ export function GerirCobranca({ sessaoId, valor, pagamentoStatus, dataHora, paci
 
   return (
     <>
-      <button onClick={abrir} className="btn ghost" style={{ fontSize: 11, padding: '3px 9px' }}>Gerir</button>
+      <button onClick={abrir} style={{
+        fontSize: 11.5, fontWeight: 600, padding: '5px 11px', borderRadius: 7,
+        border: '1px solid color-mix(in srgb, var(--accent) 38%, transparent)',
+        background: 'color-mix(in srgb, var(--accent) 9%, transparent)',
+        color: 'var(--accent)', cursor: 'pointer', whiteSpace: 'nowrap', lineHeight: 1.2, fontFamily: 'inherit',
+      }}>Gerir</button>
 
       {aberto && (
         <div role="dialog" aria-modal="true" onClick={() => !salvando && setAberto(false)} style={{
