@@ -125,12 +125,12 @@ Como prefere pagar?
 • Responda *DEBITO* (à vista no débito)`,
 
   /** Sessão sem cobrança (gratuita): confirma o agendamento sem pedir pagamento. */
-  fluxo2_agendadaSemCobranca: (dataHora: string) =>
+  fluxo2_agendadaSemCobranca: (dataHora: string, online?: boolean) =>
     `Sua sessão de ${dataHora} está agendada e confirmada. ✅
 
-Não é necessário pagamento.
-
-Qualquer mudança, é só responder por aqui.`,
+Não é necessário pagamento.` +
+    (online ? `\n\n📹 Você vai receber o link da sala de vídeo aqui no WhatsApp ~15 minutos antes do horário.` : '') +
+    `\n\nQualquer mudança, é só responder por aqui.`,
 
   /** Sessão remarcada: avisa o paciente do novo horário. */
   fluxo2_remarcada: (dataHora: string) =>

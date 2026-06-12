@@ -193,7 +193,7 @@ export async function criarSessao(input: CriarSessaoInput): Promise<Sessao> {
   await enviarWA(
     sessao.pacienteTelefone,
     gratuita
-      ? WA_TEMPLATES.fluxo2_agendadaSemCobranca(formatDateTimeBR(sessao.dataHora))
+      ? WA_TEMPLATES.fluxo2_agendadaSemCobranca(formatDateTimeBR(sessao.dataHora), sessao.modalidade === 'online')
       : WA_TEMPLATES.fluxo2_perguntarMetodo(formatDateTimeBR(sessao.dataHora), sessao.valor),
   ).catch(err => log.err('criarSessao', 'falha WA agendamento', err))
 
