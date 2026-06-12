@@ -3,6 +3,7 @@ import { requireRole } from '@/server/lib/auth'
 import { PageHeader } from '@/components/PageHeader'
 import { estadoConexaoEvolution, webhookUrlEvolution } from '@/server/lib/evolution'
 import { TesteWhatsApp } from './TesteWhatsApp'
+import { RodarLembrete } from './RodarLembrete'
 
 export const dynamic = 'force-dynamic'
 
@@ -44,6 +45,8 @@ export default async function WhatsAppDiagPage() {
       </div>
 
       <TesteWhatsApp habilitado={c.configurado} />
+
+      <RodarLembrete />
 
       <p style={{ fontSize: 11.5, color: 'var(--faint)', marginTop: 14, lineHeight: 1.6, maxWidth: 760 }}>
         O agendamento de sessão dispara o WhatsApp do método de pagamento automaticamente — o código está correto.

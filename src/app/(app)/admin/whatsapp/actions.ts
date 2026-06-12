@@ -2,6 +2,17 @@
 
 import { requireRole } from '@/server/lib/auth'
 import { enviarWADiag } from '@/server/lib/evolution'
+import { lembrete15min } from '@/server/lib/cron'
+
+export async function rodarLembrete15Action(): Promise<{ ok: boolean; count?: number; erro?: string }> {
+  await requireRole('admin')
+  try {
+    const n = await lembrete15min()
+    return { ok: true, count: n }
+  } catch (e) {
+    return { ok: false, erro: e instanceof Error ? e.message : String(e) }
+  }
+}
 
 export async function enviarTesteWAAction(telefone: string): Promise<{ ok: boolean; erro?: string }> {
   await requireRole('admin')
