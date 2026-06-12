@@ -12,7 +12,9 @@ import { useEffect, useState } from 'react'
  * e o chamador mantém a câmera normal. Nunca quebra a chamada.
  */
 
-const MP_CDN = 'https://cdn.jsdelivr.net/npm/@mediapipe/selfie_segmentation@0.1'
+// Versão FIXA (não o range flutuante @0.1): o pacote MediaPipe foi descontinuado;
+// um patch ruim publicado no range derrubava o desfoque sem mudar nosso código.
+const MP_CDN = 'https://cdn.jsdelivr.net/npm/@mediapipe/selfie_segmentation@0.1.1675465747'
 
 function carregarSelfieSegmentation(): Promise<any> {
   return new Promise((resolve, reject) => {
