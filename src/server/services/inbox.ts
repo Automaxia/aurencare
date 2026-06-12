@@ -252,12 +252,15 @@ function detectarIntentPaciente(texto: string): IntentPaciente {
   return 'desconhecido'
 }
 
-const MENU_AJUDA =
-  `Posso te ajudar por aqui 🙂\n\n` +
-  `É só responder com o número:\n\n` +
-  `*1* — 📅 Agendar (marcar ou remarcar uma sessão)\n` +
-  `*2* — 🔗 Link da sua próxima sessão de vídeo\n` +
-  `*3* — 💳 Pagamento (pagar ou tirar dúvidas de cobrança)`
+function menuAjuda(nome?: string): string {
+  const ola = nome ? `Oi, ${nome}! 💜 Que bom falar com você.` : `Oi! 💜 Que bom falar com você.`
+  return `${ola}\n\n` +
+    `Me conta como posso te ajudar — é só responder com o número:\n\n` +
+    `*1* — 📅 Marcar ou remarcar uma sessão\n` +
+    `*2* — 🔗 Pegar o link da sua próxima sessão\n` +
+    `*3* — 💳 Pagamento ou dúvidas de valores\n\n` +
+    `Estou por aqui pra te ajudar. 🤗`
+}
 
 async function responderPacienteConhecido(
   tel: string,
@@ -268,14 +271,15 @@ async function responderPacienteConhecido(
   const intent = detectarIntentPaciente(texto)
   log.info('wa.inbox', `paciente ${tel} intent=${intent} · "${texto.slice(0, 60)}"`)
 
-  if (!paciente) { await enviarERegistrar(tel, MENU_AJUDA); return }
+  const primeiro = (paciente?.nome ?? '').split(' ')[0] || undefined
+  if (!paciente) { await enviarERegistrar(tel, menuAjuda()); return }
 
   switch (intent) {
     case 'link':       return responderLinkSessao(tel, paciente, psicologo)
     case 'pagamento':  return responderPagamentoFAQ(tel, paciente, psicologo)
     case 'agendar':    return responderAgendar(tel, paciente, psicologo)
     case 'ajuda':
-    default:           await enviarERegistrar(tel, MENU_AJUDA); return
+    default:           await enviarERegistrar(tel, menuAjuda(primeiro)); return
   }
 }
 
@@ -293,27 +297,31 @@ async function proximaSessaoPaciente(pacienteId: string): Promise<{ id: string; 
 }
 
 async function responderLinkSessao(tel: string, paciente: { id: string; nome: string }, psicologo: { nome: string }) {
+  const nome = paciente.nome.split(' ')[0]
+  const psi = psicologo.nome.split(' ')[0]
   const s = await proximaSessaoPaciente(paciente.id)
   if (!s) {
-    await enviarERegistrar(tel, `Você não tem nenhuma sessão agendada no momento. Para marcar, é só me escrever *agendar* — eu aviso ${psicologo.nome.split(' ')[0]}.`)
+    await enviarERegistrar(tel, `${nome}, por enquanto você não tem nenhuma sessão marcada. 🌿\nSe quiser remarcar, é só me mandar *1* que eu combino com ${psi} um horário pra você.`)
     return
   }
   const dataFmt = formatDateTimeBR(s.data_hora)
   if (s.modalidade !== 'online') {
-    await enviarERegistrar(tel, `Sua próxima sessão (${dataFmt}) é *presencial* — não tem sala de vídeo. Qualquer dúvida do endereço, fale com ${psicologo.nome.split(' ')[0]}.`)
+    await enviarERegistrar(tel, `${nome}, sua próxima sessão (${dataFmt}) é presencial 🌿 — então não tem sala de vídeo. Qualquer dúvida do endereço, a ${psi} te ajuda. Até lá! 💜`)
     return
   }
   try {
     const sala = await criarOuObterSala(s.id, 4)
     const link = `${env.appUrl.replace(/\/$/, '')}/sala/${sala.token}`
-    await enviarERegistrar(tel, `📹 Aqui está o link da sua sessão de ${dataFmt}:\n${link}\n\nVocê também recebe ele automaticamente ~15 minutos antes do horário.`)
+    await enviarERegistrar(tel, `Prontinho, ${nome}! 💜 Aqui está o link da sua sessão de ${dataFmt}:\n${link}\n\nPode entrar uns minutinhos antes, sem pressa. Eu também te mando esse link automaticamente ~15 minutos antes. Até logo! 🤗`)
   } catch (err) {
     log.err('wa.inbox', 'falha ao gerar sala', err)
-    await enviarERegistrar(tel, `Não consegui gerar o link agora. Tente de novo em instantes — e ele também chega ~15 min antes da sessão.`)
+    await enviarERegistrar(tel, `${nome}, não consegui gerar o link agorinha 😕 — tenta de novo em uns instantes. Fica tranquila(o): ele também chega aqui ~15 min antes da sessão. 💜`)
   }
 }
 
-async function responderPagamentoFAQ(tel: string, paciente: { id: string }, psicologo: { nome: string }) {
+async function responderPagamentoFAQ(tel: string, paciente: { id: string; nome: string }, psicologo: { nome: string }) {
+  const nome = paciente.nome.split(' ')[0]
+  const psi = psicologo.nome.split(' ')[0]
   const { rows } = await db.query<{ id: string; data_hora: string; valor: any; status: string }>(
     `SELECT id, data_hora, valor, status FROM sessoes
       WHERE paciente_id = $1 AND status IN ('aguardando_metodo','aguardando_pagamento')
@@ -326,21 +334,22 @@ async function responderPagamentoFAQ(tel: string, paciente: { id: string }, psic
     return
   }
   if (pend && pend.status === 'aguardando_pagamento') {
-    await enviarERegistrar(tel, `Você tem um pagamento em aberto da sessão de ${formatDateTimeBR(pend.data_hora)}. Se o link expirou, responda *PIX*, *CREDITO* ou *DEBITO* que eu gero um novo.`)
+    await enviarERegistrar(tel, `${nome}, ainda tem um pagamentinho em aberto da sua sessão de ${formatDateTimeBR(pend.data_hora)}. 💜\nSe o link tiver expirado, é só responder *PIX*, *CREDITO* ou *DEBITO* que eu gero outro pra você na hora.`)
     return
   }
   await enviarERegistrar(tel,
-    `Sobre pagamento 💳\n\n` +
-    `Quando ${psicologo.nome.split(' ')[0]} agenda uma sessão paga, você recebe aqui o pedido — é só responder *PIX*, *CREDITO* ou *DEBITO* e o link chega na hora. A sessão confirma automaticamente após o pagamento.\n\n` +
-    `No momento você não tem nenhuma cobrança pendente.`)
+    `Sobre pagamento 💜\n\n` +
+    `Quando a ${psi} marca uma sessão, você recebe aqui o pedidinho — é só responder *PIX*, *CREDITO* ou *DEBITO* e o link chega na hora. A sessão confirma sozinha assim que o pagamento entra. 🤗\n\n` +
+    `Por enquanto está tudo em dia, ${nome} — nada pendente. 🌿`)
 }
 
 async function responderAgendar(tel: string, paciente: { id: string; nome: string }, psicologo: { nome: string }) {
-  const primeiro = psicologo.nome.split(' ')[0]
+  const nome = paciente.nome.split(' ')[0]
+  const psi = psicologo.nome.split(' ')[0]
   await enviarERegistrar(tel,
-    `📅 As sessões são marcadas por ${primeiro}.\n\n` +
-    `Me diga o *dia e horário* que você prefere (ex: "terça às 15h") que eu registro o seu pedido para ${primeiro} confirmar com você.`)
-  // Registra a intenção pra acompanhamento (futuro: notificação no painel da psicóloga).
+    `Vou adorar te ajudar com isso, ${nome}! 💜\n\n` +
+    `As sessões são combinadas com a ${psi}. Me conta o *dia e horário* que ficam melhores pra você (ex: "terça às 15h") que eu passo pra ela acertar com você com todo carinho. 🤗`)
+  // Registra a intenção pra acompanhamento (aparece no inbox /conversas).
   log.ok('wa.inbox', `PEDIDO DE AGENDAMENTO · paciente=${paciente.nome} tel=${tel}`)
 }
 
