@@ -101,6 +101,10 @@ jobs:
           set -euo pipefail
           NS="${{ env.NAMESPACE }}"
           IMG="${{ env.REGISTRY }}/aurencare-web:${{ steps.vars.outputs.sha }}"
+          # Fuso da clínica (Brasília). O rollout usa `set image` (não `apply`), então
+          # o env TZ do manifest não chega ao cluster sozinho — garantimos aqui.
+          # Idempotente: só gera nova revisão na primeira vez (ou se mudar).
+          kubectl -n "$NS" set env deploy/${{ env.DEPLOYMENT }} TZ=America/Sao_Paulo
           kubectl -n "$NS" set image deploy/${{ env.DEPLOYMENT }} \
             ${{ env.DEPLOYMENT }}="$IMG"
           kubectl -n "$NS" rollout status deploy/${{ env.DEPLOYMENT }} --timeout=240s
