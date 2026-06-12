@@ -45,7 +45,7 @@ async function montarContexto(psicologoId: string, pacienteId: string): Promise<
 
   const linhas: string[] = []
   linhas.push(`PACIENTE: ${d.paciente.nome}`)
-  linhas.push(`PSICÓLOGA RESPONSÁVEL: ${d.psicologo.nome} (${d.psicologo.crp})`)
+  linhas.push(`PROFISSIONAL RESPONSÁVEL: ${d.psicologo.nome} (${d.psicologo.crp})`)
   linhas.push(`ATENDIMENTO INICIADO EM: ${new Date(d.paciente.cadastradoEm).toLocaleDateString('pt-BR')}`)
   linhas.push(`SESSÕES ASSINADAS: ${d.totaisAssinadas}`)
   linhas.push('')

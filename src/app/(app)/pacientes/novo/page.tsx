@@ -32,7 +32,7 @@ export default async function NovoPacientePage() {
         </div>
       </div>
 
-      <NewPatientForm psicologoNome={user.name ?? 'sua psicóloga'} />
+      <NewPatientForm psicologoNome={user.name ?? 'quem vai te atender'} />
     </div>
   )
 }

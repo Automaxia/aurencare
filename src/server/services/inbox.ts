@@ -300,7 +300,7 @@ async function responderProximaSessao(tel: string, paciente: { id: string; nome:
     return
   }
   const mod = s.modalidade === 'online' ? 'online, por vídeo' : 'presencial'
-  const extra = s.modalidade === 'online' ? `\n\nVou te mandar o link da sala ~15 minutos antes — fica tranquila(o). 🤗` : ''
+  const extra = s.modalidade === 'online' ? `\n\nVou te mandar o link da sala ~15 minutos antes — pode relaxar. 🤗` : ''
   await enviarERegistrar(tel, `${nome}, sua próxima sessão é em *${formatDateTimeBR(s.data_hora)}* (${mod}). 💜${extra}`)
 }
 
@@ -336,7 +336,7 @@ async function responderLinkSessao(tel: string, paciente: { id: string; nome: st
     await enviarERegistrar(tel, `Prontinho, ${nome}! 💜 Aqui está o link da sua sessão de ${dataFmt}:\n${link}\n\nPode entrar uns minutinhos antes, sem pressa. Eu também te mando esse link automaticamente ~15 minutos antes. Até logo! 🤗`)
   } catch (err) {
     log.err('wa.inbox', 'falha ao gerar sala', err)
-    await enviarERegistrar(tel, `${nome}, não consegui gerar o link agorinha 😕 — tenta de novo em uns instantes. Fica tranquila(o): ele também chega aqui ~15 min antes da sessão. 💜`)
+    await enviarERegistrar(tel, `${nome}, não consegui gerar o link agorinha 😕 — tenta de novo em uns instantes. Sem preocupação: ele também chega aqui ~15 min antes da sessão. 💜`)
   }
 }
 

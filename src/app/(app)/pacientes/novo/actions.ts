@@ -24,7 +24,7 @@ export async function criarPacienteAction(input: { nome: string; telefone: strin
   try {
     const p = await criarPaciente({
       psicologoId: user.id,
-      psicologoNome: user.name ?? 'sua psicóloga',
+      psicologoNome: user.name ?? 'quem vai te atender',
       nome, telefone: tel, email: input.email,
       mensagemCustom: mensagem,
     })

@@ -60,7 +60,7 @@ export async function reativarPacienteAction(pacienteId: string): Promise<{ ok: 
 
 export async function reenviarConsentimentoAction(pacienteId: string): Promise<ReenviarResult> {
   const user = await requirePsicologo()
-  return reenviarConsentimento(user.id, pacienteId, user.name ?? 'sua psicóloga')
+  return reenviarConsentimento(user.id, pacienteId, user.name ?? 'quem vai te atender')
 }
 
 export async function excluirPacienteAction(pacienteId: string): Promise<ExcluirResult> {

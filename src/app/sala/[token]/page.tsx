@@ -22,7 +22,7 @@ export default async function SalaPage({ params }: { params: { token: string } }
       WHERE s.id = $1 LIMIT 1`,
     [sala.sessaoId],
   )
-  const psi = rows[0]?.psi_nome ?? 'sua psicóloga'
+  const psi = rows[0]?.psi_nome ?? 'quem te atende'
   const pac = rows[0]?.pac_nome ?? ''
 
   if (expirada) {

@@ -71,7 +71,7 @@ export function ConfirmarClient(props: Props) {
       <h1 style={titulo}>Janela encerrada</h1>
       <p style={corpo}>
         O prazo de confirmação passou e o pagamento foi liberado automaticamente.
-        Se precisar relatar algo, fale com sua psicóloga ou pelo nosso suporte.
+        Se precisar relatar algo, fale com quem te atende ou pelo nosso suporte.
       </p>
     </Card>
   )

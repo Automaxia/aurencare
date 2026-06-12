@@ -52,7 +52,7 @@ export function SalaPaciente({ token, psicologaNome, pacienteNome, jaAceitou }: 
 
           <ul style={{ fontSize: 12, color: 'var(--muted)', lineHeight: 1.65, padding: '12px 16px', background: 'var(--surface)', borderRadius: 'var(--rsm)', listStyle: 'none', margin: '0 0 14px' }}>
             <li>· Use fones de ouvido se possível, melhora a qualidade.</li>
-            <li>· Sua psicóloga vai te ver e ouvir quando ambos estiverem na sala.</li>
+            <li>· {psicologaNome.split(' ')[0]} vai te ver e ouvir quando ambos estiverem na sala.</li>
             <li>· O áudio é processado para apoio à continuidade; nada é gravado em vídeo.</li>
           </ul>
 

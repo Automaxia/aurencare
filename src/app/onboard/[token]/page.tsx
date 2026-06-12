@@ -31,7 +31,7 @@ export default async function OnboardPage({ params }: { params: { token: string 
           <>
             <h2 style={{ textAlign: 'center' }}>Link inválido ou expirado</h2>
             <p style={{ color: 'var(--muted)', textAlign: 'center', fontSize: 13 }}>
-              Solicite à sua psicóloga um novo link de cadastro.
+              Peça um novo link de cadastro a quem te atende.
             </p>
           </>
         ) : paciente.consentimento_aceito ? (

@@ -87,11 +87,11 @@ export function fallbackParaIntent(intent: Intent): string {
     case 'consent_recusado':
       return `Sem problema, ${intent.contexto.primeiroNome}. Se mudar de ideia, é só me mandar uma mensagem.`
     case 'paciente_reconhecido':
-      return `Oi, ${intent.contexto.primeiroNome}. Recebi sua mensagem — sua psicóloga foi avisada.`
+      return `Oi, ${intent.contexto.primeiroNome}. Recebi sua mensagem — já avisei quem te atende.`
     case 'nao_entendi':
       return `Não entendi muito bem. Pode reescrever?`
     case 'erro_tecnico':
-      return `Tivemos um problema técnico agora. Sua psicóloga foi avisada e vai te responder por aqui.`
+      return `Tivemos um problema técnico agora. Já avisei quem te atende e em breve te respondem por aqui.`
   }
 }
 
