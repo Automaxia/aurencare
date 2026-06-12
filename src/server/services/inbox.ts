@@ -239,20 +239,25 @@ const semAcento = (s: string) => s.toLowerCase().normalize('NFD').replace(/[̀-�
 type IntentPaciente = 'link' | 'agendar' | 'pagamento' | 'ajuda' | 'desconhecido'
 
 function detectarIntentPaciente(texto: string): IntentPaciente {
-  const t = ` ${semAcento(texto)} `
-  if (/\b(link|sala|entrar|acesso|video|chamada|reuniao|como entro|onde entro)\b/.test(t)) return 'link'
-  if (/\b(agendar|marcar|remarcar|remarca|reagendar|nova sessao|novo horario|horario|agenda|quero sessao|proxima sessao|disponibilidade)\b/.test(t)) return 'agendar'
-  if (/\b(pagar|pagamento|pix|cobranca|valor|preco|quanto custa|boleto|cartao|fatura|nota fiscal)\b/.test(t)) return 'pagamento'
-  if (/\b(ajuda|duvida|como funciona|menu|opcoes|oi|ola|bom dia|boa tarde|boa noite|obrigad)\b/.test(t) || texto.includes('?')) return 'ajuda'
+  const t = semAcento(texto).trim()
+  // Resposta pelo número do menu
+  if (/^1\b/.test(t)) return 'agendar'
+  if (/^2\b/.test(t)) return 'link'
+  if (/^3\b/.test(t)) return 'pagamento'
+  const tt = ` ${t} `
+  if (/\b(link|sala|entrar|acesso|video|chamada|reuniao|como entro|onde entro)\b/.test(tt)) return 'link'
+  if (/\b(agendar|marcar|remarcar|remarca|reagendar|nova sessao|novo horario|horario|agenda|quero sessao|proxima sessao|disponibilidade)\b/.test(tt)) return 'agendar'
+  if (/\b(pagar|pagamento|pix|cobranca|valor|preco|quanto custa|boleto|cartao|fatura|nota fiscal)\b/.test(tt)) return 'pagamento'
+  if (/\b(ajuda|duvida|como funciona|menu|opcoes|oi|ola|bom dia|boa tarde|boa noite|obrigad)\b/.test(tt) || texto.includes('?')) return 'ajuda'
   return 'desconhecido'
 }
 
 const MENU_AJUDA =
   `Posso te ajudar por aqui 🙂\n\n` +
-  `📅 *Agendar* — marcar ou remarcar uma sessão\n` +
-  `🔗 *Link* — receber o link da sua próxima sessão de vídeo\n` +
-  `💳 *Pagamento* — pagar ou tirar dúvidas de cobrança\n\n` +
-  `É só escrever o que você precisa.`
+  `É só responder com o número:\n\n` +
+  `*1* — 📅 Agendar (marcar ou remarcar uma sessão)\n` +
+  `*2* — 🔗 Link da sua próxima sessão de vídeo\n` +
+  `*3* — 💳 Pagamento (pagar ou tirar dúvidas de cobrança)`
 
 async function responderPacienteConhecido(
   tel: string,
