@@ -3,10 +3,12 @@ import { PageHeader, EmptyState } from '@/components/PageHeader'
 import { requirePsicologo } from '@/server/lib/auth'
 import { db } from '@/server/db/pool'
 import { listarPacientes } from '@/server/services/pacientes'
+import { temPacienteDemo } from '@/server/services/pacienteDemo'
 import { formatTimeBR, formatDateBR } from '@/lib/formatters'
 import { PacientesFilter, type OrdenacaoKey, type VisualizacaoKey } from './filter'
 import { PatientCard, type PatientCardData } from './PatientCard'
 import { PatientRow } from './PatientRow'
+import { DemoControl } from './DemoControl'
 
 export const dynamic = 'force-dynamic'
 
@@ -83,12 +85,13 @@ export default async function PacientesPage({ searchParams }: { searchParams: { 
     : 'grid') as VisualizacaoKey
 
   const apenasArquivados = filtro === 'arquivados'
-  const [all, totalArquivados] = await Promise.all([
+  const [all, totalArquivados, demoId] = await Promise.all([
     listarPacientes(user.id, { apenasArquivados }),
     db.query<{ n: number }>(
       `SELECT count(*)::int AS n FROM pacientes WHERE psicologo_id = $1 AND status = 'inativo'`,
       [user.id],
     ).then(r => r.rows[0]?.n ?? 0),
+    temPacienteDemo(user.id),
   ])
   const hojeStr = new Date().toDateString()
 
@@ -151,6 +154,7 @@ export default async function PacientesPage({ searchParams }: { searchParams: { 
       avInitials: av.initials,
       avBg: av.bg,
       principalCta: pickPrincipalCta(p),
+      demo: p.id === demoId,
     }
   })
 
@@ -159,7 +163,12 @@ export default async function PacientesPage({ searchParams }: { searchParams: { 
       <PageHeader
         title="Pacientes"
         subtitle={`${all.length} ${all.length === 1 ? 'paciente' : 'pacientes'}`}
-        actions={<Link className="btn primary" href="/pacientes/novo">+ Novo paciente</Link>}
+        actions={
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+            <DemoControl demoId={demoId} />
+            <Link className="btn primary" href="/pacientes/novo">+ Novo paciente</Link>
+          </div>
+        }
       />
 
       <PacientesFilter
@@ -172,9 +181,12 @@ export default async function PacientesPage({ searchParams }: { searchParams: { 
 
       {cards.length === 0 ? (
         <EmptyState>
-          {all.length === 0
-            ? 'Você ainda não tem pacientes. Comece adicionando um.'
-            : 'Nenhum paciente bate com esse filtro.'}
+          {all.length === 0 ? (
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 14 }}>
+              <span>Você ainda não tem pacientes. Comece adicionando um — ou crie a Maria Joana para explorar o produto.</span>
+              {!demoId && <DemoControl demoId={demoId} variant="empty" />}
+            </div>
+          ) : 'Nenhum paciente bate com esse filtro.'}
         </EmptyState>
       ) : visualizacao === 'lista' ? (
         <div className="card" style={{ padding: 0, overflow: 'hidden' }}>

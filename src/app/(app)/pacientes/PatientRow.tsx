@@ -40,6 +40,7 @@ export function PatientRow({ p }: { p: PatientCardData }) {
           whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
         }}>
           {p.nome}
+          {p.demo && <span className="tag t-info" style={{ fontSize: 9, marginLeft: 6 }}>demonstração</span>}
         </div>
         <div style={{ fontSize: 11, color: 'var(--faint)', marginTop: 2 }}>
           {p.telefone} · desde {p.desdeMes} · {p.sessoesTotais} sessõe{p.sessoesTotais === 1 ? '' : 's'}
