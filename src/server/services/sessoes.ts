@@ -494,7 +494,7 @@ export async function cancelarSessao(sessaoId: string): Promise<{ reembolsada: b
   }
 
   await db.query(
-    `UPDATE sessoes SET status='cancelada', pagamento_status = CASE WHEN $2 THEN 'reembolsado' ELSE pagamento_status END WHERE id=$1`,
+    `UPDATE sessoes SET status='cancelada', pagamento_status = CASE WHEN $2::boolean THEN 'reembolsado' ELSE pagamento_status END WHERE id=$1`,
     [s.id, reembolsada],
   )
 
