@@ -188,13 +188,14 @@ export async function criarSessao(input: CriarSessaoInput): Promise<Sessao> {
   )
   const sessao = (await buscarSessao(rows[0].id))!
 
-  // Fluxo 2 — pergunta método via WhatsApp (só quando há cobrança).
-  if (!gratuita) {
-    await enviarWA(
-      sessao.pacienteTelefone,
-      WA_TEMPLATES.fluxo2_perguntarMetodo(formatDateTimeBR(sessao.dataHora), sessao.valor),
-    )
-  }
+  // Fluxo 2 — WhatsApp pra TODOS: com cobrança pergunta o método; sem cobrança
+  // confirma o agendamento (sem pedir pagamento).
+  await enviarWA(
+    sessao.pacienteTelefone,
+    gratuita
+      ? WA_TEMPLATES.fluxo2_agendadaSemCobranca(formatDateTimeBR(sessao.dataHora))
+      : WA_TEMPLATES.fluxo2_perguntarMetodo(formatDateTimeBR(sessao.dataHora), sessao.valor),
+  ).catch(err => log.err('criarSessao', 'falha WA agendamento', err))
 
   return sessao
 }

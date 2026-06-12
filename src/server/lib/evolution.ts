@@ -124,6 +124,14 @@ Como prefere pagar?
 • Responda *CREDITO* (até 6x no cartão)
 • Responda *DEBITO* (à vista no débito)`,
 
+  /** Sessão sem cobrança (gratuita): confirma o agendamento sem pedir pagamento. */
+  fluxo2_agendadaSemCobranca: (dataHora: string) =>
+    `Sua sessão de ${dataHora} está agendada e confirmada. ✅
+
+Não é necessário pagamento.
+
+Qualquer mudança, é só responder por aqui.`,
+
   /**
    * Confirmação informativa de série recorrente (ex: 4 sessões toda sexta 15h).
    * NÃO pede método aqui — cron dispara fluxo2_perguntarMetodo 48h antes
