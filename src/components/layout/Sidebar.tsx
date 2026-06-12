@@ -15,34 +15,22 @@ const PRATICA = NAV.filter(n => n.mundo === 'pratica' && n.sidebar)
 export function Sidebar() {
   const pathname = usePathname() ?? '/'
   const active = activeHref(pathname)
-  const { collapsed, toggle, isNarrow } = useSidebar()
+  const { collapsed, toggle } = useSidebar()
   const { data: session } = useSession()
 
-  // Hover-to-peek: ao recolhida (em telas largas), passar o mouse abre temporariamente
-  // como OVERLAY — sem empurrar o conteúdo. O clique no logo/seta fixa de vez.
-  const [peek, setPeek] = useState(false)
-  const podePeek = collapsed && !isNarrow
-  const exibePeek = peek && podePeek
-  const efetivo = collapsed && !exibePeek   // colapsado "efetivo" pro render
-
   return (
-    <aside
-      className="sidebar"
-      data-peek={exibePeek ? 'true' : 'false'}
-      onMouseEnter={() => podePeek && setPeek(true)}
-      onMouseLeave={() => setPeek(false)}
-    >
+    <aside className="sidebar">
       <button
         className="sb-tog"
         onClick={toggle}
         aria-label={collapsed ? 'Expandir sidebar' : 'Recolher sidebar'}
         title={collapsed ? 'Expandir' : 'Recolher'}
       >
-        {collapsed ? <ChevronRight size={11} /> : <ChevronLeft size={11} />}
+        {collapsed ? <ChevronRight size={14} /> : <ChevronLeft size={14} />}
       </button>
 
       <div className="sb-logo">
-        {efetivo ? (
+        {collapsed ? (
           <button className="sb-logo-btn" onClick={toggle} title="Expandir menu" aria-label="Expandir menu">
             <LogoMark size={28} />
           </button>
@@ -50,11 +38,11 @@ export function Sidebar() {
       </div>
 
       <nav className="sb-nav">
-        <Group label="Mundo Clínico" items={CLINICO} active={active} mundo="clinico" collapsed={efetivo} />
-        <Group label="Mundo Prática" items={PRATICA} active={active} mundo="pratica" collapsed={efetivo} />
+        <Group label="Mundo Clínico" items={CLINICO} active={active} mundo="clinico" collapsed={collapsed} />
+        <Group label="Mundo Prática" items={PRATICA} active={active} mundo="pratica" collapsed={collapsed} />
         {(session?.user as any)?.role === 'admin' && (
           <div className="sb-group">
-            {!efetivo && <div className="sb-label">Gestão</div>}
+            {!collapsed && <div className="sb-label">Gestão</div>}
             <Link
               href="/admin"
               className="sb-item"
@@ -63,7 +51,7 @@ export function Sidebar() {
               title="Administração"
             >
               <span className="sb-icon" aria-hidden="true">⚙</span>
-              {!efetivo && <span className="sb-lbl">Administração</span>}
+              {!collapsed && <span className="sb-lbl">Administração</span>}
             </Link>
           </div>
         )}
@@ -71,7 +59,7 @@ export function Sidebar() {
 
       <div className="sb-bot">
         <UserCard
-          collapsed={efetivo}
+          collapsed={collapsed}
           name={session?.user?.name ?? 'Usuária'}
           crp={(session?.user as any)?.crp ?? ''}
         />
