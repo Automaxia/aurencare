@@ -141,7 +141,7 @@ function ProfileCard(p: ProfileCardProps) {
 function SparksRow({ sparkHumor, sparkRitmo }: { sparkHumor: number[]; sparkRitmo: number[] }) {
   if (sparkHumor.length < 2 && sparkRitmo.length < 2) return null
   return (
-    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginTop: 16, paddingTop: 14, borderTop: '1px solid var(--border)' }}>
+    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 16, marginTop: 16, paddingTop: 14, borderTop: '1px solid var(--border)' }}>
       {sparkHumor.length >= 2 ? (
         <SparkBlock
           title="Humor ao longo do tempo"

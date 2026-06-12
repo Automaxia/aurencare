@@ -114,7 +114,7 @@ export function TributarioForm({ inicial }: Props) {
         </div>
       </Field>
 
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr 80px', gap: 12 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: 12 }}>
         <Field label="CNAE">
           <input value={cnae} onChange={e => setCnae(e.target.value)} placeholder="8650-0/03" />
         </Field>

@@ -168,6 +168,13 @@ input:user-invalid:focus, textarea:user-invalid:focus, select:user-invalid:focus
   .login-aside { padding: 26px 22px; gap: 12px; text-align: center; align-items: center; }
 }
 
+/* Lista de pacientes (visão "Lista") — em tablet esconde a coluna Frequência
+   e recalcula o grid pra 5 trilhas, pra não espremer nome/próxima. */
+@media (max-width: 860px) {
+  .ptr { grid-template-columns: 36px minmax(0, 1.4fr) minmax(0, 1fr) auto auto !important; }
+  .ptr-freq { display: none !important; }
+}
+
 /* Briefing do paciente — coluna principal + rail de memória clínica */
 .briefing-grid { display: grid; grid-template-columns: 1.7fr 1fr; gap: 16px; align-items: start; }
 /* min-width:0 deixa os cards encolherem (sem isso, conteúdo longo estoura a coluna) */

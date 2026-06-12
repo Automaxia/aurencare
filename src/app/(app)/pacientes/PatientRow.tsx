@@ -59,7 +59,7 @@ export function PatientRow({ p }: { p: PatientCardData }) {
         </div>
       </div>
 
-      <div>
+      <div className="ptr-freq">
         <div style={{ fontSize: 11, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '.06em', marginBottom: 1 }}>
           Frequência
         </div>

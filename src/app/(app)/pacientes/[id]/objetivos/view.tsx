@@ -442,7 +442,7 @@ function EvolucaoPanel({ evolucao, onMudou }: { evolucao: EvolucaoObjetivo; onMu
         <div style={{ fontSize: 11, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '.06em' }}>
           Registrar medição
         </div>
-        <div style={{ display: 'grid', gridTemplateColumns: '120px 1fr 2fr auto', gap: 8, alignItems: 'end' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 8, alignItems: 'end' }}>
           <Inp label="Data" value={data} onChange={setData} placeholder="" />
           <Inp
             label={objetivo.metricaTipo === 'gas' ? 'GAS' : `Valor${objetivo.metricaUnidade ? ' · ' + objetivo.metricaUnidade : ''}`}

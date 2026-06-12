@@ -522,7 +522,7 @@ function PassoGasConfig({ titulo, setTitulo, nv, setNv, partida, setPartida, esp
           </div>
         ))}
       </div>
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 10 }}>
         <label style={{ display: 'grid', gap: 4 }}>
           <span style={{ fontSize: 11, color: 'var(--muted)' }}>Nível de partida</span>
           <select value={partida} onChange={e => setPartida(Number(e.target.value))} className="gas-inp">{[2, 1, 0, -1, -2].map(v => <option key={v} value={v}>{sinalN(v)}</option>)}</select>
