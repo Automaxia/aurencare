@@ -32,10 +32,13 @@ export async function POST(req: Request) {
   try { body = await req.json() } catch { return NextResponse.json({ error: 'bad json' }, { status: 400 }) }
 
   const evt = body?.event as string | undefined
-  log.info('evolution.webhook', `event=${evt} inst=${body?.instance}`)
+  // Normaliza o nome do evento: Evolution manda em formatos variados
+  // ('messages.upsert', 'MESSAGES_UPSERT', 'messages-upsert'…). Canoniza p/ UPPER_SNAKE.
+  const evtN = String(evt ?? '').toUpperCase().replace(/[.\-\s]/g, '_')
+  log.info('evolution.webhook', `event=${evt} (norm=${evtN}) inst=${body?.instance}`)
 
-  // QR code: o Evolution v2 manda 'qrcode.updated' (com ponto) ou 'QRCODE_UPDATED' (sublinhado).
-  if (evt === 'qrcode.updated' || evt === 'QRCODE_UPDATED') {
+  // QR code
+  if (evtN === 'QRCODE_UPDATED') {
     const inst = body?.instance ?? 'auren-care'
     const qrBase64 = body?.data?.qrcode?.base64 ?? body?.data?.base64 ?? null
     const qrCode   = body?.data?.qrcode?.code   ?? body?.data?.code   ?? null
@@ -50,7 +53,7 @@ export async function POST(req: Request) {
   }
 
   // Connection state: limpa QR ao conectar
-  if (evt === 'connection.update') {
+  if (evtN === 'CONNECTION_UPDATE') {
     const inst = body?.instance ?? 'auren-care'
     const state = body?.data?.state
     log.info('evolution.webhook', `connection ${inst} → ${state}`)
@@ -61,7 +64,7 @@ export async function POST(req: Request) {
     return NextResponse.json({ ok: true, captured: 'connection' })
   }
 
-  if (evt && evt !== 'messages.upsert') {
+  if (evtN && evtN !== 'MESSAGES_UPSERT') {
     return NextResponse.json({ ok: true, ignored: evt })
   }
 
