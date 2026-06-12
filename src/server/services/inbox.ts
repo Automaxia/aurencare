@@ -236,30 +236,32 @@ async function receberConsent(tel: string, cmd: string, psicologo: { id: string;
 // ── Assistente do paciente (intents básicos por WhatsApp) ───────────────
 
 const semAcento = (s: string) => s.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '')
-type IntentPaciente = 'link' | 'agendar' | 'pagamento' | 'ajuda' | 'desconhecido'
+type IntentPaciente = 'proxima' | 'link' | 'pagamento' | 'ajuda' | 'desconhecido'
 
 function detectarIntentPaciente(texto: string): IntentPaciente {
   const t = semAcento(texto).trim()
   // Resposta pelo número do menu
-  if (/^1\b/.test(t)) return 'agendar'
+  if (/^1\b/.test(t)) return 'proxima'
   if (/^2\b/.test(t)) return 'link'
   if (/^3\b/.test(t)) return 'pagamento'
   const tt = ` ${t} `
+  // Pagamento antes de 'link' — "link de pagamento" deve cair aqui, não no vídeo.
+  if (/\b(pagar|pagamento|pix|cobranca|boleto|cartao|fatura|valor|preco|quanto custa|debito|credito|nota fiscal)\b/.test(tt)) return 'pagamento'
+  if (/\b(proxima sessao|minha sessao|quando|que dia|que horas|qual dia|qual horario|que horario|quando e|tenho sessao|tem sessao)\b/.test(tt)) return 'proxima'
   if (/\b(link|sala|entrar|acesso|video|chamada|reuniao|como entro|onde entro)\b/.test(tt)) return 'link'
-  if (/\b(agendar|marcar|remarcar|remarca|reagendar|nova sessao|novo horario|horario|agenda|quero sessao|proxima sessao|disponibilidade)\b/.test(tt)) return 'agendar'
-  if (/\b(pagar|pagamento|pix|cobranca|valor|preco|quanto custa|boleto|cartao|fatura|nota fiscal)\b/.test(tt)) return 'pagamento'
   if (/\b(ajuda|duvida|como funciona|menu|opcoes|oi|ola|bom dia|boa tarde|boa noite|obrigad)\b/.test(tt) || texto.includes('?')) return 'ajuda'
   return 'desconhecido'
 }
 
-function menuAjuda(nome?: string): string {
+function menuAjuda(nome?: string, psi?: string): string {
   const ola = nome ? `Oi, ${nome}! 💜 Que bom falar com você.` : `Oi! 💜 Que bom falar com você.`
+  const quem = psi ?? 'sua psicóloga'
   return `${ola}\n\n` +
-    `Me conta como posso te ajudar — é só responder com o número:\n\n` +
-    `*1* — 📅 Marcar ou remarcar uma sessão\n` +
-    `*2* — 🔗 Pegar o link da sua próxima sessão\n` +
-    `*3* — 💳 Pagamento ou dúvidas de valores\n\n` +
-    `Estou por aqui pra te ajudar. 🤗`
+    `Posso te ajudar com:\n\n` +
+    `*1* — 📅 O dia e horário da sua próxima sessão\n` +
+    `*2* — 🔗 O link da sua sessão de vídeo\n` +
+    `*3* — 💳 Reenviar o link de pagamento ou tirar dúvidas\n\n` +
+    `É só responder com o número. Ou me escreva o que precisar — sua mensagem fica com ${quem}, que te responde por aqui. 🤗`
 }
 
 async function responderPacienteConhecido(
@@ -271,16 +273,35 @@ async function responderPacienteConhecido(
   const intent = detectarIntentPaciente(texto)
   log.info('wa.inbox', `paciente ${tel} intent=${intent} · "${texto.slice(0, 60)}"`)
 
-  const primeiro = (paciente?.nome ?? '').split(' ')[0] || undefined
-  if (!paciente) { await enviarERegistrar(tel, menuAjuda()); return }
+  const psiNome = psicologo.nome.split(' ')[0]
+  if (!paciente) { await enviarERegistrar(tel, menuAjuda(undefined, psiNome)); return }
+  const primeiro = paciente.nome.split(' ')[0]
 
   switch (intent) {
+    case 'proxima':    return responderProximaSessao(tel, paciente, psicologo)
     case 'link':       return responderLinkSessao(tel, paciente, psicologo)
     case 'pagamento':  return responderPagamentoFAQ(tel, paciente, psicologo)
-    case 'agendar':    return responderAgendar(tel, paciente, psicologo)
-    case 'ajuda':
-    default:           await enviarERegistrar(tel, menuAjuda(primeiro)); return
+    case 'ajuda':      await enviarERegistrar(tel, menuAjuda(primeiro, psiNome)); return
+    default:
+      // Mensagem livre: registra (vai pro inbox /conversas) e responde com carinho.
+      await enviarERegistrar(tel,
+        `Recebi sua mensagem, ${primeiro} 💜 ${psiNome} acompanha as conversas por aqui e te responde.\n\n` +
+        `Se precisar de algo rápido, é só mandar *1* (próxima sessão), *2* (link de vídeo) ou *3* (pagamento). 🤗`)
+      return
   }
+}
+
+async function responderProximaSessao(tel: string, paciente: { id: string; nome: string }, psicologo: { nome: string }) {
+  const nome = paciente.nome.split(' ')[0]
+  const psi = psicologo.nome.split(' ')[0]
+  const s = await proximaSessaoPaciente(paciente.id)
+  if (!s) {
+    await enviarERegistrar(tel, `${nome}, no momento você não tem nenhuma sessão marcada. 🌿 Assim que ${psi} agendar, eu te aviso por aqui. 💜`)
+    return
+  }
+  const mod = s.modalidade === 'online' ? 'online, por vídeo' : 'presencial'
+  const extra = s.modalidade === 'online' ? `\n\nVou te mandar o link da sala ~15 minutos antes — fica tranquila(o). 🤗` : ''
+  await enviarERegistrar(tel, `${nome}, sua próxima sessão é em *${formatDateTimeBR(s.data_hora)}* (${mod}). 💜${extra}`)
 }
 
 /** Próxima sessão futura do paciente (não cancelada/concluída). */
@@ -301,7 +322,7 @@ async function responderLinkSessao(tel: string, paciente: { id: string; nome: st
   const psi = psicologo.nome.split(' ')[0]
   const s = await proximaSessaoPaciente(paciente.id)
   if (!s) {
-    await enviarERegistrar(tel, `${nome}, por enquanto você não tem nenhuma sessão marcada. 🌿\nSe quiser remarcar, é só me mandar *1* que eu combino com ${psi} um horário pra você.`)
+    await enviarERegistrar(tel, `${nome}, por enquanto você não tem nenhuma sessão marcada. 🌿 Assim que ${psi} agendar, eu te aviso por aqui com o link. 💜`)
     return
   }
   const dataFmt = formatDateTimeBR(s.data_hora)
@@ -343,15 +364,6 @@ async function responderPagamentoFAQ(tel: string, paciente: { id: string; nome: 
     `Por enquanto está tudo em dia, ${nome} — nada pendente. 🌿`)
 }
 
-async function responderAgendar(tel: string, paciente: { id: string; nome: string }, psicologo: { nome: string }) {
-  const nome = paciente.nome.split(' ')[0]
-  const psi = psicologo.nome.split(' ')[0]
-  await enviarERegistrar(tel,
-    `Vou adorar te ajudar com isso, ${nome}! 💜\n\n` +
-    `As sessões são combinadas com a ${psi}. Me conta o *dia e horário* que ficam melhores pra você (ex: "terça às 15h") que eu passo pra ela acertar com você com todo carinho. 🤗`)
-  // Registra a intenção pra acompanhamento (aparece no inbox /conversas).
-  log.ok('wa.inbox', `PEDIDO DE AGENDAMENTO · paciente=${paciente.nome} tel=${tel}`)
-}
 
 // ──────────────────────────────────────────────────────────────────
 // Comandos clássicos de pagamento (mantém fluxo existente)
