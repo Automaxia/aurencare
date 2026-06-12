@@ -64,7 +64,7 @@ export function DadosCadastroForm({ pacienteId, initial }: { pacienteId: string;
           <div style={{ fontSize: 12, color: 'var(--faint)' }}>Nenhum contato — adicione abaixo.</div>
         )}
         {contatos.map((c, i) => (
-          <div key={i} style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr auto', gap: 8, alignItems: 'center' }}>
+          <div key={i} className="dc-contato">
             <input value={c.nome ?? ''} onChange={e => setContato(i, { nome: e.target.value })} placeholder="Nome" />
             <input value={c.telefone ?? ''} onChange={e => setContato(i, { telefone: e.target.value })} placeholder="Telefone" inputMode="tel" />
             <input value={c.email ?? ''} onChange={e => setContato(i, { email: e.target.value })} placeholder="E-mail" inputMode="email" />
@@ -86,8 +86,13 @@ export function DadosCadastroForm({ pacienteId, initial }: { pacienteId: string;
       </div>
 
       <style jsx>{`
-        .dc-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px; }
-        @media (max-width: 720px) { .dc-grid { grid-template-columns: 1fr 1fr; } }
+        /* Reflui sozinho: 3 colunas no card largo, 2 em tablet, 1 no celular —
+           cada campo nunca abaixo de 180px, então nada fica espremido. */
+        .dc-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; }
+        /* Contatos: inputs reflui em linhas; o ✕ acompanha sem deformar a grade. */
+        .dc-contato { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+        .dc-contato > input { flex: 1 1 160px; min-width: 0; }
+        .dc-contato > button { flex: 0 0 auto; }
         input {
           width: 100%; padding: 8px 12px; border-radius: var(--field-radius);
           border: 1px solid var(--field-border); background: var(--field-bg);

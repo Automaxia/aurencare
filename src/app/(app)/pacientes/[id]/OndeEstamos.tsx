@@ -21,11 +21,11 @@ export function OndeEstamos(props: OndeEstamosProps) {
 
   return (
     <section className="card" style={{ padding: 18, marginTop: 4 }}>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8, marginBottom: 14 }}>
         <span style={{ fontSize: 11, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '.07em', fontWeight: 600 }}>
           Onde estamos
         </span>
-        <div style={{ display: 'flex', gap: 8 }}>
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
           {proximaSessaoId
             ? <Link className="btn primary sm" href={`/sessao/${proximaSessaoId}`}>▶ Abrir sessão</Link>
             : <Link className="btn primary sm" href="/agenda/nova">+ Nova sessão</Link>}
@@ -39,7 +39,7 @@ export function OndeEstamos(props: OndeEstamosProps) {
           assina sessões, este painel passa a resumir <strong>onde o processo está</strong>.
         </p>
       ) : (
-        <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0,1fr) minmax(0,1fr)', gap: 20 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 20 }}>
           {/* Coluna 1 — Objetivos */}
           <div>
             <Rotulo>Objetivos ativos</Rotulo>

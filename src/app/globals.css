@@ -170,7 +170,10 @@ input:user-invalid:focus, textarea:user-invalid:focus, select:user-invalid:focus
 
 /* Briefing do paciente — coluna principal + rail de memória clínica */
 .briefing-grid { display: grid; grid-template-columns: 1.7fr 1fr; gap: 16px; align-items: start; }
-@media (max-width: 900px) { .briefing-grid { grid-template-columns: 1fr; } }
+/* min-width:0 deixa os cards encolherem (sem isso, conteúdo longo estoura a coluna) */
+.briefing-grid > * { min-width: 0; }
+/* Tablet (inclui iPad retrato/paisagem) → empilha pra cada painel ter largura plena */
+@media (max-width: 1024px) { .briefing-grid { grid-template-columns: 1fr; } }
 
 /* Objetivos — modelo mental (Temas → Objetivos → Evolução) */
 .obj-mental {

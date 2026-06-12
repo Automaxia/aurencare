@@ -9,7 +9,7 @@ type Props = {
 
 export function PageHeader({ title, subtitle, withCfp, actions }: Props) {
   return (
-    <header style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', marginBottom: 24, gap: 16 }}>
+    <header style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', flexWrap: 'wrap', marginBottom: 24, gap: 16 }}>
       <div>
         <h1 style={{ margin: 0 }}>{title}</h1>
         {subtitle && <p style={{ margin: '6px 0 0', color: 'var(--muted)', fontSize: 13 }}>{subtitle}</p>}
