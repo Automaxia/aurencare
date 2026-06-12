@@ -4,6 +4,7 @@ import { requirePsicologo } from '@/server/lib/auth'
 import { listarSessoesEntre } from '@/server/services/sessoes'
 import { formatTimeBR, formatDateBR } from '@/lib/formatters'
 import { ViewToggle } from './view-toggle'
+import { SessaoBlock } from './SessaoBlock'
 
 export const dynamic = 'force-dynamic'
 
@@ -119,8 +120,8 @@ function DayView({ sessoes }: { sessoes: any[] }) {
             const blockS = blockStyles(s.status)
             const pTag = pagamentoTag(s)
             return (
-              <Link
-                key={s.id} href={`/sessao/${s.id}`} className="cal-block"
+              <SessaoBlock
+                key={s.id} sessao={s} className="cal-block"
                 style={{
                   position: 'absolute', left: 8, right: 8, top, minHeight: height,
                   padding: '8px 10px', ...blockS,
@@ -135,7 +136,7 @@ function DayView({ sessoes }: { sessoes: any[] }) {
                   Sessão {s.numero} · {s.modalidade === 'online' ? 'Online' : 'Presencial'} · {s.duracaoMin}min
                 </div>
                 {pTag && <span className={pTag.klass}>{pTag.texto}</span>}
-              </Link>
+              </SessaoBlock>
             )
           })}
         </div>
@@ -199,7 +200,7 @@ function WeekView({ inicio, sessoes }: { inicio: Date; sessoes: any[] }) {
               .map((s: any) => {
                 const pTag = pagamentoTag(s)
                 return (
-                  <Link key={s.id} href={`/sessao/${s.id}`} className="cal-block" style={{ marginBottom: 4, ...blockStyles(s.status) }}>
+                  <SessaoBlock key={s.id} sessao={s} className="cal-block" style={{ marginBottom: 4, ...blockStyles(s.status) }}>
                     <div className="cal-block-name">
                       {s.pacienteNome.split(' ')[0]}
                       {s.status === 'em_curso' && <span className="cal-live-badge">● ao vivo</span>}
@@ -207,7 +208,7 @@ function WeekView({ inicio, sessoes }: { inicio: Date; sessoes: any[] }) {
                     </div>
                     <div className="cal-block-meta">{formatTimeBR(s.dataHora)} · {s.modalidade === 'online' ? 'Online' : 'Presencial'}</div>
                     {pTag && <span className={pTag.klass}>{pTag.texto}</span>}
-                  </Link>
+                  </SessaoBlock>
                 )
               })}
           </div>
@@ -246,7 +247,7 @@ function MonthView({ inicio, sessoes }: { inicio: Date; sessoes: any[] }) {
             }}>
               <div style={{ fontSize: 12, marginBottom: 4, fontWeight: isToday ? 600 : 400, color: isToday ? 'var(--accent)' : 'var(--ink-soft)' }}>{d.getDate()}</div>
               {dssns.slice(0, 3).map((s: any) => (
-                <Link key={s.id} href={`/sessao/${s.id}`} className="cal-block" style={{ padding: '3px 6px', marginBottom: 2, ...blockStyles(s.status), position: 'relative' }}>
+                <SessaoBlock key={s.id} sessao={s} className="cal-block" style={{ padding: '3px 6px', marginBottom: 2, ...blockStyles(s.status), position: 'relative' }}>
                   <div style={{ fontSize: 10, fontWeight: 500, color: 'var(--ink-soft)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                     {formatTimeBR(s.dataHora)} {s.pacienteNome.split(' ')[0]}
                   </div>
@@ -260,7 +261,7 @@ function MonthView({ inicio, sessoes }: { inicio: Date; sessoes: any[] }) {
                       }}
                     />
                   )}
-                </Link>
+                </SessaoBlock>
               ))}
               {dssns.length > 3 && <div style={{ fontSize: 10, color: 'var(--muted)', paddingLeft: 6 }}>+{dssns.length - 3}</div>}
             </div>

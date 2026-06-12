@@ -200,6 +200,24 @@ export async function criarSessao(input: CriarSessaoInput): Promise<Sessao> {
   return sessao
 }
 
+/** Reagenda a sessão (data/hora, duração, modalidade). Verifica posse. */
+export async function reagendarSessao(
+  psicologoId: string, sessaoId: string,
+  patch: { dataHora?: string; duracaoMin?: number; modalidade?: string },
+): Promise<boolean> {
+  const fields: string[] = []
+  const vals: any[] = [sessaoId, psicologoId]
+  const set = (col: string, v: any) => { fields.push(`${col} = $${vals.length + 1}`); vals.push(v) }
+  if (patch.dataHora !== undefined)   set('data_hora', patch.dataHora)
+  if (patch.duracaoMin !== undefined) set('duracao_min', patch.duracaoMin)
+  if (patch.modalidade !== undefined) set('modalidade', patch.modalidade)
+  if (fields.length === 0) return false
+  const { rowCount } = await db.query(
+    `UPDATE sessoes SET ${fields.join(', ')} WHERE id = $1 AND psicologo_id = $2`, vals,
+  )
+  return (rowCount ?? 0) > 0
+}
+
 // ── Séries recorrentes ────────────────────────────────────────────────────
 export type FrequenciaSerie = 'semanal' | 'quinzenal'
 
