@@ -2,7 +2,7 @@
 
 import { revalidatePath } from 'next/cache'
 import { requirePsicologo } from '@/server/lib/auth'
-import { reagendarSessao } from '@/server/services/sessoes'
+import { reagendarSessao, excluirSessao } from '@/server/services/sessoes'
 
 export async function reagendarSessaoAction(
   sessaoId: string,
@@ -18,4 +18,16 @@ export async function reagendarSessaoAction(
   const ok = await reagendarSessao(user.id, sessaoId, patch)
   if (ok) { revalidatePath('/agenda'); revalidatePath('/') }
   return { ok, error: ok ? undefined : 'Não foi possível salvar.' }
+}
+
+export async function excluirSessaoAction(sessaoId: string): Promise<{ ok: boolean; error?: string }> {
+  const user = await requirePsicologo()
+  const r = await excluirSessao(user.id, sessaoId)
+  if (r.ok) { revalidatePath('/agenda'); revalidatePath('/'); return { ok: true } }
+  const msg = {
+    nao_encontrada: 'Sessão não encontrada.',
+    realizada: 'Esta sessão já aconteceu (ou tem registro clínico) e não pode ser excluída.',
+    paga: 'Sessão paga: não dá pra excluir aqui. Cancele/reembolse o paciente antes.',
+  }[r.motivo]
+  return { ok: false, error: msg }
 }

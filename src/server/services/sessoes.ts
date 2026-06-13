@@ -237,6 +237,34 @@ export async function reagendarSessao(
   return ok
 }
 
+export type ExcluirSessaoResult =
+  | { ok: true }
+  | { ok: false; motivo: 'nao_encontrada' | 'realizada' | 'paga' }
+
+/**
+ * Exclui (hard delete) uma sessão que ainda não aconteceu — pra limpar
+ * agendamentos criados por engano. Diferente de `cancelarSessao` (soft-delete
+ * com reembolso + aviso), some de vez da agenda.
+ *
+ * Guardas:
+ *  - 'realizada': sessão em curso/concluída, assinada ou com registro clínico
+ *    (transcrição/nota/resumo). Prontuário não se apaga — bloqueia.
+ *  - 'paga': dinheiro retido do paciente. Bloqueia; o caminho certo é cancelar
+ *    (reembolsa + avisa), não sumir com a sessão silenciosamente.
+ *
+ * Dependentes (salas_video, palavras_chave.ultima_sessao_id, objetivo_smart.sessao_id)
+ * têm ON DELETE cascade/set null, então o DELETE é limpo.
+ */
+export async function excluirSessao(psicologoId: string, sessaoId: string): Promise<ExcluirSessaoResult> {
+  const s = await buscarSessao(sessaoId)
+  if (!s || s.psicologoId !== psicologoId) return { ok: false, motivo: 'nao_encontrada' }
+  if (s.assinada || s.status === 'concluida' || s.status === 'em_curso' || s.transcricao || s.notaClinica || s.resumoIa)
+    return { ok: false, motivo: 'realizada' }
+  if (s.pagamentoStatus === 'pago') return { ok: false, motivo: 'paga' }
+  await db.query('DELETE FROM sessoes WHERE id = $1 AND psicologo_id = $2', [sessaoId, psicologoId])
+  return { ok: true }
+}
+
 // ── Séries recorrentes ────────────────────────────────────────────────────
 export type FrequenciaSerie = 'semanal' | 'quinzenal'
 

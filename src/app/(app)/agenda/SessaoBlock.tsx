@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { reagendarSessaoAction } from './actions'
+import { reagendarSessaoAction, excluirSessaoAction } from './actions'
 import { horarioBrasiliaParaISO, TZ } from '@/lib/formatters'
 
 const STATUS_LABEL: Record<string, string> = {
@@ -36,11 +36,17 @@ export function SessaoBlock({ sessao, className, style, children }: {
   const [modalidade, setModalidade] = useState<string>(sessao.modalidade ?? 'online')
   const [salvando, setSalvando] = useState(false)
   const [erro, setErro] = useState<string | null>(null)
+  const [confirmando, setConfirmando] = useState(false)
+  const [excluindo, setExcluindo] = useState(false)
+
+  // Só sessões que ainda não aconteceram podem ser excluídas (prontuário não se apaga).
+  // O servidor revalida isso e ainda bloqueia sessão paga.
+  const podeExcluir = !sessao.assinada && sessao.status !== 'concluida' && sessao.status !== 'em_curso'
 
   function abrir() {
     const p = partesLocais(sessao.dataHora)
     setData(p.data); setHora(p.hora); setDuracao(sessao.duracaoMin ?? 50); setModalidade(sessao.modalidade ?? 'online')
-    setErro(null); setAberto(true)
+    setErro(null); setConfirmando(false); setAberto(true)
   }
 
   async function salvar() {
@@ -51,6 +57,14 @@ export function SessaoBlock({ sessao, className, style, children }: {
     const r = await reagendarSessaoAction(sessao.id, { dataHora: iso, duracaoMin: duracao, modalidade })
     setSalvando(false)
     if (!r.ok) { setErro(r.error ?? 'Não foi possível salvar.'); return }
+    setAberto(false); router.refresh()
+  }
+
+  async function excluir() {
+    setErro(null); setExcluindo(true)
+    const r = await excluirSessaoAction(sessao.id)
+    setExcluindo(false)
+    if (!r.ok) { setErro(r.error ?? 'Não foi possível excluir.'); setConfirmando(false); return }
     setAberto(false); router.refresh()
   }
 
@@ -122,6 +136,27 @@ export function SessaoBlock({ sessao, className, style, children }: {
                 <button onClick={salvar} disabled={salvando} className="btn primary">{salvando ? 'Salvando…' : 'Salvar'}</button>
               </div>
             </div>
+
+            {podeExcluir && (
+              <div style={{ marginTop: 16, paddingTop: 12, borderTop: '1px solid var(--border)' }}>
+                {!confirmando ? (
+                  <button onClick={() => { setErro(null); setConfirmando(true) }} disabled={salvando}
+                    className="btn ghost" style={{ color: 'var(--rose)', fontSize: 12.5, padding: '5px 10px' }}>
+                    🗑 Excluir sessão
+                  </button>
+                ) : (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+                    <span style={{ fontSize: 12.5, color: 'var(--ink-soft)' }}>Excluir de vez? Não dá pra desfazer.</span>
+                    <div style={{ display: 'flex', gap: 8, marginLeft: 'auto' }}>
+                      <button onClick={() => setConfirmando(false)} disabled={excluindo} className="btn ghost" style={{ fontSize: 12.5 }}>Não</button>
+                      <button onClick={excluir} disabled={excluindo} className="btn primary" style={{ background: 'var(--rose)', fontSize: 12.5 }}>
+                        {excluindo ? 'Excluindo…' : 'Sim, excluir'}
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         </div>
       )}
