@@ -612,6 +612,21 @@ export async function salvarResumoIA(sessaoId: string, resumo: string): Promise<
   await db.query(`UPDATE sessoes SET resumo_ia = $2 WHERE id = $1`, [sessaoId, encrypt(resumo)])
 }
 
+/**
+ * Salva a nota clínica privada da sessão (texto cifrado em repouso). Pode ser
+ * chamada a qualquer momento — durante a revisão pós-sessão ou depois — pra
+ * reter/editar as anotações do psicólogo, independente da assinatura do resumo
+ * formal. Confere posse pelo psicologoId. `null`/vazio limpa a nota.
+ */
+export async function salvarNotaClinica(psicologoId: string, sessaoId: string, nota: string): Promise<boolean> {
+  const limpa = nota.trim()
+  const { rowCount } = await db.query(
+    `UPDATE sessoes SET nota_clinica = $3 WHERE id = $1 AND psicologo_id = $2`,
+    [sessaoId, psicologoId, limpa ? encrypt(limpa) : null],
+  )
+  return (rowCount ?? 0) > 0
+}
+
 export async function assinarSessao(sessaoId: string): Promise<void> {
   const s = await buscarSessao(sessaoId)
   if (!s) throw new Error('sessao_nao_encontrada')

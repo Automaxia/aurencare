@@ -42,12 +42,43 @@ export function SessionReview({ sessao }: { sessao: Sessao }) {
   // assinada). Antes a revisão era só leitura e não havia como resolver.
   const router = useRouter()
   const [resumoEdit, setResumoEdit] = useState(sessao.resumoIa ?? '')
-  const [notaEdit, setNotaEdit] = useState(sessao.notaClinica ?? '')
+  // Pré-preenche com a nota clínica salva ou, na falta dela, com a "nota rápida"
+  // feita ao vivo (indicadores.notaRapida) — assim as anotações da sessão não
+  // se perdem e ficam editáveis aqui.
+  const [notaEdit, setNotaEdit] = useState(sessao.notaClinica ?? ind.notaRapida ?? '')
   const [assinando, setAssinando] = useState(false)
   const [assinadoAgora, setAssinadoAgora] = useState(false)
   const [assinarErro, setAssinarErro] = useState<string | null>(null)
+  const [notaSalvando, setNotaSalvando] = useState(false)
+  const [notaMsg, setNotaMsg] = useState<string | null>(null)
+  const [copiado, setCopiado] = useState(false)
   const assinada = sessao.assinada || assinadoAgora
   const podeAssinar = sessao.status === 'concluida' && !assinada
+
+  async function salvarNota() {
+    setNotaSalvando(true); setNotaMsg(null)
+    try {
+      const res = await fetch(`/api/sessao/${sessao.id}/nota`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ nota: notaEdit }),
+      })
+      setNotaMsg(res.ok ? 'Nota salva ✓' : 'Falha ao salvar.')
+      if (res.ok) router.refresh()
+    } catch {
+      setNotaMsg('Falha ao salvar.')
+    } finally {
+      setNotaSalvando(false)
+    }
+  }
+
+  async function copiarTranscricao() {
+    const texto = turnos.map(t => `${t.who === 'psicologo' ? 'Psicóloga' : 'Paciente'}: ${t.texto}`).join('\n')
+    try {
+      await navigator.clipboard.writeText(texto)
+      setCopiado(true)
+      setTimeout(() => setCopiado(false), 1800)
+    } catch { /* clipboard indisponível — silencioso */ }
+  }
 
   async function assinarRegistro() {
     if (!resumoEdit.trim()) { setAssinarErro('Escreva um resumo antes de assinar.'); return }
@@ -116,8 +147,9 @@ export function SessionReview({ sessao }: { sessao: Sessao }) {
                 placeholder="Resumo da sessão em linguagem de observação (sem diagnóstico)…"
                 style={ta}
               />
-              <label style={{ ...lbl, marginTop: 12 }}>Nota clínica privada (opcional)</label>
-              <textarea value={notaEdit} onChange={e => setNotaEdit(e.target.value)} rows={3} style={ta} />
+              <div style={{ fontSize: 11.5, color: 'var(--muted)', marginTop: 8 }}>
+                Suas anotações ficam na caixa <strong>Notas</strong> abaixo (salvas separadamente).
+              </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 12 }}>
                 <CfpBadge />
                 <div style={{ flex: 1 }} />
@@ -144,17 +176,36 @@ export function SessionReview({ sessao }: { sessao: Sessao }) {
             </Section>
           )}
 
-          {sessao.notaClinica && (
-            <Section title="Nota clínica privada">
-              <p style={{ whiteSpace: 'pre-wrap', margin: 0, fontSize: 13, color: 'var(--ink-soft)', lineHeight: 1.6 }}>{sessao.notaClinica}</p>
-            </Section>
-          )}
+          <Section title="Notas">
+            <div style={{ fontSize: 11.5, color: 'var(--muted)', marginBottom: 8 }}>
+              Anotações privadas da sessão. Inclui a nota rápida feita ao vivo — edite e salve quando quiser.
+            </div>
+            <textarea
+              value={notaEdit} onChange={e => { setNotaEdit(e.target.value); setNotaMsg(null) }} rows={5}
+              placeholder="Anotações sobre a sessão…" style={ta}
+            />
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 10 }}>
+              {notaMsg && <span style={{ fontSize: 12, color: notaMsg.includes('✓') ? 'var(--sage)' : 'var(--rose)' }}>{notaMsg}</span>}
+              <div style={{ flex: 1 }} />
+              <button className="btn primary" onClick={salvarNota} disabled={notaSalvando}>
+                {notaSalvando ? 'Salvando…' : 'Salvar nota'}
+              </button>
+            </div>
+          </Section>
 
-          <Section title="Transcrição">
+          <Section
+            title="Transcrição"
+            actions={turnos.length > 0 ? (
+              <>
+                <button className="btn ghost sm" onClick={copiarTranscricao}>{copiado ? 'Copiado ✓' : '⧉ Copiar'}</button>
+                <a className="btn ghost sm" href={`/api/sessao/${sessao.id}/transcricao/pdf`} target="_blank" rel="noopener noreferrer">⬇ PDF</a>
+              </>
+            ) : undefined}
+          >
             {turnos.length === 0 ? (
               <Empty>Sem transcrição registrada.</Empty>
             ) : (
-              <div className="talk-card" style={{ height: 'auto', maxHeight: 420 }}>
+              <div className="talk-card" style={{ height: 'auto' }}>
                 {turnos.map((t, i) => (
                   <div key={i} className="turn" data-mark={t.mark ?? undefined}>
                     <span className="who" data-who={t.who}>{t.who === 'psicologo' ? 'P' : 'C'}:</span>{' '}
@@ -237,10 +288,13 @@ export function SessionReview({ sessao }: { sessao: Sessao }) {
   )
 }
 
-function Section({ title, children }: { title: string; children: React.ReactNode }) {
+function Section({ title, actions, children }: { title: string; actions?: React.ReactNode; children: React.ReactNode }) {
   return (
     <section style={{ marginBottom: 16 }}>
-      <div className="widget-title">{title}</div>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, marginBottom: 8, minHeight: 22 }}>
+        <div className="widget-title" style={{ marginBottom: 0 }}>{title}</div>
+        {actions && <div style={{ display: 'flex', gap: 6 }}>{actions}</div>}
+      </div>
       <div className="card">{children}</div>
     </section>
   )
