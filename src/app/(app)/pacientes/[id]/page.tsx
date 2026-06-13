@@ -99,7 +99,6 @@ export default async function PacientePerfilPage({ params }: { params: { id: str
   const arquivado = p.status === 'inativo'
   const objetivosAtivos = objetivos.filter(o => o.status === 'ativo')
   const temas = memoria.temasPredominantes
-  const alertas = condicoes?.alertas ?? []
 
   // Subtítulo CLÍNICO (não mais cadastral)
   const sub: string[] = []
@@ -135,14 +134,9 @@ export default async function PacientePerfilPage({ params }: { params: { id: str
       />
 
       {/* Status que merece atenção — pílulas só quando há exceção */}
-      {(alertas.length > 0 || !p.consentimento_aceito) && (
+      {!p.consentimento_aceito && (
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 12 }}>
-          {alertas.length > 0 && (
-            <a href="#info-clinica" style={{ fontSize: 12, fontWeight: 500, padding: '4px 11px', borderRadius: 999, background: 'rgba(196,96,122,.12)', color: 'var(--rose)', textDecoration: 'none' }}>
-              ⚠ {alertas.length} alerta{alertas.length > 1 ? 's' : ''} clínico{alertas.length > 1 ? 's' : ''} →
-            </a>
-          )}
-          {!p.consentimento_aceito && <ConsentimentoPendente pacienteId={p.id} />}
+          <ConsentimentoPendente pacienteId={p.id} />
         </div>
       )}
 
