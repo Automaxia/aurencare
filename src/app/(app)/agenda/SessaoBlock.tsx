@@ -38,15 +38,18 @@ export function SessaoBlock({ sessao, className, style, children }: {
   const [erro, setErro] = useState<string | null>(null)
   const [confirmando, setConfirmando] = useState(false)
   const [excluindo, setExcluindo] = useState(false)
+  const [erroExcluir, setErroExcluir] = useState<string | null>(null)
 
-  // Só sessões que ainda não aconteceram podem ser excluídas (prontuário não se apaga).
-  // O servidor revalida isso e ainda bloqueia sessão paga.
-  const podeExcluir = !sessao.assinada && sessao.status !== 'concluida' && sessao.status !== 'em_curso'
+  // Só sessões que ainda não aconteceram E sem cobrança ativa/paga podem ser
+  // excluídas (prontuário não se apaga; cobrança ativa não pode ser orfanizada).
+  // O servidor revalida tudo isso de novo.
+  const semCobrancaAtiva = sessao.pagamentoStatus !== 'pago' && !(sessao.pagarmeOrderId && sessao.pagamentoStatus === 'pendente')
+  const podeExcluir = !sessao.assinada && sessao.status !== 'concluida' && sessao.status !== 'em_curso' && semCobrancaAtiva
 
   function abrir() {
     const p = partesLocais(sessao.dataHora)
     setData(p.data); setHora(p.hora); setDuracao(sessao.duracaoMin ?? 50); setModalidade(sessao.modalidade ?? 'online')
-    setErro(null); setConfirmando(false); setAberto(true)
+    setErro(null); setConfirmando(false); setErroExcluir(null); setAberto(true)
   }
 
   async function salvar() {
@@ -61,10 +64,10 @@ export function SessaoBlock({ sessao, className, style, children }: {
   }
 
   async function excluir() {
-    setErro(null); setExcluindo(true)
+    setErroExcluir(null); setExcluindo(true)
     const r = await excluirSessaoAction(sessao.id)
     setExcluindo(false)
-    if (!r.ok) { setErro(r.error ?? 'Não foi possível excluir.'); setConfirmando(false); return }
+    if (!r.ok) { setErroExcluir(r.error ?? 'Não foi possível excluir.'); setConfirmando(false); return }
     setAberto(false); router.refresh()
   }
 
@@ -140,7 +143,7 @@ export function SessaoBlock({ sessao, className, style, children }: {
             {podeExcluir && (
               <div style={{ marginTop: 16, paddingTop: 12, borderTop: '1px solid var(--border)' }}>
                 {!confirmando ? (
-                  <button onClick={() => { setErro(null); setConfirmando(true) }} disabled={salvando}
+                  <button onClick={() => { setErroExcluir(null); setConfirmando(true) }} disabled={salvando}
                     className="btn ghost" style={{ color: 'var(--rose)', fontSize: 12.5, padding: '5px 10px' }}>
                     🗑 Excluir sessão
                   </button>
@@ -155,6 +158,7 @@ export function SessaoBlock({ sessao, className, style, children }: {
                     </div>
                   </div>
                 )}
+                {erroExcluir && <div style={{ color: 'var(--rose)', fontSize: 12, marginTop: 8 }}>{erroExcluir}</div>}
               </div>
             )}
           </div>

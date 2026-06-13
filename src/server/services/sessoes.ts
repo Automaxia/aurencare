@@ -239,7 +239,7 @@ export async function reagendarSessao(
 
 export type ExcluirSessaoResult =
   | { ok: true }
-  | { ok: false; motivo: 'nao_encontrada' | 'realizada' | 'paga' }
+  | { ok: false; motivo: 'nao_encontrada' | 'realizada' | 'paga' | 'cobranca' }
 
 /**
  * Exclui (hard delete) uma sessão que ainda não aconteceu — pra limpar
@@ -261,6 +261,10 @@ export async function excluirSessao(psicologoId: string, sessaoId: string): Prom
   if (s.assinada || s.status === 'concluida' || s.status === 'em_curso' || s.transcricao || s.notaClinica || s.resumoIa)
     return { ok: false, motivo: 'realizada' }
   if (s.pagamentoStatus === 'pago') return { ok: false, motivo: 'paga' }
+  // Cobrança ativa (PIX/checkout gerado, ainda pendente): deletar a linha
+  // orfaniza a cobrança — se o paciente pagar depois, o webhook não acha a
+  // sessão e o dinheiro entra sem reembolso. Bloqueia; o certo é cancelar.
+  if (s.pagarmeOrderId && s.pagamentoStatus === 'pendente') return { ok: false, motivo: 'cobranca' }
   await db.query('DELETE FROM sessoes WHERE id = $1 AND psicologo_id = $2', [sessaoId, psicologoId])
   return { ok: true }
 }

@@ -53,7 +53,7 @@ export function TranscricaoSessaoPDF({ d }: { d: TranscricaoPdfInput }) {
           <Text style={s.vazio}>Sem transcrição registrada.</Text>
         ) : (
           d.turnos.map((t, i) => (
-            <View key={i} style={s.turn} wrap={false}>
+            <View key={i} style={s.turn}>
               <Text style={[s.who, t.who === 'psicologo' ? s.whoPsic : s.whoPac]}>
                 {t.who === 'psicologo' ? 'Psicóloga' : 'Paciente'}
               </Text>

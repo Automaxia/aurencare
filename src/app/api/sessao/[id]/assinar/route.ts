@@ -10,7 +10,7 @@ import { log } from '@/server/lib/log'
 export const runtime = 'nodejs'
 
 export async function POST(req: Request, { params }: { params: { id: string } }) {
-  await requirePsicologo()
+  const user = await requirePsicologo()
   const body = await req.json().catch(() => ({} as any))
   const resumoFinal = String(body?.resumoFinal ?? '').trim()
   const notaClinica = String(body?.notaClinica ?? '').trim()
@@ -18,10 +18,13 @@ export async function POST(req: Request, { params }: { params: { id: string } })
   if (resumoFinal.length === 0) return NextResponse.json({ error: 'resumo_vazio' }, { status: 400 })
   if (!validarTextoIA(resumoFinal)) return NextResponse.json({ error: 'termos_proibidos' }, { status: 400 })
 
-  await db.query(
-    `UPDATE sessoes SET resumo_ia = $2, nota_clinica = $3 WHERE id = $1`,
-    [params.id, encrypt(resumoFinal), notaClinica ? encrypt(notaClinica) : null],
+  // WHERE inclui psicologo_id — sem isso qualquer psicólogo logado assinaria/
+  // sobrescreveria sessão de outro (IDOR). rowCount 0 = não é dono / não existe.
+  const { rowCount } = await db.query(
+    `UPDATE sessoes SET resumo_ia = $2, nota_clinica = $3 WHERE id = $1 AND psicologo_id = $4`,
+    [params.id, encrypt(resumoFinal), notaClinica ? encrypt(notaClinica) : null, user.id],
   )
+  if (!rowCount) return NextResponse.json({ error: 'nao_encontrada' }, { status: 404 })
   await assinarSessao(params.id)
 
   // Extrai temas para alimentar o grafo (Fase C).

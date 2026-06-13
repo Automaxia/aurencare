@@ -28,6 +28,7 @@ export async function excluirSessaoAction(sessaoId: string): Promise<{ ok: boole
     nao_encontrada: 'Sessão não encontrada.',
     realizada: 'Esta sessão já aconteceu (ou tem registro clínico) e não pode ser excluída.',
     paga: 'Sessão paga: não dá pra excluir aqui. Cancele/reembolse o paciente antes.',
+    cobranca: 'Há uma cobrança ativa nesta sessão. Cancele a cobrança antes de excluir.',
   }[r.motivo]
   return { ok: false, error: msg }
 }

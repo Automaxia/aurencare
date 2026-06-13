@@ -35,7 +35,9 @@ export function SessionReview({ sessao }: { sessao: Sessao }) {
   const [loadingInsight, setLoadingInsight] = useState(false)
   const [insightError, setInsightError] = useState<string | null>(null)
 
-  const ind = sessao.indicadores ?? {}
+  const ind = (sessao.indicadores && typeof sessao.indicadores === 'object') ? sessao.indicadores : {}
+  // Guarda: indicadores é JSONB livre; só aceita notaRapida se for string.
+  const notaRapida: string = typeof ind?.notaRapida === 'string' ? ind.notaRapida : ''
   const turnos = parseTranscriptionToTurns(sessao.transcricao ?? '')
 
   // Assinatura inline — resolve a pendência "Registrar" (sessão concluída e não
@@ -45,17 +47,29 @@ export function SessionReview({ sessao }: { sessao: Sessao }) {
   // Pré-preenche com a nota clínica salva ou, na falta dela, com a "nota rápida"
   // feita ao vivo (indicadores.notaRapida) — assim as anotações da sessão não
   // se perdem e ficam editáveis aqui.
-  const [notaEdit, setNotaEdit] = useState(sessao.notaClinica ?? ind.notaRapida ?? '')
+  const [notaEdit, setNotaEdit] = useState(sessao.notaClinica ?? notaRapida)
   const [assinando, setAssinando] = useState(false)
   const [assinadoAgora, setAssinadoAgora] = useState(false)
   const [assinarErro, setAssinarErro] = useState<string | null>(null)
   const [notaSalvando, setNotaSalvando] = useState(false)
   const [notaMsg, setNotaMsg] = useState<string | null>(null)
-  const [copiado, setCopiado] = useState(false)
+  const [confirmarVazio, setConfirmarVazio] = useState(false)
+  const [copiaStatus, setCopiaStatus] = useState<'idle' | 'ok' | 'erro'>('idle')
   const assinada = sessao.assinada || assinadoAgora
   const podeAssinar = sessao.status === 'concluida' && !assinada
+  // Se a nota rápida ao vivo existe e difere da nota clínica salva, ela ficaria
+  // escondida (a caixa pré-preenche com a clínica). Mostra read-only pra não sumir.
+  const mostrarNotaRapida = notaRapida.trim().length > 0 && notaRapida !== (sessao.notaClinica ?? '')
 
   async function salvarNota() {
+    // Guarda anti-apagamento acidental: salvar vazio sobre uma nota existente
+    // exige um 2º clique de confirmação (a retenção da nota é o ponto da feature).
+    if (!notaEdit.trim() && (sessao.notaClinica ?? '').trim() && !confirmarVazio) {
+      setNotaMsg('Isso vai apagar a nota. Clique em “Salvar nota” de novo para confirmar.')
+      setConfirmarVazio(true)
+      return
+    }
+    setConfirmarVazio(false)
     setNotaSalvando(true); setNotaMsg(null)
     try {
       const res = await fetch(`/api/sessao/${sessao.id}/nota`, {
@@ -74,10 +88,14 @@ export function SessionReview({ sessao }: { sessao: Sessao }) {
   async function copiarTranscricao() {
     const texto = turnos.map(t => `${t.who === 'psicologo' ? 'Psicóloga' : 'Paciente'}: ${t.texto}`).join('\n')
     try {
+      if (!navigator.clipboard) throw new Error('sem clipboard')
       await navigator.clipboard.writeText(texto)
-      setCopiado(true)
-      setTimeout(() => setCopiado(false), 1800)
-    } catch { /* clipboard indisponível — silencioso */ }
+      setCopiaStatus('ok')
+    } catch {
+      setCopiaStatus('erro')  // contexto inseguro (http) ou permissão negada
+    } finally {
+      setTimeout(() => setCopiaStatus('idle'), 2000)
+    }
   }
 
   async function assinarRegistro() {
@@ -181,9 +199,22 @@ export function SessionReview({ sessao }: { sessao: Sessao }) {
               Anotações privadas da sessão. Inclui a nota rápida feita ao vivo — edite e salve quando quiser.
             </div>
             <textarea
-              value={notaEdit} onChange={e => { setNotaEdit(e.target.value); setNotaMsg(null) }} rows={5}
+              value={notaEdit} onChange={e => { setNotaEdit(e.target.value); setNotaMsg(null); setConfirmarVazio(false) }} rows={5}
               placeholder="Anotações sobre a sessão…" style={ta}
             />
+            {mostrarNotaRapida && (
+              <div style={{ marginTop: 10, padding: '8px 10px', background: 'var(--surface)', borderRadius: 8, fontSize: 12, color: 'var(--ink-soft)' }}>
+                <div style={{ fontSize: 10.5, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '.05em', marginBottom: 3 }}>Nota rápida feita ao vivo</div>
+                <div style={{ whiteSpace: 'pre-wrap' }}>{notaRapida}</div>
+                <button
+                  type="button"
+                  onClick={() => { setNotaEdit(n => (n.trim() ? `${n}\n${notaRapida}` : notaRapida)); setNotaMsg(null) }}
+                  className="btn ghost sm" style={{ marginTop: 6 }}
+                >
+                  ↑ Incorporar na nota
+                </button>
+              </div>
+            )}
             <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 10 }}>
               {notaMsg && <span style={{ fontSize: 12, color: notaMsg.includes('✓') ? 'var(--sage)' : 'var(--rose)' }}>{notaMsg}</span>}
               <div style={{ flex: 1 }} />
@@ -197,7 +228,9 @@ export function SessionReview({ sessao }: { sessao: Sessao }) {
             title="Transcrição"
             actions={turnos.length > 0 ? (
               <>
-                <button className="btn ghost sm" onClick={copiarTranscricao}>{copiado ? 'Copiado ✓' : '⧉ Copiar'}</button>
+                <button className="btn ghost sm" onClick={copiarTranscricao}>
+                  {copiaStatus === 'ok' ? 'Copiado ✓' : copiaStatus === 'erro' ? 'Não copiou' : '⧉ Copiar'}
+                </button>
                 <a className="btn ghost sm" href={`/api/sessao/${sessao.id}/transcricao/pdf`} target="_blank" rel="noopener noreferrer">⬇ PDF</a>
               </>
             ) : undefined}
