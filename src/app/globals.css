@@ -184,6 +184,10 @@ input:user-invalid:focus, textarea:user-invalid:focus, select:user-invalid:focus
   .ptr-freq { display: none !important; }
 }
 
+/* Landing de seleção de paciente (Objetivos/Temas/Evolução via sidebar) */
+.escolher-pac-item:first-child { border-top: 0 !important; }
+.escolher-pac-item:hover { background: var(--surface); }
+
 /* Briefing do paciente — coluna principal + rail de memória clínica */
 .briefing-grid { display: grid; grid-template-columns: 1.7fr 1fr; gap: 16px; align-items: start; }
 /* min-width:0 deixa os cards encolherem (sem isso, conteúdo longo estoura a coluna) */

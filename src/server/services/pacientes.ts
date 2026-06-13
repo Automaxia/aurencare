@@ -110,6 +110,34 @@ export async function listarPacientes(
   })
 }
 
+/**
+ * Lista enxuta de pacientes ativos para os seletores de análise
+ * (Objetivos / Temas / Evolução acessados pela sidebar). Inclui um `meta`
+ * curto já formatado (nº de sessões · última) pra UI não recalcular.
+ */
+export async function pacientesParaSelecao(
+  psicologoId: string,
+): Promise<{ id: string; nome: string; meta: string }[]> {
+  const lista = await listarPacientes(psicologoId)
+  return lista.map(p => {
+    const partes: string[] = []
+    if (p.sessoesTotais > 0) {
+      partes.push(`${p.sessoesTotais} ${p.sessoesTotais === 1 ? 'sessão' : 'sessões'}`)
+      if (p.ultimaSessaoEm) partes.push(`última ${haQuantoTempo(p.ultimaSessaoEm)}`)
+    }
+    return { id: p.id, nome: p.nome, meta: partes.length ? partes.join(' · ') : 'Sem sessões ainda' }
+  })
+}
+
+function haQuantoTempo(iso: string): string {
+  const dias = Math.floor((Date.now() - +new Date(iso)) / 86_400_000)
+  if (dias <= 0) return 'hoje'
+  if (dias === 1) return 'ontem'
+  if (dias < 30) return `há ${dias} dias`
+  const m = Math.floor(dias / 30)
+  return `há ${m} ${m === 1 ? 'mês' : 'meses'}`
+}
+
 export type CriarPacienteInput = {
   psicologoId: string
   psicologoNome: string

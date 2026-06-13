@@ -1,12 +1,19 @@
-import { redirect } from 'next/navigation'
 import { requirePsicologo } from '@/server/lib/auth'
-import { firstPacienteIdFor } from '@/server/services/firstPatient'
+import { pacientesParaSelecao } from '@/server/services/pacientes'
+import { EscolherPacienteAnalise } from '@/components/EscolherPacienteAnalise'
 
 export const dynamic = 'force-dynamic'
 
-export default async function ObjetivosShortcut() {
+export default async function ObjetivosEscolher() {
   const user = await requirePsicologo()
-  const pid = await firstPacienteIdFor(user.id)
-  if (!pid) redirect('/pacientes?vazio=objetivos')
-  redirect(`/pacientes/${pid}/objetivos`)
+  const pacientes = await pacientesParaSelecao(user.id)
+  return (
+    <EscolherPacienteAnalise
+      pacientes={pacientes}
+      segment="objetivos"
+      titulo="Objetivos e Progresso"
+      icone="◬"
+      descricao="Escolha um paciente para ver e gerir os objetivos terapêuticos."
+    />
+  )
 }

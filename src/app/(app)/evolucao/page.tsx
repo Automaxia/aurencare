@@ -1,12 +1,19 @@
-import { redirect } from 'next/navigation'
 import { requirePsicologo } from '@/server/lib/auth'
-import { firstPacienteIdFor } from '@/server/services/firstPatient'
+import { pacientesParaSelecao } from '@/server/services/pacientes'
+import { EscolherPacienteAnalise } from '@/components/EscolherPacienteAnalise'
 
 export const dynamic = 'force-dynamic'
 
-export default async function EvolucaoShortcut() {
+export default async function EvolucaoEscolher() {
   const user = await requirePsicologo()
-  const pid = await firstPacienteIdFor(user.id)
-  if (!pid) redirect('/pacientes?vazio=evolucao')
-  redirect(`/pacientes/${pid}/evolucao`)
+  const pacientes = await pacientesParaSelecao(user.id)
+  return (
+    <EscolherPacienteAnalise
+      pacientes={pacientes}
+      segment="evolucao"
+      titulo="Evolução Registrada"
+      icone="◫"
+      descricao="Escolha um paciente para acompanhar a evolução ao longo das sessões."
+    />
+  )
 }
