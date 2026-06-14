@@ -9,8 +9,8 @@ export const runtime = 'nodejs'
  * Conta 1 sessão-IA do mês (idempotente) e bloqueia (403) se o plano estourou.
  */
 export async function POST(_req: Request, { params }: { params: { id: string } }) {
-  await requirePsicologo()
-  const r = await gateIniciarRegistroIa(params.id)
+  const user = await requirePsicologo()
+  const r = await gateIniciarRegistroIa(user.id, params.id)
   if (!r.ok) {
     return NextResponse.json(
       { ok: false, motivo: r.motivo, cap: r.cap, usadas: r.usadas, plano: r.plano },

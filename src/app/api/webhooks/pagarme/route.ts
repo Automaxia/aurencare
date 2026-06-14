@@ -17,7 +17,8 @@ export async function POST(req: Request) {
 
   const sig = verifyHubSignature(
     raw,
-    req.headers.get('x-hub-signature') ?? req.headers.get('x-hub-signature-256'),
+    // Prefere o header sha256; o legado sha1 não é mais usado pra evitar downgrade.
+    req.headers.get('x-hub-signature-256') ?? req.headers.get('x-hub-signature'),
     env.pagarmeWebhookSec,
   )
   if (sig === 'invalid') {
@@ -25,14 +26,23 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: 'invalid_signature' }, { status: 401 })
   }
   if (sig === 'unconfigured') {
-    log.warn('pagarme.webhook', 'PAGARME_WEBHOOK_SECRET ausente — aceitando sem verificar assinatura')
+    // Fail-closed em produção: sem secret, um webhook forjado marcaria sessão
+    // como paga/confirmada e renovaria plano sem pagamento. Em dev, libera.
+    if (process.env.NODE_ENV === 'production') {
+      log.err('pagarme.webhook', 'PAGARME_WEBHOOK_SECRET ausente/placeholder em produção — rejeitado (fail-closed)')
+      return NextResponse.json({ error: 'webhook_unconfigured' }, { status: 503 })
+    }
+    log.warn('pagarme.webhook', 'PAGARME_WEBHOOK_SECRET ausente — aceitando sem verificar (dev)')
   }
 
   let payload: any
   try { payload = JSON.parse(raw) } catch { return NextResponse.json({ error: 'bad json' }, { status: 400 }) }
 
   const event = payload?.type as string | undefined
-  const orderId = payload?.data?.id as string | undefined
+  const data = payload?.data
+  // Em eventos charge.*, data.id é o id da CHARGE, não da order — o id da order
+  // vem em data.order_id/data.order.id. marcarPagamentoConfirmado casa por order.
+  const orderId = (data?.order_id ?? data?.order?.id ?? data?.id) as string | undefined
 
   if (!event || !orderId) {
     log.warn('pagarme.webhook', 'evento sem type/id', payload)
@@ -43,7 +53,6 @@ export async function POST(req: Request) {
 
   // Eventos de ASSINATURA (mensalidade do psicólogo) — identificados pela
   // presença de um subscription_id. Roteamos antes da lógica de orders de sessão.
-  const data = payload?.data
   const subId: string | undefined =
     data?.subscription?.id
     ?? data?.subscription_id

@@ -25,7 +25,13 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: 'invalid_token' }, { status: 401 })
   }
   if (tok === 'unconfigured') {
-    log.warn('evolution.webhook', 'EVOLUTION_WEBHOOK_TOKEN ausente — aceitando sem verificar token')
+    // Fail-closed em produção: sem token, qualquer um forjaria mensagens de
+    // paciente (gerar cobrança, cancelar/reembolsar). Em dev, libera com aviso.
+    if (process.env.NODE_ENV === 'production') {
+      log.err('evolution.webhook', 'EVOLUTION_WEBHOOK_TOKEN ausente/placeholder em produção — rejeitado (fail-closed)')
+      return NextResponse.json({ error: 'webhook_unconfigured' }, { status: 503 })
+    }
+    log.warn('evolution.webhook', 'EVOLUTION_WEBHOOK_TOKEN ausente — aceitando sem verificar (dev)')
   }
 
   let body: any

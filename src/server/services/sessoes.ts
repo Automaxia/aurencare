@@ -569,19 +569,21 @@ export type GateRegistroResult =
  * idempotente (flag `ia_contabilizada` — pausar/retomar não recota). Bloqueia
  * se a cota do plano já estiver esgotada.
  */
-export async function gateIniciarRegistroIa(sessaoId: string): Promise<GateRegistroResult> {
+export async function gateIniciarRegistroIa(psicologoId: string, sessaoId: string): Promise<GateRegistroResult> {
   // Beta: acesso liberado — nunca bloqueia e não contabiliza cota (sem mensalidade).
   if (BETA_LIBERADO) return { ok: true }
 
-  const { rows } = await db.query<{ psicologo_id: string; ia_contabilizada: boolean }>(
-    `SELECT psicologo_id, ia_contabilizada FROM sessoes WHERE id = $1 LIMIT 1`,
-    [sessaoId],
+  // WHERE inclui psicologo_id — sem isso um psicólogo poderia contabilizar/
+  // estourar a cota de IA de OUTRO passando um sessaoId alheio (IDOR de cota).
+  const { rows } = await db.query<{ ia_contabilizada: boolean }>(
+    `SELECT ia_contabilizada FROM sessoes WHERE id = $1 AND psicologo_id = $2 LIMIT 1`,
+    [sessaoId, psicologoId],
   )
   const sessao = rows[0]
-  if (!sessao) return { ok: true }                 // sessão inexistente: não trava o front
+  if (!sessao) return { ok: true }                 // inexistente/não é dono: não trava o front
   if (sessao.ia_contabilizada) return { ok: true } // já contou: retomar registro é livre
 
-  const info = await obterAssinatura(sessao.psicologo_id)
+  const info = await obterAssinatura(psicologoId)
   if (info.usadas >= info.cap) {
     return { ok: false, motivo: 'limite', cap: info.cap, usadas: info.usadas, plano: info.plano }
   }
@@ -590,10 +592,10 @@ export async function gateIniciarRegistroIa(sessaoId: string): Promise<GateRegis
   // chamada fez a transição (evita corrida de duplo clique).
   const { rowCount } = await db.query(
     `UPDATE sessoes SET ia_contabilizada = TRUE
-      WHERE id = $1 AND ia_contabilizada = FALSE`,
-    [sessaoId],
+      WHERE id = $1 AND psicologo_id = $2 AND ia_contabilizada = FALSE`,
+    [sessaoId, psicologoId],
   )
-  if (rowCount) await incrementarSessaoIa(sessao.psicologo_id)
+  if (rowCount) await incrementarSessaoIa(psicologoId)
   return { ok: true }
 }
 
