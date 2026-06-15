@@ -56,6 +56,15 @@ function resumoClinico(c: { cid?: string[]; medicacoes?: { nome: string }[]; ale
   if (c.alertas?.length)    parts.push(`${c.alertas.length} alerta${c.alertas.length > 1 ? 's' : ''}`)
   return parts.length ? parts.join(' · ') : 'Nenhuma registrada'
 }
+/** Teaser em texto puro do laudo (tira marcação Markdown) para o clamp de 2 linhas. */
+function resumoPreview(md: string): string {
+  return md
+    .replace(/^#{1,6}\s+/gm, '')        // títulos
+    .replace(/\*\*(.+?)\*\*/g, '$1')    // negrito
+    .replace(/^\s*[-*]\s+/gm, '')       // marcadores de lista
+    .replace(/\s+/g, ' ')
+    .trim()
+}
 
 export default async function PacientePerfilPage({ params }: { params: { id: string } }) {
   const user = await requirePsicologo()
@@ -176,7 +185,7 @@ export default async function PacientePerfilPage({ params }: { params: { id: str
                       </div>
                       {resumo && (
                         <p style={{ margin: '8px 0 0', fontSize: 12.5, color: 'var(--muted)', lineHeight: 1.55, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
-                          {resumo}
+                          {resumoPreview(resumo)}
                         </p>
                       )}
                     </Link>

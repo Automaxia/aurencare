@@ -4,6 +4,7 @@ import { isValidElement, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { CfpBadge } from '@/components/brand/CfpBadge'
+import { Markdown } from '@/components/Markdown'
 import type { Sessao } from '@/server/services/sessoes'
 
 const STATUS_LABEL: Record<string, string> = {
@@ -159,11 +160,11 @@ export function SessionReview({ sessao }: { sessao: Sessao }) {
                 Revise o resumo e <strong>assine</strong> para concluir — é isto que resolve a
                 notificação “Registrar — {sessao.pacienteNome}”.
               </div>
-              <label style={lbl}>Resumo (rascunho · revise antes de assinar)</label>
+              <label style={lbl}>Laudo da sessão (rascunho em Markdown · revise antes de assinar)</label>
               <textarea
-                value={resumoEdit} onChange={e => setResumoEdit(e.target.value)} rows={6}
-                placeholder="Resumo da sessão em linguagem de observação (sem diagnóstico)…"
-                style={ta}
+                value={resumoEdit} onChange={e => setResumoEdit(e.target.value)} rows={18}
+                placeholder="Laudo estruturado da sessão (sem diagnóstico DSM/ICD)…"
+                style={{ ...ta, fontFamily: 'var(--font-mono), ui-monospace, monospace', fontSize: 12.5 }}
               />
               <div style={{ fontSize: 11.5, color: 'var(--muted)', marginTop: 8 }}>
                 Suas anotações ficam na caixa <strong>Notas</strong> abaixo (salvas separadamente).
@@ -180,9 +181,7 @@ export function SessionReview({ sessao }: { sessao: Sessao }) {
           ) : (
             <Section title="Resumo (assinado)">
               {(assinadoAgora ? resumoEdit : sessao.resumoIa) ? (
-                <p style={{ whiteSpace: 'pre-wrap', margin: 0, fontSize: 13, color: 'var(--ink-soft)', lineHeight: 1.6 }}>
-                  {assinadoAgora ? resumoEdit : sessao.resumoIa}
-                </p>
+                <Markdown text={(assinadoAgora ? resumoEdit : sessao.resumoIa) ?? ''} />
               ) : <Empty>Sessão sem resumo.</Empty>}
               {(assinadoAgora || sessao.assinaturaTimestamp) && (
                 <div style={{ fontSize: 11, color: 'var(--sage)', marginTop: 8 }}>

@@ -1,16 +1,19 @@
 import 'server-only'
 
 /**
- * CFP 09/2024 — IA nunca emite diagnóstico nem interpretação clínica. §13.
+ * CFP 09/2024 — IA nunca emite DIAGNÓSTICO (DSM/ICD) nem afirmação categórica.
+ *
+ * Nota: o laudo de sessão (MODE: SUMMARY) usa nomenclatura clínica legítima
+ * (transferência, esquema, distorções, modos) numa nota de prontuário revisada
+ * e ASSINADA pelo psicólogo responsável — isso não é "diagnóstico". Por isso o
+ * guard bloqueia só determinação diagnóstica e linguagem categórica/conclusiva,
+ * não a terminologia das abordagens.
  */
 const TERMOS_PROIBIDOS = [
   'diagnóstico', 'diagnostico',
   'o paciente tem', 'a paciente tem',
-  'esquema de', 'transferência', 'transferencia',
-  'indica fortemente',
-  'possível elaboração', 'possivel elaboracao',
-  'comprova', 'confirma',
   'sofre de', 'apresenta quadro',
+  'comprova', 'confirma', 'indica fortemente',
 ]
 
 export function validarTextoIA(texto: string): boolean {
