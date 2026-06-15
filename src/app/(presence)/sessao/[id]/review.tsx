@@ -238,19 +238,26 @@ export function SessionReview({ sessao }: { sessao: Sessao }) {
             {turnos.length === 0 ? (
               <Empty>Sem transcrição registrada.</Empty>
             ) : (
-              <div className="talk-card" style={{ height: 'auto' }}>
-                {turnos.map((t, i) => (
-                  <div key={i} className="turn" data-mark={t.mark ?? undefined}>
-                    <span className="who" data-who={t.who}>{t.who === 'psicologo' ? 'P' : 'C'}:</span>{' '}
-                    {t.texto}
-                    {t.mark && (
-                      <span className="turn-chip" style={{ background: `var(--${MARK_COLOR[t.mark]}-lo)`, color: `var(--${MARK_COLOR[t.mark]})` }}>
-                        {MARK_LABEL[t.mark]}
-                      </span>
-                    )}
-                  </div>
-                ))}
-              </div>
+              <>
+                {/* Caixa de altura limitada com rolagem interna (.talk-card já tem
+                    overflow-y:auto). maxHeight em vez de altura cheia da sessão. */}
+                <div className="talk-card" style={{ height: 'auto', maxHeight: 440 }}>
+                  {turnos.map((t, i) => (
+                    <div key={i} className="turn" data-mark={t.mark ?? undefined}>
+                      <span className="who" data-who={t.who}>{t.who === 'psicologo' ? 'P' : 'C'}:</span>{' '}
+                      {t.texto}
+                      {t.mark && (
+                        <span className="turn-chip" style={{ background: `var(--${MARK_COLOR[t.mark]}-lo)`, color: `var(--${MARK_COLOR[t.mark]})` }}>
+                          {MARK_LABEL[t.mark]}
+                        </span>
+                      )}
+                    </div>
+                  ))}
+                </div>
+                <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 6 }}>
+                  {turnos.length} {turnos.length === 1 ? 'fala' : 'falas'} · role dentro da caixa para ver tudo, ou use Copiar / PDF acima.
+                </div>
+              </>
             )}
           </Section>
         </div>
