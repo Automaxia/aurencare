@@ -1,19 +1,18 @@
+import { PageHeader } from '@/components/PageHeader'
+import { PatientSelector } from '@/components/PatientSelector'
 import { requirePsicologo } from '@/server/lib/auth'
-import { pacientesParaSelecao } from '@/server/services/pacientes'
-import { EscolherPacienteAnalise } from '@/components/EscolherPacienteAnalise'
 
 export const dynamic = 'force-dynamic'
 
 export default async function EvolucaoEscolher() {
-  const user = await requirePsicologo()
-  const pacientes = await pacientesParaSelecao(user.id)
+  await requirePsicologo()
   return (
-    <EscolherPacienteAnalise
-      pacientes={pacientes}
-      segment="evolucao"
-      titulo="Evolução Registrada"
-      icone="◫"
-      descricao="Escolha um paciente para acompanhar a evolução ao longo das sessões."
-    />
+    <div>
+      <PageHeader title="Evolução Registrada" subtitle="Continuidade clínica" />
+      <PatientSelector current={null} basePath="/pacientes" segment="evolucao" />
+      <p style={{ fontSize: 13, color: 'var(--muted)', margin: '2px 2px' }}>
+        Selecione um paciente acima para acompanhar a evolução ao longo das sessões.
+      </p>
+    </div>
   )
 }

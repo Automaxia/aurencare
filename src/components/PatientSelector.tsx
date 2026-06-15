@@ -18,7 +18,8 @@ type Paciente = {
 }
 
 type Props = {
-  current: Paciente
+  /** null = barra "em branco" (landing de seleção pela sidebar, sem paciente no contexto). */
+  current: Paciente | null
   basePath: '/pacientes' // sempre — formato /pacientes/[id]/temas|evolucao|objetivos
   segment: 'temas' | 'evolucao' | 'objetivos'
 }
@@ -55,13 +56,17 @@ export function PatientSelector({ current, basePath, segment }: Props) {
     <>
       <div className="pt-selector">
         <div className="pts-cur" onClick={() => setOpen(true)}>
-          <div className="pts-av">{initials(current.nome)}</div>
+          <div className="pts-av" style={current ? undefined : { background: 'var(--surface)', color: 'var(--muted)' }}>
+            {current ? initials(current.nome) : '+'}
+          </div>
           <div>
-            <div className="pts-name">{current.nome}</div>
-            {current.meta && <div className="pts-meta">{current.meta}</div>}
+            <div className="pts-name" style={current ? undefined : { color: 'var(--muted)' }}>
+              {current ? current.nome : 'Selecionar paciente'}
+            </div>
+            <div className="pts-meta">{current?.meta ?? 'Escolha quem analisar'}</div>
           </div>
         </div>
-        <div className="pts-chg" onClick={() => setOpen(true)}>Trocar ↕</div>
+        <div className="pts-chg" onClick={() => setOpen(true)}>{current ? 'Trocar ↕' : 'Selecionar ↕'}</div>
       </div>
 
       {open && (
@@ -89,17 +94,17 @@ export function PatientSelector({ current, basePath, segment }: Props) {
                   style={{
                     display: 'flex', alignItems: 'center', gap: 10,
                     padding: '10px 14px', cursor: 'pointer',
-                    background: p.id === current.id ? 'var(--accent-lo)' : 'transparent',
+                    background: p.id === current?.id ? 'var(--accent-lo)' : 'transparent',
                   }}
-                  onMouseEnter={e => { if (p.id !== current.id) (e.currentTarget as HTMLElement).style.background = 'var(--surface)' }}
-                  onMouseLeave={e => { if (p.id !== current.id) (e.currentTarget as HTMLElement).style.background = 'transparent' }}
+                  onMouseEnter={e => { if (p.id !== current?.id) (e.currentTarget as HTMLElement).style.background = 'var(--surface)' }}
+                  onMouseLeave={e => { if (p.id !== current?.id) (e.currentTarget as HTMLElement).style.background = 'transparent' }}
                 >
                   <div className="pts-av" style={{ width: 28, height: 28, fontSize: 11 }}>{initials(p.nome)}</div>
                   <div style={{ flex: 1 }}>
                     <div style={{ fontSize: 13, color: 'var(--ink)' }}>{p.nome}</div>
                     {p.meta && <div style={{ fontSize: 11, color: 'var(--muted)' }}>{p.meta}</div>}
                   </div>
-                  {p.id === current.id && <span style={{ fontSize: 11, color: 'var(--accent)' }}>atual</span>}
+                  {p.id === current?.id && <span style={{ fontSize: 11, color: 'var(--accent)' }}>atual</span>}
                 </div>
               ))}
             </div>
