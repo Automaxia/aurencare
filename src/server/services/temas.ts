@@ -146,7 +146,124 @@ function somenteFalasDoPaciente(transcricao: string): string {
  * Extrai palavras significativas e atualiza palavras_chave + arestas_tema.
  * Considera SOMENTE as falas do paciente (a análise é sobre o paciente).
  */
+
+// As 10 categorias do MODE: GRAPH → os 4 clusters da viz (cores do §8).
+const CAT_TO_CLUSTER: Record<string, Cluster> = {
+  emotion: 'emocional', somatic: 'emocional',
+  relationship: 'relacional',
+  life_domain: 'situacional', life_event: 'situacional',
+  cognition: 'cognitivo', self_concept: 'cognitivo', coping: 'cognitivo',
+  value_need: 'cognitivo', behavior: 'cognitivo',
+}
+
+// Prompt MODE: GRAPH (psychotherapy_model_prompt.md) — extração semântica das
+// falas do PACIENTE: nós clinicamente relevantes + relações tipadas. Precisão > recall.
+const GRAPH_PROMPT = `You build a semantic graph from a psychotherapy patient's speech. From the transcript, extract only CLINICALLY SIGNIFICANT terms (nodes) and their relationships (edges). Precision over recall: few meaningful nodes beat many noisy ones.
+
+STRICT: process only patient speech (the input is already patient-only). Ignore filler/discourse markers (então, né, tipo, sabe, na verdade…), pure connectors (mas, porque, aí…), administrative/logistics, small talk, purely factual narrative with no emotional/pattern load, and bare time words.
+
+Node categories (use EXACTLY one): emotion, somatic, cognition, behavior, relationship, life_domain, value_need, life_event, coping, self_concept.
+- relationship names (mãe, pai, chefe): include ONLY when carrying pattern/emotional charge.
+- a term that recurs → mark "reinforcement": true (don't duplicate it).
+
+Edge types (use EXACTLY one): causes, co-occurs, identity, avoidance, amplifies, contrasts, temporal. Only emit an edge with confidence ≥ 0.6, and both endpoints MUST be present in nodes.
+
+Terms: Brazilian Portuguese, lowercase, short canonical form (e.g., "ansiedade", "mãe", "evitação", "não sou capaz").
+
+Return ONLY JSON (no prose, no markdown), processing the ENTIRE transcript as one session:
+{ "nodes": [ { "term": "...", "category": "...", "reinforcement": false } ], "edges": [ { "source": "...", "target": "...", "type": "..." } ] }
+If nothing clinically relevant: { "nodes": [], "edges": [] }`
+
+/** Extração via IA (MODE: GRAPH). Retorna null se falhar/parsear inválido → fallback. */
+async function extrairTemasComIA(opts: { pacienteId: string; sessaoId: string; transcricao: string }): Promise<{ palavrasInseridas: number; arestasInseridas: number } | null> {
+  const texto = somenteFalasDoPaciente(opts.transcricao).slice(0, 40_000)
+  if (!texto.trim()) return { palavrasInseridas: 0, arestasInseridas: 0 }
+
+  const { chat } = await import('@/server/lib/anthropic')
+  const user = `<chunk>\n  <speaker>patient</speaker>\n  <text>\n${texto}\n  </text>\n</chunk>`
+  let raw: string
+  try { raw = await chat(GRAPH_PROMPT, [{ role: 'user', content: user }], { scope: 'temas.grafo', maxTokens: 1500, model: 'fast' }) }
+  catch { return null }
+
+  let parsed: any
+  try { const m = raw.match(/\{[\s\S]*\}/); parsed = m ? JSON.parse(m[0]) : null } catch { return null }
+  if (!parsed || !Array.isArray(parsed.nodes)) return null
+
+  const nodes = parsed.nodes
+    .map((n: any) => ({
+      term: String(n?.term ?? '').toLowerCase().trim(),
+      cluster: CAT_TO_CLUSTER[String(n?.category ?? '').toLowerCase()] ?? 'cognitivo',
+      reinforcement: !!n?.reinforcement,
+    }))
+    .filter((n: { term: string }) => n.term.length >= 2 && n.term.length <= 40)
+  if (nodes.length === 0) return null
+
+  const termSet = new Set(nodes.map((n: { term: string }) => n.term))
+  const edges = (Array.isArray(parsed.edges) ? parsed.edges : [])
+    .map((e: any) => ({
+      source: String(e?.source ?? '').toLowerCase().trim(),
+      target: String(e?.target ?? '').toLowerCase().trim(),
+      tipo: String(e?.type ?? '').toLowerCase().trim() || null,
+    }))
+    .filter((e: { source: string; target: string }) => e.source && e.target && e.source !== e.target && termSet.has(e.source) && termSet.has(e.target))
+
+  const client = await db.connect()
+  try {
+    await client.query('BEGIN')
+    for (const n of nodes as Array<{ term: string; cluster: Cluster; reinforcement: boolean }>) {
+      await client.query(
+        `INSERT INTO palavras_chave (paciente_id, palavra, cluster, frequencia, ultima_sessao_id, sessoes_ids, updated_at)
+         VALUES ($1, $2, $3, $4, $5::uuid, jsonb_build_array($6::text), NOW())
+         ON CONFLICT (paciente_id, palavra) DO UPDATE SET
+           frequencia = palavras_chave.frequencia + EXCLUDED.frequencia,
+           cluster = EXCLUDED.cluster,
+           ultima_sessao_id = EXCLUDED.ultima_sessao_id,
+           sessoes_ids = CASE WHEN palavras_chave.sessoes_ids @> jsonb_build_array($6::text)
+                              THEN palavras_chave.sessoes_ids
+                              ELSE palavras_chave.sessoes_ids || jsonb_build_array($6::text) END,
+           updated_at = NOW()`,
+        [opts.pacienteId, n.term, n.cluster, n.reinforcement ? 2 : 1, opts.sessaoId, opts.sessaoId],
+      )
+    }
+    let arestas = 0
+    for (const e of edges as Array<{ source: string; target: string; tipo: string | null }>) {
+      const [a, b] = e.source < e.target ? [e.source, e.target] : [e.target, e.source]
+      await client.query(
+        `INSERT INTO arestas_tema (paciente_id, palavra_a, palavra_b, weight, tipo, updated_at)
+         VALUES ($1, $2, $3, 1, $4, NOW())
+         ON CONFLICT (paciente_id, palavra_a, palavra_b)
+         DO UPDATE SET weight = arestas_tema.weight + 1, tipo = COALESCE(EXCLUDED.tipo, arestas_tema.tipo), updated_at = NOW()`,
+        [opts.pacienteId, a, b, e.tipo],
+      )
+      arestas++
+    }
+    await client.query('COMMIT')
+    return { palavrasInseridas: nodes.length, arestasInseridas: arestas }
+  } catch (err) {
+    await client.query('ROLLBACK')
+    throw err
+  } finally {
+    client.release()
+  }
+}
+
+/**
+ * Extrai temas da sessão: IA (MODE: GRAPH) primeiro; se falhar/vazio, heurístico.
+ */
 export async function extrairTemasDaSessao(opts: {
+  pacienteId: string
+  sessaoId: string
+  transcricao: string
+}): Promise<{ palavrasInseridas: number; arestasInseridas: number }> {
+  try {
+    const r = await extrairTemasComIA(opts)
+    if (r && (r.palavrasInseridas > 0 || r.arestasInseridas > 0)) return r
+  } catch { /* fallback heurístico abaixo */ }
+  return extrairTemasHeuristico(opts)
+}
+
+/** Fallback heurístico (sem IA): listas-base por cluster + co-ocorrência. */
+async function extrairTemasHeuristico(opts: {
   pacienteId: string
   sessaoId: string
   transcricao: string
@@ -222,21 +339,19 @@ function isSeed(palavra: string): boolean {
 
 // ── Leitura agregada para o grafo ─────────────────────────────────────────
 export type GrafoNode  = { palavra: string; cluster: Cluster; frequencia: number; sessoesIds: string[] }
-export type GrafoEdge  = { a: string; b: string; weight: number }
+export type GrafoEdge  = { a: string; b: string; weight: number; tipo?: string | null }
 export type GrafoDados = { nodes: GrafoNode[]; edges: GrafoEdge[] }
 
 export async function lerGrafo(pacienteId: string): Promise<GrafoDados> {
   const { rows } = await db.query<{ palavra: string; cluster: Cluster; frequencia: number; sessoes_ids: string[] | null }>(
-    // #7 relevância: só entra no grafo quem RECORRE (apareceu em ≥2 sessões) ou
-    // é muito frequente (≥5) numa só — corta o ruído de palavra vista uma vez.
-    // Cap em 30 nós pra ficar legível.
+    // Extração via IA já filtra relevância (precisão > recall), então o nó entra
+    // a partir de 1 ocorrência — antes o piso (freq≥3 + recorrência) escondia
+    // quase tudo nas primeiras sessões. Cap em 40 nós pra ficar legível.
     `SELECT palavra, cluster, frequencia, sessoes_ids
        FROM palavras_chave
-      WHERE paciente_id = $1
-        AND frequencia >= 3
-        AND (COALESCE(jsonb_array_length(sessoes_ids), 1) >= 2 OR frequencia >= 5)
+      WHERE paciente_id = $1 AND frequencia >= 1
       ORDER BY frequencia DESC
-      LIMIT 30`,
+      LIMIT 40`,
     [pacienteId],
   )
   const nodes: GrafoNode[] = rows.map(r => ({
@@ -248,11 +363,12 @@ export async function lerGrafo(pacienteId: string): Promise<GrafoDados> {
   if (nodes.length === 0) return { nodes: [], edges: [] }
   const palavraSet = new Set(nodes.map(n => n.palavra))
 
-  const { rows: edges } = await db.query<{ palavra_a: string; palavra_b: string; weight: number }>(
-    // #7: aresta só vale com ≥2 co-ocorrências (uma única era ruído).
-    `SELECT palavra_a, palavra_b, weight
+  const { rows: edges } = await db.query<{ palavra_a: string; palavra_b: string; weight: number; tipo: string | null }>(
+    // Relações vêm da IA (tipadas, confiança ≥0.6), então valem a partir de 1 —
+    // o piso antigo (≥2 co-ocorrências) zerava as arestas em poucas sessões.
+    `SELECT palavra_a, palavra_b, weight, tipo
        FROM arestas_tema
-      WHERE paciente_id = $1 AND weight >= 2
+      WHERE paciente_id = $1 AND weight >= 1
       ORDER BY weight DESC
       LIMIT 120`,
     [pacienteId],
@@ -262,7 +378,7 @@ export async function lerGrafo(pacienteId: string): Promise<GrafoDados> {
     nodes,
     edges: edges
       .filter(e => palavraSet.has(e.palavra_a) && palavraSet.has(e.palavra_b))
-      .map(e => ({ a: e.palavra_a, b: e.palavra_b, weight: e.weight })),
+      .map(e => ({ a: e.palavra_a, b: e.palavra_b, weight: e.weight, tipo: e.tipo })),
   }
 }
 
@@ -293,87 +409,10 @@ export async function recalcularGrafo(pacienteId: string): Promise<{ sessoes: nu
     if (tx) await extrairTemasDaSessao({ pacienteId, sessaoId: s.id, transcricao: tx })
   }
 
-  // ── Validação pela IA: filtra ruído + corrige clusters + cap em 30 ──
-  await validarComIA(pacienteId)
+  // (A extração já é via IA com filtro de relevância — sem passo de validação extra.)
 
   const { rows: count } = await db.query<{ n: number }>(
     `SELECT count(*)::int AS n FROM palavras_chave WHERE paciente_id = $1`, [pacienteId],
   )
   return { sessoes: sessoes.length, nodes: count[0].n }
-}
-
-/**
- * Pede ao Claude para revisar os candidatos extraídos heuristicamente:
- * mantém só os que são tema clínico real, corrige o cluster, descarta
- * verbos genéricos, fillers e palavras vazias semanticamente.
- */
-const SYS_VALIDAR = `Você revisa uma lista de palavras-chave candidatas extraídas de transcrições de sessões de psicoterapia.
-Para cada palavra, decide se é TEMA CLÍNICO RELEVANTE (verdadeiro tema da vida do paciente — pessoa, situação, emoção, padrão cognitivo) ou se é RUÍDO (verbo genérico, filler, palavra vazia de conteúdo clínico).
-
-Clusters válidos:
-- "emocional"   — emoções, estados afetivos
-- "relacional"  — pessoas, vínculos, papéis sociais
-- "situacional" — contextos, lugares, eventos da vida
-- "cognitivo"   — padrões mentais, crenças, processos cognitivos
-
-Retorne EXCLUSIVAMENTE JSON sem prosa, sem markdown:
-{ "manter": [ { "palavra": "...", "cluster": "emocional|relacional|situacional|cognitivo" } ] }
-
-Regras:
-- Mantenha NO MÁXIMO 25 palavras (priorize as mais clinicamente relevantes).
-- Se a palavra é claramente ruído (ex: "tudo", "vamos", "sabe", "tipo", "antes"), NÃO inclua.
-- Se a palavra é técnica (ex: "evitação", "ansiedade", "padrão") ou substantivo concreto da vida (ex: "chefe", "mãe", "trabalho"), MANTENHA.
-- Não invente palavras que não estavam na lista. Não altere a grafia.`
-
-async function validarComIA(pacienteId: string): Promise<void> {
-  const { chat } = await import('@/server/lib/anthropic')
-
-  const { rows: atuais } = await db.query<{ palavra: string; cluster: string; frequencia: number }>(
-    `SELECT palavra, cluster, frequencia FROM palavras_chave
-      WHERE paciente_id = $1 ORDER BY frequencia DESC LIMIT 60`,
-    [pacienteId],
-  )
-  if (atuais.length === 0) return
-
-  const listaPraIA = atuais.map(a => `- ${a.palavra} (${a.cluster}, ${a.frequencia}x)`).join('\n')
-  const raw = await chat(SYS_VALIDAR, [{ role: 'user', content: listaPraIA }], { scope: 'temas.validar', maxTokens: 900 })
-
-  let manter: Array<{ palavra: string; cluster: Cluster }> = []
-  try {
-    const m = raw.match(/\{[\s\S]*\}/)
-    const json = m ? JSON.parse(m[0]) : {}
-    if (Array.isArray(json.manter)) {
-      manter = json.manter
-        .map((it: any) => ({
-          palavra: String(it.palavra ?? '').toLowerCase().trim(),
-          cluster: (['emocional', 'relacional', 'situacional', 'cognitivo'].includes(it.cluster) ? it.cluster : 'cognitivo') as Cluster,
-        }))
-        .filter((it: { palavra: string }) => it.palavra.length > 1)
-        .slice(0, 25)
-    }
-  } catch { /* sem IA: mantém lista atual */ }
-
-  // Se a IA falhou ou não retornou nada, não toca no DB.
-  if (manter.length === 0) return
-
-  const keepWords = new Set(manter.map(m => m.palavra))
-  // Apaga palavras NÃO mantidas
-  await db.query(
-    `DELETE FROM palavras_chave WHERE paciente_id = $1 AND NOT (palavra = ANY($2::text[]))`,
-    [pacienteId, Array.from(keepWords)],
-  )
-  // Corrige cluster nas mantidas (a IA pode ter reclassificado)
-  for (const m of manter) {
-    await db.query(
-      `UPDATE palavras_chave SET cluster = $3 WHERE paciente_id = $1 AND palavra = $2`,
-      [pacienteId, m.palavra, m.cluster],
-    )
-  }
-  // Apaga arestas que tocam palavras descartadas
-  await db.query(
-    `DELETE FROM arestas_tema
-      WHERE paciente_id = $1
-        AND (NOT (palavra_a = ANY($2::text[])) OR NOT (palavra_b = ANY($2::text[])))`,
-    [pacienteId, Array.from(keepWords)],
-  )
 }
