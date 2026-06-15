@@ -85,6 +85,8 @@ export function SortableGrid({ defaultOrder, labels, children }: Props) {
       return next
     })
   }
+  function mostrarTodos() { const vazio = new Set<string>(); setHidden(vazio); persistHidden(vazio) }
+  function ocultarTodos() { const todos = new Set(defaultOrder); setHidden(todos); persistHidden(todos) }
   function restaurarPadrao() {
     setHidden(new Set()); persistHidden(new Set())
     setOrder(defaultOrder)
@@ -106,15 +108,22 @@ export function SortableGrid({ defaultOrder, labels, children }: Props) {
   return (
     <>
       {/* Barra de personalização — ocupa a linha inteira do grid (1 / -1). */}
-      <div style={{ gridColumn: '1 / -1', display: 'flex', justifyContent: 'flex-end', position: 'relative', marginBottom: 2 }}>
+      <div style={{ gridColumn: '1 / -1', display: 'flex', justifyContent: 'flex-end', position: 'relative', marginBottom: 4 }}>
         <button
           type="button"
-          className="btn ghost sm"
+          className="btn"
           onClick={() => setMenuOpen(o => !o)}
           aria-haspopup="true" aria-expanded={menuOpen}
           title="Escolher quais painéis aparecem na sessão"
+          style={{
+            display: 'inline-flex', alignItems: 'center', gap: 7, fontWeight: 500,
+            color: 'var(--accent)', border: '1px solid var(--accent)',
+            background: menuOpen ? 'var(--accent)' : 'var(--accent-lo)',
+            ...(menuOpen ? { color: 'white' } : null),
+            boxShadow: '0 1px 3px rgba(106,78,200,.18)',
+          }}
         >
-          ⚙ Personalizar painéis
+          <span style={{ fontSize: 15, lineHeight: 1 }}>⚙</span> Personalizar painéis
         </button>
 
         {menuOpen && (
@@ -124,8 +133,12 @@ export function SortableGrid({ defaultOrder, labels, children }: Props) {
               position: 'absolute', top: 'calc(100% + 6px)', right: 0, zIndex: 60,
               width: 280, padding: 0, overflow: 'hidden', boxShadow: '0 14px 34px rgba(20,16,38,.20)',
             }}>
-              <div style={{ padding: '10px 14px', borderBottom: '1px solid var(--border)', fontSize: 11, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '.06em', fontWeight: 600 }}>
-                Painéis na sessão
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, padding: '10px 14px', borderBottom: '1px solid var(--border)' }}>
+                <span style={{ fontSize: 11, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '.06em', fontWeight: 600 }}>Painéis na sessão</span>
+                <div style={{ display: 'flex', gap: 4 }}>
+                  <button type="button" onClick={mostrarTodos} className="btn ghost sm" style={{ fontSize: 11, padding: '3px 8px' }}>Mostrar todos</button>
+                  <button type="button" onClick={ocultarTodos} className="btn ghost sm" style={{ fontSize: 11, padding: '3px 8px' }}>Ocultar todos</button>
+                </div>
               </div>
               <div style={{ maxHeight: '52vh', overflowY: 'auto', padding: '4px 0' }}>
                 {defaultOrder.map(id => {
