@@ -29,6 +29,7 @@ export default async function SessaoPage({ params }: { params: { id: string } })
       duracaoMin={sessao.duracaoMin}
       pagamentoStatus={sessao.pagamentoStatus}
       status={sessao.status}
+      modalidade={sessao.modalidade}
     />
   )
 }

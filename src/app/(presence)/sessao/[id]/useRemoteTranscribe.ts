@@ -23,8 +23,13 @@ import { useEffect, useRef, useState } from 'react'
 type Options = {
   stream: MediaStream | null
   enabled: boolean
-  onFinal: (texto: string, ts: string) => void
+  /** 3º arg `speaker` só chega quando speakerLabels=true (rótulo 'A'/'B'/… da AssemblyAI). */
+  onFinal: (texto: string, ts: string, speaker?: string) => void
   onInterim?: (texto: string) => void
+  /** Diarização ao vivo (mic único, presencial): liga speaker_labels na conexão. */
+  speakerLabels?: boolean
+  /** Dica de nº de falantes (1–10) p/ melhorar a diarização. Ex.: 2 numa sessão 1:1. */
+  maxSpeakers?: number
 }
 
 const WS_URL = 'wss://streaming.assemblyai.com/v3/ws'
@@ -32,7 +37,7 @@ const SAMPLE_RATE = 16_000
 const FRAME_SIZE = 4096
 const REFRESH_BEFORE_EXPIRY_MS = 60_000   // renova 60s antes do token expirar
 
-export function useRemoteTranscribe({ stream, enabled, onFinal, onInterim }: Options) {
+export function useRemoteTranscribe({ stream, enabled, onFinal, onInterim, speakerLabels, maxSpeakers }: Options) {
   const [active, setActive] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -79,8 +84,12 @@ export function useRemoteTranscribe({ stream, enabled, onFinal, onInterim }: Opt
       return new Promise((resolve, reject) => {
         // Modelo multilíngue (PT/EN/ES/FR/DE/IT) + detecção automática de idioma
         // — corrige PT (antes ia no modelo inglês default) e capta inglês/troca de idioma.
+        const diar = speakerLabels
+          ? `&speaker_labels=true&max_speakers=${maxSpeakers ?? 2}`
+          : ''
         const url = `${WS_URL}?sample_rate=${sampleRate}&format_turns=true`
           + `&speech_model=universal-streaming-multilingual&language_detection=true`
+          + diar
           + `&token=${encodeURIComponent(token)}`
         const ws = new WebSocket(url)
         ws.binaryType = 'arraybuffer'
@@ -100,7 +109,8 @@ export function useRemoteTranscribe({ stream, enabled, onFinal, onInterim }: Opt
             const texto: string = msg.transcript ?? ''
             if (!texto.trim()) return
             if (msg.end_of_turn) {
-              onFinalRef.current(texto.trim(), new Date().toISOString())
+              const speaker = typeof msg.speaker_label === 'string' ? msg.speaker_label : undefined
+              onFinalRef.current(texto.trim(), new Date().toISOString(), speaker)
               onInterimRef.current?.('')
             } else {
               onInterimRef.current?.(texto)
@@ -189,7 +199,7 @@ export function useRemoteTranscribe({ stream, enabled, onFinal, onInterim }: Opt
       try { ctx?.close() } catch { /* */ }
       setActive(false)
     }
-  }, [enabled, stream])
+  }, [enabled, stream, speakerLabels, maxSpeakers])
 
   return { active, error }
 }
