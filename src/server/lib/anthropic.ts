@@ -126,14 +126,27 @@ If not specified, infer from signals (TCC: reestruturação/pensamento automáti
 
 Does NOT: make DSM/ICD diagnostic determinations, prescribe treatment changes. All output is a draft subject to review and signature by the responsible licensed clinician.`
 
-export async function gerarResumoSessao(transcricao: string, contexto: { numero: number; pacienteNome: string }): Promise<string> {
-  const user = `<session>
+export async function gerarResumoSessao(
+  transcricao: string,
+  contexto: { numero: number; pacienteNome: string },
+  historico: { numero: number; resumo: string }[] = [],
+): Promise<string> {
+  // Laudos anteriores (cronológico) alimentam a seção "Avaliação do Progresso".
+  // Cada um truncado pra controlar custo de tokens.
+  const anteriores = historico.length
+    ? `<previous_sessions>
+${historico.map(h => `  <session numero="${h.numero}">\n${h.resumo.slice(0, 3_000)}\n  </session>`).join('\n')}
+</previous_sessions>
+Use os laudos acima APENAS para a seção "Avaliação do Progresso" (comparar o que mudou/persistiu/emergiu). Não os copie nas outras seções.\n\n`
+    : ''
+
+  const user = `${anteriores}<session>
   <transcript>
 ${transcricao.slice(0, 40_000)}
   </transcript>
 </session>
 
-Gere o laudo estruturado da sessão #${contexto.numero} de ${contexto.pacienteNome}, em Markdown, seguindo exatamente o formato MODE: SUMMARY. Rascunho para revisão e assinatura do psicólogo.`
+Gere o laudo estruturado da sessão #${contexto.numero} de ${contexto.pacienteNome}, em Markdown, seguindo exatamente o formato MODE: SUMMARY. Rascunho para revisão e assinatura do psicólogo.${historico.length ? '' : ' Não há laudos anteriores — trate "Avaliação do Progresso" como linha de base (sessão inicial ou primeira com registro).'}`
 
   return chat(SUMMARY_PROMPT, [{ role: 'user', content: user }], { maxTokens: 4_000, scope: 'anthropic.resumo', model: 'strong' })
 }

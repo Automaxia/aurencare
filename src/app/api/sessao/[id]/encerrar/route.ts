@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { requirePsicologo } from '@/server/lib/auth'
-import { encerrarSessao, salvarResumoIA, buscarSessao } from '@/server/services/sessoes'
+import { encerrarSessao, salvarResumoIA, buscarSessao, resumosAnteriores } from '@/server/services/sessoes'
 import { gerarResumoSessao } from '@/server/lib/anthropic'
 import { enviarConfirmacaoPosSessao } from '@/server/services/confirmacaoSessao'
 import { registrarCustoAssemblyEstimado } from '@/server/services/custos'
@@ -32,7 +32,10 @@ export async function POST(req: Request, { params }: { params: { id: string } })
       segundos: (sessao.duracaoMin || 50) * 60,
       psicologoId: sessao.psicologoId, sessaoId: sessao.id,
     }).catch(() => {})
-    const resumo = await gerarResumoSessao(transcricao, { numero: sessao.numero, pacienteNome: sessao.pacienteNome })
+    // Laudos anteriores do paciente → "Avaliação do Progresso" compara de verdade.
+    const historico = await resumosAnteriores(sessao.psicologoId, sessao.pacienteId, sessao.numero)
+      .catch(() => [])
+    const resumo = await gerarResumoSessao(transcricao, { numero: sessao.numero, pacienteNome: sessao.pacienteNome }, historico)
     await salvarResumoIA(params.id, resumo)
     return NextResponse.json({ ok: true, resumo })
   }

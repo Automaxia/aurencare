@@ -622,6 +622,26 @@ export async function encerrarSessao(sessaoId: string, opts: { transcricao?: str
   publish({ type: 'sessao.encerrada', sessaoId })
 }
 
+/**
+ * Laudos das sessões ANTERIORES (assinadas) do paciente — pra alimentar a seção
+ * "Avaliação do Progresso" do laudo novo. Da mais antiga pra mais recente.
+ */
+export async function resumosAnteriores(
+  psicologoId: string, pacienteId: string, antesDoNumero: number, limite = 3,
+): Promise<{ numero: number; resumo: string }[]> {
+  const { rows } = await db.query<{ numero: number; resumo_ia: string | null }>(
+    `SELECT numero, resumo_ia FROM sessoes
+      WHERE paciente_id = $1 AND psicologo_id = $2 AND numero < $3
+        AND assinada = TRUE AND resumo_ia IS NOT NULL
+      ORDER BY numero DESC LIMIT $4`,
+    [pacienteId, psicologoId, antesDoNumero, limite],
+  )
+  return rows
+    .map(r => ({ numero: r.numero, resumo: tryDecrypt(r.resumo_ia) ?? '' }))
+    .filter(r => r.resumo.trim().length > 0)
+    .reverse()
+}
+
 export async function salvarResumoIA(sessaoId: string, resumo: string): Promise<void> {
   await db.query(`UPDATE sessoes SET resumo_ia = $2 WHERE id = $1`, [sessaoId, encrypt(resumo)])
 }
