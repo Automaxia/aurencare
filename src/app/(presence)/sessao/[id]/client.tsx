@@ -30,6 +30,18 @@ type Props = {
 }
 
 const DEFAULT_ORDER = ['live-insight', 'ritmo', 'temas', 'humor', 'info', 'risco', 'ultima', 'topicos', 'nota']
+// Nomes legíveis dos painéis pro menu "Personalizar painéis".
+const WIDGET_LABELS: Record<string, string> = {
+  'live-insight': 'Observação ao vivo',
+  ritmo: 'Ritmo da conversa',
+  temas: 'Temas desta sessão',
+  humor: 'Checagem de humor',
+  info: 'Informações do paciente',
+  risco: 'Avaliação de risco',
+  ultima: 'Última sessão',
+  topicos: 'Tópicos em aberto',
+  nota: 'Nota rápida',
+}
 const OBS_INTERVAL_TURNS = 5  // gera observação a cada N turnos novos
 const TOM_BATCH_SIZE = 5      // classifica o tom em lotes de N turnos (1 chamada IA)
 const TOM_BATCH_MS = 3500     // …ou ao fim deste intervalo, o que vier primeiro
@@ -571,7 +583,7 @@ export function PresenceClient(props: Props) {
         />
 
         <div className="sess-right">
-          <SortableGrid defaultOrder={DEFAULT_ORDER}>
+          <SortableGrid defaultOrder={DEFAULT_ORDER} labels={WIDGET_LABELS}>
             {widgets}
           </SortableGrid>
         </div>
