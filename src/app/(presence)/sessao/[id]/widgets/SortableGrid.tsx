@@ -50,16 +50,27 @@ export function SortableGrid({ defaultOrder, labels, children }: Props) {
   function persistOrder(next: string[]) { try { localStorage.setItem(STORAGE_KEY, JSON.stringify(next)) } catch { /* */ } }
   function persistHidden(next: Set<string>) { try { localStorage.setItem(STORAGE_KEY_HIDDEN, JSON.stringify([...next])) } catch { /* */ } }
 
-  // Liga/desliga 1 painel. Ligar → topo da hierarquia (aparece primeiro);
-  // desligar → fim (não atrapalha a ordem dos que ficam visíveis).
+  // Liga/desliga 1 painel. Ao LIGAR, o painel entra no FIM da prioridade — assim
+  // o que você liga PRIMEIRO fica em cima e os próximos entram abaixo (ordem de
+  // clique = ordem na tela). Desligar só oculta, sem mexer na posição.
   function toggle(id: string) {
     const ligando = hidden.has(id)
     const nextHidden = new Set(hidden)
     if (ligando) nextHidden.delete(id); else nextHidden.add(id)
-    const rest = order.filter(x => x !== id)
-    const nextOrder = ligando ? [id, ...rest] : [...rest, id]
     setHidden(nextHidden); persistHidden(nextHidden)
-    setOrder(nextOrder); persistOrder(nextOrder)
+    if (ligando) {
+      const next = [...order.filter(x => x !== id), id]
+      setOrder(next); persistOrder(next)
+    }
+  }
+  // Reordena manualmente (setas ↑/↓ no menu): troca com o vizinho na ordem.
+  function mover(id: string, dir: -1 | 1) {
+    const i = order.indexOf(id)
+    const j = i + dir
+    if (i < 0 || j < 0 || j >= order.length) return
+    const next = [...order]
+    ;[next[i], next[j]] = [next[j], next[i]]
+    setOrder(next); persistOrder(next)
   }
   function mostrarTodos() { const vazio = new Set<string>(); setHidden(vazio); persistHidden(vazio) }
   function ocultarTodos() { const todos = new Set(defaultOrder); setHidden(todos); persistHidden(todos) }
@@ -120,19 +131,28 @@ export function SortableGrid({ defaultOrder, labels, children }: Props) {
                 </div>
               </div>
               <div style={{ maxHeight: '52vh', overflowY: 'auto', padding: '4px 0' }}>
-                {defaultOrder.map(id => {
+                {order.map((id, i) => {
                   const on = !hidden.has(id)
                   return (
-                    <button
-                      key={id} type="button" role="menuitemcheckbox" aria-checked={on}
-                      onClick={() => toggle(id)}
-                      style={{ display: 'flex', alignItems: 'center', gap: 10, width: '100%', border: 0, background: 'transparent', cursor: 'pointer', padding: '9px 14px', textAlign: 'left', fontSize: 13, color: 'var(--ink)' }}
+                    <div
+                      key={id}
+                      style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 10px 6px 14px' }}
                       onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'var(--surface)' }}
                       onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'transparent' }}
                     >
-                      <Switch on={on} />
-                      <span style={{ flex: 1 }}>{labels[id] ?? id}</span>
-                    </button>
+                      <button
+                        type="button" role="menuitemcheckbox" aria-checked={on}
+                        onClick={() => toggle(id)}
+                        style={{ display: 'flex', alignItems: 'center', gap: 10, flex: 1, minWidth: 0, border: 0, background: 'transparent', cursor: 'pointer', padding: 0, textAlign: 'left', fontSize: 13, color: on ? 'var(--ink)' : 'var(--muted)' }}
+                      >
+                        <Switch on={on} />
+                        <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{labels[id] ?? id}</span>
+                      </button>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                        <ArrowBtn dir="up" disabled={i === 0} onClick={() => mover(id, -1)} />
+                        <ArrowBtn dir="down" disabled={i === order.length - 1} onClick={() => mover(id, 1)} />
+                      </div>
+                    </div>
                   )
                 })}
               </div>
@@ -155,6 +175,24 @@ export function SortableGrid({ defaultOrder, labels, children }: Props) {
         </div>
       )}
     </>
+  )
+}
+
+/** Seta de reordenar (↑/↓) no menu Personalizar. */
+function ArrowBtn({ dir, disabled, onClick }: { dir: 'up' | 'down'; disabled: boolean; onClick: () => void }) {
+  return (
+    <button
+      type="button" onClick={onClick} disabled={disabled}
+      aria-label={dir === 'up' ? 'Subir (mais prioridade)' : 'Descer (menos prioridade)'}
+      style={{
+        width: 22, height: 16, display: 'grid', placeItems: 'center', padding: 0,
+        border: '1px solid var(--border)', borderRadius: 5, background: 'var(--card)',
+        cursor: disabled ? 'default' : 'pointer', opacity: disabled ? 0.4 : 1,
+        color: 'var(--muted)', fontSize: 9, lineHeight: 1,
+      }}
+    >
+      {dir === 'up' ? '▲' : '▼'}
+    </button>
   )
 }
 
