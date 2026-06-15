@@ -52,6 +52,11 @@ export function SessionReview({ sessao }: { sessao: Sessao }) {
   const [assinando, setAssinando] = useState(false)
   const [assinadoAgora, setAssinadoAgora] = useState(false)
   const [assinarErro, setAssinarErro] = useState<string | null>(null)
+  // Retificação do laudo já assinado (preserva versões anteriores no histórico).
+  const [editandoResumo, setEditandoResumo] = useState(false)
+  const [retEdit, setRetEdit] = useState('')
+  const [salvandoRet, setSalvandoRet] = useState(false)
+  const [retErro, setRetErro] = useState<string | null>(null)
   const [notaSalvando, setNotaSalvando] = useState(false)
   const [notaMsg, setNotaMsg] = useState<string | null>(null)
   const [confirmarVazio, setConfirmarVazio] = useState(false)
@@ -119,6 +124,30 @@ export function SessionReview({ sessao }: { sessao: Sessao }) {
     }
   }
 
+  function abrirEdicaoResumo() {
+    setRetEdit((assinadoAgora ? resumoEdit : sessao.resumoIa) ?? '')
+    setRetErro(null); setEditandoResumo(true)
+  }
+  async function salvarRetificacao() {
+    if (!retEdit.trim()) { setRetErro('Escreva o resumo.'); return }
+    setSalvandoRet(true); setRetErro(null)
+    try {
+      const res = await fetch(`/api/sessao/${sessao.id}/resumo`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ resumo: retEdit }),
+      })
+      const json = await res.json().catch(() => ({} as any))
+      if (res.ok) { setResumoEdit(retEdit); setEditandoResumo(false); router.refresh() }
+      else if (json.error === 'termos_proibidos') setRetErro('O texto contém diagnóstico/afirmação categórica não permitidos. Reformule.')
+      else if (json.error === 'resumo_vazio') setRetErro('Escreva o resumo.')
+      else setRetErro('Falha ao salvar. Tente novamente.')
+    } catch {
+      setRetErro('Falha ao salvar. Tente novamente.')
+    } finally {
+      setSalvandoRet(false)
+    }
+  }
+
   async function carregarInsight() {
     setLoadingInsight(true); setInsightError(null)
     try {
@@ -179,16 +208,58 @@ export function SessionReview({ sessao }: { sessao: Sessao }) {
               {assinarErro && <div style={{ color: 'var(--rose)', fontSize: 12, marginTop: 8 }}>{assinarErro}</div>}
             </Section>
           ) : (
-            <Section title="Resumo (assinado)">
-              {(assinadoAgora ? resumoEdit : sessao.resumoIa) ? (
+            <Section
+              title="Resumo (assinado)"
+              actions={!editandoResumo && (assinadoAgora ? resumoEdit : sessao.resumoIa)
+                ? <button className="btn ghost sm" onClick={abrirEdicaoResumo}>✎ Editar</button>
+                : undefined}
+            >
+              {editandoResumo ? (
+                <>
+                  <div style={{ fontSize: 11.5, color: 'var(--muted)', marginBottom: 8 }}>
+                    Retificação: a versão atual é <strong>preservada no histórico</strong> antes de salvar. A assinatura é mantida e o paciente não é notificado.
+                  </div>
+                  <textarea
+                    value={retEdit} onChange={e => setRetEdit(e.target.value)} rows={18}
+                    style={{ ...ta, fontFamily: 'var(--font-mono), ui-monospace, monospace', fontSize: 12.5 }}
+                  />
+                  {retErro && <div style={{ color: 'var(--rose)', fontSize: 12, marginTop: 8 }}>{retErro}</div>}
+                  <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 10 }}>
+                    <button className="btn ghost" onClick={() => setEditandoResumo(false)} disabled={salvandoRet}>Cancelar</button>
+                    <button className="btn primary" onClick={salvarRetificacao} disabled={salvandoRet || !retEdit.trim()}>
+                      {salvandoRet ? 'Salvando…' : 'Salvar retificação'}
+                    </button>
+                  </div>
+                </>
+              ) : (assinadoAgora ? resumoEdit : sessao.resumoIa) ? (
                 <Markdown text={(assinadoAgora ? resumoEdit : sessao.resumoIa) ?? ''} />
               ) : <Empty>Sessão sem resumo.</Empty>}
-              {(assinadoAgora || sessao.assinaturaTimestamp) && (
+
+              {!editandoResumo && (assinadoAgora || sessao.assinaturaTimestamp) && (
                 <div style={{ fontSize: 11, color: 'var(--sage)', marginTop: 8 }}>
                   {assinadoAgora
                     ? '✓ Assinada agora — pendência resolvida.'
                     : `✓ Assinada em ${new Date(sessao.assinaturaTimestamp!).toLocaleString('pt-BR')}`}
+                  {sessao.resumoEditadoEm && <span style={{ color: 'var(--muted)' }}> · retificada em {new Date(sessao.resumoEditadoEm).toLocaleString('pt-BR')}</span>}
                 </div>
+              )}
+
+              {!editandoResumo && sessao.resumoHistorico.length > 0 && (
+                <details style={{ marginTop: 10 }}>
+                  <summary style={{ fontSize: 12, color: 'var(--accent)', cursor: 'pointer' }}>
+                    Versões anteriores ({sessao.resumoHistorico.length})
+                  </summary>
+                  <div style={{ display: 'grid', gap: 10, marginTop: 8 }}>
+                    {[...sessao.resumoHistorico].reverse().map((v, i) => (
+                      <div key={i} style={{ borderLeft: '2px solid var(--border)', paddingLeft: 12 }}>
+                        <div style={{ fontSize: 11, color: 'var(--muted)', marginBottom: 4 }}>
+                          Versão substituída {v.em ? `em ${new Date(v.em).toLocaleString('pt-BR')}` : ''}
+                        </div>
+                        <Markdown text={v.texto} />
+                      </div>
+                    ))}
+                  </div>
+                </details>
               )}
             </Section>
           )}

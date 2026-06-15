@@ -42,6 +42,10 @@ export type Sessao = {
   valor: number
   assinada: boolean
   assinaturaTimestamp: string | null
+  /** Quando o laudo assinado foi retificado pela última vez (ou null). */
+  resumoEditadoEm: string | null
+  /** Versões anteriores do laudo assinado, preservadas em cada retificação. */
+  resumoHistorico: { texto: string; em: string }[]
   resumoIa: string | null
   transcricao: string | null
   notaClinica: string | null
@@ -64,6 +68,10 @@ function rowToSessao(r: any): Sessao {
     pagarmeQrcodeUrl: r.pagarme_qrcode_url, pagarmeCheckoutUrl: r.pagarme_checkout_url,
     valor: parseFloat(r.valor),
     assinada: r.assinada, assinaturaTimestamp: r.assinatura_timestamp,
+    resumoEditadoEm: r.resumo_editado_em ?? null,
+    resumoHistorico: Array.isArray(r.resumo_historico)
+      ? r.resumo_historico.map((h: any) => ({ texto: tryDecrypt(h?.texto) ?? '', em: h?.em ?? '' }))
+      : [],
     resumoIa: tryDecrypt(r.resumo_ia),
     transcricao: tryDecrypt(r.transcricao_texto),
     notaClinica: tryDecrypt(r.nota_clinica),
@@ -616,6 +624,26 @@ export async function encerrarSessao(sessaoId: string, opts: { transcricao?: str
 
 export async function salvarResumoIA(sessaoId: string, resumo: string): Promise<void> {
   await db.query(`UPDATE sessoes SET resumo_ia = $2 WHERE id = $1`, [sessaoId, encrypt(resumo)])
+}
+
+/**
+ * Retifica o laudo de uma sessão JÁ ASSINADA: preserva a versão atual no
+ * histórico (cifrada, com data) antes de gravar a nova — prontuário não apaga.
+ * Não mexe na assinatura nem dispara WhatsApp. Confere posse e que está assinada.
+ */
+export async function editarResumoAssinado(psicologoId: string, sessaoId: string, novoResumo: string): Promise<boolean> {
+  const { rowCount } = await db.query(
+    `UPDATE sessoes
+        SET resumo_historico = CASE WHEN resumo_ia IS NOT NULL
+              THEN COALESCE(resumo_historico, '[]'::jsonb)
+                   || jsonb_build_array(jsonb_build_object('texto', resumo_ia, 'em', NOW()))
+              ELSE COALESCE(resumo_historico, '[]'::jsonb) END,
+            resumo_ia = $3,
+            resumo_editado_em = NOW()
+      WHERE id = $1 AND psicologo_id = $2 AND assinada = TRUE`,
+    [sessaoId, psicologoId, encrypt(novoResumo)],
+  )
+  return (rowCount ?? 0) > 0
 }
 
 /**
