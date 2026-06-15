@@ -53,9 +53,12 @@ export function PatientSelector({ current, basePath, segment }: Props) {
   }
 
   return (
-    <>
-      <div className="pt-selector">
-        <div className="pts-cur" onClick={() => setOpen(true)}>
+    // Wrapper relativo: o dropdown ancora na barra (mesma largura), como um
+    // <select>, em vez de um modal centralizado. marginBottom fica no wrapper
+    // (a barra zera o seu) pra o top:100% bater exatamente na base da barra.
+    <div style={{ position: 'relative', marginBottom: 16 }}>
+      <div className="pt-selector" style={{ marginBottom: 0 }}>
+        <div className="pts-cur" onClick={() => setOpen(o => !o)}>
           <div className="pts-av" style={current ? undefined : { background: 'var(--surface)', color: 'var(--muted)' }}>
             {current ? initials(current.nome) : '+'}
           </div>
@@ -66,24 +69,30 @@ export function PatientSelector({ current, basePath, segment }: Props) {
             <div className="pts-meta">{current?.meta ?? 'Escolha quem analisar'}</div>
           </div>
         </div>
-        <div className="pts-chg" onClick={() => setOpen(true)}>{current ? 'Trocar ↕' : 'Selecionar ↕'}</div>
+        <div className="pts-chg" onClick={() => setOpen(o => !o)}>{current ? 'Trocar ↕' : 'Selecionar ↕'}</div>
       </div>
 
       {open && (
-        <div
-          onClick={() => setOpen(false)}
-          style={{ position: 'fixed', inset: 0, background: 'rgba(20,16,38,.45)', zIndex: 60, display: 'grid', placeItems: 'flex-start center', paddingTop: 80, backdropFilter: 'blur(4px)' }}
-        >
-          <div onClick={e => e.stopPropagation()} className="card" style={{ width: 460, maxHeight: '70vh', padding: 0, overflow: 'hidden' }}>
-            <div style={{ padding: 14, borderBottom: '1px solid var(--border)' }}>
+        <>
+          {/* Captura clique-fora pra fechar (transparente, abaixo do painel). */}
+          <div onClick={() => setOpen(false)} style={{ position: 'fixed', inset: 0, zIndex: 59 }} />
+          <div
+            className="card"
+            style={{
+              position: 'absolute', top: 'calc(100% + 4px)', left: 0, right: 0, zIndex: 60,
+              maxHeight: '60vh', padding: 0, overflow: 'hidden',
+              boxShadow: '0 14px 34px rgba(20,16,38,.20)',
+            }}
+          >
+            <div style={{ padding: '12px 14px', borderBottom: '1px solid var(--border)' }}>
               <input
                 autoFocus
                 value={q} onChange={e => setQ(e.target.value)}
                 placeholder="Buscar paciente…"
-                style={{ width: '100%', border: 0, outline: 'none', fontSize: 14, padding: '4px 0' }}
+                style={{ width: '100%', border: 0, outline: 'none', fontSize: 14, padding: '4px 0', background: 'transparent', color: 'var(--ink)' }}
               />
             </div>
-            <div style={{ overflowY: 'auto', maxHeight: '55vh' }}>
+            <div style={{ overflowY: 'auto', maxHeight: 'calc(60vh - 52px)' }}>
               {loading && <div style={{ padding: 20, color: 'var(--muted)', fontSize: 13 }}>Carregando…</div>}
               {!loading && filtered.length === 0 && (
                 <div style={{ padding: 20, color: 'var(--muted)', fontSize: 13 }}>Nenhum paciente.</div>
@@ -109,9 +118,9 @@ export function PatientSelector({ current, basePath, segment }: Props) {
               ))}
             </div>
           </div>
-        </div>
+        </>
       )}
-    </>
+    </div>
   )
 }
 
