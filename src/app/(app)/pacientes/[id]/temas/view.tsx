@@ -144,8 +144,16 @@ export function TemasView({ pacienteId, pacienteNome, initialGrafo, sessoes }: P
               </option>
             ))}
           </select>
-          <button className="btn ghost sm" onClick={recalcular} disabled={recalc} title="Recalcular grafo">
-            {recalc ? '…' : '↻'}
+          <button
+            className="btn" onClick={recalcular} disabled={recalc}
+            title="Recalcular o grafo a partir das sessões assinadas"
+            style={{
+              display: 'inline-flex', alignItems: 'center', gap: 6, fontWeight: 500,
+              color: 'var(--accent)', border: '1px solid var(--accent)', background: 'var(--accent-lo)',
+              boxShadow: '0 1px 3px rgba(106,78,200,.18)',
+            }}
+          >
+            {recalc ? 'Recalculando…' : '↻ Recalcular'}
           </button>
         </div>
       </div>
