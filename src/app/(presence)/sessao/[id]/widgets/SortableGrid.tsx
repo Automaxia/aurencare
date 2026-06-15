@@ -1,24 +1,18 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import {
-  DndContext, closestCenter, KeyboardSensor, PointerSensor,
-  useSensor, useSensors, DragEndEvent, DragStartEvent,
-} from '@dnd-kit/core'
-import {
-  arrayMove, SortableContext, sortableKeyboardCoordinates,
-  rectSortingStrategy, useSortable,
-} from '@dnd-kit/sortable'
-import { CSS } from '@dnd-kit/utilities'
-import { DragHandleContext } from '@/components/WidgetGrip'
 
 /**
- * Grid arrastável dos widgets do Modo Presença.
- * - Ordem persistida em localStorage (arraste pelo grip).
- * - Visibilidade por painel via menu "Personalizar": liga/desliga, aplica na
- *   hora e persiste — sem botão Salvar, sem confirmação (padrão de dashboards
- *   configuráveis; é reversível pelo mesmo menu).
- * Cada children precisa ter prop `key` = id do widget.
+ * Painel de widgets do Modo Presença.
+ *
+ * Layout: masonry via CSS multi-column (no `.sess-right`) — empacota cada coluna
+ * sem buracos verticais, preservando a ordem de prioridade.
+ *
+ * Hierarquia: a ORDEM da lista é a prioridade. Ao LIGAR um painel ele vai pro
+ * topo (aparece primeiro); ao desligar, vai pro fim. Tudo persiste em localStorage.
+ *
+ * Visibilidade: menu "Personalizar" liga/desliga por painel, aplica na hora,
+ * sem botão Salvar nem confirmação (padrão de dashboards configuráveis).
  */
 
 const STORAGE_KEY = 'auren.sess.widgets.order'
@@ -35,7 +29,6 @@ export function SortableGrid({ defaultOrder, labels, children }: Props) {
   const [order, setOrder] = useState<string[]>(defaultOrder)
   const [hidden, setHidden] = useState<Set<string>>(new Set())
   const [hydrated, setHydrated] = useState(false)
-  const [activeId, setActiveId] = useState<string | null>(null)
   const [menuOpen, setMenuOpen] = useState(false)
 
   useEffect(() => {
@@ -54,43 +47,25 @@ export function SortableGrid({ defaultOrder, labels, children }: Props) {
     setHydrated(true)
   }, [defaultOrder])
 
-  const sensors = useSensors(
-    useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
-    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
-  )
+  function persistOrder(next: string[]) { try { localStorage.setItem(STORAGE_KEY, JSON.stringify(next)) } catch { /* */ } }
+  function persistHidden(next: Set<string>) { try { localStorage.setItem(STORAGE_KEY_HIDDEN, JSON.stringify([...next])) } catch { /* */ } }
 
-  function onDragStart(ev: DragStartEvent) { setActiveId(String(ev.active.id)) }
-  function onDragEnd(ev: DragEndEvent) {
-    setActiveId(null)
-    const { active, over } = ev
-    if (!over || active.id === over.id) return
-    setOrder(prev => {
-      const oldIdx = prev.indexOf(String(active.id))
-      const newIdx = prev.indexOf(String(over.id))
-      if (oldIdx === -1 || newIdx === -1) return prev
-      const next = arrayMove(prev, oldIdx, newIdx)
-      try { localStorage.setItem(STORAGE_KEY, JSON.stringify(next)) } catch { /* */ }
-      return next
-    })
-  }
-
-  function persistHidden(next: Set<string>) {
-    try { localStorage.setItem(STORAGE_KEY_HIDDEN, JSON.stringify([...next])) } catch { /* */ }
-  }
+  // Liga/desliga 1 painel. Ligar → topo da hierarquia (aparece primeiro);
+  // desligar → fim (não atrapalha a ordem dos que ficam visíveis).
   function toggle(id: string) {
-    setHidden(prev => {
-      const next = new Set(prev)
-      if (next.has(id)) next.delete(id); else next.add(id)
-      persistHidden(next)
-      return next
-    })
+    const ligando = hidden.has(id)
+    const nextHidden = new Set(hidden)
+    if (ligando) nextHidden.delete(id); else nextHidden.add(id)
+    const rest = order.filter(x => x !== id)
+    const nextOrder = ligando ? [id, ...rest] : [...rest, id]
+    setHidden(nextHidden); persistHidden(nextHidden)
+    setOrder(nextOrder); persistOrder(nextOrder)
   }
   function mostrarTodos() { const vazio = new Set<string>(); setHidden(vazio); persistHidden(vazio) }
   function ocultarTodos() { const todos = new Set(defaultOrder); setHidden(todos); persistHidden(todos) }
   function restaurarPadrao() {
     setHidden(new Set()); persistHidden(new Set())
-    setOrder(defaultOrder)
-    try { localStorage.removeItem(STORAGE_KEY) } catch { /* */ }
+    setOrder(defaultOrder); persistOrder(defaultOrder)
     setMenuOpen(false)
   }
 
@@ -105,10 +80,15 @@ export function SortableGrid({ defaultOrder, labels, children }: Props) {
   const visiveis = used.filter(id => !hidden.has(id))
   const ativos = defaultOrder.filter(id => !hidden.has(id)).length
 
+  const bulkBtn: React.CSSProperties = {
+    fontSize: 11, fontWeight: 500, padding: '4px 10px', borderRadius: 999,
+    border: '1px solid var(--accent)', color: 'var(--accent)', background: 'var(--card)', cursor: 'pointer',
+  }
+
   return (
     <>
-      {/* Barra de personalização — ocupa a linha inteira do grid (1 / -1). */}
-      <div style={{ gridColumn: '1 / -1', display: 'flex', justifyContent: 'flex-end', position: 'relative', marginBottom: 4 }}>
+      {/* Barra de personalização — bloco normal acima do masonry. */}
+      <div style={{ display: 'flex', justifyContent: 'flex-end', position: 'relative', marginBottom: 10 }}>
         <button
           type="button"
           className="btn"
@@ -117,9 +97,8 @@ export function SortableGrid({ defaultOrder, labels, children }: Props) {
           title="Escolher quais painéis aparecem na sessão"
           style={{
             display: 'inline-flex', alignItems: 'center', gap: 7, fontWeight: 500,
-            color: 'var(--accent)', border: '1px solid var(--accent)',
+            color: menuOpen ? 'white' : 'var(--accent)', border: '1px solid var(--accent)',
             background: menuOpen ? 'var(--accent)' : 'var(--accent-lo)',
-            ...(menuOpen ? { color: 'white' } : null),
             boxShadow: '0 1px 3px rgba(106,78,200,.18)',
           }}
         >
@@ -131,13 +110,13 @@ export function SortableGrid({ defaultOrder, labels, children }: Props) {
             <div onClick={() => setMenuOpen(false)} style={{ position: 'fixed', inset: 0, zIndex: 59 }} />
             <div className="card" role="menu" aria-label="Painéis na sessão" style={{
               position: 'absolute', top: 'calc(100% + 6px)', right: 0, zIndex: 60,
-              width: 280, padding: 0, overflow: 'hidden', boxShadow: '0 14px 34px rgba(20,16,38,.20)',
+              width: 290, padding: 0, overflow: 'hidden', boxShadow: '0 14px 34px rgba(20,16,38,.20)',
             }}>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, padding: '10px 14px', borderBottom: '1px solid var(--border)' }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, padding: '11px 14px', borderBottom: '1px solid var(--border)' }}>
                 <span style={{ fontSize: 11, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '.06em', fontWeight: 600 }}>Painéis na sessão</span>
-                <div style={{ display: 'flex', gap: 4 }}>
-                  <button type="button" onClick={mostrarTodos} className="btn ghost sm" style={{ fontSize: 11, padding: '3px 8px' }}>Mostrar todos</button>
-                  <button type="button" onClick={ocultarTodos} className="btn ghost sm" style={{ fontSize: 11, padding: '3px 8px' }}>Ocultar todos</button>
+                <div style={{ display: 'flex', gap: 6 }}>
+                  <button type="button" onClick={mostrarTodos} style={bulkBtn}>Mostrar todos</button>
+                  <button type="button" onClick={ocultarTodos} style={bulkBtn}>Ocultar todos</button>
                 </div>
               </div>
               <div style={{ maxHeight: '52vh', overflowY: 'auto', padding: '4px 0' }}>
@@ -159,9 +138,7 @@ export function SortableGrid({ defaultOrder, labels, children }: Props) {
               </div>
               <div style={{ borderTop: '1px solid var(--border)', padding: '8px 14px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
                 <span style={{ fontSize: 11, color: 'var(--muted)' }}>{ativos} de {defaultOrder.length} ativos</span>
-                <button type="button" onClick={restaurarPadrao} className="btn ghost sm" style={{ fontSize: 12 }}>
-                  Restaurar padrão
-                </button>
+                <button type="button" onClick={restaurarPadrao} className="btn ghost sm" style={{ fontSize: 12 }}>Restaurar padrão</button>
               </div>
             </div>
           </>
@@ -169,25 +146,19 @@ export function SortableGrid({ defaultOrder, labels, children }: Props) {
       </div>
 
       {visiveis.length === 0 ? (
-        <div className="card" style={{ gridColumn: '1 / -1', padding: 20, textAlign: 'center', color: 'var(--muted)', fontSize: 13 }}>
+        <div className="card" style={{ padding: 20, textAlign: 'center', color: 'var(--muted)', fontSize: 13 }}>
           Nenhum painel ativo. Escolha o que mostrar em <strong>⚙ Personalizar painéis</strong>.
         </div>
       ) : (
-        <DndContext sensors={sensors} collisionDetection={closestCenter} onDragStart={onDragStart} onDragEnd={onDragEnd}>
-          <SortableContext items={visiveis} strategy={rectSortingStrategy}>
-            {visiveis.map(id => {
-              const child = map.get(id)
-              if (!child) return null
-              return <SortableItem key={id} id={id} isDragging={activeId === id}>{child}</SortableItem>
-            })}
-          </SortableContext>
-        </DndContext>
+        <div className="sess-masonry">
+          {visiveis.map(id => map.get(id) ?? null)}
+        </div>
       )}
     </>
   )
 }
 
-/** Switch on/off minimalista (visual; o estado real é o aria-checked do botão pai). */
+/** Switch on/off minimalista (o estado real é o aria-checked do botão pai). */
 function Switch({ on }: { on: boolean }) {
   return (
     <span aria-hidden style={{
@@ -199,31 +170,5 @@ function Switch({ on }: { on: boolean }) {
         background: 'white', transition: 'left .15s', boxShadow: '0 1px 2px rgba(0,0,0,.25)',
       }} />
     </span>
-  )
-}
-
-function SortableItem({ id, children, isDragging }: { id: string; children: React.ReactElement; isDragging: boolean }) {
-  const { attributes, listeners, setNodeRef, setActivatorNodeRef, transform, transition, isDragging: sortDragging } = useSortable({ id })
-  // Detecta se é wide via classList no children (passa direto pra wrapper div)
-  const childClass = (children.props.className as string) || ''
-  const isWide = childClass.includes('wide')
-
-  // Os listeners do drag NÃO vão no wrapper inteiro — vão só no grip (via context).
-  // Assim o widget só move pelo grip e a barra de espaço funciona nos textareas.
-  return (
-    <div
-      ref={setNodeRef}
-      style={{
-        transform: CSS.Transform.toString(transform),
-        transition,
-        gridColumn: isWide ? '1 / -1' : undefined,
-        opacity: sortDragging || isDragging ? .5 : 1,
-        zIndex: sortDragging ? 10 : undefined,
-      }}
-    >
-      <DragHandleContext.Provider value={{ attributes, listeners, setRef: setActivatorNodeRef }}>
-        {children}
-      </DragHandleContext.Provider>
-    </div>
   )
 }

@@ -846,12 +846,17 @@ a.pip:hover .pip-d { transform: scale(1.25); transition: transform .15s ease; }
 }
 .sess-right {
   height: 100%; overflow-y: auto; padding-right: 4px;
-  display: grid; grid-template-columns: 1fr 1fr; grid-auto-flow: dense;
-  gap: 12px; align-content: start; scrollbar-width: thin;
+  display: block; scrollbar-width: thin;
 }
 .sess-right::-webkit-scrollbar { width: 4px; }
 .sess-right::-webkit-scrollbar-thumb { background: rgba(26,24,37,.06); border-radius: 4px; }
-.sess-right > .wide { grid-column: 1 / -1; }
+/* Masonry via CSS multi-column numa camada interna de ALTURA AUTOMÁTICA (o scroll
+   fica na .sess-right). Empacota cada coluna sem gaps verticais entre cards de
+   alturas diferentes, preservando a ordem de prioridade (item 1 no topo-esquerda). */
+.sess-masonry { columns: 2; column-gap: 12px; }
+.sess-masonry > * { break-inside: avoid; margin-bottom: 12px; }
+/* Painéis "wide" ocupam a linha inteira do masonry. */
+.sess-masonry > .wide { column-span: all; }
 
 /* Trans-card (substitui talk-card antigo na coluna esquerda) */
 .trans-card {
@@ -1237,7 +1242,7 @@ a.pip:hover .pip-d { transform: scale(1.25); transition: transform .15s ease; }
 }
 /* Telas bem estreitas: widgets em coluna única. */
 @media (max-width: 640px) {
-  .sess-right { grid-template-columns: 1fr; }
+  .sess-masonry { columns: 1; }
 }
 
 /* ────────────────────────────────────────────────────────────────────────

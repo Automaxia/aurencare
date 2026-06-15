@@ -19,6 +19,8 @@ export const DragHandleContext = createContext<Handle | null>(null)
 
 export function WidgetGrip({ size = 13 }: { size?: number }) {
   const h = useContext(DragHandleContext)
+  // Sem contexto de drag (layout masonry sem arrastar) → não renderiza o grip.
+  if (!h) return null
   return (
     <div
       className="widget-grip"
