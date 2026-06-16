@@ -14,7 +14,7 @@ export type AiChatProps = {
   endpoint: string                       // POST endpoint que retorna { text: string }
   payload: Record<string, any>           // extra fields enviados em cada POST (pacienteId, contexto, etc)
   title?: string
-  subtitle?: string
+  subtitle?: React.ReactNode
   initialMessage?: string
   quickPrompts?: string[]
   placeholder?: string

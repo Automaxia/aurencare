@@ -114,7 +114,7 @@ function ProfileCard(p: ProfileCardProps) {
       <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
         <div className="pts-av" style={{ width: 46, height: 46, fontSize: 15 }}>{p.avatar}</div>
         <div style={{ flex: 1 }}>
-          <div style={{ fontFamily: 'var(--f-display)', fontSize: 19, fontWeight: 300, marginBottom: 2, color: 'var(--ink-soft)' }}>{p.nome}</div>
+          <div className="sigilo" style={{ fontFamily: 'var(--f-display)', fontSize: 19, fontWeight: 300, marginBottom: 2, color: 'var(--ink-soft)' }}>{p.nome}</div>
           <div style={{ fontSize: 12, color: 'var(--muted)' }}>
             {p.totalSessoes} {p.totalSessoes === 1 ? 'sessão' : 'sessões'}
             {' · '}{p.minutosMedia} min em média
