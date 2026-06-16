@@ -1,6 +1,7 @@
 import Link from 'next/link'
 import { redirect, notFound } from 'next/navigation'
 import { PageHeader } from '@/components/PageHeader'
+import { Sigilo } from '@/components/Sigilo'
 import { requirePsicologo } from '@/server/lib/auth'
 import { db } from '@/server/db/pool'
 import { lerCondicoesPaciente, ultimaSessaoAssinada } from '@/server/services/contexto'
@@ -128,7 +129,7 @@ export default async function PacientePerfilPage({ params }: { params: { id: str
       )}
 
       <PageHeader
-        title={p.nome}
+        title={<Sigilo>{p.nome}</Sigilo>}
         subtitle={sub.join(' · ')}
         actions={
           <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
@@ -210,7 +211,7 @@ export default async function PacientePerfilPage({ params }: { params: { id: str
       <details className="bloco-recolhivel">
         <summary>
           <span>Dados cadastrais</span>
-          <span className="resumo">{formatPhone(p.telefone)}{p.email ? ' · ' + p.email : ''}</span>
+          <span className="resumo sigilo">{formatPhone(p.telefone)}{p.email ? ' · ' + p.email : ''}</span>
         </summary>
         <div className="bloco-conteudo">
           <DadosCadastroForm pacienteId={p.id} initial={dadosCadastro} />

@@ -1,7 +1,7 @@
 import { CfpBadge } from './brand/CfpBadge'
 
 type Props = {
-  title: string
+  title: React.ReactNode
   subtitle?: string
   withCfp?: boolean
   actions?: React.ReactNode

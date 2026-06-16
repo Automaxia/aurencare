@@ -6,6 +6,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { Bell, X } from 'lucide-react'
 import { mundoFromPath } from '@/lib/nav'
 import { buildBreadcrumb } from '@/lib/breadcrumb'
+import { SigiloToggle } from '@/components/SigiloToggle'
 
 type SessaoAtiva = { id: string; pacienteNome: string; numero: number; iniciadaEm: string | null }
 type Pendencia = { id: string; tipo: 'registrar' | 'cobranca' | 'consentimento'; label: string; href: string; data?: string }
@@ -160,12 +161,13 @@ export function Topbar({ initialSessaoAtiva, initialPendencias }: Props) {
         <nav className="bc" aria-label="Trilha de navegação">
           {crumbs.map((c, i) => {
             const last = i === crumbs.length - 1
+            const sig = !!pacienteNome && c.label === pacienteNome   // crumb do nome do paciente
             return (
               <span key={`${c.label}-${i}`} className="bc-seg">
                 {i > 0 && <span className="bc-sep" aria-hidden="true">›</span>}
                 {c.href && !last
-                  ? <Link href={c.href} className="bc-link">{c.label}</Link>
-                  : <span className={last ? 'bc-current' : 'bc-link'} aria-current={last ? 'page' : undefined}>{c.label}</span>}
+                  ? <Link href={c.href} className={`bc-link${sig ? ' sigilo' : ''}`}>{c.label}</Link>
+                  : <span className={`${last ? 'bc-current' : 'bc-link'}${sig ? ' sigilo' : ''}`} aria-current={last ? 'page' : undefined}>{c.label}</span>}
               </span>
             )
           })}
@@ -173,6 +175,8 @@ export function Topbar({ initialSessaoAtiva, initialPendencias }: Props) {
       </div>
 
       <div className="tp-r">
+        <SigiloToggle />
+
         {/* Sessão ativa — pill aceso/destacado durante a sessão */}
         {sessaoAtiva && (
           <Link

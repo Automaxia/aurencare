@@ -2,6 +2,7 @@
 
 import Link from 'next/link'
 import type { PatientCardData } from './PatientCard'
+import { Sigilo } from '@/components/Sigilo'
 
 /**
  * Linha compacta de paciente — alternativa de visualização "Lista".
@@ -24,6 +25,7 @@ export function PatientRow({ p }: { p: PatientCardData }) {
       }}
     >
       <div
+        className="sigilo"
         style={{
           width: 36, height: 36, borderRadius: '50%',
           background: p.avBg, color: 'white',
@@ -39,7 +41,7 @@ export function PatientRow({ p }: { p: PatientCardData }) {
           fontSize: 14, fontWeight: 500, color: 'var(--ink)',
           whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
         }}>
-          {p.nome}
+          <Sigilo>{p.nome}</Sigilo>
           {p.demo && <span className="tag t-info" style={{ fontSize: 9, marginLeft: 6 }}>demonstração</span>}
         </div>
         <div style={{ fontSize: 11, color: 'var(--faint)', marginTop: 2 }}>

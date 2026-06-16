@@ -5,6 +5,7 @@ import { listarSessoesEntre } from '@/server/services/sessoes'
 import { formatTimeBR, formatDateBR } from '@/lib/formatters'
 import { ViewToggle } from './view-toggle'
 import { SessaoBlock } from './SessaoBlock'
+import { Sigilo } from '@/components/Sigilo'
 
 export const dynamic = 'force-dynamic'
 
@@ -128,7 +129,7 @@ function DayView({ sessoes }: { sessoes: any[] }) {
                 }}
               >
                 <div className="cal-block-name">
-                  {s.pacienteNome}
+                  <Sigilo>{s.pacienteNome}</Sigilo>
                   {s.status === 'em_curso' && <span className="cal-live-badge">● ao vivo</span>}
                   {s.seriePosicao && <SerieBadge posicao={s.seriePosicao.posicao} total={s.seriePosicao.total} />}
                 </div>
@@ -202,7 +203,7 @@ function WeekView({ inicio, sessoes }: { inicio: Date; sessoes: any[] }) {
                 return (
                   <SessaoBlock key={s.id} sessao={s} className="cal-block" style={{ marginBottom: 4, ...blockStyles(s.status) }}>
                     <div className="cal-block-name">
-                      {s.pacienteNome.split(' ')[0]}
+                      <Sigilo>{s.pacienteNome.split(' ')[0]}</Sigilo>
                       {s.status === 'em_curso' && <span className="cal-live-badge">● ao vivo</span>}
                       {s.seriePosicao && <SerieBadge posicao={s.seriePosicao.posicao} total={s.seriePosicao.total} compact />}
                     </div>
@@ -249,7 +250,7 @@ function MonthView({ inicio, sessoes }: { inicio: Date; sessoes: any[] }) {
               {dssns.slice(0, 3).map((s: any) => (
                 <SessaoBlock key={s.id} sessao={s} className="cal-block" style={{ padding: '3px 6px', marginBottom: 2, ...blockStyles(s.status), position: 'relative' }}>
                   <div style={{ fontSize: 10, fontWeight: 500, color: 'var(--ink-soft)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                    {formatTimeBR(s.dataHora)} {s.pacienteNome.split(' ')[0]}
+                    {formatTimeBR(s.dataHora)} <Sigilo>{s.pacienteNome.split(' ')[0]}</Sigilo>
                   </div>
                   {s.seriePosicao && (
                     <span

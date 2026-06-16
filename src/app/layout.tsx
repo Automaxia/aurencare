@@ -34,6 +34,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="pt-BR" className={`${display.variable} ${sans.variable} ${mono.variable}`}>
       <body>
+        {/* Modo sigilo: aplica a classe ANTES da pintura pra não piscar dados
+            sensíveis ao carregar com o sigilo ligado. */}
+        <script dangerouslySetInnerHTML={{ __html: `try{if(localStorage.getItem('auren.sigilo')==='1')document.documentElement.classList.add('sigilo-on')}catch(e){}` }} />
         <Providers>{children}</Providers>
       </body>
     </html>

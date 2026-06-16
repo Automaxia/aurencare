@@ -1,5 +1,6 @@
 import Link from 'next/link'
 import { SpiralWatermark } from '@/components/brand/SpiralWatermark'
+import { Sigilo } from '@/components/Sigilo'
 import { requirePsicologo } from '@/server/lib/auth'
 import { db } from '@/server/db/pool'
 import {
@@ -144,7 +145,7 @@ export default async function InicioPage() {
           <div className="next-time">{formatTimeBR(proxima.dataHora)}</div>
           <div className="next-meta">
             <div className="next-name">
-              {proxima.pacienteNome}{' '}
+              <Sigilo>{proxima.pacienteNome}</Sigilo>{' '}
               <span style={{ fontSize: 11, fontWeight: 300, color: 'var(--muted)' }}>· Sessão {proxima.numero}</span>
             </div>
             <div className="next-detail">

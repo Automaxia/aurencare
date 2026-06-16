@@ -184,6 +184,18 @@ input:user-invalid:focus, textarea:user-invalid:focus, select:user-invalid:focus
   .ptr-freq { display: none !important; }
 }
 
+/* ── Modo sigilo (privacidade pra screen-share) ────────────────────────────
+   Quando `html.sigilo-on`, borra dados identificáveis do paciente: o que estiver
+   marcado com .sigilo + classes compartilhadas de nome/avatar. Estilo "esconder
+   saldo do banco". Desliga no botão da topbar (ou só pra ver). */
+html.sigilo-on :is(.sigilo, .pts-name, .pts-av, .pb-name, .sess-pill span) {
+  filter: blur(7px);
+  user-select: none;
+  pointer-events: none;
+}
+/* leve transição ao alternar */
+.sigilo, .pts-name, .pts-av, .pb-name { transition: filter .12s ease; }
+
 /* Briefing do paciente — coluna principal + rail de memória clínica */
 .briefing-grid { display: grid; grid-template-columns: 1.7fr 1fr; gap: 16px; align-items: start; }
 /* min-width:0 deixa os cards encolherem (sem isso, conteúdo longo estoura a coluna) */

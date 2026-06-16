@@ -92,7 +92,7 @@ export function SessaoBlock({ sessao, className, style, children }: {
           display: 'grid', placeItems: 'center', zIndex: 70, padding: 16,
         }}>
           <div className="card" onClick={e => e.stopPropagation()} style={{ width: 'min(420px, 94vw)', padding: 22, maxHeight: '92vh', overflowY: 'auto' }}>
-            <h3 style={{ margin: '0 0 2px' }}>{sessao.pacienteNome}</h3>
+            <h3 className="sigilo" style={{ margin: '0 0 2px' }}>{sessao.pacienteNome}</h3>
             <p style={{ fontSize: 12.5, color: 'var(--muted)', margin: '0 0 16px' }}>
               Sessão {sessao.numero} · {dtLabel}
             </p>
