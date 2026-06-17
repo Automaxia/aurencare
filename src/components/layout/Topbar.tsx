@@ -3,7 +3,7 @@
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { Bell, X } from 'lucide-react'
+import { Bell, X, FileText, CreditCard, Hand } from 'lucide-react'
 import { mundoFromPath } from '@/lib/nav'
 import { buildBreadcrumb } from '@/lib/breadcrumb'
 import { SigiloToggle } from '@/components/SigiloToggle'
@@ -16,10 +16,10 @@ type Props = {
   initialPendencias: Pendencia[]
 }
 
-const PEND_ICON: Record<Pendencia['tipo'], string> = {
-  registrar: '📝',
-  cobranca:  '💳',
-  consentimento: '✋',
+const PEND_ICON: Record<Pendencia['tipo'], React.ReactNode> = {
+  registrar: <FileText size={14} />,
+  cobranca: <CreditCard size={14} />,
+  consentimento: <Hand size={14} />,
 }
 
 // Chave nova (v2): invalida o "lixo" do modelo antigo de "visto".

@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { SlidersHorizontal } from 'lucide-react'
 
 /**
  * Painel de widgets do Modo Presença.
@@ -113,7 +114,7 @@ export function SortableGrid({ defaultOrder, labels, children }: Props) {
             boxShadow: '0 1px 3px rgba(106,78,200,.18)',
           }}
         >
-          <span style={{ fontSize: 15, lineHeight: 1 }}>⚙</span> Personalizar painéis
+          <SlidersHorizontal size={15} /> Personalizar painéis
         </button>
 
         {menuOpen && (
@@ -167,7 +168,7 @@ export function SortableGrid({ defaultOrder, labels, children }: Props) {
 
       {visiveis.length === 0 ? (
         <div className="card" style={{ padding: 20, textAlign: 'center', color: 'var(--muted)', fontSize: 13 }}>
-          Nenhum painel ativo. Escolha o que mostrar em <strong>⚙ Personalizar painéis</strong>.
+          Nenhum painel ativo. Escolha o que mostrar em <strong>Personalizar painéis</strong>.
         </div>
       ) : (
         <div className="sess-masonry">

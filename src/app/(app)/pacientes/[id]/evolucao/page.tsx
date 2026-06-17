@@ -1,4 +1,5 @@
 import { redirect, notFound } from 'next/navigation'
+import { Compass } from 'lucide-react'
 import { PageHeader } from '@/components/PageHeader'
 import { PatientSelector } from '@/components/PatientSelector'
 import { Sparkline } from '@/components/Sparkline'
@@ -34,7 +35,7 @@ export default async function EvolucaoPage({ params }: { params: { id: string } 
       <PageHeader title="Evolução Registrada" subtitle="Continuidade clínica" />
 
       <div className="disclaimer">
-        <span style={{ fontSize: 16 }}>🧭</span>
+        <Compass size={16} style={{ flexShrink: 0, marginTop: 1 }} />
         <div style={{ flex: 1 }}>
           <div style={{ fontSize: 12, fontWeight: 500, color: '#7a5520', marginBottom: 2 }}>
             Apoio à continuidade clínica

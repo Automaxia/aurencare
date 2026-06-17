@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { Compass } from 'lucide-react'
 import { CfpBadge } from '@/components/brand/CfpBadge'
 
 type Props = {
@@ -130,7 +131,7 @@ function SuggestionBanner({ title, detail, onApply }: { title: string; detail: s
       display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12,
     }}>
       <div>
-        <div style={{ fontSize: 12, fontWeight: 500, color: '#391d96', marginBottom: 2 }}>🧭 {title}</div>
+        <div style={{ fontSize: 12, fontWeight: 500, color: '#391d96', marginBottom: 2, display: 'inline-flex', alignItems: 'center', gap: 6 }}><Compass size={13} /> {title}</div>
         <div style={{ fontSize: 11, color: 'var(--ink-soft)', lineHeight: 1.4 }}>{detail}</div>
       </div>
       <button className="btn" style={{ background: 'white', whiteSpace: 'nowrap' }} onClick={onApply}>Aplicar</button>

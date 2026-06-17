@@ -16,7 +16,7 @@ import { WidgetGrip } from '@/components/WidgetGrip'
 import { LiveInsight } from './widgets/LiveInsight'
 import { VideoCall } from '@/components/video/VideoCall'
 import { MovableWindow } from '@/components/video/MovableWindow'
-import { Video } from 'lucide-react'
+import { Video, ArrowLeftRight } from 'lucide-react'
 
 type Props = {
   sessaoId: string
@@ -518,8 +518,8 @@ export function PresenceClient(props: Props) {
             </button>
           )}
           {presencial && recording && (
-            <button className="btn ghost" onClick={trocarFalantesPresencial} title="Inverter quem é psicólogo e quem é paciente">
-              ⇄ Trocar P↔C
+            <button className="btn ghost" onClick={trocarFalantesPresencial} title="Inverter quem é psicólogo e quem é paciente" style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+              <ArrowLeftRight size={14} /> Trocar P↔C
             </button>
           )}
           <button className="btn primary" onClick={encerrar} disabled={encerrando}>
@@ -546,7 +546,7 @@ export function PresenceClient(props: Props) {
           </div>
         ) : (
           <div style={{ background: 'rgba(90,158,138,.10)', color: '#2a6456', padding: '8px 16px', fontSize: 12 }}>
-            Modo presencial · um microfone · psicólogo e paciente separados automaticamente. Use <strong>⇄ Trocar P↔C</strong> se inverter.
+            Modo presencial · um microfone · psicólogo e paciente separados automaticamente. Use <strong>Trocar P↔C</strong> se inverter.
           </div>
         )
       )}

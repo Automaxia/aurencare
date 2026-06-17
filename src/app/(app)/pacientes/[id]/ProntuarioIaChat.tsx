@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
+import { Compass } from 'lucide-react'
 
 type Mensagem = { role: 'user' | 'assistant'; content: string }
 type Sugestao = { label: string; prompt: string }
@@ -196,7 +197,7 @@ export function ProntuarioIaChat({ pacienteId }: { pacienteId: string }) {
         padding: '10px 12px', borderRadius: 8,
         background: 'rgba(176,125,64,.08)', border: '1px solid rgba(176,125,64,.22)',
       }}>
-        <span style={{ fontSize: 14 }}>🧭</span>
+        <Compass size={14} style={{ flexShrink: 0, marginTop: 1 }} />
         <div style={{ fontSize: 11, color: '#7a5520', lineHeight: 1.55 }}>
           <strong>IA assistente · CFP 09/2024 · LGPD.</strong> O texto gerado é rascunho.
           Revise antes de assinar. A Audere usa contexto clínico já registrado — nada é treinado.

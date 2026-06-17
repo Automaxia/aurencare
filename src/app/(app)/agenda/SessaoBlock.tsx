@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
+import { Trash2 } from 'lucide-react'
 import { reagendarSessaoAction, excluirSessaoAction } from './actions'
 import { horarioBrasiliaParaISO, TZ } from '@/lib/formatters'
 
@@ -144,8 +145,8 @@ export function SessaoBlock({ sessao, className, style, children }: {
               <div style={{ marginTop: 16, paddingTop: 12, borderTop: '1px solid var(--border)' }}>
                 {!confirmando ? (
                   <button onClick={() => { setErroExcluir(null); setConfirmando(true) }} disabled={salvando}
-                    className="btn ghost" style={{ color: 'var(--rose)', fontSize: 12.5, padding: '5px 10px' }}>
-                    🗑 Excluir sessão
+                    className="btn ghost" style={{ color: 'var(--rose)', fontSize: 12.5, padding: '5px 10px', display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                    <Trash2 size={14} /> Excluir sessão
                   </button>
                 ) : (
                   <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>

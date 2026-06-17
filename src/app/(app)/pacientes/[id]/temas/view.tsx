@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { RotateCw } from 'lucide-react'
 import type { GrafoDados, GrafoNode } from '@/server/services/temas'
 import { GrafoCanvas } from './GrafoCanvas'
 import { TemasChat } from './TemasChat'
@@ -153,7 +154,7 @@ export function TemasView({ pacienteId, pacienteNome, initialGrafo, sessoes }: P
               boxShadow: '0 1px 3px rgba(106,78,200,.18)',
             }}
           >
-            {recalc ? 'Recalculando…' : '↻ Recalcular'}
+            <RotateCw size={13} /> {recalc ? 'Recalculando…' : 'Recalcular'}
           </button>
         </div>
       </div>

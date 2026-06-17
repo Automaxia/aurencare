@@ -3,6 +3,7 @@
 import { isValidElement, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
+import { Pencil, Sparkles } from 'lucide-react'
 import { CfpBadge } from '@/components/brand/CfpBadge'
 import { Markdown } from '@/components/Markdown'
 import type { Sessao } from '@/server/services/sessoes'
@@ -211,7 +212,7 @@ export function SessionReview({ sessao }: { sessao: Sessao }) {
             <Section
               title="Resumo (assinado)"
               actions={!editandoResumo && (assinadoAgora ? resumoEdit : sessao.resumoIa)
-                ? <button className="btn ghost sm" onClick={abrirEdicaoResumo}>✎ Editar</button>
+                ? <button className="btn ghost sm" onClick={abrirEdicaoResumo} style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}><Pencil size={13} /> Editar</button>
                 : undefined}
             >
               {editandoResumo ? (
@@ -386,8 +387,8 @@ export function SessionReview({ sessao }: { sessao: Sessao }) {
             {insight ? (
               <p style={{ fontSize: 13, color: 'var(--ink-soft)', whiteSpace: 'pre-wrap', margin: 0, lineHeight: 1.6 }}>{insight}</p>
             ) : (
-              <button className="btn" onClick={carregarInsight} disabled={loadingInsight} style={{ width: '100%', background: 'white' }}>
-                {loadingInsight ? 'Gerando análise…' : '✨ Gerar análise contextual'}
+              <button className="btn" onClick={carregarInsight} disabled={loadingInsight} style={{ width: '100%', background: 'white', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
+                <Sparkles size={14} /> {loadingInsight ? 'Gerando análise…' : 'Gerar análise contextual'}
               </button>
             )}
             {insightError && <div style={{ color: 'var(--rose)', fontSize: 12, marginTop: 8 }}>{insightError}</div>}
