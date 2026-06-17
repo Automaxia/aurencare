@@ -3,6 +3,7 @@
 import { signIn } from 'next-auth/react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { Suspense, useState } from 'react'
+import { Lock, ShieldCheck, BadgeCheck } from 'lucide-react'
 import Link from 'next/link'
 import { LogoMark } from '@/components/brand/Logo'
 import { Field } from '@/components/form/Field'
@@ -71,9 +72,9 @@ function LoginForm() {
             ))}
           </ul>
           <div className="login-trust">
-            <span>🔒 Dados protegidos</span>
-            <span>🔒 Conformidade com LGPD</span>
-            <span>🔒 Controle clínico sempre do psicólogo</span>
+            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}><Lock size={13} /> Dados protegidos</span>
+            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}><ShieldCheck size={13} /> Conformidade com LGPD</span>
+            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}><BadgeCheck size={13} /> Controle clínico sempre do psicólogo</span>
           </div>
         </div>
       </aside>

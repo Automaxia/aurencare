@@ -1,5 +1,6 @@
 import { LogoMark } from '@/components/brand/Logo'
 import Link from 'next/link'
+import { Lock, ShieldCheck, BadgeCheck, Database } from 'lucide-react'
 import { CadastroForm } from './form'
 
 export const dynamic = 'force-dynamic'
@@ -19,7 +20,12 @@ const PASSOS = [
   'Explore a memória clínica gerada pela Audere.',
 ]
 
-const CONFIANCA = ['Dados criptografados', 'Conformidade com LGPD', 'CFP 09/2024', 'Zero Data Training']
+const CONFIANCA = [
+  { label: 'Dados criptografados', Icon: Lock },
+  { label: 'Conformidade com LGPD', Icon: ShieldCheck },
+  { label: 'CFP 09/2024', Icon: BadgeCheck },
+  { label: 'Zero Data Training', Icon: Database },
+]
 
 export default function CadastroPage() {
   return (
@@ -82,7 +88,11 @@ export default function CadastroPage() {
           <CadastroForm />
 
           <div className="login-trust" style={{ marginTop: 18, color: 'var(--muted)', borderTop: '1px solid var(--border)', paddingTop: 14 }}>
-            {CONFIANCA.map(c => <span key={c}>🔒 {c}</span>)}
+            {CONFIANCA.map(({ label, Icon }) => (
+              <span key={label} style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}>
+                <Icon size={13} /> {label}
+              </span>
+            ))}
           </div>
 
           <div style={{ marginTop: 14, textAlign: 'center', fontSize: 12.5, color: 'var(--muted)' }}>

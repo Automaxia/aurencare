@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
+import { Lock, ShieldCheck, Database } from 'lucide-react'
 import { Logo } from '@/components/brand/Logo'
 import { Field } from '@/components/form/Field'
 import { solicitarResetAction } from './actions'
@@ -91,9 +92,9 @@ export default function RecuperarSenhaPage() {
         )}
 
         <div className="login-trust" style={{ marginTop: 18, paddingTop: 14, borderTop: '1px solid var(--border)', color: 'var(--muted)', justifyContent: 'center' }}>
-          <span>🔒 Dados protegidos</span>
-          <span>🔒 LGPD</span>
-          <span>🔒 Zero Data Training</span>
+          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}><Lock size={13} /> Dados protegidos</span>
+          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}><ShieldCheck size={13} /> LGPD</span>
+          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}><Database size={13} /> Zero Data Training</span>
         </div>
 
         <div style={{ marginTop: 14, textAlign: 'center', fontSize: 12, color: 'var(--muted)' }}>

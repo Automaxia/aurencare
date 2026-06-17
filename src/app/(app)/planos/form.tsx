@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
+import { Lock } from 'lucide-react'
 import { formatBRL, formatDateBR } from '@/lib/formatters'
 import { assinarAction, cancelarAction } from './actions'
 
@@ -260,8 +261,8 @@ export function PlanosForm({ planos, atual, mock, beta }: Props) {
               </button>
               <button className="btn ghost" onClick={() => { setEscolhido(null); setMsg(null) }} disabled={processando}>Cancelar</button>
             </div>
-            <div style={{ fontSize: 11, color: 'var(--muted)' }}>
-              🔒 Dados do cartão vão direto e cifrados pra Pagar.me — não passam pelos servidores do Audere.
+            <div style={{ fontSize: 11, color: 'var(--muted)', display: 'flex', alignItems: 'center', gap: 5 }}>
+              <Lock size={12} style={{ flexShrink: 0 }} /> Dados do cartão vão direto e cifrados pra Pagar.me — não passam pelos servidores do Audere.
             </div>
           </div>
         )
