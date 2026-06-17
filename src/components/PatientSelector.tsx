@@ -39,7 +39,7 @@ export function PatientSelector({ current, basePath, segment }: Props) {
       .then(r => r.ok ? r.json() : [])
       .then((items: any[]) => setList(items.map(p => ({
         id: p.id, nome: p.nome,
-        meta: p.sessoesTotais ? `${p.sessoesTotais} sessão${p.sessoesTotais > 1 ? 'ões' : ''}` : 'sem sessões',
+        meta: p.sessoesTotais ? `${p.sessoesTotais} ${p.sessoesTotais === 1 ? 'sessão' : 'sessões'}` : 'sem sessões',
       }))))
       .catch(() => setList([]))
       .finally(() => setLoading(false))
@@ -110,7 +110,7 @@ export function PatientSelector({ current, basePath, segment }: Props) {
                 >
                   <div className="pts-av" style={{ width: 28, height: 28, fontSize: 11 }}>{initials(p.nome)}</div>
                   <div style={{ flex: 1 }}>
-                    <div style={{ fontSize: 13, color: 'var(--ink)' }}>{p.nome}</div>
+                    <div className="sigilo" style={{ fontSize: 13, color: 'var(--ink)' }}>{p.nome}</div>
                     {p.meta && <div style={{ fontSize: 11, color: 'var(--muted)' }}>{p.meta}</div>}
                   </div>
                   {p.id === current?.id && <span style={{ fontSize: 11, color: 'var(--accent)' }}>atual</span>}
