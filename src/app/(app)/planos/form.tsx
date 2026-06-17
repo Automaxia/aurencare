@@ -165,11 +165,13 @@ export function PlanosForm({ planos, atual, mock, beta }: Props) {
         </div>
       )}
 
-      {/* ── Toggle ciclo ── */}
-      <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
-        <CicloBtn label="Mensal" active={ciclo === 'mensal'} onClick={() => setCiclo('mensal')} />
-        <CicloBtn label="Anual · ~12% off" active={ciclo === 'anual'} onClick={() => setCiclo('anual')} />
-      </div>
+      {/* ── Toggle ciclo (escondido no beta — sem valores ainda) ── */}
+      {!beta && (
+        <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+          <CicloBtn label="Mensal" active={ciclo === 'mensal'} onClick={() => setCiclo('mensal')} />
+          <CicloBtn label="Anual · ~12% off" active={ciclo === 'anual'} onClick={() => setCiclo('anual')} />
+        </div>
+      )}
 
       {/* ── Cards ── */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 14 }}>
@@ -191,13 +193,19 @@ export function PlanosForm({ planos, atual, mock, beta }: Props) {
                 {p.destaque && <span style={{ fontSize: 10, color: '#391d96', background: 'rgba(106,78,200,.12)', padding: '2px 8px', borderRadius: 999 }}>Mais completo</span>}
               </div>
 
-              <div>
-                <span style={{ fontSize: 24, fontWeight: 500, color: 'var(--ink)' }}>{formatBRL(mensalCents, true)}</span>
-                <span style={{ fontSize: 12, color: 'var(--muted)' }}>/mês</span>
-                {key !== 'free' && ciclo === 'anual' && p.precoAnualCentavos != null && (
-                  <div style={{ fontSize: 11, color: 'var(--muted)' }}>{formatBRL(p.precoAnualCentavos, true)} cobrado por ano</div>
-                )}
-              </div>
+              {beta ? (
+                <div style={{ fontSize: 12.5, color: 'var(--muted)', fontStyle: 'italic' }}>
+                  {key === 'free' ? 'Gratuito' : 'Valor definido no lançamento'}
+                </div>
+              ) : (
+                <div>
+                  <span style={{ fontSize: 24, fontWeight: 500, color: 'var(--ink)' }}>{formatBRL(mensalCents, true)}</span>
+                  <span style={{ fontSize: 12, color: 'var(--muted)' }}>/mês</span>
+                  {key !== 'free' && ciclo === 'anual' && p.precoAnualCentavos != null && (
+                    <div style={{ fontSize: 11, color: 'var(--muted)' }}>{formatBRL(p.precoAnualCentavos, true)} cobrado por ano</div>
+                  )}
+                </div>
+              )}
 
               <div style={{ fontSize: 12.5, color: 'var(--ink-soft)' }}>
                 <strong>{p.capSessoesIa}</strong> sessões com IA/mês

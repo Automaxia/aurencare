@@ -22,7 +22,7 @@ export default async function PlanosPage() {
 
       <PageHeader
         title="Plano e uso"
-        subtitle="Sua mensalidade e o consumo de sessões com IA do mês."
+        subtitle="Seu plano e o consumo de sessões com IA do mês."
       />
 
       <PlanosForm
