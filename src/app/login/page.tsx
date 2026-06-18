@@ -25,7 +25,7 @@ const DIFERENCIAIS = [
   'Continuidade Terapêutica',
   'Objetivos Terapêuticos',
   'Evolução Registrada',
-  'Memória Clínica Longitudinal',
+  'Inteligência Clínica Longitudinal',
   'Apoio clínico baseado em IA',
 ]
 
@@ -84,7 +84,7 @@ function LoginForm() {
         <div className="card" style={{ width: 'min(380px, 92vw)', padding: 28 }}>
           <h2 style={{ marginBottom: 4 }}>Entrar</h2>
           <p style={{ fontSize: 12.5, color: 'var(--muted)', marginBottom: 18 }}>
-            Memória Clínica Longitudinal para Psicólogos.
+            Inteligência Clínica Longitudinal para Psicólogos.
           </p>
 
           <form onSubmit={onSubmit} className="auth-form" style={{ display: 'grid', gap: 12 }}>

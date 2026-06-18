@@ -10,7 +10,7 @@ export function EvolucaoChat({ pacienteId, pacienteNome, totalSessoes }: { pacie
       <AiChatPanel
         endpoint="/api/analise/chat"
         payload={{ contexto: 'evolucao', pacienteId }}
-        title="Converse com a memória clínica"
+        title="Converse com a inteligência clínica"
         subtitle={<>Aprofunde o que a Audere observou no histórico de <Sigilo>{first}</Sigilo>. {totalSessoes} {totalSessoes === 1 ? 'sessão registrada' : 'sessões registradas'}.</>}
         initialMessage={`Registrei ${totalSessoes} ${totalSessoes === 1 ? 'sessão' : 'sessões'} deste paciente. Use os atalhos abaixo ou pergunte livremente para aprofundar a evolução — temas, mudanças e continuidade ao longo do processo.`}
         quickPrompts={[

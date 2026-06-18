@@ -4,7 +4,7 @@ import { DemoControl } from './pacientes/DemoControl'
 
 /**
  * Wizard de ativação na Home — os 4 primeiros passos do psicólogo. Some sozinho
- * quando há memória clínica (status.completo). CTA aparece só no próximo passo
+ * quando há inteligência clínica (status.completo). CTA aparece só no próximo passo
  * pendente, pra guiar o foco sem poluir.
  */
 export function OnboardingWizard({ status, nome, demoId }: { status: OnboardingStatus; nome: string; demoId?: string | null }) {
@@ -17,7 +17,7 @@ export function OnboardingWizard({ status, nome, demoId }: { status: OnboardingS
     { feito: status.configurouPratica, titulo: 'Configure sua prática clínica', desc: 'Defina o valor da sessão e conecte o WhatsApp.', href: '/perfil', cta: 'Configurar' },
     { feito: status.temPaciente, titulo: 'Cadastre seu primeiro paciente', desc: 'Ele recebe tudo pelo WhatsApp — sem instalar nada.', href: '/pacientes/novo', cta: 'Cadastrar paciente' },
     { feito: status.temSessao, titulo: 'Registre sua primeira sessão', desc: 'Agende e registre — a transcrição acontece sozinha.', href: '/agenda/nova', cta: 'Agendar sessão' },
-    { feito: status.temMemoria, titulo: 'Explore a memória clínica', desc: 'Veja temas, objetivos e evolução que a Audere organiza.', href: evolHref, cta: 'Abrir memória clínica' },
+    { feito: status.temMemoria, titulo: 'Explore a inteligência clínica', desc: 'Veja temas, objetivos e evolução que a Audere organiza.', href: evolHref, cta: 'Abrir inteligência clínica' },
   ]
   const atual = passos.findIndex(p => !p.feito)
 
@@ -34,8 +34,8 @@ export function OnboardingWizard({ status, nome, demoId }: { status: OnboardingS
           </div>
           <div style={{ fontSize: 12.5, color: 'var(--muted)', marginTop: 3 }}>
             {novato
-              ? 'Vamos do zero à sua primeira memória clínica — quatro passos rápidos.'
-              : 'Em poucos minutos você chega à primeira memória clínica.'}
+              ? 'Vamos do zero à sua primeira inteligência clínica — quatro passos rápidos.'
+              : 'Em poucos minutos você chega à primeira inteligência clínica.'}
           </div>
         </div>
         <div style={{ fontSize: 12, color: 'var(--accent)', fontWeight: 600, whiteSpace: 'nowrap' }}>

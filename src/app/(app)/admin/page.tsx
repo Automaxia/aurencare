@@ -40,7 +40,7 @@ export default async function AdminPage() {
     { label: 'Realizaram sessão', n: p.comSessao },
     { label: 'Assinaram evolução', n: p.comEvolucao },
     { label: 'Criaram objetivos', n: p.comObjetivos },
-    { label: 'Usaram memória clínica', n: p.comMemoria },
+    { label: 'Usaram inteligência clínica', n: p.comMemoria },
   ]
 
   return (
@@ -110,7 +110,7 @@ export default async function AdminPage() {
           <Metric label="Evoluções assinadas" value={p.evolucoesAssinadas} />
           <Metric label="Objetivos criados" value={p.objetivosCriados} />
           <Metric label="Temas identificados" value={p.temasIdentificados} />
-          <Metric label="Consultas à memória clínica" value={p.consultasMemoria} />
+          <Metric label="Consultas à inteligência clínica" value={p.consultasMemoria} />
           <Metric label="Sessões com IA" value={p.sessoesComIA} color="var(--accent)" />
         </Grid>
       </Section>

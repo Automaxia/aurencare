@@ -3,7 +3,7 @@ import { RotateCw } from 'lucide-react'
 import type { MemoriaClinicaDados } from '@/server/services/memoriaClinica'
 
 /**
- * Rail do briefing — Memória Clínica (fatos longitudinais) + Continuidade
+ * Rail do briefing — Inteligência Clínica (fatos longitudinais) + Continuidade
  * (sinais ↑↓→). Tudo determinístico. Server component.
  */
 export function MemoriaClinica({ dados, pacienteId }: { dados: MemoriaClinicaDados; pacienteId: string }) {
@@ -15,7 +15,7 @@ export function MemoriaClinica({ dados, pacienteId }: { dados: MemoriaClinicaDad
   return (
     <aside className="card" style={{ padding: 18, display: 'grid', gap: 16, alignContent: 'start' }}>
       <div>
-        <Rotulo>Memória clínica</Rotulo>
+        <Rotulo>Inteligência clínica</Rotulo>
         {fatos.length === 0 ? (
           <Vazio>{vazio ? 'Aparece conforme você assina sessões — o que se repete, o que persiste.' : 'Sem padrões marcantes ainda.'}</Vazio>
         ) : (

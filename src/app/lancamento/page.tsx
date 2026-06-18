@@ -176,7 +176,7 @@ function Problema() {
 // ─── Bloco 2 — O que é Continuidade Terapêutica (a cadeia) ─────────────
 
 function OQueEContinuidade() {
-  const etapas = ['Sessões', 'Temas', 'Objetivos', 'Evolução', 'Memória Clínica']
+  const etapas = ['Sessões', 'Temas', 'Objetivos', 'Evolução', 'Inteligência Clínica']
   return (
     <section style={{
       padding: '80px 0',
@@ -224,7 +224,7 @@ function LembraPorVoce() {
       position: 'relative', overflow: 'hidden',
     }}>
       <div className="lp-wrap lp-reveal">
-        <Eyebrow>Memória clínica longitudinal</Eyebrow>
+        <Eyebrow>Inteligência clínica longitudinal</Eyebrow>
         <H2>O que a Audere lembra por você.</H2>
         <P>
           Observações factuais que emergem do próprio histórico — disponíveis num

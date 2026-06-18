@@ -6,7 +6,7 @@ import { CadastroForm } from './form'
 export const dynamic = 'force-dynamic'
 
 const DIFERENCIAIS = [
-  'Memória Clínica Longitudinal',
+  'Inteligência Clínica Longitudinal',
   'Objetivos Terapêuticos',
   'Evolução Registrada',
   'Continuidade Terapêutica',
@@ -17,7 +17,7 @@ const PASSOS = [
   'Configure sua prática clínica.',
   'Cadastre seu primeiro paciente.',
   'Registre sua primeira sessão.',
-  'Explore a memória clínica gerada pela Audere.',
+  'Explore a inteligência clínica gerada pela Audere.',
 ]
 
 const CONFIANCA = [
@@ -46,7 +46,7 @@ export default function CadastroPage() {
 
         <div className="login-pitch" style={{ display: 'grid', gap: 24 }}>
           <p className="login-sub">
-            Acompanhe sessões, objetivos terapêuticos, evolução e memória clínica
+            Acompanhe sessões, objetivos terapêuticos, evolução e inteligência clínica
             em um único lugar.
           </p>
 

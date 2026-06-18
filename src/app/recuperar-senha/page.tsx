@@ -44,7 +44,7 @@ export default function RecuperarSenhaPage() {
     }}>
       <div className="card" style={{ width: 'min(360px, 92vw)', padding: 28 }}>
         <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 20 }}>
-          <Logo size={40} layout="stack" tagline="Memória Clínica Longitudinal para Psicólogos" />
+          <Logo size={40} layout="stack" tagline="Inteligência Clínica Longitudinal para Psicólogos" />
         </div>
 
         {enviado ? (

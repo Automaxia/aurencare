@@ -4,9 +4,9 @@ import { db } from '@/server/db/pool'
 /**
  * Status de ativação do psicólogo (onboarding pós-cadastro). Determinístico,
  * derivado dos dados existentes — sem flags nem tabela nova. Os 4 passos espelham
- * a coluna do cadastro: configurar prática → 1º paciente → 1ª sessão → memória clínica.
+ * a coluna do cadastro: configurar prática → 1º paciente → 1ª sessão → inteligência clínica.
  *
- * `completo` = já tem memória clínica (sessão assinada). Isso esconde o wizard tanto
+ * `completo` = já tem inteligência clínica (sessão assinada). Isso esconde o wizard tanto
  * pra quem terminou o onboarding quanto pra usuários antigos já estabelecidos —
  * sem nunca incomodar quem já passou desse ponto.
  */

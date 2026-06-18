@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react'
 
 /**
- * Micro-toast de parabéns ao chegar na primeira memória clínica (passo 4).
+ * Micro-toast de parabéns ao chegar na primeira inteligência clínica (passo 4).
  * Dispara só na TRANSIÇÃO: marca `seen` enquanto o onboarding está incompleto e
  * só celebra quando completa tendo sido visto antes neste navegador — então
  * usuários já estabelecidos (que nunca viram o wizard) nunca recebem o toast.
@@ -56,7 +56,7 @@ export function OnboardingCelebration({ completo }: { completo: boolean }) {
       }}>✓</span>
       <div style={{ flex: 1, minWidth: 0 }}>
         <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--ink)', lineHeight: 1.3 }}>
-          Você chegou à primeira memória clínica 🎉
+          Você chegou à primeira inteligência clínica 🎉
         </div>
         <div style={{ fontSize: 12.5, color: 'var(--muted)', marginTop: 2, lineHeight: 1.4 }}>
           Agora a Audere acompanha a continuidade de cada paciente por você.
