@@ -1,6 +1,7 @@
 import { Logo } from '@/components/brand/Logo'
 import { ListaEsperaForm } from './ListaEsperaForm'
 import { RevealObserver } from './Reveal'
+import { HeroVideo } from './HeroVideo'
 
 export const dynamic = 'force-dynamic'
 
@@ -82,20 +83,19 @@ function Hero() {
       minHeight: 'calc(100vh - 54px)', display: 'grid', placeItems: 'center',
       position: 'relative', overflow: 'hidden', padding: '48px 0',
       backgroundColor: 'var(--page)',
-      backgroundImage: 'url(/landing/conversa.png)',
-      backgroundSize: 'cover', backgroundPosition: 'center', backgroundRepeat: 'no-repeat',
     }}>
+      {/* Fundo (figura do início) com ken-burns lento — movimento sutil contínuo. */}
+      <div aria-hidden className="lp-kenburns" style={{
+        position: 'absolute', inset: 0, zIndex: 0, pointerEvents: 'none',
+        backgroundImage: 'url(/landing/conversa.png)',
+        backgroundSize: 'cover', backgroundPosition: 'center', backgroundRepeat: 'no-repeat',
+      }} />
       <div aria-hidden style={{
         position: 'absolute', inset: 0, zIndex: 0, pointerEvents: 'none',
         background: 'radial-gradient(ellipse 62% 68% at 50% 48%, rgba(249,248,245,.93) 0%, rgba(249,248,245,.64) 40%, rgba(249,248,245,0) 73%)',
       }} />
       <div className="lp-wrap" style={{ display: 'grid', gridTemplateColumns: '1fr', gap: 26, textAlign: 'center', maxWidth: 860, position: 'relative', zIndex: 1 }}>
-        <video
-          className="lp-hero-video"
-          src="/video.mp4"
-          autoPlay muted loop playsInline aria-hidden
-          style={{ width: 132, height: 132, margin: '-8px auto 0', display: 'block', objectFit: 'contain' }}
-        />
+        <HeroVideo />
         <div style={{
           fontSize: 12, color: 'var(--accent)', textTransform: 'uppercase',
           letterSpacing: '.16em', fontWeight: 600,
@@ -874,12 +874,17 @@ function Styles() {
       @keyframes lp-float { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-14px); } }
       .lp-float { animation: lp-float 9s ease-in-out infinite; }
       .lp-float.slow { animation-duration: 12s; }
+      /* Ken-burns lento no fundo do herói (scale ≥1.04 sempre cobre, sem brechas). */
+      @keyframes lp-kenburns { 0% { transform: scale(1.04) translate(0, 0); } 100% { transform: scale(1.12) translate(-1.6%, -1.2%); } }
+      .lp-kenburns { animation: lp-kenburns 24s ease-in-out infinite alternate; transform-origin: center; will-change: transform; }
+      /* Float sutil também na logo do herói (combina com a entrada). */
+      .lp-hero-video { animation: lp-hero-in 1s var(--ease) both, lp-float 7s ease-in-out 1s infinite; }
       /* Vídeo-espiral do herói: entra suave. */
       @keyframes lp-hero-in { from { opacity: 0; transform: scale(.86); } to { opacity: 1; transform: scale(1); } }
       .lp-hero-video { animation: lp-hero-in 1s var(--ease) both; }
       @media (prefers-reduced-motion: reduce) {
         .lp-reveal { opacity: 1 !important; transform: none !important; transition: none; }
-        .lp-float, .lp-hero-video { animation: none !important; }
+        .lp-float, .lp-hero-video, .lp-kenburns { animation: none !important; }
       }
 
       .lp-link { color: var(--ink-soft); text-decoration: none; transition: color .15s var(--ease); }
