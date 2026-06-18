@@ -1,5 +1,6 @@
 import { Logo } from '@/components/brand/Logo'
 import { ListaEsperaForm } from './ListaEsperaForm'
+import { Reveal } from './Reveal'
 
 export const dynamic = 'force-dynamic'
 
@@ -58,11 +59,11 @@ function NavTopo() {
 
 // ─── Croqui (figura solta de /public/landing/) ─────────────────────────
 
-function Figura({ src, style, opacity = 1 }: {
-  src: string; style?: React.CSSProperties; opacity?: number
+function Figura({ src, style, opacity = 1, className }: {
+  src: string; style?: React.CSSProperties; opacity?: number; className?: string
 }) {
   return (
-    <div aria-hidden style={{
+    <div aria-hidden className={className} style={{
       position: 'absolute', pointerEvents: 'none',
       backgroundImage: `url(${src})`, backgroundRepeat: 'no-repeat',
       backgroundSize: 'contain', backgroundPosition: 'center',
@@ -88,6 +89,12 @@ function Hero() {
         background: 'radial-gradient(ellipse 62% 68% at 50% 48%, rgba(249,248,245,.93) 0%, rgba(249,248,245,.64) 40%, rgba(249,248,245,0) 73%)',
       }} />
       <div className="lp-wrap" style={{ display: 'grid', gridTemplateColumns: '1fr', gap: 26, textAlign: 'center', maxWidth: 860, position: 'relative', zIndex: 1 }}>
+        <video
+          className="lp-hero-video"
+          src="/video.mp4"
+          autoPlay muted loop playsInline aria-hidden
+          style={{ width: 132, height: 132, margin: '-8px auto 0', display: 'block', objectFit: 'contain' }}
+        />
         <div style={{
           fontSize: 12, color: 'var(--accent)', textTransform: 'uppercase',
           letterSpacing: '.16em', fontWeight: 600,
@@ -265,7 +272,7 @@ function ContinuidadeLongitudinal() {
       borderTop: '1px solid var(--border)',
       position: 'relative', overflow: 'hidden',
     }}>
-      <Figura src="/landing/figura-1.png" opacity={0.6}
+      <Figura src="/landing/figura-1.png" opacity={0.6} className="lp-float"
         style={{ left: '-2%', bottom: '-4%', width: 'min(300px, 30%)', height: '78%', zIndex: 0 }} />
       <div className="lp-wrap" style={{ position: 'relative', zIndex: 1 }}>
         <Eyebrow>O diferencial competitivo</Eyebrow>
@@ -276,7 +283,7 @@ function ContinuidadeLongitudinal() {
           não perdido em meses de anotação.
         </P>
 
-        <GrafoDemo />
+        <Reveal><GrafoDemo /></Reveal>
       </div>
     </section>
   )
@@ -419,7 +426,7 @@ function ModoPresenca() {
         </P>
 
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 40, alignItems: 'start', marginTop: 36 }}>
-          <PresencaMockup />
+          <Reveal><PresencaMockup /></Reveal>
 
           <div style={{ display: 'grid', gap: 12 }}>
             <NotaCard rotulo="Temas ao vivo + histórico">
@@ -626,7 +633,7 @@ function Privacidade() {
       borderTop: '1px solid var(--border)',
       position: 'relative', overflow: 'hidden',
     }}>
-      <Figura src="/landing/figura-3.png" opacity={0.55}
+      <Figura src="/landing/figura-3.png" opacity={0.55} className="lp-float slow"
         style={{ left: '-2%', top: '8%', width: 'min(280px, 28%)', height: '74%', zIndex: 0 }} />
       <div className="lp-wrap" style={{ position: 'relative', zIndex: 1 }}>
         <Eyebrow>Privacidade por design</Eyebrow>
@@ -859,6 +866,20 @@ function Styles() {
   return (
     <style dangerouslySetInnerHTML={{ __html: `
       .lp-wrap { max-width: 1080px; margin: 0 auto; padding: 0 24px; }
+
+      /* Animações — revela ao rolar (fade + sobe) e flutua leve nas figuras. */
+      .lp-reveal { opacity: 0; transform: translateY(22px); transition: opacity .65s var(--ease), transform .65s cubic-bezier(.2,.7,.2,1); will-change: opacity, transform; }
+      .lp-reveal.in { opacity: 1; transform: none; }
+      @keyframes lp-float { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-14px); } }
+      .lp-float { animation: lp-float 9s ease-in-out infinite; }
+      .lp-float.slow { animation-duration: 12s; }
+      /* Vídeo-espiral do herói: entra suave. */
+      @keyframes lp-hero-in { from { opacity: 0; transform: scale(.86); } to { opacity: 1; transform: scale(1); } }
+      .lp-hero-video { animation: lp-hero-in 1s var(--ease) both; }
+      @media (prefers-reduced-motion: reduce) {
+        .lp-reveal { opacity: 1 !important; transform: none !important; transition: none; }
+        .lp-float, .lp-hero-video { animation: none !important; }
+      }
 
       .lp-link { color: var(--ink-soft); text-decoration: none; transition: color .15s var(--ease); }
       .lp-link:hover { color: var(--accent); }
