@@ -100,7 +100,7 @@ function Hero() {
           fontSize: 12, color: 'var(--accent)', textTransform: 'uppercase',
           letterSpacing: '.16em', fontWeight: 600,
         }}>
-          Inteligência Clínica Longitudinal
+          Continuidade Terapêutica
         </div>
 
         <h1 style={{
