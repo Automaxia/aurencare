@@ -100,7 +100,7 @@ function Hero() {
           fontSize: 12, color: 'var(--accent)', textTransform: 'uppercase',
           letterSpacing: '.16em', fontWeight: 600,
         }}>
-          Continuidade Terapêutica
+          Inteligência Clínica Longitudinal
         </div>
 
         <h1 style={{
@@ -114,7 +114,7 @@ function Hero() {
             background: 'linear-gradient(90deg, #6a4ec8, #5c9d88)',
             WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent',
             backgroundClip: 'text',
-          }}>Continuidade Terapêutica</em>{' '}
+          }}>Inteligência Clínica Longitudinal</em>{' '}
           do Brasil.
         </h1>
 
@@ -824,7 +824,7 @@ function FooterLanding() {
         <div>
           <Logo size={28} />
           <p style={{ fontSize: 12, color: 'var(--muted)', marginTop: 12, lineHeight: 1.55, maxWidth: 340 }}>
-            A primeira plataforma de Continuidade Terapêutica do Brasil.
+            A primeira plataforma de Inteligência Clínica Longitudinal do Brasil.
           </p>
         </div>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 6, fontSize: 12, color: 'var(--muted)', alignItems: 'flex-end' }}>

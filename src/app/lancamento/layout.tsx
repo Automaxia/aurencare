@@ -1,7 +1,7 @@
 import type { Metadata } from 'next'
 
 export const metadata: Metadata = {
-  title: 'Audere — A primeira plataforma de Continuidade Terapêutica do Brasil',
+  title: 'Audere — A primeira plataforma de Inteligência Clínica Longitudinal do Brasil',
   description:
     'A Audere organiza, acompanha e conecta tudo o que acontece entre uma sessão e outra — inteligência clínica longitudinal, objetivos terapêuticos e evolução registrada. Para psicólogos que acompanham processos ao longo do tempo. A Audere observa; a decisão clínica é sempre sua.',
 }

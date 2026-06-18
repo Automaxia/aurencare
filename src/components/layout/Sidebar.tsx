@@ -35,7 +35,7 @@ export function Sidebar() {
           <button className="sb-logo-btn" onClick={toggle} title="Expandir menu" aria-label="Expandir menu">
             <LogoMark size={28} />
           </button>
-        ) : <Logo size={28} tagline="Continuidade Terapêutica" />}
+        ) : <Logo size={28} tagline="Inteligência Clínica Longitudinal" />}
       </div>
 
       <nav className="sb-nav">

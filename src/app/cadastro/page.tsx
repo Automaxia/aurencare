@@ -36,12 +36,12 @@ export default function CadastroPage() {
           <LogoMark size={42} />
           <div>
             <div className="wm"><i>Au</i><b>dere</b></div>
-            <div className="eyebrow" style={{ marginTop: 5 }}>Continuidade Terapêutica</div>
+            <div className="eyebrow" style={{ marginTop: 5 }}>Inteligência Clínica Longitudinal</div>
           </div>
         </div>
 
         <h1 className="login-head">
-          Crie sua conta na primeira plataforma de Continuidade Terapêutica do Brasil.
+          Crie sua conta na primeira plataforma de Inteligência Clínica Longitudinal do Brasil.
         </h1>
 
         <div className="login-pitch" style={{ display: 'grid', gap: 24 }}>

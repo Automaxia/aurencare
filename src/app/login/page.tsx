@@ -56,12 +56,12 @@ function LoginForm() {
           <LogoMark size={42} />
           <div>
             <div className="wm"><i>Au</i><b>dere</b></div>
-            <div className="eyebrow" style={{ marginTop: 5 }}>Continuidade Terapêutica</div>
+            <div className="eyebrow" style={{ marginTop: 5 }}>Inteligência Clínica Longitudinal</div>
           </div>
         </div>
 
         <div className="login-pitch" style={{ display: 'grid', gap: 22 }}>
-          <h1 className="login-head">A primeira plataforma de <em style={{ fontStyle: 'italic' }}>Continuidade Terapêutica</em> do Brasil.</h1>
+          <h1 className="login-head">A primeira plataforma de <em style={{ fontStyle: 'italic' }}>Inteligência Clínica Longitudinal</em> do Brasil.</h1>
           <p className="login-sub">
             Nunca mais comece uma sessão tentando lembrar onde parou. Organize a memória
             clínica, os objetivos e a evolução dos seus pacientes ao longo do tempo.
