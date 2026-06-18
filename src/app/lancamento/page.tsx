@@ -223,7 +223,9 @@ function LembraPorVoce() {
       padding: '80px 0', borderTop: '1px solid var(--border)',
       position: 'relative', overflow: 'hidden',
     }}>
-      <div className="lp-wrap lp-reveal">
+      <Figura src="/landing/figura-2.png" opacity={0.7} className="lp-float"
+        style={{ right: '-3%', top: '4%', width: 'min(300px, 30%)', height: '80%', zIndex: 0 }} />
+      <div className="lp-wrap lp-reveal" style={{ position: 'relative', zIndex: 1 }}>
         <Eyebrow>Inteligência clínica longitudinal</Eyebrow>
         <H2>O que a Audere lembra por você.</H2>
         <P>
@@ -365,8 +367,11 @@ function AcompanheEvolucao() {
       padding: '80px 0',
       background: 'linear-gradient(180deg, var(--page), rgba(106,78,200,.04) 60%, var(--page))',
       borderTop: '1px solid var(--border)',
+      position: 'relative', overflow: 'hidden',
     }}>
-      <div className="lp-wrap lp-reveal">
+      <Figura src="/landing/figura-1.png" opacity={0.55} className="lp-float slow"
+        style={{ right: '-2%', bottom: '-4%', width: 'min(280px, 28%)', height: '76%', zIndex: 0 }} />
+      <div className="lp-wrap lp-reveal" style={{ position: 'relative', zIndex: 1 }}>
         <Eyebrow>Ao longo do tempo</Eyebrow>
         <H2>Você finalmente acompanha a evolução —<br />não apenas registra sessões.</H2>
 
@@ -720,8 +725,11 @@ function Manifesto() {
       padding: '88px 0',
       background: 'linear-gradient(135deg, rgba(106,78,200,.08), rgba(90,158,138,.08))',
       borderTop: '1px solid var(--border)',
+      position: 'relative', overflow: 'hidden',
     }}>
-      <div className="lp-wrap lp-reveal" style={{ maxWidth: 760, textAlign: 'center' }}>
+      <Figura src="/landing/figura-3.png" opacity={0.5} className="lp-float"
+        style={{ left: '-3%', top: '10%', width: 'min(260px, 26%)', height: '70%', zIndex: 0 }} />
+      <div className="lp-wrap lp-reveal" style={{ maxWidth: 760, textAlign: 'center', position: 'relative', zIndex: 1 }}>
         <Eyebrow>Manifesto Audere</Eyebrow>
         <div style={{ display: 'grid', gap: 16, marginTop: 26 }}>
           {linhas.map((l, i) => (
@@ -868,20 +876,18 @@ function Styles() {
     <style dangerouslySetInnerHTML={{ __html: `
       .lp-wrap { max-width: 1080px; margin: 0 auto; padding: 0 24px; }
 
-      /* Animações — revela ao rolar (fade + sobe) e flutua leve nas figuras. */
-      .lp-reveal { opacity: 0; transform: translateY(22px); transition: opacity .65s var(--ease), transform .65s cubic-bezier(.2,.7,.2,1); will-change: opacity, transform; }
+      /* Animações — revela ao rolar (fade + sobe + leve zoom) e flutua nas figuras. */
+      .lp-reveal { opacity: 0; transform: translateY(36px) scale(.98); transition: opacity .7s var(--ease), transform .8s cubic-bezier(.2,.75,.2,1); will-change: opacity, transform; }
       .lp-reveal.in { opacity: 1; transform: none; }
-      @keyframes lp-float { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-14px); } }
-      .lp-float { animation: lp-float 9s ease-in-out infinite; }
-      .lp-float.slow { animation-duration: 12s; }
-      /* Ken-burns lento no fundo do herói (scale ≥1.04 sempre cobre, sem brechas). */
-      @keyframes lp-kenburns { 0% { transform: scale(1.04) translate(0, 0); } 100% { transform: scale(1.12) translate(-1.6%, -1.2%); } }
-      .lp-kenburns { animation: lp-kenburns 24s ease-in-out infinite alternate; transform-origin: center; will-change: transform; }
-      /* Float sutil também na logo do herói (combina com a entrada). */
-      .lp-hero-video { animation: lp-hero-in 1s var(--ease) both, lp-float 7s ease-in-out 1s infinite; }
-      /* Vídeo-espiral do herói: entra suave. */
-      @keyframes lp-hero-in { from { opacity: 0; transform: scale(.86); } to { opacity: 1; transform: scale(1); } }
-      .lp-hero-video { animation: lp-hero-in 1s var(--ease) both; }
+      @keyframes lp-float { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-26px); } }
+      .lp-float { animation: lp-float 7s ease-in-out infinite; }
+      .lp-float.slow { animation-duration: 10s; }
+      /* Ken-burns no fundo do herói (scale ≥1.06 sempre cobre, sem brechas). */
+      @keyframes lp-kenburns { 0% { transform: scale(1.06) translate(0, 0); } 100% { transform: scale(1.2) translate(-3%, -2%); } }
+      .lp-kenburns { animation: lp-kenburns 17s ease-in-out infinite alternate; transform-origin: 50% 45%; will-change: transform; }
+      /* Vídeo-espiral do herói: entrada + float perceptível. */
+      @keyframes lp-hero-in { from { opacity: 0; transform: scale(.8); } to { opacity: 1; transform: scale(1); } }
+      .lp-hero-video { animation: lp-hero-in 1s var(--ease) both, lp-float 5.5s ease-in-out 1.1s infinite; }
       @media (prefers-reduced-motion: reduce) {
         .lp-reveal { opacity: 1 !important; transform: none !important; transition: none; }
         .lp-float, .lp-hero-video, .lp-kenburns { animation: none !important; }
