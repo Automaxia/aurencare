@@ -1,6 +1,6 @@
 import { Logo } from '@/components/brand/Logo'
 import { ListaEsperaForm } from './ListaEsperaForm'
-import { Reveal } from './Reveal'
+import { RevealObserver } from './Reveal'
 
 export const dynamic = 'force-dynamic'
 
@@ -24,6 +24,7 @@ export default function LancamentoPage() {
       <ProvaSocial />
       <CtaFinal />
       <FooterLanding />
+      <RevealObserver />
       <Styles />
     </div>
   )
@@ -153,7 +154,7 @@ function Problema() {
   ]
   return (
     <section style={{ padding: '80px 0', borderTop: '1px solid var(--border)' }}>
-      <div className="lp-wrap" style={{ maxWidth: 760 }}>
+      <div className="lp-wrap lp-reveal" style={{ maxWidth: 760 }}>
         <Eyebrow>O problema</Eyebrow>
         <H2>A terapia acontece ao longo do tempo.<br />A memória humana não.</H2>
         <div style={{ display: 'grid', gap: 12, marginTop: 22 }}>
@@ -182,7 +183,7 @@ function OQueEContinuidade() {
       background: 'var(--surface)',
       borderTop: '1px solid var(--border)',
     }}>
-      <div className="lp-wrap">
+      <div className="lp-wrap lp-reveal">
         <Eyebrow>O que a Audere faz é diferente</Eyebrow>
         <H2>A maioria dos sistemas organiza agenda.<br />A Audere organiza continuidade.</H2>
         <P>
@@ -222,7 +223,7 @@ function LembraPorVoce() {
       padding: '80px 0', borderTop: '1px solid var(--border)',
       position: 'relative', overflow: 'hidden',
     }}>
-      <div className="lp-wrap">
+      <div className="lp-wrap lp-reveal">
         <Eyebrow>Memória clínica longitudinal</Eyebrow>
         <H2>O que a Audere lembra por você.</H2>
         <P>
@@ -274,7 +275,7 @@ function ContinuidadeLongitudinal() {
     }}>
       <Figura src="/landing/figura-1.png" opacity={0.6} className="lp-float"
         style={{ left: '-2%', bottom: '-4%', width: 'min(300px, 30%)', height: '78%', zIndex: 0 }} />
-      <div className="lp-wrap" style={{ position: 'relative', zIndex: 1 }}>
+      <div className="lp-wrap lp-reveal" style={{ position: 'relative', zIndex: 1 }}>
         <Eyebrow>O diferencial competitivo</Eyebrow>
         <H2>Sessões viram conhecimento estruturado.</H2>
         <P>
@@ -283,7 +284,7 @@ function ContinuidadeLongitudinal() {
           não perdido em meses de anotação.
         </P>
 
-        <Reveal><GrafoDemo /></Reveal>
+        <GrafoDemo />
       </div>
     </section>
   )
@@ -365,7 +366,7 @@ function AcompanheEvolucao() {
       background: 'linear-gradient(180deg, var(--page), rgba(106,78,200,.04) 60%, var(--page))',
       borderTop: '1px solid var(--border)',
     }}>
-      <div className="lp-wrap">
+      <div className="lp-wrap lp-reveal">
         <Eyebrow>Ao longo do tempo</Eyebrow>
         <H2>Você finalmente acompanha a evolução —<br />não apenas registra sessões.</H2>
 
@@ -416,7 +417,7 @@ function ModoPresenca() {
       borderTop: '1px solid var(--border)',
       position: 'relative', overflow: 'hidden',
     }}>
-      <div className="lp-wrap" style={{ position: 'relative', zIndex: 1 }}>
+      <div className="lp-wrap lp-reveal" style={{ position: 'relative', zIndex: 1 }}>
         <Eyebrow>Durante a sessão</Eyebrow>
         <H2>E quando a sessão começa,<br />o contexto já está com você.</H2>
         <P>
@@ -426,7 +427,7 @@ function ModoPresenca() {
         </P>
 
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 40, alignItems: 'start', marginTop: 36 }}>
-          <Reveal><PresencaMockup /></Reveal>
+          <PresencaMockup />
 
           <div style={{ display: 'grid', gap: 12 }}>
             <NotaCard rotulo="Temas ao vivo + histórico">
@@ -564,7 +565,7 @@ function PraticaIntegrada() {
       padding: '72px 0',
       borderTop: '1px solid var(--border)',
     }}>
-      <div className="lp-wrap">
+      <div className="lp-wrap lp-reveal">
         <Eyebrow>Infraestrutura da prática</Eyebrow>
         <H2>Operar o consultório já vem incluído.</H2>
         <P>
@@ -635,7 +636,7 @@ function Privacidade() {
     }}>
       <Figura src="/landing/figura-3.png" opacity={0.55} className="lp-float slow"
         style={{ left: '-2%', top: '8%', width: 'min(280px, 28%)', height: '74%', zIndex: 0 }} />
-      <div className="lp-wrap" style={{ position: 'relative', zIndex: 1 }}>
+      <div className="lp-wrap lp-reveal" style={{ position: 'relative', zIndex: 1 }}>
         <Eyebrow>Privacidade por design</Eyebrow>
         <H2>Seus dados de paciente:<br />blindados em todas as camadas.</H2>
         <P>
@@ -720,7 +721,7 @@ function Manifesto() {
       background: 'linear-gradient(135deg, rgba(106,78,200,.08), rgba(90,158,138,.08))',
       borderTop: '1px solid var(--border)',
     }}>
-      <div className="lp-wrap" style={{ maxWidth: 760, textAlign: 'center' }}>
+      <div className="lp-wrap lp-reveal" style={{ maxWidth: 760, textAlign: 'center' }}>
         <Eyebrow>Manifesto Audere</Eyebrow>
         <div style={{ display: 'grid', gap: 16, marginTop: 26 }}>
           {linhas.map((l, i) => (
@@ -749,7 +750,7 @@ function ProvaSocial() {
   ]
   return (
     <section style={{ padding: '72px 0', borderTop: '1px solid var(--border)' }}>
-      <div className="lp-wrap">
+      <div className="lp-wrap lp-reveal">
         <Eyebrow>Por que confiar</Eyebrow>
         <H2>Feito com psicólogos, para psicólogos.</H2>
         <div className="lp-grid-3" style={{ marginTop: 32 }}>
@@ -776,7 +777,7 @@ function CtaFinal() {
       padding: '80px 0', borderTop: '1px solid var(--border)',
       background: 'var(--surface)',
     }}>
-      <div className="lp-wrap" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 60, alignItems: 'center' }}>
+      <div className="lp-wrap lp-reveal" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 60, alignItems: 'center' }}>
         <div>
           <Eyebrow>Acesso antecipado</Eyebrow>
           <H2>Participe do programa beta.</H2>
@@ -811,7 +812,7 @@ function FooterLanding() {
       borderTop: '1px solid var(--border)',
       background: 'var(--surface)',
     }}>
-      <div className="lp-wrap" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 24, alignItems: 'flex-start' }}>
+      <div className="lp-wrap lp-reveal" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 24, alignItems: 'flex-start' }}>
         <div>
           <Logo size={28} />
           <p style={{ fontSize: 12, color: 'var(--muted)', marginTop: 12, lineHeight: 1.55, maxWidth: 340 }}>

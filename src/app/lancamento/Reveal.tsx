@@ -1,34 +1,32 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
+import { useEffect } from 'react'
 
 /**
- * Revela o conteúdo ao entrar na viewport (fade + sobe). Sem dependência —
- * IntersectionObserver puro. Estilo em .lp-reveal (style jsx global da landing).
- * `delay` (ms) permite escalonar elementos vizinhos.
+ * Observador global: revela TODO elemento com a classe `.lp-reveal` ao entrar na
+ * viewport (fade + sobe). Sem dependência — um único IntersectionObserver pra
+ * a landing inteira. Respeita prefers-reduced-motion (mostra tudo de imediato).
+ * Renderize uma vez na página; marque as seções com className="... lp-reveal".
  */
-export function Reveal({ children, delay = 0, style }: {
-  children: React.ReactNode
-  delay?: number
-  style?: React.CSSProperties
-}) {
-  const ref = useRef<HTMLDivElement>(null)
-  const [visivel, setVisivel] = useState(false)
-
+export function RevealObserver() {
   useEffect(() => {
-    const el = ref.current
-    if (!el) return
+    const els = Array.from(document.querySelectorAll<HTMLElement>('.lp-reveal'))
+    if (els.length === 0) return
+
+    const reduz = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
+    if (reduz) { els.forEach(e => e.classList.add('in')); return }
+
     const io = new IntersectionObserver(
-      ([entry]) => { if (entry.isIntersecting) { setVisivel(true); io.disconnect() } },
+      entries => {
+        for (const e of entries) {
+          if (e.isIntersecting) { e.target.classList.add('in'); io.unobserve(e.target) }
+        }
+      },
       { threshold: 0.12, rootMargin: '0px 0px -8% 0px' },
     )
-    io.observe(el)
+    els.forEach(e => io.observe(e))
     return () => io.disconnect()
   }, [])
 
-  return (
-    <div ref={ref} className={`lp-reveal${visivel ? ' in' : ''}`} style={{ transitionDelay: `${delay}ms`, ...style }}>
-      {children}
-    </div>
-  )
+  return null
 }
