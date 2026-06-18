@@ -1,6 +1,7 @@
 import Link from 'next/link'
 import { SpiralWatermark } from '@/components/brand/SpiralWatermark'
 import { Sigilo } from '@/components/Sigilo'
+import { FileText, CreditCard, AlertTriangle } from 'lucide-react'
 import { requirePsicologo } from '@/server/lib/auth'
 import { db } from '@/server/db/pool'
 import {
@@ -235,21 +236,21 @@ export default async function InicioPage() {
                 <>
                   {pendentes.slice(0, 3).map(p => (
                     <Link key={p.id} href={`/sessao/${p.id}`} className="pend-row">
-                      <span className="pend-ico">📝</span>
-                      <span className="pend-lbl">Registrar — {p.pacienteNome}</span>
+                      <span className="pend-ico" style={{ display: 'inline-flex', alignItems: 'center' }}><FileText size={14} /></span>
+                      <span className="pend-lbl">Registrar — <Sigilo>{p.pacienteNome}</Sigilo></span>
                       <span className="pend-act">→</span>
                     </Link>
                   ))}
                   {cobrancasPendentes > 0 && (
                     <Link href="/financeiro" className="pend-row">
-                      <span className="pend-ico">💳</span>
+                      <span className="pend-ico" style={{ display: 'inline-flex', alignItems: 'center' }}><CreditCard size={14} /></span>
                       <span className="pend-lbl">{cobrancasPendentes} {cobrancasPendentes === 1 ? 'cobrança pendente' : 'cobranças pendentes'}</span>
                       <span className="pend-act">→</span>
                     </Link>
                   )}
                   {agg.objetivos_estagnados > 0 && (
                     <Link href="/pacientes" className="pend-row">
-                      <span className="pend-ico">⚠</span>
+                      <span className="pend-ico" style={{ display: 'inline-flex', alignItems: 'center' }}><AlertTriangle size={14} /></span>
                       <span className="pend-lbl">{agg.objetivos_estagnados} {agg.objetivos_estagnados === 1 ? 'objetivo sem atualização' : 'objetivos sem atualização'} (+14 dias)</span>
                       <span className="pend-act">→</span>
                     </Link>

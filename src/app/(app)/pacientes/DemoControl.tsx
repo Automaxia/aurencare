@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import Link from 'next/link'
+import { Sparkles, Trash2 } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import { criarPacienteDemoAction, removerPacienteDemoAction } from './demo-actions'
 
@@ -43,14 +44,14 @@ export function DemoControl({ demoId, variant = 'header' }: { demoId: string | n
     }
     return (
       <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
-        <button className="btn ghost sm" onClick={remover} disabled={busy} title="Remover paciente de demonstração">
-          {busy ? 'Removendo…' : '🗑 Remover demonstração'}
+        <button className="btn ghost sm" onClick={remover} disabled={busy} title="Remover paciente de demonstração" style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}>
+          {busy ? 'Removendo…' : <><Trash2 size={13} /> Remover demonstração</>}
         </button>
       </span>
     )
   }
 
-  const label = busy ? 'Criando demonstração…' : '✨ Paciente de demonstração'
+  const label = busy ? 'Criando demonstração…' : 'Paciente de demonstração'
   const align = variant === 'empty' ? 'center' : variant === 'onboarding' ? 'flex-start' : 'flex-end'
   // Destaque "discreto-mas-com-talento": tinta de accent + sage, borda viva e
   // brilho leve no hover — chama o olho sem competir com o botão primário.
@@ -76,7 +77,7 @@ export function DemoControl({ demoId, variant = 'header' }: { demoId: string | n
         disabled={busy}
         title="Cria a Maria Joana — paciente fictícia com 6 sessões para testar e apresentar"
       >
-        {label}
+        {!busy && <Sparkles size={variant === 'empty' ? 16 : 14} />}{label}
       </button>
       {erro && <span style={{ fontSize: 11, color: 'var(--rose)' }}>{erro}</span>}
       {busy && <span style={{ fontSize: 11, color: 'var(--faint)' }}>Gerando conteúdo com IA — pode levar alguns segundos.</span>}

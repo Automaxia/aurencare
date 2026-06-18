@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
+import { Pencil, Archive, RotateCw } from 'lucide-react'
 import {
   atualizarPacienteAction, arquivarPacienteAction,
   reativarPacienteAction, excluirPacienteAction,
@@ -61,10 +62,10 @@ export function AcoesPaciente({ pacienteId, inicial, totalSessoes }: Props) {
               boxShadow: '0 8px 24px rgba(26,24,37,.10)',
               overflow: 'hidden',
             }}>
-              <ItemMenu icone="✎" label="Editar dados" onClick={() => abrir('editar')} />
+              <ItemMenu icone={<Pencil size={14} />} label="Editar dados" onClick={() => abrir('editar')} />
               {!arquivado
-                ? <ItemMenu icone="⊘" label="Arquivar" onClick={() => abrir('arquivar')} />
-                : <ItemMenu icone="↻" label="Reativar" onClick={() => abrir('reativar')} />
+                ? <ItemMenu icone={<Archive size={14} />} label="Arquivar" onClick={() => abrir('arquivar')} />
+                : <ItemMenu icone={<RotateCw size={14} />} label="Reativar" onClick={() => abrir('reativar')} />
               }
               <ItemMenu
                 icone="×" label="Excluir definitivamente"
@@ -102,7 +103,7 @@ export function AcoesPaciente({ pacienteId, inicial, totalSessoes }: Props) {
 }
 
 function ItemMenu({ icone, label, onClick, vermelho }: {
-  icone: string; label: string; onClick: () => void; vermelho?: boolean
+  icone: React.ReactNode; label: string; onClick: () => void; vermelho?: boolean
 }) {
   return (
     <button
@@ -119,7 +120,7 @@ function ItemMenu({ icone, label, onClick, vermelho }: {
       onMouseEnter={e => (e.currentTarget.style.background = 'var(--surface)')}
       onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
     >
-      <span style={{ width: 16, textAlign: 'center', color: vermelho ? 'var(--rose)' : 'var(--muted)' }}>{icone}</span>
+      <span style={{ width: 16, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', color: vermelho ? 'var(--rose)' : 'var(--muted)' }}>{icone}</span>
       {label}
     </button>
   )

@@ -1,4 +1,5 @@
 import Link from 'next/link'
+import { RotateCw } from 'lucide-react'
 import type { MemoriaClinicaDados } from '@/server/services/memoriaClinica'
 
 /**
@@ -26,7 +27,7 @@ export function MemoriaClinica({ dados, pacienteId }: { dados: MemoriaClinicaDad
                   fontSize: 12.5, lineHeight: 1.45, color: f.destaque ? 'var(--ink)' : 'var(--ink-soft)',
                   fontWeight: f.destaque ? 500 : 400,
                 }}>
-                  <span style={{ color: f.destaque ? 'var(--amber)' : 'var(--faint)', flex: 'none' }}>{f.destaque ? '↻' : '•'}</span>
+                  <span style={{ color: f.destaque ? 'var(--amber)' : 'var(--faint)', flex: 'none', display: 'inline-flex', alignItems: 'center', marginTop: 2 }}>{f.destaque ? <RotateCw size={12} /> : '•'}</span>
                   <span>{f.texto}</span>
                 </Link>
               </li>

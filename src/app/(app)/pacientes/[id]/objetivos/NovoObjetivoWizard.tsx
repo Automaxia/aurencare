@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { Sparkles } from 'lucide-react'
 import type { Objetivo, MetricaTipo, MetricaDirecao } from '@/server/services/objetivos'
 import type { GasEscala } from '@/server/services/gasObjetivos'
 import { criarObjetivoAction, criarGasAction } from './actions'
@@ -280,7 +281,7 @@ function CopilotoObjetivos({ sugestoes, carregando, erro, onPedir, onAplicar }: 
     }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 9 }}>
-          <span style={{ fontSize: 16 }}>✨</span>
+          <Sparkles size={16} style={{ color: 'var(--accent)', flexShrink: 0 }} />
           <div>
             <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--ink)' }}>Copiloto da Audere</div>
             <div style={{ fontSize: 11.5, color: 'var(--muted)', lineHeight: 1.4 }}>
@@ -290,8 +291,8 @@ function CopilotoObjetivos({ sugestoes, carregando, erro, onPedir, onAplicar }: 
         </div>
         {!sugestoes?.length && (
           <button type="button" className="btn ghost" onClick={onPedir} disabled={carregando}
-            style={{ whiteSpace: 'nowrap', fontSize: 12.5 }}>
-            {carregando ? 'Pensando…' : '✨ Sugerir metas'}
+            style={{ whiteSpace: 'nowrap', fontSize: 12.5, display: 'inline-flex', alignItems: 'center', gap: 5 }}>
+            {carregando ? 'Pensando…' : <><Sparkles size={13} /> Sugerir metas</>}
           </button>
         )}
       </div>

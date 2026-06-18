@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { RotateCw } from 'lucide-react'
 import { reenviarConsentimentoAction } from './actions'
 
 /**
@@ -38,9 +39,10 @@ export function ConsentimentoPendente({ pacienteId }: { pacienteId: string }) {
             fontSize: 11.5, fontWeight: 500, padding: '4px 10px', borderRadius: 999,
             border: '1px solid color-mix(in srgb, var(--amber) 40%, transparent)',
             background: 'transparent', color: 'var(--amber)', cursor: 'pointer', fontFamily: 'inherit',
+            display: 'inline-flex', alignItems: 'center', gap: 5,
           }}
         >
-          {estado === 'enviando' ? 'Reenviando…' : '↻ Reenviar convite'}
+          <RotateCw size={12} /> {estado === 'enviando' ? 'Reenviando…' : 'Reenviar convite'}
         </button>
       )}
       {estado === 'erro' && msg && <span style={{ fontSize: 11.5, color: 'var(--rose)' }}>{msg}</span>}

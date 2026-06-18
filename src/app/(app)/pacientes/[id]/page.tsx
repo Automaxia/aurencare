@@ -2,6 +2,7 @@ import Link from 'next/link'
 import { redirect, notFound } from 'next/navigation'
 import { PageHeader } from '@/components/PageHeader'
 import { Sigilo } from '@/components/Sigilo'
+import { Archive } from 'lucide-react'
 import { requirePsicologo } from '@/server/lib/auth'
 import { db } from '@/server/db/pool'
 import { lerCondicoesPaciente, ultimaSessaoAssinada } from '@/server/services/contexto'
@@ -123,7 +124,7 @@ export default async function PacientePerfilPage({ params }: { params: { id: str
           display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', borderRadius: 8, marginBottom: 14,
           background: 'rgba(122,117,144,.10)', border: '1px solid var(--border)', fontSize: 12, color: 'var(--muted)',
         }}>
-          <span style={{ fontSize: 14 }}>⊘</span>
+          <Archive size={14} style={{ flexShrink: 0 }} />
           Paciente arquivado. Reative em <strong>⋯ → Reativar</strong> pra voltar a aparecer nas listas.
         </div>
       )}

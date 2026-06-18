@@ -2,6 +2,7 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
+import { Settings } from 'lucide-react'
 import { signOut, useSession } from 'next-auth/react'
 import { useState, useRef, useEffect } from 'react'
 import { ChevronLeft, ChevronRight, LogOut, User } from 'lucide-react'
@@ -50,7 +51,7 @@ export function Sidebar() {
               data-active={pathname.startsWith('/admin') ? 'true' : 'false'}
               title="Administração"
             >
-              <span className="sb-icon" aria-hidden="true">⚙</span>
+              <span className="sb-icon" aria-hidden="true" style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}><Settings size={16} /></span>
               {!collapsed && <span className="sb-lbl">Administração</span>}
             </Link>
           </div>
