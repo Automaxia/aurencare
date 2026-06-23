@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
-import { Mic, MicOff, Video, VideoOff, PhoneOff, Maximize2, Minimize2, Aperture, ScreenShare, ScreenShareOff } from 'lucide-react'
+import { Mic, MicOff, Video, VideoOff, PhoneOff, Maximize2, Minimize2, Aperture, ScreenShare, ScreenShareOff, Settings } from 'lucide-react'
 import { useWebRTC, type WebRTCState } from '@/lib/useWebRTC'
 import { useBackgroundBlur } from '@/lib/useBackgroundBlur'
 
@@ -11,6 +11,8 @@ type Props = {
   caller: boolean
   /** Layout enxuto pra embutir no Modo Presença */
   compact?: boolean
+  /** Tela cheia (sala do paciente) — sem cantos, sem minimizar/maximizar de janela */
+  fill?: boolean
   /** Quando encerrar, callback (opcional) */
   onEncerrar?: () => void
   /** Notifica quando o stream remoto (do outro lado) muda. Usado pra plumbar
@@ -18,10 +20,11 @@ type Props = {
   onRemoteStream?: (stream: MediaStream | null) => void
 }
 
-export function VideoCall({ token, role, caller, compact, onEncerrar, onRemoteStream }: Props) {
+export function VideoCall({ token, role, caller, compact, fill, onEncerrar, onRemoteStream }: Props) {
   const ctrl = useWebRTC({ token, role, caller })
   const localRef = useRef<HTMLVideoElement>(null)
   const remoteRef = useRef<HTMLVideoElement>(null)
+  const [showDev, setShowDev] = useState(false)
 
   // #10: janela do próprio vídeo arrastável (mouse + toque), presa dentro do quadro.
   const [pos, setPos] = useState<{ left: number; top: number } | null>(null)
@@ -118,11 +121,46 @@ export function VideoCall({ token, role, caller, compact, onEncerrar, onRemoteSt
   return (
     <div
       ref={shellRef}
-      className={`vc-shell${compact ? ' vc-compact' : ''}${minimized ? ' vc-min' : ''}`}
+      className={`vc-shell${compact ? ' vc-compact' : ''}${fill ? ' vc-fill' : ''}${minimized ? ' vc-min' : ''}`}
       data-estado={ctrl.estado}
     >
       {/* Controles da janela — canto superior direito */}
       <div className="vc-winctrls">
+        {(ctrl.cameras.length > 1 || ctrl.microfones.length > 1 || ctrl.semVideo) && (
+          <div style={{ position: 'relative' }}>
+            <button
+              className={`vc-win${showDev ? ' on' : ''}`}
+              onClick={() => setShowDev(s => !s)}
+              title="Escolher câmera e microfone"
+            >
+              <Settings size={14} />
+            </button>
+            {showDev && (
+              <>
+                <div onClick={() => setShowDev(false)} style={{ position: 'fixed', inset: 0, zIndex: 7 }} />
+                <div className="vc-devmenu">
+                  <div className="vc-devmenu-row">
+                    <label>Câmera</label>
+                    <select value={ctrl.camId ?? ''} onChange={e => ctrl.trocarCamera(e.target.value)}>
+                      {ctrl.semVideo && <option value="">Sem câmera</option>}
+                      {ctrl.cameras.map((c, i) => (
+                        <option key={c.deviceId || i} value={c.deviceId}>{c.label || `Câmera ${i + 1}`}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className="vc-devmenu-row">
+                    <label>Microfone</label>
+                    <select value={ctrl.micId ?? ''} onChange={e => ctrl.trocarMicrofone(e.target.value)}>
+                      {ctrl.microfones.map((m, i) => (
+                        <option key={m.deviceId || i} value={m.deviceId}>{m.label || `Microfone ${i + 1}`}</option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+              </>
+            )}
+          </div>
+        )}
         <button
           className={`vc-win${blur && blurProc.stream ? ' on' : ''}`}
           onClick={() => setBlur(b => !b)}
@@ -131,9 +169,11 @@ export function VideoCall({ token, role, caller, compact, onEncerrar, onRemoteSt
         >
           <Aperture size={14} />
         </button>
-        <button className="vc-win" onClick={() => setMinimized(m => !m)} title={minimized ? 'Restaurar' : 'Minimizar'}>
-          <Minimize2 size={14} />
-        </button>
+        {!fill && (
+          <button className="vc-win" onClick={() => setMinimized(m => !m)} title={minimized ? 'Restaurar' : 'Minimizar'}>
+            <Minimize2 size={14} />
+          </button>
+        )}
         <button className="vc-win" onClick={toggleFullscreen} title={maximized ? 'Sair da tela cheia' : 'Maximizar'}>
           <Maximize2 size={14} />
         </button>

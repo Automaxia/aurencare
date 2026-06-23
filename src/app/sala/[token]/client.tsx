@@ -111,17 +111,29 @@ export function SalaPaciente({ token, psicologaNome, pacienteNome, jaAceitou }: 
     )
   }
 
+  // Tela cheia estilo WhatsApp: o vídeo da psicóloga ocupa todo o viewport
+  // (celular/tablet/PC). As infos viram um overlay translúcido no topo, sem
+  // barra empurrando a imagem pra baixo. `fixed inset:0` cobre 100% mesmo no
+  // mobile (melhor que 100vh com a barra do navegador).
   return (
-    <div style={{ minHeight: '100vh', background: '#0e0c18', display: 'flex', flexDirection: 'column' }}>
-      <header style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px 24px', background: 'rgba(255,255,255,.04)', color: 'rgba(255,255,255,.7)' }}>
-        <div style={{ fontSize: 13, fontWeight: 500 }}>
-          Sessão com {psicologaNome.split(' ').slice(0, 2).join(' ')}
-        </div>
-        <CfpBadge />
-      </header>
-      <div style={{ flex: 1, minHeight: 0 }}>
-        <VideoCall token={token} role="paciente" caller={false} onEncerrar={() => setEntrou(false)} />
+    <div style={{ position: 'fixed', inset: 0, background: '#0e0c18' }}>
+      {/* Rótulo da sessão — overlay topo-esquerda (direita fica pros controles da janela) */}
+      <div
+        style={{
+          position: 'absolute', top: 0, left: 0, right: 120, zIndex: 4,
+          padding: 'calc(12px + env(safe-area-inset-top)) 16px 28px',
+          background: 'linear-gradient(180deg, rgba(14,12,24,.6), transparent)',
+          color: 'rgba(255,255,255,.92)', pointerEvents: 'none',
+          fontSize: 13, fontWeight: 500, textShadow: '0 1px 4px rgba(0,0,0,.5)',
+        }}
+      >
+        Sessão com {psicologaNome.split(' ').slice(0, 2).join(' ')}
       </div>
+      {/* Selo CFP — obrigatório em telas com IA (canto inferior esquerdo) */}
+      <div style={{ position: 'absolute', left: 14, bottom: 'calc(20px + env(safe-area-inset-bottom))', zIndex: 5 }}>
+        <CfpBadge />
+      </div>
+      <VideoCall token={token} role="paciente" caller={false} fill onEncerrar={() => setEntrou(false)} />
     </div>
   )
 }

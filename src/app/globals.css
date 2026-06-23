@@ -1770,6 +1770,38 @@ a.pip:hover .pip-d { transform: scale(1.25); transition: transform .15s ease; }
 .vc-compact .vc-controls { bottom: 10px; padding: 6px 10px; gap: 8px; }
 .vc-compact .vc-ctrl { width: 32px; height: 32px; }
 
+/* Fill — sala do paciente em tela cheia (estilo WhatsApp): sem cantos, ocupa tudo,
+   respeita safe-area do celular pra os controles não sumirem atrás da barra. */
+.vc-fill { border-radius: 0; }
+.vc-fill .vc-controls { bottom: calc(18px + env(safe-area-inset-bottom)); }
+.vc-fill .vc-winctrls { top: calc(10px + env(safe-area-inset-top)); }
+.vc-fill .vc-local { bottom: calc(86px + env(safe-area-inset-bottom)); }
+
+/* Menu de seleção de câmera/microfone */
+.vc-devmenu {
+  position: absolute; top: 38px; right: 0; z-index: 8;
+  width: 220px; padding: 12px;
+  background: rgba(20,16,38,.94); backdrop-filter: blur(10px);
+  border: 1px solid rgba(255,255,255,.12); border-radius: 12px;
+  box-shadow: 0 12px 32px rgba(0,0,0,.45);
+  display: flex; flex-direction: column; gap: 10px;
+}
+.vc-devmenu-row { display: flex; flex-direction: column; gap: 4px; }
+.vc-devmenu-row label { font-size: 11px; color: rgba(255,255,255,.6); font-weight: 500; }
+.vc-devmenu-row select {
+  width: 100%; padding: 7px 8px; font-size: 12px;
+  background: rgba(255,255,255,.08); color: #fff;
+  border: 1px solid rgba(255,255,255,.14); border-radius: 8px;
+  cursor: pointer; outline: none;
+}
+.vc-devmenu-row select option { background: #1b1530; color: #fff; }
+
+/* Telas pequenas (celular): self-view menor e em retrato pra não cobrir o rosto. */
+@media (max-width: 640px) {
+  .vc-fill .vc-local { width: 96px; height: 132px; right: 10px; }
+  .vc-fill .vc-controls { gap: 8px; padding: 7px 10px; }
+}
+
 /* #1 Controles da janela (canto superior direito): minimizar/maximizar/blur */
 .vc-winctrls { position: absolute; top: 10px; right: 10px; z-index: 6; display: flex; gap: 6px; }
 .vc-win {
