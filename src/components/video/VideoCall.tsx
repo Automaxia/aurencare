@@ -67,7 +67,8 @@ export function VideoCall({ token, role, caller, compact, fill, onEncerrar, onRe
 
   // Enquadramento facial do vídeo remoto quando há recorte forte (tela cheia /
   // sala do paciente em fullscreen): segue o rosto em vez de cortar no centro.
-  useFaceFraming(remoteRef, (maximized || !!fill) && !!ctrl.remoteStream)
+  // NÃO quando o outro está compartilhando a tela (aí mostramos a tela inteira).
+  useFaceFraming(remoteRef, (maximized || !!fill) && !!ctrl.remoteStream && !ctrl.outroCompartilhando)
 
   // Compartilhamento de tela
   const [screenStream, setScreenStream] = useState<MediaStream | null>(null)
@@ -85,6 +86,10 @@ export function VideoCall({ token, role, caller, compact, fill, onEncerrar, onRe
       setScreenStream(s)
     } catch { /* usuário cancelou */ }
   }
+
+  // Avisa o outro peer que a tela está sendo compartilhada — pra ele exibir o
+  // vídeo inteiro (contain) em vez de recortar. Cobre também o "parou pela UI".
+  useEffect(() => { ctrl.sinalizarTela(!!screenStream) }, [screenStream, ctrl.sinalizarTela])
 
   useEffect(() => {
     const h = () => setMaximized(!!document.fullscreenElement)
@@ -195,7 +200,11 @@ export function VideoCall({ token, role, caller, compact, fill, onEncerrar, onRe
           ref={remoteRef}
           autoPlay
           playsInline
-          style={{ display: 'block', width: '100%', height: '100%', objectFit: 'cover', background: '#0e0c18' }}
+          style={{
+            display: 'block', width: '100%', height: '100%', background: '#0e0c18',
+            // Tela compartilhada → mostra inteira (contain). Câmera → preenche (cover).
+            objectFit: ctrl.outroCompartilhando ? 'contain' : 'cover',
+          }}
         />
         {!ctrl.outroPresente && (
           <div className="vc-overlay">

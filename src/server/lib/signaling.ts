@@ -15,6 +15,7 @@ export type SignalMessage =
   | { type: 'offer';      from: SignalRole; sdp: string; ts: number }
   | { type: 'answer';     from: SignalRole; sdp: string; ts: number }
   | { type: 'candidate';  from: SignalRole; candidate: RTCIceCandidateInit; ts: number }
+  | { type: 'screen';     from: SignalRole; on: boolean; ts: number }
   | { type: 'ping';       ts: number }
 
 type Subscriber = {
