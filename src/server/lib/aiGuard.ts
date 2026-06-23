@@ -1,16 +1,19 @@
 import 'server-only'
 
 /**
- * CFP 09/2024 — IA nunca emite diagnóstico nem interpretação clínica. §13.
+ * CFP 09/2024 — IA nunca emite DIAGNÓSTICO (DSM/ICD) nem afirmação categórica.
+ *
+ * Nota: o laudo de sessão (MODE: SUMMARY) usa nomenclatura clínica legítima
+ * (transferência, esquema, distorções, modos) numa nota de prontuário revisada
+ * e ASSINADA pelo psicólogo responsável — isso não é "diagnóstico". Por isso o
+ * guard bloqueia só determinação diagnóstica e linguagem categórica/conclusiva,
+ * não a terminologia das abordagens.
  */
 const TERMOS_PROIBIDOS = [
   'diagnóstico', 'diagnostico',
   'o paciente tem', 'a paciente tem',
-  'esquema de', 'transferência', 'transferencia',
-  'indica fortemente',
-  'possível elaboração', 'possivel elaboracao',
-  'comprova', 'confirma',
   'sofre de', 'apresenta quadro',
+  'comprova', 'confirma', 'indica fortemente',
 ]
 
 export function validarTextoIA(texto: string): boolean {
@@ -19,8 +22,13 @@ export function validarTextoIA(texto: string): boolean {
 }
 
 /**
- * Quando a IA escapou: stripe termos proibidos para versão neutra.
+ * Quando a IA escapou: troca termos proibidos por versão neutra.
  * Não é perfeito (apenas mitiga); o ideal é re-gerar com nota corretiva.
+ *
+ * Só faz a troca de termos — NÃO anexa rodapé. O aviso "rascunho/revisar" é de
+ * prontuário (psicóloga revisa) e vazava para mensagens de WhatsApp do paciente
+ * quando estas passavam pela sanitização. A indicação de rascunho fica a cargo
+ * da UI/PDF do prontuário, não do texto.
  */
 export function sanitizarTextoIA(texto: string): string {
   let out = texto
@@ -38,6 +46,5 @@ export function sanitizarTextoIA(texto: string): string {
   for (const [bad, good] of Object.entries(SUBS)) {
     out = out.replace(new RegExp(bad, 'gi'), good)
   }
-  // Anexa nota de revisão para a psicóloga
-  return `${out}\n\n[Rascunho automatizado — revisar antes de assinar.]`
+  return out
 }

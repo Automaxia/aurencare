@@ -3,6 +3,8 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { signIn } from 'next-auth/react'
+import { Field } from '@/components/form/Field'
+import { PasswordInput } from '@/components/form/PasswordInput'
 import { cadastrarAction } from './actions'
 
 export function CadastroForm() {
@@ -51,12 +53,16 @@ export function CadastroForm() {
   }
 
   return (
-    <form onSubmit={onSubmit} style={{ display: 'grid', gap: 12 }}>
+    <form onSubmit={onSubmit} className="auth-form" style={{ display: 'grid', gap: 12 }}>
       <Field label="Nome completo" error={campoErro === 'nome' ? error : undefined}>
         <input required value={nome} onChange={e => setNome(e.target.value)} autoComplete="name" placeholder="Ex: Ana Pereira" />
       </Field>
 
-      <Field label="CRP" error={campoErro === 'crp' ? error : undefined}>
+      <Field
+        label="CRP"
+        hint="Seu registro profissional — validamos o acesso exclusivo para psicólogos."
+        error={campoErro === 'crp' ? error : undefined}
+      >
         <input required value={crp} onChange={e => setCrp(e.target.value)} placeholder="CRP 06/12345" />
       </Field>
 
@@ -65,8 +71,8 @@ export function CadastroForm() {
       </Field>
 
       <Field
-        label="Telefone WhatsApp"
-        hint="O número que receberá as mensagens de pacientes. Pode ser igual ao do seu celular pessoal."
+        label="WhatsApp profissional"
+        hint="Receberá mensagens, lembretes e comunicações da sua prática. Pode ser o mesmo número do celular pessoal."
         error={campoErro === 'telefone' ? error : undefined}
       >
         <input
@@ -78,7 +84,7 @@ export function CadastroForm() {
       </Field>
 
       <Field label="Senha" error={campoErro === 'senha' ? error : undefined}>
-        <input type="password" required value={senha} onChange={e => setSenha(e.target.value)} placeholder="mínimo 8 caracteres" autoComplete="new-password" />
+        <PasswordInput required value={senha} onChange={e => setSenha(e.target.value)} placeholder="mínimo 8 caracteres" autoComplete="new-password" />
       </Field>
 
       <label style={{ display: 'flex', gap: 8, alignItems: 'flex-start', fontSize: 12, color: 'var(--ink-soft)', lineHeight: 1.5, marginTop: 4, cursor: 'pointer' }}>
@@ -87,38 +93,20 @@ export function CadastroForm() {
           style={{ marginTop: 3 }}
         />
         <span>
-          Concordo com o uso da plataforma para apoio à minha prática.
-          Os dados das sessões ficam <strong>criptografados</strong>, sob minha responsabilidade clínica,
-          e <strong>não são usados para treinar IA</strong>. CFP 09/2024.
+          Estou ciente de que os dados permanecem <strong>criptografados</strong>, sob minha
+          responsabilidade clínica, e <strong>não são utilizados para treinamento de modelos de IA</strong>.
         </span>
       </label>
+      <a href="/lancamento#privacidade" target="_blank" rel="noreferrer"
+        style={{ fontSize: 11.5, color: 'var(--accent)', marginTop: -4, marginLeft: 24, textDecoration: 'none' }}>
+        Ver detalhes de privacidade →
+      </a>
 
       {error && !campoErro && <div style={{ color: 'var(--rose)', fontSize: 12 }}>{error}</div>}
 
       <button type="submit" className="btn primary" disabled={loading} style={{ justifyContent: 'center', marginTop: 6 }}>
-        {loading ? 'Criando sua conta…' : 'Criar conta'}
+        {loading ? 'Criando sua conta…' : 'Criar minha conta'}
       </button>
-
-      <style jsx>{`
-        input {
-          width: 100%; padding: 9px 12px; border-radius: 8px;
-          border: 1px solid var(--border); background: white;
-          font-size: 13px; font-family: inherit; color: var(--ink); outline: none;
-        }
-        input:focus { border-color: var(--accent); }
-        input[type=checkbox] { width: auto; padding: 0; }
-      `}</style>
     </form>
-  )
-}
-
-function Field({ label, hint, error, children }: { label: string; hint?: string; error?: string | null; children: React.ReactNode }) {
-  return (
-    <label style={{ display: 'grid', gap: 4 }}>
-      <span style={{ fontSize: 11, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '.06em' }}>{label}</span>
-      {children}
-      {hint && !error && <span style={{ fontSize: 11, color: 'var(--faint)' }}>{hint}</span>}
-      {error && <span style={{ fontSize: 11, color: 'var(--rose)' }}>{error}</span>}
-    </label>
   )
 }

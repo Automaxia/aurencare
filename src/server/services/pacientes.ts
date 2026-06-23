@@ -23,6 +23,8 @@ export type PacienteComBadge = Paciente & {
   proximaSessao: { id: string; dataHora: string } | null
   ultimaSessaoEm: string | null
   sessoesTotais: number
+  /** Sessão concluída e NÃO assinada mais recente (alvo do CTA "Assinar"). */
+  sessaoRegistroId: string | null
 }
 
 export type BadgeInfo = { label: string; color: 'rose' | 'amber' | 'info' | 'sage' }
@@ -77,7 +79,7 @@ export async function listarPacientes(
   if (pacientes.length === 0) return []
 
   const { rows: sessoes } = await db.query(
-    `SELECT paciente_id, data_hora, status, assinada
+    `SELECT id, paciente_id, data_hora, status, assinada
        FROM sessoes
       WHERE psicologo_id = $1
       ORDER BY data_hora DESC`,
@@ -86,18 +88,23 @@ export async function listarPacientes(
 
   return pacientes.map(p => {
     const ses = sessoes.filter(s => s.paciente_id === p.id).map(s => ({
-      dataHora: s.data_hora, status: s.status, assinada: s.assinada,
+      id: s.id as string, dataHora: s.data_hora, status: s.status, assinada: s.assinada,
     }))
     const futuras = ses.filter(s => +new Date(s.dataHora) > Date.now())
                        .sort((a, b) => +new Date(a.dataHora) - +new Date(b.dataHora))
     const passadas = ses.filter(s => +new Date(s.dataHora) <= Date.now())
+    // Mais recente concluída e não assinada → alvo do "Assinar →".
+    const registro = [...ses]
+      .sort((a, b) => +new Date(b.dataHora) - +new Date(a.dataHora))
+      .find(s => s.status === 'concluida' && !s.assinada)
     return {
       ...rowToPaciente(p),
       sessoesTotais: ses.length,
       proximaSessao: futuras[0]
-        ? { id: '', dataHora: futuras[0].dataHora }
+        ? { id: futuras[0].id, dataHora: futuras[0].dataHora }
         : null,
       ultimaSessaoEm: passadas[0]?.dataHora ?? null,
+      sessaoRegistroId: registro?.id ?? null,
       badge: calcularBadge({ sessoes: ses }),
     }
   })
@@ -109,6 +116,29 @@ export type CriarPacienteInput = {
   nome: string
   telefone: string
   email?: string | null
+  /** Mensagem de boas-vindas (WhatsApp) editada pelo psicólogo. Null = template padrão. */
+  mensagemCustom?: string | null
+}
+
+/** Token que o psicólogo mantém na mensagem editada — substituído pelo link real
+ *  de aceite. Se removido, o link é anexado ao final (nunca se perde). */
+export const LINK_TOKEN = '[link de termos]'
+
+/**
+ * Normaliza o telefone preservando números internacionais. Com `+` (ex: +1, +351),
+ * mantém o prefixo — o envio WhatsApp usa o DDI como veio, sem assumir Brasil.
+ * Sem `+`, guarda só os dígitos (DDD + número) e o DDI 55 é aplicado no envio.
+ */
+export function normalizarTelefone(raw: string): string {
+  const internacional = raw.trim().startsWith('+')
+  const digits = raw.replace(/\D/g, '')
+  return internacional ? `+${digits}` : digits
+}
+
+function aplicarLinkBoasVindas(mensagem: string, link: string): string {
+  const m = mensagem.trim()
+  if (m.includes(LINK_TOKEN)) return m.split(LINK_TOKEN).join(link)
+  return `${m}\n\n${link}`
 }
 
 export async function criarPaciente(input: CriarPacienteInput): Promise<Paciente> {
@@ -117,7 +147,7 @@ export async function criarPaciente(input: CriarPacienteInput): Promise<Paciente
     `INSERT INTO pacientes (psicologo_id, nome, telefone, email, consentimento_token)
      VALUES ($1, $2, $3, $4, $5)
      RETURNING *`,
-    [input.psicologoId, input.nome.trim(), input.telefone.replace(/\D/g, ''), input.email?.trim() || null, token],
+    [input.psicologoId, input.nome.trim(), normalizarTelefone(input.telefone), input.email?.trim() || null, token],
   )
   const paciente = rowToPaciente(rows[0])
 
@@ -133,8 +163,12 @@ export async function criarPaciente(input: CriarPacienteInput): Promise<Paciente
   // Fluxo 1: boas-vindas em paralelo (WhatsApp + Email).
   // Errors não bloqueiam — paciente é criado mesmo se algum canal falhar.
   await Promise.all([
-    enviarWA(paciente.telefone, WA_TEMPLATES.fluxo1_boasVindas(paciente.nome, link, input.psicologoNome))
-      .catch(err => log.err('paciente.criar', 'falha WA boas-vindas', err)),
+    enviarWA(
+      paciente.telefone,
+      input.mensagemCustom?.trim()
+        ? aplicarLinkBoasVindas(input.mensagemCustom, link)
+        : WA_TEMPLATES.fluxo1_boasVindas(paciente.nome, link, input.psicologoNome),
+    ).catch(err => log.err('paciente.criar', 'falha WA boas-vindas', err)),
 
     paciente.email && psi ? enviarEmail({
       to: paciente.email,
@@ -150,6 +184,48 @@ export async function criarPaciente(input: CriarPacienteInput): Promise<Paciente
   ])
 
   return paciente
+}
+
+/**
+ * Reenvia o convite de consentimento (boas-vindas · WhatsApp + email) reaproveitando
+ * o token existente. Usado quando o paciente ainda não aceitou os termos.
+ * Verifica posse pelo psicologoId. Best-effort por canal — nunca lança.
+ */
+export type ReenviarResult = { ok: true; canais: string[] } | { ok: false; error: string }
+
+export async function reenviarConsentimento(psicologoId: string, pacienteId: string, psicologoNome: string): Promise<ReenviarResult> {
+  const { rows } = await db.query<{
+    nome: string; telefone: string; email: string | null; consentimento_token: string | null;
+    consentimento_aceito: boolean; status: string;
+  }>(
+    `SELECT nome, telefone, email, consentimento_token, consentimento_aceito, status
+       FROM pacientes WHERE id = $1 AND psicologo_id = $2 LIMIT 1`,
+    [pacienteId, psicologoId],
+  )
+  const p = rows[0]
+  if (!p) return { ok: false, error: 'Paciente não encontrado.' }
+  if (p.consentimento_aceito) return { ok: false, error: 'Este paciente já aceitou os termos.' }
+  if (!p.consentimento_token) return { ok: false, error: 'Sem link de consentimento — edite e salve o paciente para gerar um.' }
+
+  const link = `${env.appUrl}/onboard/${p.consentimento_token}`
+  const { rows: psis } = await db.query<{ crp: string; email: string }>(
+    `SELECT crp, email FROM psicologos WHERE id = $1 LIMIT 1`, [psicologoId],
+  )
+  const psi = psis[0]
+  const canais: string[] = []
+
+  await Promise.all([
+    enviarWA(p.telefone, WA_TEMPLATES.fluxo1_boasVindas(p.nome, link, psicologoNome))
+      .then(() => { canais.push('WhatsApp') })
+      .catch(err => log.err('paciente.reenviar', 'falha WA', err)),
+    p.email && psi ? enviarEmail({
+      to: p.email, replyTo: psi.email,
+      ...tplPacienteBoasVindas({ nomePaciente: p.nome, psicologoNome, psicologoCrp: psi.crp, psicologoEmail: psi.email, link }),
+    }).then(() => { canais.push('email') }).catch(err => log.err('paciente.reenviar', 'falha email', err)) : Promise.resolve(),
+  ])
+
+  if (canais.length === 0) return { ok: false, error: 'Não foi possível enviar agora. Tente novamente.' }
+  return { ok: true, canais }
 }
 
 // ─── Edição / Arquivar / Excluir ─────────────────────────────────────
@@ -293,4 +369,53 @@ export async function excluirPacienteDefinitivo(
 async function buscarPacientePorId(pacienteId: string): Promise<Paciente | null> {
   const { rows } = await db.query(`SELECT * FROM pacientes WHERE id = $1 LIMIT 1`, [pacienteId])
   return rows[0] ? rowToPaciente(rows[0]) : null
+}
+
+// ─── Dados cadastrais/demográficos (#2 — todos opcionais) ─────────────
+
+export type ContatoEmergencia = { nome?: string; telefone?: string; email?: string }
+export type DadosCadastro = {
+  nomeSocial?: string
+  cpf?: string
+  pais?: string
+  estado?: string
+  cidade?: string
+  racaCor?: string
+  genero?: string
+  estadoCivil?: string
+  ocupacao?: string
+  formacao?: string
+  origem?: string
+  contatosEmergencia?: ContatoEmergencia[]
+}
+
+export async function buscarDadosCadastro(psicologoId: string, pacienteId: string): Promise<DadosCadastro> {
+  const { rows } = await db.query<{ dados_cadastro: DadosCadastro | null }>(
+    `SELECT dados_cadastro FROM pacientes WHERE id = $1 AND psicologo_id = $2 LIMIT 1`,
+    [pacienteId, psicologoId],
+  )
+  return rows[0]?.dados_cadastro ?? {}
+}
+
+export async function salvarDadosCadastro(
+  psicologoId: string, pacienteId: string, dados: DadosCadastro,
+): Promise<{ ok: boolean }> {
+  // Limpa strings vazias e contatos sem nenhum dado.
+  const limpo: DadosCadastro = {}
+  for (const [k, v] of Object.entries(dados)) {
+    if (k === 'contatosEmergencia') continue
+    const s = typeof v === 'string' ? v.trim() : v
+    if (s) (limpo as any)[k] = s
+  }
+  const contatos = (dados.contatosEmergencia ?? [])
+    .map(c => ({ nome: c.nome?.trim() || undefined, telefone: c.telefone?.replace(/\s+/g, ' ').trim() || undefined, email: c.email?.trim() || undefined }))
+    .filter(c => c.nome || c.telefone || c.email)
+  if (contatos.length) limpo.contatosEmergencia = contatos
+
+  const { rowCount } = await db.query(
+    `UPDATE pacientes SET dados_cadastro = $3 WHERE id = $1 AND psicologo_id = $2`,
+    [pacienteId, psicologoId, JSON.stringify(limpo)],
+  )
+  if (rowCount) log.ok('paciente.dadosCadastro', `id=${pacienteId}`)
+  return { ok: (rowCount ?? 0) > 0 }
 }

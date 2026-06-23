@@ -1,8 +1,11 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { isValidElement, useState } from 'react'
+import { useRouter } from 'next/navigation'
 import Link from 'next/link'
+import { Pencil, Sparkles } from 'lucide-react'
 import { CfpBadge } from '@/components/brand/CfpBadge'
+import { Markdown } from '@/components/Markdown'
 import type { Sessao } from '@/server/services/sessoes'
 
 const STATUS_LABEL: Record<string, string> = {
@@ -20,13 +23,131 @@ const MARK_COLOR: Record<string, 'accent' | 'rose' | 'sage'> = {
   insight: 'accent', comportamento: 'rose', avanco: 'sage',
 }
 
+const lbl: React.CSSProperties = {
+  display: 'block', fontSize: 11, color: 'var(--muted)',
+  textTransform: 'uppercase', letterSpacing: '.06em', marginBottom: 6,
+}
+const ta: React.CSSProperties = {
+  width: '100%', boxSizing: 'border-box', fontFamily: 'inherit',
+  fontSize: 13, padding: '10px 12px', resize: 'vertical', lineHeight: 1.5,
+}
+
 export function SessionReview({ sessao }: { sessao: Sessao }) {
   const [insight, setInsight] = useState<string | null>(null)
   const [loadingInsight, setLoadingInsight] = useState(false)
   const [insightError, setInsightError] = useState<string | null>(null)
 
-  const ind = (sessao as any).indicadores ?? {}
+  const ind = (sessao.indicadores && typeof sessao.indicadores === 'object') ? sessao.indicadores : {}
+  // Guarda: indicadores é JSONB livre; só aceita notaRapida se for string.
+  const notaRapida: string = typeof ind?.notaRapida === 'string' ? ind.notaRapida : ''
   const turnos = parseTranscriptionToTurns(sessao.transcricao ?? '')
+
+  // Assinatura inline — resolve a pendência "Registrar" (sessão concluída e não
+  // assinada). Antes a revisão era só leitura e não havia como resolver.
+  const router = useRouter()
+  const [resumoEdit, setResumoEdit] = useState(sessao.resumoIa ?? '')
+  // Pré-preenche com a nota clínica salva ou, na falta dela, com a "nota rápida"
+  // feita ao vivo (indicadores.notaRapida) — assim as anotações da sessão não
+  // se perdem e ficam editáveis aqui.
+  const [notaEdit, setNotaEdit] = useState(sessao.notaClinica ?? notaRapida)
+  const [assinando, setAssinando] = useState(false)
+  const [assinadoAgora, setAssinadoAgora] = useState(false)
+  const [assinarErro, setAssinarErro] = useState<string | null>(null)
+  // Retificação do laudo já assinado (preserva versões anteriores no histórico).
+  const [editandoResumo, setEditandoResumo] = useState(false)
+  const [retEdit, setRetEdit] = useState('')
+  const [salvandoRet, setSalvandoRet] = useState(false)
+  const [retErro, setRetErro] = useState<string | null>(null)
+  const [notaSalvando, setNotaSalvando] = useState(false)
+  const [notaMsg, setNotaMsg] = useState<string | null>(null)
+  const [confirmarVazio, setConfirmarVazio] = useState(false)
+  const [copiaStatus, setCopiaStatus] = useState<'idle' | 'ok' | 'erro'>('idle')
+  const assinada = sessao.assinada || assinadoAgora
+  const podeAssinar = sessao.status === 'concluida' && !assinada
+  // Se a nota rápida ao vivo existe e difere da nota clínica salva, ela ficaria
+  // escondida (a caixa pré-preenche com a clínica). Mostra read-only pra não sumir.
+  const mostrarNotaRapida = notaRapida.trim().length > 0 && notaRapida !== (sessao.notaClinica ?? '')
+
+  async function salvarNota() {
+    // Guarda anti-apagamento acidental: salvar vazio sobre uma nota existente
+    // exige um 2º clique de confirmação (a retenção da nota é o ponto da feature).
+    if (!notaEdit.trim() && (sessao.notaClinica ?? '').trim() && !confirmarVazio) {
+      setNotaMsg('Isso vai apagar a nota. Clique em “Salvar nota” de novo para confirmar.')
+      setConfirmarVazio(true)
+      return
+    }
+    setConfirmarVazio(false)
+    setNotaSalvando(true); setNotaMsg(null)
+    try {
+      const res = await fetch(`/api/sessao/${sessao.id}/nota`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ nota: notaEdit }),
+      })
+      setNotaMsg(res.ok ? 'Nota salva ✓' : 'Falha ao salvar.')
+      if (res.ok) router.refresh()
+    } catch {
+      setNotaMsg('Falha ao salvar.')
+    } finally {
+      setNotaSalvando(false)
+    }
+  }
+
+  async function copiarTranscricao() {
+    const texto = turnos.map(t => `${t.who === 'psicologo' ? 'Psicóloga' : 'Paciente'}: ${t.texto}`).join('\n')
+    try {
+      if (!navigator.clipboard) throw new Error('sem clipboard')
+      await navigator.clipboard.writeText(texto)
+      setCopiaStatus('ok')
+    } catch {
+      setCopiaStatus('erro')  // contexto inseguro (http) ou permissão negada
+    } finally {
+      setTimeout(() => setCopiaStatus('idle'), 2000)
+    }
+  }
+
+  async function assinarRegistro() {
+    if (!resumoEdit.trim()) { setAssinarErro('Escreva um resumo antes de assinar.'); return }
+    setAssinando(true); setAssinarErro(null)
+    try {
+      const res = await fetch(`/api/sessao/${sessao.id}/assinar`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ resumoFinal: resumoEdit, notaClinica: notaEdit }),
+      })
+      const json = await res.json().catch(() => ({} as any))
+      if (res.ok) { setAssinadoAgora(true); router.refresh() }
+      else if (json.error === 'termos_proibidos') setAssinarErro('O texto contém termos clínicos/diagnósticos não permitidos. Reformule antes de assinar.')
+      else if (json.error === 'resumo_vazio') setAssinarErro('Escreva um resumo antes de assinar.')
+      else setAssinarErro('Falha ao assinar. Tente novamente.')
+    } catch {
+      setAssinarErro('Falha ao assinar. Tente novamente.')
+    } finally {
+      setAssinando(false)
+    }
+  }
+
+  function abrirEdicaoResumo() {
+    setRetEdit((assinadoAgora ? resumoEdit : sessao.resumoIa) ?? '')
+    setRetErro(null); setEditandoResumo(true)
+  }
+  async function salvarRetificacao() {
+    if (!retEdit.trim()) { setRetErro('Escreva o resumo.'); return }
+    setSalvandoRet(true); setRetErro(null)
+    try {
+      const res = await fetch(`/api/sessao/${sessao.id}/resumo`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ resumo: retEdit }),
+      })
+      const json = await res.json().catch(() => ({} as any))
+      if (res.ok) { setResumoEdit(retEdit); setEditandoResumo(false); router.refresh() }
+      else if (json.error === 'termos_proibidos') setRetErro('O texto contém diagnóstico/afirmação categórica não permitidos. Reformule.')
+      else if (json.error === 'resumo_vazio') setRetErro('Escreva o resumo.')
+      else setRetErro('Falha ao salvar. Tente novamente.')
+    } catch {
+      setRetErro('Falha ao salvar. Tente novamente.')
+    } finally {
+      setSalvandoRet(false)
+    }
+  }
 
   async function carregarInsight() {
     setLoadingInsight(true); setInsightError(null)
@@ -51,49 +172,163 @@ export function SessionReview({ sessao }: { sessao: Sessao }) {
           </span>
         </div>
         <div className="pb-actions">
-          {sessao.assinada && <span style={{ fontSize: 12, color: 'var(--sage)' }}>✓ Assinada</span>}
+          {assinada
+            ? <span style={{ fontSize: 12, color: 'var(--sage)' }}>✓ Assinada</span>
+            : sessao.status === 'concluida' && <span style={{ fontSize: 12, color: 'var(--amber)' }}>⚠ Registro pendente</span>}
           <Link href={`/pacientes/${sessao.pacienteId}/evolucao`} className="btn ghost">Ver evolução</Link>
-          <Link href="/agenda" className="btn ghost">← Agenda</Link>
+          <Link href={`/pacientes/${sessao.pacienteId}`} className="btn ghost">← Paciente</Link>
         </div>
       </div>
 
       <div style={{ padding: '20px 24px', display: 'grid', gridTemplateColumns: '1fr 380px', gap: 16, maxWidth: 1240, margin: '0 auto', width: '100%' }}>
         {/* Coluna esquerda — transcrição com marcações */}
         <div>
-          <Section title="Resumo (assinado)">
-            {sessao.resumoIa ? (
-              <p style={{ whiteSpace: 'pre-wrap', margin: 0, fontSize: 13, color: 'var(--ink-soft)', lineHeight: 1.6 }}>{sessao.resumoIa}</p>
-            ) : <Empty>Sessão sem resumo.</Empty>}
-            {sessao.assinaturaTimestamp && (
-              <div style={{ fontSize: 11, color: 'var(--sage)', marginTop: 8 }}>
-                ✓ Assinada em {new Date(sessao.assinaturaTimestamp).toLocaleString('pt-BR')}
+          {podeAssinar ? (
+            <Section title="Registrar sessão">
+              <div style={{ fontSize: 12.5, color: 'var(--ink-soft)', marginBottom: 12, lineHeight: 1.5 }}>
+                Esta sessão está <strong style={{ color: 'var(--amber)' }}>pendente de registro</strong>.
+                Revise o resumo e <strong>assine</strong> para concluir — é isto que resolve a
+                notificação “Registrar — {sessao.pacienteNome}”.
               </div>
-            )}
-          </Section>
+              <label style={lbl}>Laudo da sessão (rascunho em Markdown · revise antes de assinar)</label>
+              <textarea
+                value={resumoEdit} onChange={e => setResumoEdit(e.target.value)} rows={18}
+                placeholder="Laudo estruturado da sessão (sem diagnóstico DSM/ICD)…"
+                style={{ ...ta, fontFamily: 'var(--font-mono), ui-monospace, monospace', fontSize: 12.5 }}
+              />
+              <div style={{ fontSize: 11.5, color: 'var(--muted)', marginTop: 8 }}>
+                Suas anotações ficam na caixa <strong>Notas</strong> abaixo (salvas separadamente).
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 12 }}>
+                <CfpBadge />
+                <div style={{ flex: 1 }} />
+                <button className="btn primary" onClick={assinarRegistro} disabled={assinando || !resumoEdit.trim()}>
+                  {assinando ? 'Assinando…' : 'Assinar registro'}
+                </button>
+              </div>
+              {assinarErro && <div style={{ color: 'var(--rose)', fontSize: 12, marginTop: 8 }}>{assinarErro}</div>}
+            </Section>
+          ) : (
+            <Section
+              title="Resumo (assinado)"
+              actions={!editandoResumo && (assinadoAgora ? resumoEdit : sessao.resumoIa)
+                ? <button className="btn ghost sm" onClick={abrirEdicaoResumo} style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}><Pencil size={13} /> Editar</button>
+                : undefined}
+            >
+              {editandoResumo ? (
+                <>
+                  <div style={{ fontSize: 11.5, color: 'var(--muted)', marginBottom: 8 }}>
+                    Retificação: a versão atual é <strong>preservada no histórico</strong> antes de salvar. A assinatura é mantida e o paciente não é notificado.
+                  </div>
+                  <textarea
+                    value={retEdit} onChange={e => setRetEdit(e.target.value)} rows={18}
+                    style={{ ...ta, fontFamily: 'var(--font-mono), ui-monospace, monospace', fontSize: 12.5 }}
+                  />
+                  {retErro && <div style={{ color: 'var(--rose)', fontSize: 12, marginTop: 8 }}>{retErro}</div>}
+                  <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 10 }}>
+                    <button className="btn ghost" onClick={() => setEditandoResumo(false)} disabled={salvandoRet}>Cancelar</button>
+                    <button className="btn primary" onClick={salvarRetificacao} disabled={salvandoRet || !retEdit.trim()}>
+                      {salvandoRet ? 'Salvando…' : 'Salvar retificação'}
+                    </button>
+                  </div>
+                </>
+              ) : (assinadoAgora ? resumoEdit : sessao.resumoIa) ? (
+                <Markdown text={(assinadoAgora ? resumoEdit : sessao.resumoIa) ?? ''} />
+              ) : <Empty>Sessão sem resumo.</Empty>}
 
-          {sessao.notaClinica && (
-            <Section title="Nota clínica privada">
-              <p style={{ whiteSpace: 'pre-wrap', margin: 0, fontSize: 13, color: 'var(--ink-soft)', lineHeight: 1.6 }}>{sessao.notaClinica}</p>
+              {!editandoResumo && (assinadoAgora || sessao.assinaturaTimestamp) && (
+                <div style={{ fontSize: 11, color: 'var(--sage)', marginTop: 8 }}>
+                  {assinadoAgora
+                    ? '✓ Assinada agora — pendência resolvida.'
+                    : `✓ Assinada em ${new Date(sessao.assinaturaTimestamp!).toLocaleString('pt-BR')}`}
+                  {sessao.resumoEditadoEm && <span style={{ color: 'var(--muted)' }}> · retificada em {new Date(sessao.resumoEditadoEm).toLocaleString('pt-BR')}</span>}
+                </div>
+              )}
+
+              {!editandoResumo && sessao.resumoHistorico.length > 0 && (
+                <details style={{ marginTop: 10 }}>
+                  <summary style={{ fontSize: 12, color: 'var(--accent)', cursor: 'pointer' }}>
+                    Versões anteriores ({sessao.resumoHistorico.length})
+                  </summary>
+                  <div style={{ display: 'grid', gap: 10, marginTop: 8 }}>
+                    {[...sessao.resumoHistorico].reverse().map((v, i) => (
+                      <div key={i} style={{ borderLeft: '2px solid var(--border)', paddingLeft: 12 }}>
+                        <div style={{ fontSize: 11, color: 'var(--muted)', marginBottom: 4 }}>
+                          Versão substituída {v.em ? `em ${new Date(v.em).toLocaleString('pt-BR')}` : ''}
+                        </div>
+                        <Markdown text={v.texto} />
+                      </div>
+                    ))}
+                  </div>
+                </details>
+              )}
             </Section>
           )}
 
-          <Section title="Transcrição">
+          <Section title="Notas">
+            <div style={{ fontSize: 11.5, color: 'var(--muted)', marginBottom: 8 }}>
+              Anotações privadas da sessão. Inclui a nota rápida feita ao vivo — edite e salve quando quiser.
+            </div>
+            <textarea
+              value={notaEdit} onChange={e => { setNotaEdit(e.target.value); setNotaMsg(null); setConfirmarVazio(false) }} rows={5}
+              placeholder="Anotações sobre a sessão…" style={ta}
+            />
+            {mostrarNotaRapida && (
+              <div style={{ marginTop: 10, padding: '8px 10px', background: 'var(--surface)', borderRadius: 8, fontSize: 12, color: 'var(--ink-soft)' }}>
+                <div style={{ fontSize: 10.5, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '.05em', marginBottom: 3 }}>Nota rápida feita ao vivo</div>
+                <div style={{ whiteSpace: 'pre-wrap' }}>{notaRapida}</div>
+                <button
+                  type="button"
+                  onClick={() => { setNotaEdit(n => (n.trim() ? `${n}\n${notaRapida}` : notaRapida)); setNotaMsg(null) }}
+                  className="btn ghost sm" style={{ marginTop: 6 }}
+                >
+                  ↑ Incorporar na nota
+                </button>
+              </div>
+            )}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 10 }}>
+              {notaMsg && <span style={{ fontSize: 12, color: notaMsg.includes('✓') ? 'var(--sage)' : 'var(--rose)' }}>{notaMsg}</span>}
+              <div style={{ flex: 1 }} />
+              <button className="btn primary" onClick={salvarNota} disabled={notaSalvando}>
+                {notaSalvando ? 'Salvando…' : 'Salvar nota'}
+              </button>
+            </div>
+          </Section>
+
+          <Section
+            title="Transcrição"
+            actions={turnos.length > 0 ? (
+              <>
+                <button className="btn ghost sm" onClick={copiarTranscricao}>
+                  {copiaStatus === 'ok' ? 'Copiado ✓' : copiaStatus === 'erro' ? 'Não copiou' : '⧉ Copiar'}
+                </button>
+                <a className="btn ghost sm" href={`/api/sessao/${sessao.id}/transcricao/pdf`} target="_blank" rel="noopener noreferrer">⬇ PDF</a>
+              </>
+            ) : undefined}
+          >
             {turnos.length === 0 ? (
               <Empty>Sem transcrição registrada.</Empty>
             ) : (
-              <div className="talk-card" style={{ height: 'auto', maxHeight: 420 }}>
-                {turnos.map((t, i) => (
-                  <div key={i} className="turn" data-mark={t.mark ?? undefined}>
-                    <span className="who" data-who={t.who}>{t.who === 'psicologo' ? 'P' : 'C'}:</span>{' '}
-                    {t.texto}
-                    {t.mark && (
-                      <span className="turn-chip" style={{ background: `var(--${MARK_COLOR[t.mark]}-lo)`, color: `var(--${MARK_COLOR[t.mark]})` }}>
-                        {MARK_LABEL[t.mark]}
-                      </span>
-                    )}
-                  </div>
-                ))}
-              </div>
+              <>
+                {/* Caixa de altura limitada com rolagem interna (.talk-card já tem
+                    overflow-y:auto). maxHeight em vez de altura cheia da sessão. */}
+                <div className="talk-card" style={{ height: 'auto', maxHeight: 440 }}>
+                  {turnos.map((t, i) => (
+                    <div key={i} className="turn" data-mark={t.mark ?? undefined}>
+                      <span className="who" data-who={t.who}>{t.who === 'psicologo' ? 'P' : 'C'}:</span>{' '}
+                      {t.texto}
+                      {t.mark && (
+                        <span className="turn-chip" style={{ background: `var(--${MARK_COLOR[t.mark]}-lo)`, color: `var(--${MARK_COLOR[t.mark]})` }}>
+                          {MARK_LABEL[t.mark]}
+                        </span>
+                      )}
+                    </div>
+                  ))}
+                </div>
+                <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 6 }}>
+                  {turnos.length} {turnos.length === 1 ? 'fala' : 'falas'} · role dentro da caixa para ver tudo, ou use Copiar / PDF acima.
+                </div>
+              </>
             )}
           </Section>
         </div>
@@ -102,7 +337,7 @@ export function SessionReview({ sessao }: { sessao: Sessao }) {
         <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
           <div className="card">
             <div className="widget-title">Indicadores</div>
-            <Row label="Pagamento" value={sessao.pagamentoStatus} />
+            <Row label="Pagamento" value={String(sessao.pagamentoStatus) === 'isento' ? 'sessão sem cobrança' : sessao.pagamentoStatus} />
             {sessao.pagamentoMetodo && <Row label="Método" value={sessao.pagamentoMetodo} />}
             <Row label="Duração" value={`${sessao.duracaoMin} min`} />
             <Row label="Modalidade" value={sessao.modalidade} />
@@ -123,10 +358,13 @@ export function SessionReview({ sessao }: { sessao: Sessao }) {
             )}
             {ind?.humor && (
               <>
-                <div style={{ marginTop: 10, fontSize: 11, color: 'var(--muted)' }}>Humor (−5 → +5)</div>
-                <Row label="Início" value={ind.humor.inicio} />
-                <Row label="Meio" value={ind.humor.meio} />
-                <Row label="Fim" value={ind.humor.fim} />
+                <div style={{ marginTop: 10, fontSize: 11, color: 'var(--muted)' }}>Humor</div>
+                {typeof ind.humor.estado === 'number' && (
+                  <Row label="Estado (−5 a +5)" value={`${ind.humor.estado > 0 ? '+' : ''}${ind.humor.estado} · ${emoLabel(ind.humor.estado)}`} />
+                )}
+                <Row label="Predominante" value={momentoLabel(ind.humor.predominante)} />
+                <Row label="Início" value={momentoLabel(ind.humor.inicio)} />
+                <Row label="Fim" value={momentoLabel(ind.humor.fim)} />
               </>
             )}
             {ind?.risco && (
@@ -149,8 +387,8 @@ export function SessionReview({ sessao }: { sessao: Sessao }) {
             {insight ? (
               <p style={{ fontSize: 13, color: 'var(--ink-soft)', whiteSpace: 'pre-wrap', margin: 0, lineHeight: 1.6 }}>{insight}</p>
             ) : (
-              <button className="btn" onClick={carregarInsight} disabled={loadingInsight} style={{ width: '100%', background: 'white' }}>
-                {loadingInsight ? 'Gerando análise…' : '✨ Gerar análise contextual'}
+              <button className="btn" onClick={carregarInsight} disabled={loadingInsight} style={{ width: '100%', background: 'white', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
+                <Sparkles size={14} /> {loadingInsight ? 'Gerando análise…' : 'Gerar análise contextual'}
               </button>
             )}
             {insightError && <div style={{ color: 'var(--rose)', fontSize: 12, marginTop: 8 }}>{insightError}</div>}
@@ -161,10 +399,13 @@ export function SessionReview({ sessao }: { sessao: Sessao }) {
   )
 }
 
-function Section({ title, children }: { title: string; children: React.ReactNode }) {
+function Section({ title, actions, children }: { title: string; actions?: React.ReactNode; children: React.ReactNode }) {
   return (
     <section style={{ marginBottom: 16 }}>
-      <div className="widget-title">{title}</div>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, marginBottom: 8, minHeight: 22 }}>
+        <div className="widget-title" style={{ marginBottom: 0 }}>{title}</div>
+        {actions && <div style={{ display: 'flex', gap: 6 }}>{actions}</div>}
+      </div>
       <div className="card">{children}</div>
     </section>
   )
@@ -173,15 +414,39 @@ function Empty({ children }: { children: React.ReactNode }) {
   return <div style={{ fontSize: 12, color: 'var(--muted)' }}>{children}</div>
 }
 function Row({ label, value }: { label: string; value: React.ReactNode }) {
+  // Rede de segurança: nunca renderiza um objeto cru como filho do React (isso
+  // estoura "Objects are not valid as a React child"). Coage pra string.
+  const safe = value !== null && typeof value === 'object' && !isValidElement(value)
+    ? JSON.stringify(value)
+    : value
   return (
     <div style={{ display: 'flex', justifyContent: 'space-between', padding: '3px 0', fontSize: 12 }}>
       <span style={{ color: 'var(--muted)' }}>{label}</span>
-      <span style={{ color: 'var(--ink-soft)' }}>{value}</span>
+      <span style={{ color: 'var(--ink-soft)' }}>{safe}</span>
     </div>
   )
 }
 function riskLabel(v?: string) {
   return ({ lo: 'Baixo', md: 'Médio', hi: 'Alto' } as Record<string, string>)[v ?? 'lo'] ?? '—'
+}
+
+const EMO_LABELS: Record<number, string> = {
+  [-5]: 'Extremamente desagradável', [-4]: 'Muito desagradável', [-3]: 'Desagradável',
+  [-2]: 'Levemente desagradável', [-1]: 'Pouco desagradável', 0: 'Neutro',
+  1: 'Pouco agradável', 2: 'Levemente agradável', 3: 'Agradável',
+  4: 'Muito agradável', 5: 'Extremamente agradável',
+}
+function emoLabel(v: number): string {
+  return EMO_LABELS[v] ?? 'Neutro'
+}
+/** Momento de humor pode ser objeto {texto, intensidade} (atual) ou primitivo (legado). */
+function momentoLabel(m: any): string {
+  if (m == null) return '—'
+  if (typeof m !== 'object') return String(m)
+  const texto = (m.texto ?? '').toString().trim()
+  const inten = typeof m.intensidade === 'number' ? `intensidade ${m.intensidade}` : ''
+  if (texto && inten) return `${texto} · ${inten}`
+  return texto || inten || '—'
 }
 
 /**

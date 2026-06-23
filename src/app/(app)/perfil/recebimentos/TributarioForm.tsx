@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { atualizarPerfilTributarioAction } from './actions'
 import type { PerfilTributario, RegimeTributario } from '@/server/services/perfilTributario'
+import { SavedBadge } from '@/components/brand/Feedback'
 
 const REGIMES: Array<{ key: RegimeTributario; label: string; hint: string }> = [
   { key: 'autonomo_pf',        label: 'Autônomo · PF',                hint: 'Carnê-Leão + Receita Saúde (obrigatório 2026)' },
@@ -78,7 +79,7 @@ export function TributarioForm({ inicial }: Props) {
         marginBottom: 4,
       }}>
         <span className="sec-lbl">Tributação · Contador</span>
-        {salvo && <span style={{ color: 'var(--sage)', fontSize: 12 }}>✓ Salvo</span>}
+        {salvo && <SavedBadge />}
       </div>
 
       <p style={{ fontSize: 12, color: 'var(--muted)', margin: 0, lineHeight: 1.55 }}>
@@ -113,7 +114,7 @@ export function TributarioForm({ inicial }: Props) {
         </div>
       </Field>
 
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr 80px', gap: 12 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: 12 }}>
         <Field label="CNAE">
           <input value={cnae} onChange={e => setCnae(e.target.value)} placeholder="8650-0/03" />
         </Field>
@@ -177,12 +178,15 @@ export function TributarioForm({ inicial }: Props) {
 
       <style jsx>{`
         input {
-          width: 100%; padding: 9px 12px; border-radius: 8px;
-          border: 1px solid var(--border); background: white;
+          width: 100%; padding: 9px 12px; border-radius: var(--field-radius);
+          border: 1px solid var(--field-border); background: var(--field-bg);
           font-size: 13px; font-family: inherit; color: var(--ink); outline: none;
-          transition: border-color .15s var(--ease);
+          transition: border-color .15s var(--ease), box-shadow .15s var(--ease);
         }
-        input:focus { border-color: var(--accent); }
+        input:not([type=radio]):not([type=checkbox]):hover { border-color: var(--field-border-hover); }
+        input:not([type=radio]):not([type=checkbox]):focus { border-color: var(--accent); box-shadow: var(--field-ring); }
+        input:not([type=radio]):not([type=checkbox]):user-invalid { border-color: var(--rose); }
+        input:not([type=radio]):not([type=checkbox]):user-invalid:focus { box-shadow: var(--field-ring-error); }
         input[type=radio], input[type=checkbox] { width: auto; padding: 0; }
       `}</style>
     </form>

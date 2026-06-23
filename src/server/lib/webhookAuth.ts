@@ -33,9 +33,10 @@ export function verifyHubSignature(
   if (!isConfigured(secret)) return 'unconfigured'
   if (!header) return 'invalid'
 
-  const [algoRaw, sigHex] = header.includes('=') ? header.split('=', 2) : ['sha256', header]
-  const algo = algoRaw.toLowerCase() === 'sha1' ? 'sha1' : 'sha256'
-  const expected = createHmac(algo, secret!).update(rawBody, 'utf8').digest('hex')
+  // Algoritmo FIXO em sha256 — não deriva do header (evita downgrade pra sha1
+  // escolhido pelo atacante). Aceita o formato "sha256=<hex>" ou só "<hex>".
+  const sigHex = header.includes('=') ? header.split('=', 2)[1] : header
+  const expected = createHmac('sha256', secret!).update(rawBody, 'utf8').digest('hex')
   return safeEqual(sigHex.trim().toLowerCase(), expected) ? 'ok' : 'invalid'
 }
 

@@ -2,15 +2,17 @@
 
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
+import { useToast } from '@/components/feedback/Toast'
 import { criarSessaoAction, criarSerieAction, conflitosSerieAction } from './actions'
+import { horarioBrasiliaParaISO, TZ } from '@/lib/formatters'
 
 type Modo = 'avulsa' | 'serie'
 type Frequencia = 'semanal' | 'quinzenal'
 
-const SEMANAS_PT = ['domingo', 'segunda', 'terça', 'quarta', 'quinta', 'sexta', 'sábado']
 
 export function NewSessionForm({ pacientes }: { pacientes: { id: string; nome: string }[] }) {
   const router = useRouter()
+  const { toast } = useToast()
   const today = new Date()
   const defaultDate = new Date(today.getTime() + 24 * 60 * 60 * 1000).toISOString().slice(0, 10)
 
@@ -21,6 +23,7 @@ export function NewSessionForm({ pacientes }: { pacientes: { id: string; nome: s
   const [duracao, setDuracao] = useState(50)
   const [modalidade, setModalidade] = useState('online')
   const [valor, setValor] = useState(220)
+  const [gratuita, setGratuita] = useState(false)
 
   // Série
   const [frequencia, setFrequencia] = useState<Frequencia>('semanal')
@@ -50,7 +53,7 @@ export function NewSessionForm({ pacientes }: { pacientes: { id: string; nome: s
 
   const diaSemana = (() => {
     const iso = isoLocal(data, hora); if (!iso) return ''
-    return SEMANAS_PT[new Date(iso).getDay()]
+    return new Date(iso).toLocaleDateString('pt-BR', { weekday: 'long', timeZone: TZ })
   })()
 
   async function onSubmit(e: React.FormEvent) {
@@ -62,7 +65,7 @@ export function NewSessionForm({ pacientes }: { pacientes: { id: string; nome: s
     if (modo === 'avulsa') {
       const r = await criarSessaoAction({ pacienteId, dataHora: iso, duracaoMin: duracao, modalidade, valor })
       setLoading(false)
-      if (r.ok) router.push('/agenda')
+      if (r.ok) { toast('Sessão agendada'); router.push('/agenda') }
       else setError(r.error)
     } else {
       const r = await criarSerieAction({
@@ -70,7 +73,7 @@ export function NewSessionForm({ pacientes }: { pacientes: { id: string; nome: s
         duracaoMin: duracao, modalidade, valor,
       })
       setLoading(false)
-      if (r.ok) router.push('/agenda')
+      if (r.ok) { toast(`Série de ${quantidade} sessões agendada`); router.push('/agenda') }
       else setError(r.error)
     }
   }
@@ -146,9 +149,45 @@ export function NewSessionForm({ pacientes }: { pacientes: { id: string; nome: s
           </select>
         </Field>
         <Field label={modo === 'serie' ? 'Valor por sessão (R$)' : 'Valor (R$)'}>
-          <input type="number" value={valor} onChange={e => setValor(+e.target.value)} min={0} step={10} />
+          <input
+            type="number" value={gratuita ? 0 : valor}
+            onChange={e => setValor(+e.target.value)}
+            min={0} step={10} disabled={gratuita}
+            style={gratuita ? { opacity: .5 } : undefined}
+          />
         </Field>
       </div>
+
+      <button
+        type="button"
+        role="switch"
+        aria-checked={gratuita}
+        onClick={() => { const v = !gratuita; setGratuita(v); if (v) setValor(0) }}
+        style={{
+          display: 'flex', alignItems: 'center', gap: 11, width: '100%',
+          padding: '10px 12px', borderRadius: 10, cursor: 'pointer', textAlign: 'left',
+          border: `1px solid ${gratuita ? 'var(--sage)' : 'var(--field-border)'}`,
+          background: gratuita ? 'rgba(90,158,138,.08)' : 'var(--field-bg)',
+          transition: 'border-color .15s var(--ease), background .15s var(--ease)',
+        }}
+      >
+        <span style={{
+          width: 36, height: 21, borderRadius: 999, flex: 'none', position: 'relative',
+          background: gratuita ? 'var(--sage)' : 'var(--faint)', transition: 'background .15s var(--ease)',
+        }}>
+          <span style={{
+            position: 'absolute', top: 2, left: gratuita ? 17 : 2, width: 17, height: 17,
+            borderRadius: '50%', background: '#fff', boxShadow: '0 1px 2px rgba(0,0,0,.2)',
+            transition: 'left .15s var(--ease)',
+          }} />
+        </span>
+        <span style={{ flex: 1, minWidth: 0 }}>
+          <span style={{ fontSize: 13, fontWeight: 500, color: 'var(--ink-soft)', display: 'block' }}>Sessão gratuita</span>
+          <span style={{ fontSize: 11, color: 'var(--muted)', display: 'block', marginTop: 1 }}>
+            {gratuita ? 'Sem cobrança — o paciente não recebe pedido de pagamento.' : 'Por padrão, a sessão é cobrada do paciente.'}
+          </span>
+        </span>
+      </button>
 
       {error && <div style={{ color: 'var(--rose)', fontSize: 12 }}>{error}</div>}
 
@@ -170,11 +209,15 @@ export function NewSessionForm({ pacientes }: { pacientes: { id: string; nome: s
 
       <style jsx>{`
         input, select {
-          width: 100%; padding: 8px 12px; border-radius: 8px;
-          border: 1px solid var(--border); background: white;
+          width: 100%; padding: 8px 12px; border-radius: var(--field-radius);
+          border: 1px solid var(--field-border); background: var(--field-bg);
           font-size: 13px; font-family: inherit; color: var(--ink); outline: none;
+          transition: border-color .15s var(--ease), box-shadow .15s var(--ease);
         }
-        input:focus, select:focus { border-color: var(--accent); }
+        input:hover, select:hover { border-color: var(--field-border-hover); }
+        input:focus, select:focus { border-color: var(--accent); box-shadow: var(--field-ring); }
+        input:user-invalid, select:user-invalid { border-color: var(--rose); }
+        input:user-invalid:focus, select:user-invalid:focus { box-shadow: var(--field-ring-error); }
       `}</style>
     </form>
   )
@@ -207,17 +250,14 @@ function ModoBtn({ ativo, onClick, children }: { ativo: boolean; onClick: () => 
   )
 }
 
-function isoLocal(data: string, hora: string): string | null {
-  if (!data || !hora) return null
-  const dt = new Date(`${data}T${hora}:00`)
-  if (Number.isNaN(+dt)) return null
-  return dt.toISOString()
-}
+// Horário digitado = horário de Brasília (fuso da clínica), não o do navegador.
+const isoLocal = horarioBrasiliaParaISO
 
 function formatarPreview(iso: string): string {
   const d = new Date(iso)
   return d.toLocaleString('pt-BR', {
     day: '2-digit', month: 'short',
     weekday: 'short', hour: '2-digit', minute: '2-digit',
+    timeZone: TZ,
   })
 }

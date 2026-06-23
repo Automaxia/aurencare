@@ -2,6 +2,7 @@
 
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
+import { Sigilo } from '@/components/Sigilo'
 
 export type PatientCardData = {
   id: string
@@ -20,6 +21,7 @@ export type PatientCardData = {
   avInitials: string
   avBg: string
   principalCta: { label: string; href: string }
+  demo?: boolean
 }
 
 export function PatientCard({ p }: { p: PatientCardData }) {
@@ -41,9 +43,12 @@ export function PatientCard({ p }: { p: PatientCardData }) {
       <div className="ptc-b">
         <div className="ptc-head">
           <div className="ptc-id">
-            <div className="ptc-av" style={{ background: p.avBg }}>{p.avInitials}</div>
+            <div className="ptc-av sigilo" style={{ background: p.avBg }}>{p.avInitials}</div>
             <div>
-              <div className="ptc-name">{p.nome}</div>
+              <div className="ptc-name" style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                <Sigilo>{p.nome}</Sigilo>
+                {p.demo && <span className="tag t-info" style={{ fontSize: 9 }}>demonstração</span>}
+              </div>
               <div className="ptc-meta">
                 {p.sessoesTotais > 0
                   ? `desde ${p.desdeMes} · Sessão ${p.sessoesTotais}`

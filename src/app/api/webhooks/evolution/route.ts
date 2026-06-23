@@ -25,17 +25,26 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: 'invalid_token' }, { status: 401 })
   }
   if (tok === 'unconfigured') {
-    log.warn('evolution.webhook', 'EVOLUTION_WEBHOOK_TOKEN ausente — aceitando sem verificar token')
+    // Fail-closed em produção: sem token, qualquer um forjaria mensagens de
+    // paciente (gerar cobrança, cancelar/reembolsar). Em dev, libera com aviso.
+    if (process.env.NODE_ENV === 'production') {
+      log.err('evolution.webhook', 'EVOLUTION_WEBHOOK_TOKEN ausente/placeholder em produção — rejeitado (fail-closed)')
+      return NextResponse.json({ error: 'webhook_unconfigured' }, { status: 503 })
+    }
+    log.warn('evolution.webhook', 'EVOLUTION_WEBHOOK_TOKEN ausente — aceitando sem verificar (dev)')
   }
 
   let body: any
   try { body = await req.json() } catch { return NextResponse.json({ error: 'bad json' }, { status: 400 }) }
 
   const evt = body?.event as string | undefined
-  log.info('evolution.webhook', `event=${evt} inst=${body?.instance}`)
+  // Normaliza o nome do evento: Evolution manda em formatos variados
+  // ('messages.upsert', 'MESSAGES_UPSERT', 'messages-upsert'…). Canoniza p/ UPPER_SNAKE.
+  const evtN = String(evt ?? '').toUpperCase().replace(/[.\-\s]/g, '_')
+  log.info('evolution.webhook', `event=${evt} (norm=${evtN}) inst=${body?.instance}`)
 
-  // QR code: o Evolution v2 manda 'qrcode.updated' (com ponto) ou 'QRCODE_UPDATED' (sublinhado).
-  if (evt === 'qrcode.updated' || evt === 'QRCODE_UPDATED') {
+  // QR code
+  if (evtN === 'QRCODE_UPDATED') {
     const inst = body?.instance ?? 'auren-care'
     const qrBase64 = body?.data?.qrcode?.base64 ?? body?.data?.base64 ?? null
     const qrCode   = body?.data?.qrcode?.code   ?? body?.data?.code   ?? null
@@ -50,7 +59,7 @@ export async function POST(req: Request) {
   }
 
   // Connection state: limpa QR ao conectar
-  if (evt === 'connection.update') {
+  if (evtN === 'CONNECTION_UPDATE') {
     const inst = body?.instance ?? 'auren-care'
     const state = body?.data?.state
     log.info('evolution.webhook', `connection ${inst} → ${state}`)
@@ -61,12 +70,17 @@ export async function POST(req: Request) {
     return NextResponse.json({ ok: true, captured: 'connection' })
   }
 
-  if (evt && evt !== 'messages.upsert') {
+  if (evtN && evtN !== 'MESSAGES_UPSERT') {
     return NextResponse.json({ ok: true, ignored: evt })
   }
 
   const data = body?.data
-  const jid: string | undefined = data?.key?.remoteJid
+  const k = data?.key
+  // O WhatsApp moderno pode mandar o remetente como `<id>@lid` (LinkedID, sem
+  // telefone) e o número real vem em `remoteJidAlt`. Preferimos sempre o JID
+  // `@s.whatsapp.net`; sem ele não há como responder (e enviar pro LID dá 400).
+  const jidsCand = [k?.remoteJid, k?.remoteJidAlt].filter(Boolean) as string[]
+  const jid = jidsCand.find(j => j.endsWith('@s.whatsapp.net'))
   const texto: string | undefined =
     data?.message?.conversation ??
     data?.message?.extendedTextMessage?.text ??
@@ -74,13 +88,13 @@ export async function POST(req: Request) {
     undefined
 
   if (!jid || !texto) {
-    log.warn('evolution.webhook', 'payload sem jid ou texto', { jid, hasText: !!texto })
+    log.warn('evolution.webhook', 'sem jid telefônico ou texto', { remoteJid: k?.remoteJid, alt: k?.remoteJidAlt, hasText: !!texto })
     return NextResponse.json({ ok: true })
   }
 
   const telefone = jid.split('@')[0]
   try {
-    await processarMensagemRecebida({ telefone, texto })
+    await processarMensagemRecebida({ telefone, texto, instance: body?.instance })
   } catch (err) {
     log.err('evolution.webhook', 'falha ao processar', err)
   }

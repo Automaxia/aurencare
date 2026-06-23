@@ -56,7 +56,7 @@ export async function lerMarcos(pacienteId: string): Promise<Marco[]> {
   if (resumos.length === 0) return []
 
   const userMsg = resumos
-    .map(r => `Sessão #${r.numero} (${new Date(r.data).toLocaleDateString('pt-BR')}):\n${r.texto}`)
+    .map(r => `Sessão #${r.numero} (${new Date(r.data).toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' })}):\n${r.texto}`)
     .join('\n\n')
 
   const raw = await chat(SYS, [{ role: 'user', content: userMsg }], { scope: 'marcos', maxTokens: 700 })

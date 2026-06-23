@@ -101,7 +101,7 @@ SSE e confirma ao paciente por WhatsApp/email.
 - **Imagem** multi-stage (`Dockerfile`), Next standalone, usuário não-root.
 - **Kubernetes** (namespace `aurencare`):
   - 1 Deployment (`aurencare-web`) servindo `app.` e `api.aurencare.ia.br` /
-    `aurencare.automaxia.com.br`.
+    `app.audere.ia.br`.
   - `aurencare-api` mantido apenas como **Ingress** apontando ao mesmo Service.
   - Secret `aurencare-secrets` (envs); pull secret `automaxia-secreto-docker`.
 - **Migrations**: Job `k8s/migrate-job.yaml` reaproveita a imagem e roda

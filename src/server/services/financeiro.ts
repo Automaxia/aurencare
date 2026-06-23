@@ -322,3 +322,36 @@ export async function lerSaude(psicologoId: string): Promise<SaudePratica> {
     pacientesComRecente30d: ret[0].n,
   }
 }
+
+// ── Gestão de cobranças (cada cobrança = uma sessão) ─────────────────────
+
+export type EditarCobrancaPatch = {
+  pagamentoStatus?: string
+  valor?: number
+  dataHora?: string   // ISO
+}
+
+/** Edita os campos financeiros da sessão (status/valor/data). Verifica posse. */
+export async function editarCobranca(psicologoId: string, sessaoId: string, patch: EditarCobrancaPatch): Promise<boolean> {
+  const fields: string[] = []
+  const vals: any[] = [sessaoId, psicologoId]
+  const set = (col: string, v: any) => { fields.push(`${col} = $${vals.length + 1}`); vals.push(v) }
+  if (patch.pagamentoStatus !== undefined) set('pagamento_status', patch.pagamentoStatus)
+  if (patch.valor !== undefined)           set('valor', patch.valor)
+  if (patch.dataHora !== undefined)        set('data_hora', patch.dataHora)
+  if (fields.length === 0) return false
+  const { rowCount } = await db.query(
+    `UPDATE sessoes SET ${fields.join(', ')} WHERE id = $1 AND psicologo_id = $2`, vals,
+  )
+  return (rowCount ?? 0) > 0
+}
+
+/** "Apaga" a cobrança: marca a sessão como sem cobrança (isento, valor 0).
+ *  Preserva o registro clínico da sessão. Reversível via edição. */
+export async function removerCobranca(psicologoId: string, sessaoId: string): Promise<boolean> {
+  const { rowCount } = await db.query(
+    `UPDATE sessoes SET pagamento_status = 'isento', valor = 0 WHERE id = $1 AND psicologo_id = $2`,
+    [sessaoId, psicologoId],
+  )
+  return (rowCount ?? 0) > 0
+}

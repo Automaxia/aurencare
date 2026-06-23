@@ -99,6 +99,32 @@ const s = StyleSheet.create({
   },
 })
 
+/** **negrito** inline → <Text bold> (react-pdf aceita <Text> aninhado). */
+function inlineBold(text: string): React.ReactNode[] {
+  return text.split(/\*\*(.+?)\*\*/g).map((seg, i) =>
+    i % 2 === 1 ? <Text key={i} style={{ fontFamily: 'Helvetica-Bold' }}>{seg}</Text> : seg,
+  )
+}
+
+/** Renderiza o laudo (Markdown do MODE: SUMMARY) como elementos do PDF. */
+function renderResumoMd(md: string): React.ReactNode[] {
+  const out: React.ReactNode[] = []
+  let para: string[] = []
+  let k = 0
+  const flush = () => { if (para.length) { out.push(<Text key={`p${k++}`} style={s.corpo}>{inlineBold(para.join(' '))}</Text>); para = [] } }
+  for (const raw of md.replace(/\r\n/g, '\n').split('\n')) {
+    const line = raw.trim()
+    const h = line.match(/^(#{2,6})\s+(.*)$/)
+    const li = line.match(/^[-*]\s+(.*)$/)
+    if (h) { flush(); out.push(<Text key={`h${k++}`} style={s.subTitulo}>{h[2]}</Text>) }
+    else if (li) { flush(); out.push(<Text key={`l${k++}`} style={s.corpo}>•  {inlineBold(li[1])}</Text>) }
+    else if (line === '') { flush() }
+    else para.push(line)
+  }
+  flush()
+  return out
+}
+
 export function RelatorioSessaoPDF({ d }: { d: RelatorioSessaoDados }) {
   const { psicologo, paciente, sessao, objetivosAtivos } = d
   const dataSessao = formatDataCurta(sessao.dataHora)
@@ -161,7 +187,7 @@ export function RelatorioSessaoPDF({ d }: { d: RelatorioSessaoDados }) {
         {sessao.resumo && (
           <>
             <Text style={s.subTitulo}>Resumo:</Text>
-            <Text style={s.corpo}>{sessao.resumo}</Text>
+            {renderResumoMd(sessao.resumo)}
           </>
         )}
 
@@ -268,7 +294,7 @@ function formatIndicadores(ind: any): string | null {
 function formatDataCurta(iso: string): string {
   try {
     return new Date(iso).toLocaleDateString('pt-BR', {
-      day: '2-digit', month: '2-digit', year: 'numeric',
+      day: '2-digit', month: '2-digit', year: 'numeric', timeZone: 'America/Sao_Paulo',
     })
   } catch { return iso }
 }

@@ -21,7 +21,7 @@ Não é um ERP, não é prontuário hospitalar. É a infraestrutura operacional 
 
 ## 2. PREMISSAS INEGOCIÁVEIS
 
-1. **IA nunca emite diagnóstico** — CFP 09/2024. Qualquer texto gerado pela IA deve usar linguagem de frequência e observação, nunca clínica ou diagnóstica.
+1. **IA nunca emite diagnóstico** — CFP 09/2024. IA nunca faz determinação diagnóstica (DSM/ICD) nem afirmação categórica/conclusiva. Texto **voltado ao paciente** ou automático (temas, evolução, observações ao vivo, WhatsApp) usa linguagem de **frequência e observação**. **Exceção:** o **laudo de sessão** (MODE: SUMMARY em `anthropic.ts` → `gerarResumoSessao`) é uma nota de prontuário que pode usar a **nomenclatura clínica da abordagem** (transferência, esquema, distorções, modos) — porque é um **rascunho revisado e ASSINADO** pelo psicólogo responsável, não um diagnóstico. O guard (`aiGuard.ts`) bloqueia só diagnóstico/linguagem categórica, não a terminologia.
 2. **Toda nota abre como rascunho** — o psicólogo assina. Nunca salvar como "final" sem assinatura.
 3. **Zero data training** — nenhum dado de paciente é usado para treinar modelos. Visível na interface.
 4. **Pagamento confirma o agendamento** — zero inadimplência. Sessão só aparece como confirmada após webhook de pagamento.
@@ -612,7 +612,7 @@ Modal abre automaticamente ao encerrar. Contém:
 
 ## 15. ESCOPO — STATUS ATUAL
 
-> O projeto está **em produção** (https://aurencare.automaxia.com.br/) e já cobre
+> O projeto está **em produção** (https://app.audere.ia.br/) e já cobre
 > Fase 1 + parte da Fase 2. Detalhe e backlog em [`docs/tasks.md`](./docs/tasks.md).
 
 ### ✅ Implementado e em produção
@@ -653,7 +653,7 @@ Modal abre automaticamente ao encerrar. Contém:
 ## 15.1 DEPLOY (Kubernetes)
 
 - **Monolito, 1 pod** (`aurencare-web`): frontend e API são o mesmo app/imagem. Os
-  hosts `aurencare.automaxia.com.br` (e `api.`) apontam para o mesmo Service.
+  hosts `app.audere.ia.br` (e `api.`) apontam para o mesmo Service.
 - **kubeconfig**: `local.yaml` (cluster Rancher) — usar `kubectl --insecure-skip-tls-verify`.
 - **Imagem**: `wesleyromualdo/aurencare-web:latest`. Migrations: `k8s/migrate-job.yaml`
   (`node src/server/db/migrate.mjs`, idempotente — **não** usa `tsx`).

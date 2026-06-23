@@ -15,7 +15,8 @@ import { SortableGrid } from './widgets/SortableGrid'
 import { WidgetGrip } from '@/components/WidgetGrip'
 import { LiveInsight } from './widgets/LiveInsight'
 import { VideoCall } from '@/components/video/VideoCall'
-import { Video } from 'lucide-react'
+import { MovableWindow } from '@/components/video/MovableWindow'
+import { Video, ArrowLeftRight } from 'lucide-react'
 
 type Props = {
   sessaoId: string
@@ -24,19 +25,40 @@ type Props = {
   numeroSessao: number
   duracaoMin: number
   pagamentoStatus: string
+  status: string
+  modalidade: string
 }
 
 const DEFAULT_ORDER = ['live-insight', 'ritmo', 'temas', 'humor', 'info', 'risco', 'ultima', 'topicos', 'nota']
+// Nomes legíveis dos painéis pro menu "Personalizar painéis".
+const WIDGET_LABELS: Record<string, string> = {
+  'live-insight': 'Observação ao vivo',
+  ritmo: 'Ritmo da conversa',
+  temas: 'Temas desta sessão',
+  humor: 'Checagem de humor',
+  info: 'Informações do paciente',
+  risco: 'Avaliação de risco',
+  ultima: 'Última sessão',
+  topicos: 'Tópicos em aberto',
+  nota: 'Nota rápida',
+}
 const OBS_INTERVAL_TURNS = 5  // gera observação a cada N turnos novos
 const TOM_BATCH_SIZE = 5      // classifica o tom em lotes de N turnos (1 chamada IA)
 const TOM_BATCH_MS = 3500     // …ou ao fim deste intervalo, o que vier primeiro
 
 export function PresenceClient(props: Props) {
   const router = useRouter()
+  // Presencial: 1 mic da sala → AssemblyAI com diarização. Sem Web Speech nem
+  // WebRTC. Online segue com a estratégia de dois streams.
+  const presencial = props.modalidade === 'presencial'
   const [turnos, setTurnos] = useState<Turno[]>([])
   const [interim, setInterim] = useState('')
   const [armed, setArmed] = useState<TurnMark | null>(null)
   const [tempoSegundos, setTempo] = useState(0)
+  // A sessão clínica só "começa" quando o psicólogo aperta Iniciar sessão.
+  // Ao reentrar numa sessão já em curso, já vem iniciada.
+  const [sessaoIniciada, setSessaoIniciada] = useState(props.status === 'em_curso')
+  const [iniciandoSessao, setIniciandoSessao] = useState(false)
   const [recording, setRecording] = useState(false)
   const [encerrando, setEncerrando] = useState(false)
   const [showPostModal, setShowPostModal] = useState(false)
@@ -55,8 +77,16 @@ export function PresenceClient(props: Props) {
   const [pacienteInterim, setPacienteInterim] = useState('')
   const [linkCopiado, setLinkCopiado] = useState(false)
   const [bloqueio, setBloqueio] = useState<{ cap: number; usadas: number; plano: string } | null>(null)
+  // mic local do psicólogo — só usado como FALLBACK quando o Web Speech não existe
+  // (iPad/Safari/Firefox). Aí roteamos o mic local pela AssemblyAI (igual ao paciente).
+  const [localMicStream, setLocalMicStream] = useState<MediaStream | null>(null)
+  // Presencial: mic único da sala + mapa rótulo-da-AssemblyAI ('A'/'B') → papel.
+  const [salaMicStream, setSalaMicStream] = useState<MediaStream | null>(null)
+  const mapaFalanteRef = useRef<Record<string, 'psicologo' | 'paciente'>>({})
+  // idioma do reconhecimento de fala da psicóloga (Web Speech). A AssemblyAI
+  // (paciente/tablet) detecta o idioma automaticamente.
+  const [idioma, setIdioma] = useState('pt-BR')
 
-  const startedRef = useRef(false)
   // controle de quando rodar próxima observação ao vivo
   const lastObsAtCountRef = useRef<number>(0)
   // últimos finais do mic local (psicóloga) — janela curta pra dedupe contra eco do alto-falante
@@ -65,35 +95,64 @@ export function PresenceClient(props: Props) {
   const tomQueueRef = useRef<Array<{ id: string; texto: string; who: 'psicologo' | 'paciente' }>>([])
   const tomTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
+  // O cronômetro da sessão só corre depois de iniciada.
   useEffect(() => {
-    if (startedRef.current) return
-    startedRef.current = true
-    fetch(`/api/sessao/${props.sessaoId}/iniciar`, { method: 'POST' }).catch(() => {})
-  }, [props.sessaoId])
-
-  useEffect(() => {
+    if (!sessaoIniciada) return
     const id = setInterval(() => setTempo(t => t + 1), 1000)
     return () => clearInterval(id)
-  }, [])
+  }, [sessaoIniciada])
 
   // limpa o timer do lote de tom ao desmontar (evita flush após sair da tela)
   useEffect(() => () => { if (tomTimerRef.current) clearTimeout(tomTimerRef.current) }, [])
 
   const { ctx, loading: ctxLoading } = useContexto(props.sessaoId)
 
+  // Adiciona um turno do psicólogo (usado tanto pelo Web Speech quanto pelo
+  // fallback AssemblyAI). Memoriza no buffer de dedup vs eco do alto-falante.
+  function addPsicologoTurn(texto: string, ts: string) {
+    const id = crypto.randomUUID()
+    const tsMs = Date.parse(ts) || Date.now()
+    const win = recentLocalRef.current.filter(r => tsMs - r.ts < 6000)
+    win.push({ id, texto, ts: tsMs })
+    recentLocalRef.current = win.slice(-8)
+    setTurnos(prev => [...prev, { id, who: 'psicologo', texto, ts, mark: null, tone: null }])
+    setInterim('')
+    enqueueTom(id, texto, 'psicologo')
+  }
+
   const { supported, active, error } = useSpeech({
-    enabled: recording,
-    onFinal: chunk => {
-      const id = crypto.randomUUID()
-      const tsMs = Date.parse(chunk.ts) || Date.now()
-      // memoriza últimos 8 finais locais (janela ~6s) pra dedup vs eco
-      const win = recentLocalRef.current.filter(r => tsMs - r.ts < 6000)
-      win.push({ id, texto: chunk.texto, ts: tsMs })
-      recentLocalRef.current = win.slice(-8)
-      setTurnos(prev => [...prev, { id, who: 'psicologo', texto: chunk.texto, ts: chunk.ts, mark: null, tone: null }])
-      setInterim('')
-      enqueueTom(id, chunk.texto, 'psicologo')
-    },
+    enabled: recording && !presencial,
+    lang: idioma,
+    onFinal: chunk => addPsicologoTurn(chunk.texto, chunk.ts),
+    onInterim: setInterim,
+  })
+
+  // Fallback: onde o Web Speech não existe (supported === false), captura o mic
+  // local do psicólogo e o transcreve pela AssemblyAI. Em navegadores com Web
+  // Speech (desktop), isto fica desligado — mantém a transcrição local grátis.
+  useEffect(() => {
+    if (!(recording && supported === false && !presencial)) return
+    let stream: MediaStream | null = null
+    let cancelled = false
+    navigator.mediaDevices
+      ?.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true } })
+      .then(s => {
+        if (cancelled) { s.getTracks().forEach(t => t.stop()); return }
+        stream = s
+        setLocalMicStream(s)
+      })
+      .catch(() => { /* permissão negada — banner de erro já cobre */ })
+    return () => {
+      cancelled = true
+      stream?.getTracks().forEach(t => t.stop())
+      setLocalMicStream(null)
+    }
+  }, [recording, supported, presencial])
+
+  const localFallbackSTT = useRemoteTranscribe({
+    enabled: recording && supported === false && !presencial && !!localMicStream,
+    stream: localMicStream,
+    onFinal: (texto, ts) => addPsicologoTurn(texto, ts),
     onInterim: setInterim,
   })
 
@@ -104,7 +163,7 @@ export function PresenceClient(props: Props) {
   // (eco residual), esse texto chega aqui como "paciente" mas é cópia de um turno
   // recente da psicóloga — descartamos pra não contaminar a análise do paciente.
   const remoteSTT = useRemoteTranscribe({
-    enabled: recording && !!remoteStream,
+    enabled: recording && !presencial && !!remoteStream,
     stream: remoteStream,
     onFinal: (texto, ts) => {
       const tsMs = Date.parse(ts) || Date.now()
@@ -121,6 +180,72 @@ export function PresenceClient(props: Props) {
     },
     onInterim: setPacienteInterim,
   })
+
+  // ── PRESENCIAL: mic único da sala ────────────────────────────────────────
+  // Capta um microfone só (psicólogo + paciente no mesmo ambiente) e deixa a
+  // diarização da AssemblyAI separar os falantes. Sem WebRTC, sem Web Speech.
+  useEffect(() => {
+    if (!(recording && presencial)) return
+    let stream: MediaStream | null = null
+    let cancelled = false
+    navigator.mediaDevices
+      ?.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true } })
+      .then(s => {
+        if (cancelled) { s.getTracks().forEach(t => t.stop()); return }
+        stream = s
+        setSalaMicStream(s)
+      })
+      .catch(() => { /* permissão negada — banner de erro cobre */ })
+    return () => {
+      cancelled = true
+      stream?.getTracks().forEach(t => t.stop())
+      setSalaMicStream(null)
+    }
+  }, [recording, presencial])
+
+  // Resolve o papel (psicólogo/paciente) a partir do rótulo da AssemblyAI.
+  // Heurística: 1º falante distinto = psicólogo (costuma abrir a sessão), 2º =
+  // paciente. Extras caem em paciente. Corrigível pelo botão "Trocar P↔C".
+  function papelDoFalante(speaker: string | undefined): 'psicologo' | 'paciente' {
+    if (!speaker) {
+      // utterance curta/"UNKNOWN": mantém o último falante conhecido (ou psicólogo).
+      const ultimo = turnos.length ? turnos[turnos.length - 1].who : 'psicologo'
+      return ultimo
+    }
+    const mapa = mapaFalanteRef.current
+    if (!mapa[speaker]) {
+      const jaTemPsic = Object.values(mapa).includes('psicologo')
+      mapa[speaker] = jaTemPsic ? 'paciente' : 'psicologo'
+    }
+    return mapa[speaker]
+  }
+
+  function addTurnoDiarizado(texto: string, ts: string, speaker?: string) {
+    const who = papelDoFalante(speaker)
+    const id = crypto.randomUUID()
+    setTurnos(prev => [...prev, { id, who, texto, ts, mark: null, tone: null }])
+    setInterim('')
+    enqueueTom(id, texto, who)
+  }
+
+  const salaSTT = useRemoteTranscribe({
+    enabled: recording && presencial && !!salaMicStream,
+    stream: salaMicStream,
+    speakerLabels: true,
+    maxSpeakers: 2,
+    onFinal: addTurnoDiarizado,
+    onInterim: setInterim,
+  })
+
+  // Troca global psicólogo↔paciente (presencial): inverte o mapa de rótulos e
+  // reclassifica os turnos já transcritos. Corrige a heurística quando erra.
+  function trocarFalantesPresencial() {
+    const mapa = mapaFalanteRef.current
+    for (const k of Object.keys(mapa)) {
+      mapa[k] = mapa[k] === 'psicologo' ? 'paciente' : 'psicologo'
+    }
+    setTurnos(prev => prev.map(t => ({ ...t, who: t.who === 'psicologo' ? 'paciente' : 'psicologo' })))
+  }
 
   // Enfileira um turno pra classificação de tom em lote. Dispara o flush quando
   // o lote enche (TOM_BATCH_SIZE) ou após TOM_BATCH_MS — o que vier primeiro.
@@ -205,8 +330,21 @@ export function PresenceClient(props: Props) {
   const counts: Record<TurnMark, number> = { insight: 0, comportamento: 0, avanco: 0 }
   for (const t of turnos) if (t.mark) counts[t.mark]++
 
+  // Marca a sessão como em curso (status em_curso + pill no painel). É o gatilho
+  // que libera a transcrição/registro — antes disso o botão fica desabilitado.
+  async function iniciarSessaoClinica() {
+    if (sessaoIniciada || iniciandoSessao) return
+    setIniciandoSessao(true)
+    try {
+      await fetch(`/api/sessao/${props.sessaoId}/iniciar`, { method: 'POST' })
+    } catch { /* rede instável: não trava o atendimento, segue iniciada localmente */ }
+    setSessaoIniciada(true)
+    setIniciandoSessao(false)
+  }
+
   // Inicia o registro (transcrição/IA) após passar pelo gate de cota mensal.
   async function iniciarRegistro() {
+    if (!sessaoIniciada) return
     try {
       const r = await fetch(`/api/sessao/${props.sessaoId}/ia/iniciar`, { method: 'POST' })
       if (r.status === 403) {
@@ -283,15 +421,30 @@ export function PresenceClient(props: Props) {
     }
   }
 
+  // Os temas/palavras vêm SÓ da fala do paciente. Quando ainda não há nenhum
+  // turno do paciente, explica o que falta (em vez de canvas vazio sem motivo).
+  const turnosPaciente = turnos.filter(t => t.who === 'paciente')
+  const temasHint =
+    turnosPaciente.length > 0 ? undefined
+    : presencial
+      ? (salaSTT.error ? `Transcrição indisponível: ${salaSTT.error}`
+        : !salaMicStream ? 'Os temas surgem da fala do paciente. Libere o microfone da sala para começar.'
+        : salaSTT.active ? 'Ouvindo a sala… separando psicólogo e paciente automaticamente.'
+        : 'Conectando a transcrição…')
+      : (remoteSTT.error ? `Transcrição do paciente indisponível: ${remoteSTT.error}`
+        : !remoteStream ? 'Os temas vêm da fala do paciente. Aguardando o paciente entrar na chamada e começar a falar.'
+        : remoteSTT.active ? 'Ouvindo o paciente… os temas surgem conforme ele fala.'
+        : 'Conectando a transcrição do paciente…')
+
   const widgets = [
     <LiveInsight key="live-insight" text={obsViva} loading={obsLoading} numeroTurnos={turnos.length} />,
     <RhythmWidget key="ritmo" pctPsic={pctPsic} pctPac={pctPac} counts={counts} armed={armed} setArmed={setArmed} />,
     <div key="temas" className="themes-card" data-widget-id="temas">
       <WidgetGrip />
       <div className="themes-head"><span className="ttl">Temas desta sessão</span><span className="sub">ao vivo</span></div>
-      <div style={{ padding: 8 }}><ThemesCanvas turnos={turnos.filter(t => t.who === 'paciente')} /></div>
+      <div style={{ padding: 8 }}><ThemesCanvas turnos={turnosPaciente} emptyHint={temasHint} /></div>
     </div>,
-    <HumorCheck key="humor" value={humor} onChange={setHumor} />,
+    <HumorCheck key="humor" className="wide" value={humor} onChange={setHumor} />,
     <InfoPacienteWidget key="info" ctx={ctx} loading={ctxLoading} pacienteId={props.pacienteId} />,
     <RiskAssessment key="risco" value={risco} onChange={setRisco} />,
     <UltimaSessaoWidget key="ultima" ctx={ctx} loading={ctxLoading} />,
@@ -313,28 +466,66 @@ export function PresenceClient(props: Props) {
         <div>
           <span className="pb-name">{props.pacienteNome}</span>
           <span className="pb-meta">
-            · Sessão {props.numeroSessao} · {recording ? (active ? 'Presente' : 'Iniciando…') : 'Pausado'} · {fmtTime(tempoSegundos)}
+            · Sessão {props.numeroSessao} · {!sessaoIniciada ? 'Não iniciada' : recording ? (active ? 'Presente' : 'Iniciando…') : 'Pausado'} · {fmtTime(tempoSegundos)}
           </span>
         </div>
         <div className="pb-actions">
+          {supported !== false && (
+            <select
+              value={idioma}
+              onChange={e => setIdioma(e.target.value)}
+              title="Idioma da sua fala (a do paciente é detectada automaticamente)"
+              style={{
+                fontSize: 12, padding: '6px 8px', borderRadius: 8,
+                border: '1px solid var(--border)', background: 'var(--card)', color: 'var(--ink-soft)',
+              }}
+            >
+              <option value="pt-BR">PT</option>
+              <option value="en-US">EN</option>
+            </select>
+          )}
+          {!sessaoIniciada && (
+            <button
+              className="btn primary"
+              onClick={iniciarSessaoClinica}
+              disabled={iniciandoSessao}
+              title="Marca a sessão como em curso e libera a transcrição"
+            >
+              {iniciandoSessao ? 'Iniciando…' : '▶ Iniciar sessão'}
+            </button>
+          )}
           {!recording ? (
-            <button className="btn" onClick={iniciarRegistro}>● Iniciar registro</button>
+            <button
+              className="btn"
+              onClick={iniciarRegistro}
+              disabled={!sessaoIniciada}
+              title={sessaoIniciada ? 'Iniciar transcrição e registro' : 'Inicie a sessão primeiro'}
+            >
+              ● Iniciar registro
+            </button>
           ) : (
             <button className="btn ghost" onClick={() => setRecording(false)}>⏸</button>
           )}
-          <button
-            className={`btn${chamada ? ' primary' : ' ghost'}`}
-            onClick={iniciarChamada}
-            disabled={iniciandoChamada}
-            title={chamada ? 'Mostrar link da sala' : 'Abrir chamada online no Audere'}
-          >
-            <Video size={14} style={{ marginRight: 4 }} />
-            {chamada ? 'Sala online' : iniciandoChamada ? 'Abrindo…' : 'Chamada online'}
-          </button>
+          {!presencial && (
+            <button
+              className={`btn${chamada ? ' primary' : ' ghost'}`}
+              onClick={iniciarChamada}
+              disabled={iniciandoChamada}
+              title={chamada ? 'Mostrar link da sala' : 'Abrir chamada online no Audere'}
+            >
+              <Video size={14} style={{ marginRight: 4 }} />
+              {chamada ? 'Sala online' : iniciandoChamada ? 'Abrindo…' : 'Chamada online'}
+            </button>
+          )}
+          {presencial && recording && (
+            <button className="btn ghost" onClick={trocarFalantesPresencial} title="Inverter quem é psicólogo e quem é paciente" style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+              <ArrowLeftRight size={14} /> Trocar P↔C
+            </button>
+          )}
           <button className="btn primary" onClick={encerrar} disabled={encerrando}>
             {encerrando ? 'Encerrando…' : 'Encerrar'}
           </button>
-          <a className="btn ghost" href="/">← Voltar</a>
+          <a className="btn ghost" href={`/pacientes/${props.pacienteId}`}>← Voltar ao paciente</a>
         </div>
       </div>
 
@@ -348,10 +539,27 @@ export function PresenceClient(props: Props) {
         </div>
       )}
 
-      {supported === false && (
-        <div style={{ background: 'var(--rose-lo)', color: 'var(--rose)', padding: '8px 16px', fontSize: 12 }}>
-          Seu navegador não suporta transcrição nativa. Use Chrome ou Edge.
-        </div>
+      {presencial && (
+        salaSTT.error ? (
+          <div style={{ background: 'var(--rose-lo)', color: 'var(--rose)', padding: '8px 16px', fontSize: 12 }}>
+            Transcrição da sala indisponível: {salaSTT.error}
+          </div>
+        ) : (
+          <div style={{ background: 'rgba(90,158,138,.10)', color: '#2a6456', padding: '8px 16px', fontSize: 12 }}>
+            Modo presencial · um microfone · psicólogo e paciente separados automaticamente. Use <strong>Trocar P↔C</strong> se inverter.
+          </div>
+        )
+      )}
+      {!presencial && supported === false && (
+        localFallbackSTT.error ? (
+          <div style={{ background: 'var(--rose-lo)', color: 'var(--rose)', padding: '8px 16px', fontSize: 12 }}>
+            Transcrição indisponível neste navegador: {localFallbackSTT.error}
+          </div>
+        ) : (
+          <div style={{ background: 'rgba(90,158,138,.10)', color: '#2a6456', padding: '8px 16px', fontSize: 12 }}>
+            Transcrição em nuvem ativa neste dispositivo (sem Web Speech).
+          </div>
+        )
       )}
       {error && (
         <div style={{ background: 'rgba(176,125,64,.10)', color: 'var(--amber)', padding: '8px 16px', fontSize: 12 }}>
@@ -375,7 +583,7 @@ export function PresenceClient(props: Props) {
         />
 
         <div className="sess-right">
-          <SortableGrid defaultOrder={DEFAULT_ORDER}>
+          <SortableGrid defaultOrder={DEFAULT_ORDER} labels={WIDGET_LABELS}>
             {widgets}
           </SortableGrid>
         </div>
@@ -426,14 +634,9 @@ export function PresenceClient(props: Props) {
         </div>
       )}
 
-      {/* VideoCall overlay quando chamada ativa */}
+      {/* Janela de vídeo arrastável pela tela inteira (alça no topo) */}
       {chamada && (
-        <div style={{
-          position: 'fixed', right: 20, bottom: 20,
-          width: 360, height: 260, zIndex: 40,
-          boxShadow: 'var(--sh-lg)', borderRadius: 'var(--rsm)',
-          overflow: 'hidden',
-        }}>
+        <MovableWindow width={360} height={282}>
           <VideoCall
             token={chamada.token}
             role="psicologo"
@@ -442,7 +645,7 @@ export function PresenceClient(props: Props) {
             onEncerrar={() => { setChamada(null); setRemoteStream(null) }}
             onRemoteStream={setRemoteStream}
           />
-        </div>
+        </MovableWindow>
       )}
 
       {showPostModal && (

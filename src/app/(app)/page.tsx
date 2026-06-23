@@ -1,12 +1,19 @@
 import Link from 'next/link'
 import { SpiralWatermark } from '@/components/brand/SpiralWatermark'
+import { Sigilo } from '@/components/Sigilo'
+import { FileText, CreditCard, AlertTriangle } from 'lucide-react'
 import { requirePsicologo } from '@/server/lib/auth'
+import { db } from '@/server/db/pool'
 import {
   proximaSessao, listarSessoesEntre, sessoesPendentesAssinatura,
 } from '@/server/services/sessoes'
 import { listarPacientes } from '@/server/services/pacientes'
+import { statusOnboarding } from '@/server/services/onboarding'
+import { temPacienteDemo } from '@/server/services/pacienteDemo'
 import { formatTimeBR, formatBRL } from '@/lib/formatters'
 import { IntelSection } from './intel'
+import { OnboardingWizard } from './OnboardingWizard'
+import { OnboardingCelebration } from './OnboardingCelebration'
 
 export const dynamic = 'force-dynamic'
 
@@ -44,14 +51,34 @@ export default async function InicioPage() {
   const fimSemanaAnt = new Date(inicioSemana); fimSemanaAnt.setDate(inicioSemana.getDate() - 1); fimSemanaAnt.setHours(23, 59, 59, 999)
   const iniSemanaAnt = new Date(inicioSemana); iniSemanaAnt.setDate(inicioSemana.getDate() - 7)
 
-  const [proxima, sessoesHoje, sessoesSemana, sessoesAnt, pendentes, pacientes] = await Promise.all([
+  const [proxima, sessoesHoje, sessoesSemana, sessoesAnt, pendentes, pacientes, onb, agg, demoId] = await Promise.all([
     proximaSessao(user.id),
     listarSessoesEntre(user.id, inicioDia.toISOString(), fimDia.toISOString()),
     listarSessoesEntre(user.id, inicioSemana.toISOString(), fimSemana.toISOString()),
     listarSessoesEntre(user.id, iniSemanaAnt.toISOString(), fimSemanaAnt.toISOString()),
     sessoesPendentesAssinatura(user.id),
     listarPacientes(user.id),
+    statusOnboarding(user.id),
+    db.query<{ assinadas_total: number; concluidas_total: number; objetivos_ativos: number; objetivos_estagnados: number; ultima_evolucao: string | null; ultima_evolucao_paciente: string | null }>(`
+      SELECT
+        (SELECT count(*)::int FROM sessoes WHERE psicologo_id = $1 AND assinada = TRUE) AS assinadas_total,
+        (SELECT count(*)::int FROM sessoes WHERE psicologo_id = $1 AND status = 'concluida') AS concluidas_total,
+        (SELECT count(*)::int FROM objetivos o JOIN pacientes p ON p.id = o.paciente_id
+           WHERE p.psicologo_id = $1 AND o.status = 'ativo' AND p.status = 'ativo') AS objetivos_ativos,
+        (SELECT count(*)::int FROM objetivos o JOIN pacientes p ON p.id = o.paciente_id
+           WHERE p.psicologo_id = $1 AND o.status = 'ativo' AND p.status = 'ativo'
+             AND o.updated_at < NOW() - INTERVAL '14 days') AS objetivos_estagnados,
+        (SELECT max(data_hora) FROM sessoes WHERE psicologo_id = $1 AND assinada = TRUE) AS ultima_evolucao,
+        (SELECT paciente_id FROM sessoes WHERE psicologo_id = $1 AND assinada = TRUE ORDER BY data_hora DESC LIMIT 1) AS ultima_evolucao_paciente
+    `, [user.id]).then(r => r.rows[0]),
+    temPacienteDemo(user.id),
   ])
+
+  const realizadasSemana = sessoesSemana.filter(s => s.status === 'concluida').length
+  const pctAssinadas = agg.concluidas_total > 0 ? Math.round((agg.assinadas_total / agg.concluidas_total) * 100) : 100
+  const ultimaEvolStr = agg.ultima_evolucao
+    ? new Date(agg.ultima_evolucao).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', timeZone: 'America/Sao_Paulo' })
+    : null
 
   const semanaRecebido    = sessoesSemana.filter(s => s.pagamentoStatus === 'pago').reduce((a, s) => a + s.valor, 0)
   const semanaAntRecebido = sessoesAnt   .filter(s => s.pagamentoStatus === 'pago').reduce((a, s) => a + s.valor, 0)
@@ -62,9 +89,10 @@ export default async function InicioPage() {
   const sessaoEmAndamento = sessoesHoje.find(s => s.status === 'em_curso')
   const sessoesEmAndamento = sessoesHoje.filter(s => s.status === 'em_curso').length
   const cobrancasPendentes = sessoesSemana.filter(s =>
-    s.pagamentoStatus === 'pendente' && (s.status === 'aguardando_metodo' || s.status === 'aguardando_pagamento'),
+    s.pagamentoStatus === 'pendente' && (s.status === 'aguardando_metodo' || s.status === 'aguardando_pagamento')
+    && s.pacienteStatus === 'ativo',   // paciente arquivado não gera cobrança pendente
   ).length
-  const pendenciasCount = pendentes.length + cobrancasPendentes
+  const pendenciasCount = pendentes.length + cobrancasPendentes + agg.objetivos_estagnados
   // Destino contextual da pílula "pendências": sessão pra assinar > financeiro
   const pendenciasHref = pendentes.length > 0
     ? `/sessao/${pendentes[0].id}`
@@ -83,6 +111,9 @@ export default async function InicioPage() {
   return (
     <div style={{ position: 'relative' }}>
       <SpiralWatermark />
+
+      {!onb.completo && <OnboardingWizard status={onb} nome={firstName(user.name)} demoId={demoId} />}
+      <OnboardingCelebration completo={onb.completo} />
 
       {/* ── Saudação ── */}
       <div className="greeting">
@@ -110,11 +141,12 @@ export default async function InicioPage() {
 
       {/* ── Próxima sessão dominante ── */}
       {proxima ? (
+        <>
         <Link href={`/sessao/${proxima.id}`} className="next-sess">
           <div className="next-time">{formatTimeBR(proxima.dataHora)}</div>
           <div className="next-meta">
             <div className="next-name">
-              {proxima.pacienteNome}{' '}
+              <Sigilo>{proxima.pacienteNome}</Sigilo>{' '}
               <span style={{ fontSize: 11, fontWeight: 300, color: 'var(--muted)' }}>· Sessão {proxima.numero}</span>
             </div>
             <div className="next-detail">
@@ -131,10 +163,17 @@ export default async function InicioPage() {
             {proxima.status === 'em_curso' ? 'Retomar sessão' : 'Abrir sessão'}
           </button>
         </Link>
+        <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: -12, marginBottom: 22 }}>
+          <Link href={`/pacientes/${proxima.pacienteId}`} style={{ fontSize: 12, color: 'var(--muted)' }}>Abrir paciente →</Link>
+        </div>
+        </>
       ) : (
         <div className="card" style={{ textAlign: 'center', marginBottom: 22 }}>
-          <div style={{ color: 'var(--muted)', marginBottom: 12 }}>Sem próxima sessão agendada.</div>
-          <Link href="/agenda/nova" className="btn primary">+ Nova sessão</Link>
+          <div style={{ color: 'var(--muted)', marginBottom: 12 }}>Nenhum atendimento futuro confirmado após hoje.</div>
+          <div style={{ display: 'flex', gap: 8, justifyContent: 'center' }}>
+            <Link href="/agenda/nova" className="btn primary">+ Agendar sessão</Link>
+            <Link href="/agenda" className="btn ghost">Ver agenda</Link>
+          </div>
         </div>
       )}
 
@@ -188,21 +227,31 @@ export default async function InicioPage() {
           <div className="card">
             <div className="card-h"><span className="card-title">Pendências</span></div>
             <div style={{ padding: '4px 0' }}>
-              {pendentes.length === 0 && cobrancasPendentes === 0 ? (
-                <div style={{ padding: '10px 0', fontSize: 12, color: 'var(--faint)' }}>Tudo em dia.</div>
+              {pendentes.length === 0 && cobrancasPendentes === 0 && agg.objetivos_estagnados === 0 ? (
+                <div style={{ padding: '10px 0', fontSize: 12, color: 'var(--faint)', lineHeight: 1.55 }}>
+                  Tudo em dia.<br />
+                  <span style={{ fontSize: 11 }}>Nenhuma ação necessária no momento.</span>
+                </div>
               ) : (
                 <>
                   {pendentes.slice(0, 3).map(p => (
                     <Link key={p.id} href={`/sessao/${p.id}`} className="pend-row">
-                      <span className="pend-ico">📝</span>
-                      <span className="pend-lbl">Registrar — {p.pacienteNome}</span>
+                      <span className="pend-ico" style={{ display: 'inline-flex', alignItems: 'center' }}><FileText size={14} /></span>
+                      <span className="pend-lbl">Registrar — <Sigilo>{p.pacienteNome}</Sigilo></span>
                       <span className="pend-act">→</span>
                     </Link>
                   ))}
                   {cobrancasPendentes > 0 && (
                     <Link href="/financeiro" className="pend-row">
-                      <span className="pend-ico">💳</span>
+                      <span className="pend-ico" style={{ display: 'inline-flex', alignItems: 'center' }}><CreditCard size={14} /></span>
                       <span className="pend-lbl">{cobrancasPendentes} {cobrancasPendentes === 1 ? 'cobrança pendente' : 'cobranças pendentes'}</span>
+                      <span className="pend-act">→</span>
+                    </Link>
+                  )}
+                  {agg.objetivos_estagnados > 0 && (
+                    <Link href="/pacientes" className="pend-row">
+                      <span className="pend-ico" style={{ display: 'inline-flex', alignItems: 'center' }}><AlertTriangle size={14} /></span>
+                      <span className="pend-lbl">{agg.objetivos_estagnados} {agg.objetivos_estagnados === 1 ? 'objetivo sem atualização' : 'objetivos sem atualização'} (+14 dias)</span>
                       <span className="pend-act">→</span>
                     </Link>
                   )}
@@ -211,18 +260,46 @@ export default async function InicioPage() {
             </div>
           </div>
 
-          {/* KPI quieto — semana */}
+          {/* Sua prática — clínico, sem R$ (financeiro fica em "Previsão") */}
           <Link href="/saude" className="kpi-quiet">
             <div className="kl">Sua prática esta semana</div>
-            <div className="kv">{formatShortBRL(semanaRecebido)}</div>
-            <div className={`kn${deltaPct !== null ? (deltaPct >= 0 ? ' up' : ' down') : ''}`}>
-              {deltaPct !== null
-                ? `${deltaPct >= 0 ? '↑' : '↓'} ${Math.abs(deltaPct)}% vs. semana anterior · ${sessoesHoje.length} ${sessoesHoje.length === 1 ? 'sessão hoje' : 'sessões hoje'}`
-                : `${sessoesSemana.length} ${sessoesSemana.length === 1 ? 'sessão' : 'sessões'} esta semana`}
+            <div className="kv" style={{ fontSize: 22 }}>{realizadasSemana} {realizadasSemana === 1 ? 'realizada' : 'realizadas'}</div>
+            <div className="kn">
+              {ativos} {ativos === 1 ? 'paciente ativo' : 'pacientes ativos'} · {agg.assinadas_total} registradas · {pctAssinadas}% assinadas
             </div>
           </Link>
 
-          {/* Previsão do mês */}
+          {/* Continuidade clínica — lembra o diferencial, sem análise */}
+          <Link
+            href={agg.ultima_evolucao_paciente ? `/pacientes/${agg.ultima_evolucao_paciente}/evolucao` : '/pacientes'}
+            className="card-warm"
+            style={{ display: 'block', padding: '16px 18px', textDecoration: 'none', color: 'inherit', borderRadius: 'var(--r)' }}
+          >
+            <div className="sec-lbl" style={{ marginBottom: 6 }}>Continuidade clínica</div>
+            <div style={{ fontSize: 12.5, color: 'var(--accent)', fontWeight: 500, marginBottom: 8 }}>
+              {(agg.assinadas_total > 0 || agg.objetivos_ativos > 0) ? 'Processo terapêutico ativo' : 'Processo em formação'}
+            </div>
+            <div style={{ fontSize: 13, color: 'var(--ink-soft)', lineHeight: 1.7 }}>
+              {agg.assinadas_total} {agg.assinadas_total === 1 ? 'sessão registrada' : 'sessões registradas'}<br />
+              {agg.objetivos_ativos} {agg.objetivos_ativos === 1 ? 'objetivo em acompanhamento' : 'objetivos em acompanhamento'}<br />
+              {ultimaEvolStr ? `Última evolução registrada em ${ultimaEvolStr}` : 'Ainda sem evolução registrada'}<br />
+              <span style={{ color: agg.objetivos_estagnados > 0 ? 'var(--amber)' : 'var(--muted)' }}>
+                {agg.objetivos_estagnados > 0
+                  ? `${agg.objetivos_estagnados} ${agg.objetivos_estagnados === 1 ? 'objetivo sem atualização' : 'objetivos sem atualização'}`
+                  : 'Nenhuma pendência clínica identificada'}
+              </span>
+            </div>
+            <div style={{ fontSize: 12, color: 'var(--accent)', marginTop: 10 }}>Abrir Evolução →</div>
+          </Link>
+
+          {/* Pacientes — linguagem natural (perto do clínico) */}
+          <Link href="/pacientes?filtro=ativos" className="kpi-quiet" style={{ background: 'var(--card)' }}>
+            <div className="kl">Pacientes</div>
+            <div className="kv">{ativos} <span style={{ fontSize: 14, fontWeight: 300, color: 'var(--muted)' }}>{ativos === 1 ? 'ativo' : 'ativos'}</span></div>
+            <div className="kn">Ver lista →</div>
+          </Link>
+
+          {/* Previsão do mês — financeiro é suporte, fica por último */}
           <Link href="/financeiro" className="card-warm" style={{
             display: 'block', padding: '18px 20px', textDecoration: 'none', color: 'inherit',
             cursor: 'pointer', borderRadius: 'var(--r)',
@@ -234,13 +311,6 @@ export default async function InicioPage() {
             <div style={{ fontSize: 12, color: 'var(--muted)' }}>
               com agenda atual → ver detalhes
             </div>
-          </Link>
-
-          {/* Pacientes ativos */}
-          <Link href="/pacientes?filtro=ativos" className="kpi-quiet" style={{ background: 'var(--card)' }}>
-            <div className="kl">Pacientes ativos</div>
-            <div className="kv">{ativos}</div>
-            <div className="kn">ver lista →</div>
           </Link>
         </div>
       </div>

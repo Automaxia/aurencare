@@ -107,10 +107,10 @@ export function Logo({
       style={{
         fontFamily: 'var(--font-display), Georgia, serif',
         fontStyle: 'italic',
-        fontWeight: 300,
-        color: 'var(--muted)',
+        fontWeight: 400,
+        color: 'var(--ink-soft)',
         fontSize: Math.max(11, size * 0.34),
-        lineHeight: 1.3,
+        lineHeight: 1.35,
         letterSpacing: '.01em',
         marginTop: 4,
       }}

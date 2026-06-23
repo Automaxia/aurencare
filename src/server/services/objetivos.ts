@@ -1,7 +1,10 @@
 import 'server-only'
 import { db } from '@/server/db/pool'
+import { dataBrasiliaISO, hojeBrasiliaISO } from '@/lib/formatters'
 
-export type MetricaTipo = 'absoluta' | 'gas'
+// 'absoluta' = métrica numérica · 'nenhuma' = Meta descritiva (acompanha por GAS) ·
+// 'gas' = legado (GAS era um tipo de métrica; agora é camada à parte em objetivo_gas).
+export type MetricaTipo = 'absoluta' | 'gas' | 'nenhuma'
 export type MetricaDirecao = 'aumentar' | 'diminuir'
 
 export type Objetivo = {
@@ -97,10 +100,12 @@ export type CriarObjetivoInput = {
 
 export async function criarObjetivo(pacienteId: string, input: CriarObjetivoInput): Promise<Objetivo> {
   const tipo: MetricaTipo = input.metricaTipo ?? 'absoluta'
-  // GAS força baseline=0 e alvo=+2 (escala padrão).
-  const baseline = tipo === 'gas' ? 0 : (input.metricaBaseline ?? null)
-  const alvo     = tipo === 'gas' ? 2 : (input.metricaAlvo ?? null)
-  const direcao: MetricaDirecao = tipo === 'gas' ? 'aumentar' : (input.metricaDirecao ?? 'aumentar')
+  // Só a métrica 'absoluta' tem unidade/baseline/alvo. 'nenhuma' (descritiva, acompanhada
+  // por GAS) e 'gas' (legado) não guardam números aqui.
+  const numerica = tipo === 'absoluta'
+  const baseline = numerica ? (input.metricaBaseline ?? null) : null
+  const alvo     = numerica ? (input.metricaAlvo ?? null) : null
+  const direcao: MetricaDirecao = numerica ? (input.metricaDirecao ?? 'aumentar') : 'aumentar'
 
   const { rows } = await db.query(
     `INSERT INTO objetivos (
@@ -111,7 +116,7 @@ export async function criarObjetivo(pacienteId: string, input: CriarObjetivoInpu
      RETURNING *`,
     [
       pacienteId, input.titulo, input.descricao ?? null,
-      tipo, tipo === 'gas' ? null : (input.metricaUnidade ?? null),
+      tipo, numerica ? (input.metricaUnidade ?? null) : null,
       baseline, alvo, direcao,
       input.prazoEm ?? null,
     ],
@@ -158,7 +163,7 @@ export type RegistrarMedicaoInput = {
 }
 
 export async function registrarMedicao(objetivoId: string, input: RegistrarMedicaoInput): Promise<Medicao> {
-  const medidoEm = input.medidoEm ?? new Date().toISOString().slice(0, 10)
+  const medidoEm = input.medidoEm ?? hojeBrasiliaISO()
   const { rows } = await db.query(
     `INSERT INTO objetivo_medicoes (objetivo_id, medido_em, valor, nota, origem, sessao_id)
      VALUES ($1, $2, $3, $4, $5, $6)
@@ -178,6 +183,24 @@ export async function listarMedicoes(objetivoId: string): Promise<Medicao[]> {
     [objetivoId],
   )
   return rows.map(rowToMedicao)
+}
+
+/**
+ * Valores das medições de TODOS os objetivos do paciente, em ordem cronológica,
+ * por objetivo. Leve (só o número) — alimenta o sparkline de tendência dos cards.
+ */
+export async function valoresMedicoesPorObjetivo(pacienteId: string): Promise<Record<string, number[]>> {
+  const { rows } = await db.query<{ objetivo_id: string; valor: string }>(
+    `SELECT m.objetivo_id, m.valor
+       FROM objetivo_medicoes m
+       JOIN objetivos o ON o.id = m.objetivo_id
+      WHERE o.paciente_id = $1
+      ORDER BY m.medido_em ASC, m.created_at ASC`,
+    [pacienteId],
+  )
+  const map: Record<string, number[]> = {}
+  for (const r of rows) (map[r.objetivo_id] ??= []).push(parseFloat(r.valor))
+  return map
 }
 
 export async function deletarMedicao(id: string, objetivoId: string): Promise<void> {
@@ -249,7 +272,7 @@ export async function lerEvolucaoObjetivo(objetivoId: string): Promise<EvolucaoO
     medicoes,
     sessoesNoPeriodo: ses.map(s => ({
       id: s.id, numero: s.numero,
-      data: new Date(s.data_hora).toISOString().slice(0, 10),
+      data: dataBrasiliaISO(s.data_hora),
     })),
   }
 }

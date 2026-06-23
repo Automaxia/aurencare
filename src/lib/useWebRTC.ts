@@ -6,12 +6,25 @@ import { useCallback, useEffect, useRef, useState } from 'react'
  * Hook de chamada WebRTC P2P 1:1 com signaling via SSE+POST.
  * O lado `caller` cria a offer assim que o outro lado entra (recebe 'hello').
  *
- * Limitação atual: STUN público do Google apenas. Pra produção, configurar TURN.
+ * ICE servers vêm de `/api/ice` (STUN sempre; TURN quando configurado no cluster),
+ * com fallback pra STUN-only caso a rota falhe. Ver `src/server/lib/turn.ts`.
  */
 
-const ICE_SERVERS: RTCIceServer[] = [
+const STUN_FALLBACK: RTCIceServer[] = [
   { urls: ['stun:stun.l.google.com:19302', 'stun:stun1.l.google.com:19302'] },
 ]
+
+async function fetchIceServers(): Promise<RTCIceServer[]> {
+  try {
+    const r = await fetch('/api/ice', { cache: 'no-store' })
+    if (!r.ok) return STUN_FALLBACK
+    const data = await r.json()
+    const list = data?.iceServers
+    return Array.isArray(list) && list.length > 0 ? list : STUN_FALLBACK
+  } catch {
+    return STUN_FALLBACK
+  }
+}
 
 type Role = 'psicologo' | 'paciente'
 type Estado = 'inicializando' | 'aguardando_peer' | 'conectando' | 'conectado' | 'encerrado' | 'erro'
@@ -37,7 +50,18 @@ export type WebRTCState = {
   /** Toggle vídeo local */
   camOn: boolean
   setCamOn: (on: boolean) => void
+  /** Troca o track de vídeo ENVIADO (ex.: versão com blur). null = volta à câmera. Seamless, não renegocia. */
+  replaceVideoTrack: (track: MediaStreamTrack | null) => void
   encerrar: () => void
+  /** Câmeras/microfones disponíveis + o selecionado, pra UI de seleção de fonte. */
+  cameras: MediaDeviceInfo[]
+  microfones: MediaDeviceInfo[]
+  camId: string | null
+  micId: string | null
+  trocarCamera: (deviceId: string) => void
+  trocarMicrofone: (deviceId: string) => void
+  /** true quando a chamada caiu pra só-áudio (câmera indisponível/recusada). */
+  semVideo: boolean
 }
 
 export function useWebRTC({ token, role, caller, withVideo = true }: Options): WebRTCState {
@@ -48,11 +72,35 @@ export function useWebRTC({ token, role, caller, withVideo = true }: Options): W
   const [err, setErr] = useState<string | null>(null)
   const [micOn, setMicOnState] = useState(true)
   const [camOn, setCamOnState] = useState(withVideo)
+  const [cameras, setCameras] = useState<MediaDeviceInfo[]>([])
+  const [microfones, setMicrofones] = useState<MediaDeviceInfo[]>([])
+  const [camId, setCamId] = useState<string | null>(null)
+  const [micId, setMicId] = useState<string | null>(null)
+  const [semVideo, setSemVideo] = useState(false)
 
   const pcRef = useRef<RTCPeerConnection | null>(null)
   const esRef = useRef<EventSource | null>(null)
   const pendingICE = useRef<RTCIceCandidateInit[]>([])
   const remoteSetRef = useRef(false)
+  const streamRef = useRef<MediaStream | null>(null)
+  const micOnRef = useRef(true)
+  const camOnRef = useRef(withVideo)
+
+  // Constraints com AEC/NS/AGC + dispositivo escolhido (deviceId exact, se houver).
+  function montarConstraints(cam: string | null, mic: string | null): MediaStreamConstraints {
+    return {
+      audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true, ...(mic ? { deviceId: { exact: mic } } : {}) },
+      video: withVideo ? { width: { ideal: 640 }, height: { ideal: 360 }, ...(cam ? { deviceId: { exact: cam } } : {}) } : false,
+    }
+  }
+
+  async function listarDispositivos() {
+    try {
+      const devs = await navigator.mediaDevices.enumerateDevices()
+      setCameras(devs.filter(d => d.kind === 'videoinput'))
+      setMicrofones(devs.filter(d => d.kind === 'audioinput'))
+    } catch { /* sem permissão pra rotular — ignora */ }
+  }
 
   const sendSignal = useCallback(async (message: any) => {
     try {
@@ -75,33 +123,54 @@ export function useWebRTC({ token, role, caller, withVideo = true }: Options): W
 
     async function init() {
       try {
-        // 1. Captura mic+cam locais.
-        // AEC/NS/AGC explícitos: sem isso o mic do paciente capta a voz do
-        // psicólogo saindo pelo alto-falante e ela volta pelo WebRTC sendo
-        // transcrita como se fosse do paciente (contamina a análise).
-        stream = await navigator.mediaDevices.getUserMedia({
-          audio: {
-            echoCancellation: true,
-            noiseSuppression: true,
-            autoGainControl: true,
-          },
-          video: withVideo ? { width: { ideal: 640 }, height: { ideal: 360 } } : false,
-        })
+        // 1. Captura mic+cam locais. AEC/NS/AGC explícitos (senão o mic do paciente
+        // capta a voz do psicólogo pelo alto-falante). RESILIENTE: se a câmera
+        // falhar (ex.: câmera virtual morta), cai pra só-áudio em vez de derrubar
+        // a chamada inteira — antes um getUserMedia que jogava deixava o psicólogo
+        // sem entrar na sala (o paciente ficava sozinho).
+        try {
+          stream = await navigator.mediaDevices.getUserMedia(montarConstraints(null, null))
+        } catch (camErr) {
+          if (!withVideo) throw camErr
+          stream = await navigator.mediaDevices.getUserMedia({
+            audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
+            video: false,
+          })
+          if (!cancelled) setSemVideo(true)
+        }
         if (cancelled) { stream.getTracks().forEach(t => t.stop()); return }
+        streamRef.current = stream
         setLocalStream(stream)
+        setCamId(stream.getVideoTracks()[0]?.getSettings().deviceId ?? null)
+        setMicId(stream.getAudioTracks()[0]?.getSettings().deviceId ?? null)
+        listarDispositivos()
+        navigator.mediaDevices.addEventListener?.('devicechange', listarDispositivos)
 
-        // 2. Cria peer connection
-        pc = new RTCPeerConnection({ iceServers: ICE_SERVERS })
+        // 2. Cria peer connection (ICE servers do backend; STUN se falhar)
+        const iceServers = await fetchIceServers()
+        if (cancelled) { stream.getTracks().forEach(t => t.stop()); return }
+        pc = new RTCPeerConnection({ iceServers })
         pcRef.current = pc
 
         // Adiciona tracks locais
         for (const t of stream.getTracks()) pc.addTrack(t, stream)
 
-        // Recebe remote tracks
+        // Recebe remote tracks.
+        // Importante: emitimos uma NOVA referência de MediaStream a cada track
+        // que chega. Sem isso, o áudio do paciente entrava no mesmo objeto e a
+        // referência não mudava — então a transcrição do paciente (que faz
+        // createMediaStreamSource e depende de [stream]) nunca religava quando o
+        // áudio chegava depois do início da gravação. Resultado: só o psicólogo
+        // era transcrito.
         const remote = new MediaStream()
         setRemoteStream(remote)
         pc.ontrack = (ev) => {
-          ev.streams[0]?.getTracks().forEach(t => remote.addTrack(t))
+          const incoming = ev.streams[0]?.getTracks() ?? (ev.track ? [ev.track] : [])
+          let changed = false
+          for (const t of incoming) {
+            if (!remote.getTracks().includes(t)) { remote.addTrack(t); changed = true }
+          }
+          if (changed) setRemoteStream(new MediaStream(remote.getTracks()))
         }
 
         // ICE → manda pelo signaling
@@ -185,31 +254,70 @@ export function useWebRTC({ token, role, caller, withVideo = true }: Options): W
 
     return () => {
       cancelled = true
+      try { navigator.mediaDevices.removeEventListener?.('devicechange', listarDispositivos) } catch { /* */ }
       try { es?.close() } catch { /* */ }
       try { pc?.close() } catch { /* */ }
-      stream?.getTracks().forEach(t => t.stop())
+      ;(streamRef.current ?? stream)?.getTracks().forEach(t => t.stop())
       setEstado('encerrado')
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [token, role, caller, withVideo])
 
+  // Troca a fonte (câmera/microfone) sem renegociar: re-captura com o deviceId
+  // escolhido e faz replaceTrack no sender. Resolve o caso da "câmera virtual".
+  const recapturar = useCallback(async (novoCam: string | null, novoMic: string | null) => {
+    const pc = pcRef.current
+    let novo: MediaStream
+    try {
+      novo = await navigator.mediaDevices.getUserMedia(montarConstraints(novoCam, novoMic))
+    } catch {
+      setErr('Não foi possível acessar a câmera/microfone selecionado.')
+      return
+    }
+    setSemVideo(novo.getVideoTracks().length === 0)
+    for (const t of novo.getTracks()) {
+      t.enabled = t.kind === 'audio' ? micOnRef.current : camOnRef.current
+      const sender = pc?.getSenders().find(s => s.track?.kind === t.kind)
+      if (sender) { try { await sender.replaceTrack(t) } catch { /* */ } }
+      else if (pc) { try { pc.addTrack(t, novo) } catch { /* */ } }
+    }
+    streamRef.current?.getTracks().forEach(t => t.stop())
+    streamRef.current = novo
+    setLocalStream(novo)
+    setCamId(novo.getVideoTracks()[0]?.getSettings().deviceId ?? novoCam ?? null)
+    setMicId(novo.getAudioTracks()[0]?.getSettings().deviceId ?? novoMic ?? null)
+    listarDispositivos()
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  const trocarCamera = useCallback((deviceId: string) => { recapturar(deviceId, micId) }, [recapturar, micId])
+  const trocarMicrofone = useCallback((deviceId: string) => { recapturar(camId, deviceId) }, [recapturar, camId])
+
   const setMicOn = useCallback((on: boolean) => {
-    setMicOnState(on)
-    localStream?.getAudioTracks().forEach(t => { t.enabled = on })
-  }, [localStream])
+    setMicOnState(on); micOnRef.current = on
+    streamRef.current?.getAudioTracks().forEach(t => { t.enabled = on })
+  }, [])
 
   const setCamOn = useCallback((on: boolean) => {
-    setCamOnState(on)
-    localStream?.getVideoTracks().forEach(t => { t.enabled = on })
-  }, [localStream])
+    setCamOnState(on); camOnRef.current = on
+    streamRef.current?.getVideoTracks().forEach(t => { t.enabled = on })
+  }, [])
+
+  const replaceVideoTrack = useCallback((track: MediaStreamTrack | null) => {
+    const pc = pcRef.current
+    if (!pc) return
+    const sender = pc.getSenders().find(s => s.track?.kind === 'video')
+    const original = streamRef.current?.getVideoTracks()[0] ?? null
+    sender?.replaceTrack(track ?? original).catch(() => { /* fail-safe: mantém o atual */ })
+  }, [])
 
   const encerrar = useCallback(() => {
     try { sendSignal({ type: 'bye' }) } catch { /* */ }
     try { esRef.current?.close() } catch { /* */ }
     try { pcRef.current?.close() } catch { /* */ }
-    localStream?.getTracks().forEach(t => t.stop())
+    streamRef.current?.getTracks().forEach(t => t.stop())
     setEstado('encerrado')
-  }, [localStream, sendSignal])
+  }, [sendSignal])
 
-  return { estado, localStream, remoteStream, outroPresente, err, micOn, setMicOn, camOn, setCamOn, encerrar }
+  return { estado, localStream, remoteStream, outroPresente, err, micOn, setMicOn, camOn, setCamOn, replaceVideoTrack, encerrar, cameras, microfones, camId, micId, trocarCamera, trocarMicrofone, semVideo }
 }

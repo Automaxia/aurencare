@@ -38,7 +38,7 @@ export function OnboardForm({ token, nome }: { token: string; nome: string }) {
         <Check checked={accept2} onChange={setAccept2}>
           Concordo com o armazenamento criptografado dos meus dados clínicos
           (LGPD), <strong>sem uso para treinamento de IA</strong>, em servidores
-          da minha psicóloga responsável.
+          do profissional responsável pelo meu atendimento.
         </Check>
 
         {error && <div style={{ color: 'var(--rose)', fontSize: 12 }}>{error}</div>}

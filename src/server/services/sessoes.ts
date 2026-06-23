@@ -25,6 +25,8 @@ export type Sessao = {
   pacienteNome: string
   pacienteTelefone: string
   pacienteEmail: string | null
+  /** 'ativo' | 'inativo' (arquivado). Usado pra não contar pendência de arquivado. */
+  pacienteStatus: string | null
   numero: number
   dataHora: string
   duracaoMin: number
@@ -40,9 +42,15 @@ export type Sessao = {
   valor: number
   assinada: boolean
   assinaturaTimestamp: string | null
+  /** Quando o laudo assinado foi retificado pela última vez (ou null). */
+  resumoEditadoEm: string | null
+  /** Versões anteriores do laudo assinado, preservadas em cada retificação. */
+  resumoHistorico: { texto: string; em: string }[]
   resumoIa: string | null
   transcricao: string | null
   notaClinica: string | null
+  /** Ritmo, humor, risco e nota rápida da sessão (JSONB). Salvo no encerrar. */
+  indicadores: any | null
   serieId: string | null
   /** Posição na série (1-based) e total. Só preenchido em listarSessoesEntre. */
   seriePosicao: { posicao: number; total: number } | null
@@ -52,6 +60,7 @@ function rowToSessao(r: any): Sessao {
   return {
     id: r.id, psicologoId: r.psicologo_id, pacienteId: r.paciente_id,
     pacienteNome: r.paciente_nome, pacienteTelefone: r.paciente_telefone, pacienteEmail: r.paciente_email,
+    pacienteStatus: r.paciente_status ?? null,
     numero: r.numero, dataHora: r.data_hora, duracaoMin: r.duracao_min, modalidade: r.modalidade,
     status: r.status, pagamentoStatus: r.pagamento_status, pagamentoMetodo: r.pagamento_metodo,
     pagamentoParcelas: r.pagamento_parcelas,
@@ -59,9 +68,14 @@ function rowToSessao(r: any): Sessao {
     pagarmeQrcodeUrl: r.pagarme_qrcode_url, pagarmeCheckoutUrl: r.pagarme_checkout_url,
     valor: parseFloat(r.valor),
     assinada: r.assinada, assinaturaTimestamp: r.assinatura_timestamp,
+    resumoEditadoEm: r.resumo_editado_em ?? null,
+    resumoHistorico: Array.isArray(r.resumo_historico)
+      ? r.resumo_historico.map((h: any) => ({ texto: tryDecrypt(h?.texto) ?? '', em: h?.em ?? '' }))
+      : [],
     resumoIa: tryDecrypt(r.resumo_ia),
     transcricao: tryDecrypt(r.transcricao_texto),
     notaClinica: tryDecrypt(r.nota_clinica),
+    indicadores: r.indicadores ?? null,
     serieId: r.serie_id ?? null,
     seriePosicao: r.serie_posicao && r.serie_total
       ? { posicao: parseInt(r.serie_posicao, 10), total: parseInt(r.serie_total, 10) }
@@ -73,7 +87,8 @@ const SELECT_SESSAO_BASE = `
   SELECT s.*,
          p.nome AS paciente_nome,
          p.telefone AS paciente_telefone,
-         p.email AS paciente_email
+         p.email AS paciente_email,
+         p.status AS paciente_status
     FROM sessoes s
     JOIN pacientes p ON p.id = s.paciente_id
 `
@@ -105,6 +120,7 @@ export async function listarSessoesEntre(psicologoId: string, inicioIso: string,
             p.nome AS paciente_nome,
             p.telefone AS paciente_telefone,
             p.email AS paciente_email,
+            p.status AS paciente_status,
             ss.serie_posicao,
             ss.serie_total
        FROM sessoes s
@@ -135,6 +151,7 @@ export async function sessoesPendentesAssinatura(psicologoId: string): Promise<S
   const { rows } = await db.query(
     `${SELECT_SESSAO_BASE}
       WHERE s.psicologo_id = $1 AND s.status = 'concluida' AND s.assinada = FALSE
+        AND p.status = 'ativo'
       ORDER BY s.data_hora DESC
       LIMIT 6`,
     [psicologoId],
@@ -161,21 +178,103 @@ export async function criarSessao(input: CriarSessaoInput): Promise<Sessao> {
   )
   const numero = count[0].n
 
+  // Sessão gratuita (valor 0): pula a cobrança — já nasce confirmada, sem WhatsApp de método.
+  const gratuita = (input.valor ?? 0) <= 0
+
   const { rows } = await db.query(
-    `INSERT INTO sessoes (psicologo_id, paciente_id, numero, data_hora, duracao_min, modalidade, status, valor, wa_pergunta_metodo_em)
-     VALUES ($1,$2,$3,$4,$5,$6,'aguardando_metodo',$7, NOW())
+    `INSERT INTO sessoes (psicologo_id, paciente_id, numero, data_hora, duracao_min, modalidade, status, valor, pagamento_status, wa_pergunta_metodo_em)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
      RETURNING id`,
-    [input.psicologoId, input.pacienteId, numero, input.dataHora, input.duracaoMin ?? 50, input.modalidade ?? 'online', input.valor],
+    [
+      input.psicologoId, input.pacienteId, numero, input.dataHora,
+      input.duracaoMin ?? 50, input.modalidade ?? 'online',
+      gratuita ? 'confirmada' : 'aguardando_metodo',
+      input.valor,
+      gratuita ? 'isento' : 'pendente',
+      gratuita ? null : new Date().toISOString(),
+    ],
   )
   const sessao = (await buscarSessao(rows[0].id))!
 
-  // Fluxo 2 — pergunta método via WhatsApp.
+  // Fluxo 2 — WhatsApp pra TODOS: com cobrança pergunta o método; sem cobrança
+  // confirma o agendamento (sem pedir pagamento).
   await enviarWA(
     sessao.pacienteTelefone,
-    WA_TEMPLATES.fluxo2_perguntarMetodo(formatDateTimeBR(sessao.dataHora), sessao.valor),
-  )
+    gratuita
+      ? WA_TEMPLATES.fluxo2_agendadaSemCobranca(formatDateTimeBR(sessao.dataHora), sessao.modalidade === 'online')
+      : WA_TEMPLATES.fluxo2_perguntarMetodo(formatDateTimeBR(sessao.dataHora), sessao.valor),
+  ).catch(err => log.err('criarSessao', 'falha WA agendamento', err))
 
   return sessao
+}
+
+/** Reagenda a sessão (data/hora, duração, modalidade). Verifica posse. */
+export async function reagendarSessao(
+  psicologoId: string, sessaoId: string,
+  patch: { dataHora?: string; duracaoMin?: number; modalidade?: string },
+): Promise<boolean> {
+  // Detecta se a data/hora realmente mudou (pra avisar o paciente só quando muda).
+  let mudouData = false
+  if (patch.dataHora !== undefined) {
+    const { rows } = await db.query<{ data_hora: string }>(
+      `SELECT data_hora FROM sessoes WHERE id = $1 AND psicologo_id = $2`, [sessaoId, psicologoId],
+    )
+    if (rows[0]) mudouData = new Date(rows[0].data_hora).getTime() !== new Date(patch.dataHora).getTime()
+  }
+
+  const fields: string[] = []
+  const vals: any[] = [sessaoId, psicologoId]
+  const set = (col: string, v: any) => { fields.push(`${col} = $${vals.length + 1}`); vals.push(v) }
+  if (patch.dataHora !== undefined)   set('data_hora', patch.dataHora)
+  if (patch.duracaoMin !== undefined) set('duracao_min', patch.duracaoMin)
+  if (patch.modalidade !== undefined) set('modalidade', patch.modalidade)
+  if (fields.length === 0) return false
+  const { rowCount } = await db.query(
+    `UPDATE sessoes SET ${fields.join(', ')} WHERE id = $1 AND psicologo_id = $2`, vals,
+  )
+  const ok = (rowCount ?? 0) > 0
+
+  // Avisa o paciente do novo horário por WhatsApp (best-effort, só se mudou a data/hora).
+  if (ok && mudouData) {
+    const sessao = await buscarSessao(sessaoId)
+    if (sessao?.pacienteTelefone) {
+      await enviarWA(sessao.pacienteTelefone, WA_TEMPLATES.fluxo2_remarcada(formatDateTimeBR(sessao.dataHora)))
+        .catch(err => log.err('reagendarSessao', 'falha WA remarcada', err))
+    }
+  }
+  return ok
+}
+
+export type ExcluirSessaoResult =
+  | { ok: true }
+  | { ok: false; motivo: 'nao_encontrada' | 'realizada' | 'paga' | 'cobranca' }
+
+/**
+ * Exclui (hard delete) uma sessão que ainda não aconteceu — pra limpar
+ * agendamentos criados por engano. Diferente de `cancelarSessao` (soft-delete
+ * com reembolso + aviso), some de vez da agenda.
+ *
+ * Guardas:
+ *  - 'realizada': sessão em curso/concluída, assinada ou com registro clínico
+ *    (transcrição/nota/resumo). Prontuário não se apaga — bloqueia.
+ *  - 'paga': dinheiro retido do paciente. Bloqueia; o caminho certo é cancelar
+ *    (reembolsa + avisa), não sumir com a sessão silenciosamente.
+ *
+ * Dependentes (salas_video, palavras_chave.ultima_sessao_id, objetivo_smart.sessao_id)
+ * têm ON DELETE cascade/set null, então o DELETE é limpo.
+ */
+export async function excluirSessao(psicologoId: string, sessaoId: string): Promise<ExcluirSessaoResult> {
+  const s = await buscarSessao(sessaoId)
+  if (!s || s.psicologoId !== psicologoId) return { ok: false, motivo: 'nao_encontrada' }
+  if (s.assinada || s.status === 'concluida' || s.status === 'em_curso' || s.transcricao || s.notaClinica || s.resumoIa)
+    return { ok: false, motivo: 'realizada' }
+  if (s.pagamentoStatus === 'pago') return { ok: false, motivo: 'paga' }
+  // Cobrança ativa (PIX/checkout gerado, ainda pendente): deletar a linha
+  // orfaniza a cobrança — se o paciente pagar depois, o webhook não acha a
+  // sessão e o dinheiro entra sem reembolso. Bloqueia; o certo é cancelar.
+  if (s.pagarmeOrderId && s.pagamentoStatus === 'pendente') return { ok: false, motivo: 'cobranca' }
+  await db.query('DELETE FROM sessoes WHERE id = $1 AND psicologo_id = $2', [sessaoId, psicologoId])
+  return { ok: true }
 }
 
 // ── Séries recorrentes ────────────────────────────────────────────────────
@@ -244,6 +343,7 @@ export async function criarSerie(input: CriarSerieInput): Promise<CriarSerieResu
   if (input.quantidade > 52) throw new Error('serie_maximo_52_sessoes')
 
   const datas = gerarDatasSerie(input.primeiraSessaoIso, input.frequencia, input.quantidade)
+  const gratuita = (input.valor ?? 0) <= 0
 
   // próximo número de sessão pra esse paciente
   const { rows: count } = await db.query<{ n: number }>(
@@ -263,13 +363,14 @@ export async function criarSerie(input: CriarSerieInput): Promise<CriarSerieResu
 
     for (const dataIso of datas) {
       const { rows } = await cliente.query<{ id: string }>(
-        `INSERT INTO sessoes (psicologo_id, paciente_id, numero, data_hora, duracao_min, modalidade, status, valor, serie_id)
-         VALUES ($1,$2,$3,$4,$5,$6,'aguardando_metodo',$7,$8)
+        `INSERT INTO sessoes (psicologo_id, paciente_id, numero, data_hora, duracao_min, modalidade, status, valor, pagamento_status, serie_id)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
          RETURNING id`,
         [
           input.psicologoId, input.pacienteId, proxNumero++,
           dataIso, input.duracaoMin ?? 50, input.modalidade ?? 'online',
-          input.valor, serieId,
+          gratuita ? 'confirmada' : 'aguardando_metodo',
+          input.valor, gratuita ? 'isento' : 'pendente', serieId,
         ],
       )
       sessoesIds.push(rows[0].id)
@@ -298,6 +399,7 @@ export async function criarSerie(input: CriarSerieInput): Promise<CriarSerieResu
           nome: pac[0].nome,
           datas: datasFormatadas,
           valor: input.valor,
+          gratuita,
         }),
       ).catch(err => log.err('criarSerie', 'falha WA', err)),
       psiS[0] ? enviarEmailPacientePorId(
@@ -393,7 +495,7 @@ export async function marcarPagamentoConfirmado(pagarmeOrderId: string): Promise
   const { rows: psis } = await db.query<{ nome: string; email: string }>(
     `SELECT nome, email FROM psicologos WHERE id = $1 LIMIT 1`, [sessao.psicologoId])
   await Promise.all([
-    enviarWA(sessao.pacienteTelefone, WA_TEMPLATES.fluxo2_confirmado(formatDateTimeBR(sessao.dataHora)))
+    enviarWA(sessao.pacienteTelefone, WA_TEMPLATES.fluxo2_confirmado(formatDateTimeBR(sessao.dataHora), sessao.modalidade === 'online'))
       .catch(err => log.err('pagamento.confirmado', 'falha WA', err)),
     psis[0] ? enviarEmailPacientePorSessao(
       sessao.id,
@@ -432,7 +534,7 @@ export async function cancelarSessao(sessaoId: string): Promise<{ reembolsada: b
   }
 
   await db.query(
-    `UPDATE sessoes SET status='cancelada', pagamento_status = CASE WHEN $2 THEN 'reembolsado' ELSE pagamento_status END WHERE id=$1`,
+    `UPDATE sessoes SET status='cancelada', pagamento_status = CASE WHEN $2::boolean THEN 'reembolsado' ELSE pagamento_status END WHERE id=$1`,
     [s.id, reembolsada],
   )
 
@@ -475,19 +577,21 @@ export type GateRegistroResult =
  * idempotente (flag `ia_contabilizada` — pausar/retomar não recota). Bloqueia
  * se a cota do plano já estiver esgotada.
  */
-export async function gateIniciarRegistroIa(sessaoId: string): Promise<GateRegistroResult> {
+export async function gateIniciarRegistroIa(psicologoId: string, sessaoId: string): Promise<GateRegistroResult> {
   // Beta: acesso liberado — nunca bloqueia e não contabiliza cota (sem mensalidade).
   if (BETA_LIBERADO) return { ok: true }
 
-  const { rows } = await db.query<{ psicologo_id: string; ia_contabilizada: boolean }>(
-    `SELECT psicologo_id, ia_contabilizada FROM sessoes WHERE id = $1 LIMIT 1`,
-    [sessaoId],
+  // WHERE inclui psicologo_id — sem isso um psicólogo poderia contabilizar/
+  // estourar a cota de IA de OUTRO passando um sessaoId alheio (IDOR de cota).
+  const { rows } = await db.query<{ ia_contabilizada: boolean }>(
+    `SELECT ia_contabilizada FROM sessoes WHERE id = $1 AND psicologo_id = $2 LIMIT 1`,
+    [sessaoId, psicologoId],
   )
   const sessao = rows[0]
-  if (!sessao) return { ok: true }                 // sessão inexistente: não trava o front
+  if (!sessao) return { ok: true }                 // inexistente/não é dono: não trava o front
   if (sessao.ia_contabilizada) return { ok: true } // já contou: retomar registro é livre
 
-  const info = await obterAssinatura(sessao.psicologo_id)
+  const info = await obterAssinatura(psicologoId)
   if (info.usadas >= info.cap) {
     return { ok: false, motivo: 'limite', cap: info.cap, usadas: info.usadas, plano: info.plano }
   }
@@ -496,10 +600,10 @@ export async function gateIniciarRegistroIa(sessaoId: string): Promise<GateRegis
   // chamada fez a transição (evita corrida de duplo clique).
   const { rowCount } = await db.query(
     `UPDATE sessoes SET ia_contabilizada = TRUE
-      WHERE id = $1 AND ia_contabilizada = FALSE`,
-    [sessaoId],
+      WHERE id = $1 AND psicologo_id = $2 AND ia_contabilizada = FALSE`,
+    [sessaoId, psicologoId],
   )
-  if (rowCount) await incrementarSessaoIa(sessao.psicologo_id)
+  if (rowCount) await incrementarSessaoIa(psicologoId)
   return { ok: true }
 }
 
@@ -518,8 +622,63 @@ export async function encerrarSessao(sessaoId: string, opts: { transcricao?: str
   publish({ type: 'sessao.encerrada', sessaoId })
 }
 
+/**
+ * Laudos das sessões ANTERIORES (assinadas) do paciente — pra alimentar a seção
+ * "Avaliação do Progresso" do laudo novo. Da mais antiga pra mais recente.
+ */
+export async function resumosAnteriores(
+  psicologoId: string, pacienteId: string, antesDoNumero: number, limite = 3,
+): Promise<{ numero: number; resumo: string }[]> {
+  const { rows } = await db.query<{ numero: number; resumo_ia: string | null }>(
+    `SELECT numero, resumo_ia FROM sessoes
+      WHERE paciente_id = $1 AND psicologo_id = $2 AND numero < $3
+        AND assinada = TRUE AND resumo_ia IS NOT NULL
+      ORDER BY numero DESC LIMIT $4`,
+    [pacienteId, psicologoId, antesDoNumero, limite],
+  )
+  return rows
+    .map(r => ({ numero: r.numero, resumo: tryDecrypt(r.resumo_ia) ?? '' }))
+    .filter(r => r.resumo.trim().length > 0)
+    .reverse()
+}
+
 export async function salvarResumoIA(sessaoId: string, resumo: string): Promise<void> {
   await db.query(`UPDATE sessoes SET resumo_ia = $2 WHERE id = $1`, [sessaoId, encrypt(resumo)])
+}
+
+/**
+ * Retifica o laudo de uma sessão JÁ ASSINADA: preserva a versão atual no
+ * histórico (cifrada, com data) antes de gravar a nova — prontuário não apaga.
+ * Não mexe na assinatura nem dispara WhatsApp. Confere posse e que está assinada.
+ */
+export async function editarResumoAssinado(psicologoId: string, sessaoId: string, novoResumo: string): Promise<boolean> {
+  const { rowCount } = await db.query(
+    `UPDATE sessoes
+        SET resumo_historico = CASE WHEN resumo_ia IS NOT NULL
+              THEN COALESCE(resumo_historico, '[]'::jsonb)
+                   || jsonb_build_array(jsonb_build_object('texto', resumo_ia, 'em', NOW()))
+              ELSE COALESCE(resumo_historico, '[]'::jsonb) END,
+            resumo_ia = $3,
+            resumo_editado_em = NOW()
+      WHERE id = $1 AND psicologo_id = $2 AND assinada = TRUE`,
+    [sessaoId, psicologoId, encrypt(novoResumo)],
+  )
+  return (rowCount ?? 0) > 0
+}
+
+/**
+ * Salva a nota clínica privada da sessão (texto cifrado em repouso). Pode ser
+ * chamada a qualquer momento — durante a revisão pós-sessão ou depois — pra
+ * reter/editar as anotações do psicólogo, independente da assinatura do resumo
+ * formal. Confere posse pelo psicologoId. `null`/vazio limpa a nota.
+ */
+export async function salvarNotaClinica(psicologoId: string, sessaoId: string, nota: string): Promise<boolean> {
+  const limpa = nota.trim()
+  const { rowCount } = await db.query(
+    `UPDATE sessoes SET nota_clinica = $3 WHERE id = $1 AND psicologo_id = $2`,
+    [sessaoId, psicologoId, limpa ? encrypt(limpa) : null],
+  )
+  return (rowCount ?? 0) > 0
 }
 
 export async function assinarSessao(sessaoId: string): Promise<void> {

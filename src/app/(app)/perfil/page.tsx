@@ -30,6 +30,7 @@ export default async function PerfilPage() {
           email: perfil.email,
           telefone: perfil.telefone ?? '',
           valorSessao: perfil.valorSessao,
+          genero: perfil.genero,
         }}
         emailAtual={perfil.email}
         waConectado={perfil.waConectado}

@@ -14,7 +14,37 @@ export function formatBRL(centsOrFloat: number, asCents = false): string {
   return v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
 }
 
-const TZ = 'America/Sao_Paulo'
+export const TZ = 'America/Sao_Paulo'
+
+// Brasil aboliu o horário de verão em 2019 — America/Sao_Paulo é UTC−03:00 o ano todo.
+export const BR_UTC_OFFSET = '-03:00'
+
+/**
+ * Converte data (YYYY-MM-DD) + hora (HH:mm) DIGITADAS COMO HORÁRIO DE BRASÍLIA
+ * (o fuso da clínica) num instante UTC em ISO — independente do fuso do navegador.
+ *
+ * Antes usávamos `new Date(\`${data}T${hora}\`)`, que interpreta a string no fuso
+ * LOCAL do navegador: se a máquina não estivesse em BRT, a sessão era gravada com
+ * o horário errado e a exibição (sempre forçada em BRT) mostrava deslocada.
+ */
+export function horarioBrasiliaParaISO(data: string, hora: string): string | null {
+  if (!data || !hora) return null
+  const dt = new Date(`${data}T${hora}:00${BR_UTC_OFFSET}`)
+  if (Number.isNaN(+dt)) return null
+  return dt.toISOString()
+}
+
+/** Data (YYYY-MM-DD) de um instante NO FUSO DE BRASÍLIA — não em UTC.
+ *  Importa pra sessões à noite: 22h BRT = 01h UTC do dia seguinte; o `.toISOString()`
+ *  cru cairia no dia errado. */
+export function dataBrasiliaISO(iso: string | Date): string {
+  return new Date(iso).toLocaleDateString('en-CA', { timeZone: TZ })
+}
+
+/** Data de hoje (YYYY-MM-DD) no fuso de Brasília — pra carimbar medições/marcos. */
+export function hojeBrasiliaISO(): string {
+  return new Date().toLocaleDateString('en-CA', { timeZone: TZ })
+}
 
 export function formatDateBR(iso: string): string {
   return new Date(iso).toLocaleDateString('pt-BR', { timeZone: TZ })

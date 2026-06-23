@@ -1,12 +1,17 @@
 import { redirect, notFound } from 'next/navigation'
+import { Compass } from 'lucide-react'
 import { PageHeader } from '@/components/PageHeader'
 import { PatientSelector } from '@/components/PatientSelector'
 import { Sparkline } from '@/components/Sparkline'
 import { requirePsicologo } from '@/server/lib/auth'
 import { db } from '@/server/db/pool'
 import { lerEvolucaoEstatisticas } from '@/server/services/evolucao'
+import { resumoEvolucao } from '@/server/services/resumoEvolucao'
+import { mudancasEPadroes } from '@/server/services/mudancasEPadroes'
 import { EvolucaoChat } from './chat'
 import { ObservacoesCliente } from './Observacoes'
+import { LinhaDoTempo } from './LinhaDoTempo'
+import { MudancasPadroes } from './MudancasPadroes'
 
 export const dynamic = 'force-dynamic'
 
@@ -19,14 +24,18 @@ export default async function EvolucaoPage({ params }: { params: { id: string } 
   if (!paciente) notFound()
   if (paciente.psicologo_id !== user.id) redirect('/pacientes')
 
-  const dados = await lerEvolucaoEstatisticas(params.id, paciente.nome)
+  const [dados, resumo] = await Promise.all([
+    lerEvolucaoEstatisticas(params.id, paciente.nome),
+    resumoEvolucao(params.id),
+  ])
+  const mp = await mudancasEPadroes(params.id, dados.perfil)
 
   return (
     <div>
       <PageHeader title="Evolução Registrada" subtitle="Continuidade clínica" />
 
       <div className="disclaimer">
-        <span style={{ fontSize: 16 }}>🧭</span>
+        <Compass size={16} style={{ flexShrink: 0, marginTop: 1 }} />
         <div style={{ flex: 1 }}>
           <div style={{ fontSize: 12, fontWeight: 500, color: '#7a5520', marginBottom: 2 }}>
             Apoio à continuidade clínica
@@ -45,6 +54,24 @@ export default async function EvolucaoPage({ params }: { params: { id: string } 
         segment="evolucao"
       />
 
+      {/* Resumo da Evolução — síntese determinística (Fase 1) */}
+      <section className="card" style={{ padding: 18, marginBottom: 16 }}>
+        <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: 10 }}>
+          <span style={{ fontSize: 11, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '.07em', fontWeight: 600 }}>
+            Resumo da evolução
+          </span>
+          {!resumo.suficiente && <span style={{ fontSize: 11, color: 'var(--amber)' }}>dados ainda em formação</span>}
+        </div>
+        <div style={{ fontSize: 13.5, color: 'var(--ink-soft)', lineHeight: 1.65 }}>
+          {resumo.frases.map((f, i) => <p key={i} style={{ margin: i === 0 ? 0 : '6px 0 0' }}>{f}</p>)}
+        </div>
+        <div style={{ fontSize: 10.5, color: 'var(--faint)', marginTop: 10 }}>
+          Observação a partir do histórico — não diagnóstico · CFP 09/2024
+        </div>
+      </section>
+
+      <MudancasPadroes dados={mp} />
+
       <div className="orient-grid">
         <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
           <ProfileCard
@@ -58,6 +85,8 @@ export default async function EvolucaoPage({ params }: { params: { id: string } 
             sparkHumor={dados.perfil.sparkHumor}
             sparkRitmo={dados.perfil.sparkRitmo}
           />
+
+          <LinhaDoTempo pacienteId={params.id} />
 
           <ObservacoesCliente pacienteId={params.id} />
         </div>
@@ -86,7 +115,7 @@ function ProfileCard(p: ProfileCardProps) {
       <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
         <div className="pts-av" style={{ width: 46, height: 46, fontSize: 15 }}>{p.avatar}</div>
         <div style={{ flex: 1 }}>
-          <div style={{ fontFamily: 'var(--f-display)', fontSize: 19, fontWeight: 300, marginBottom: 2, color: 'var(--ink-soft)' }}>{p.nome}</div>
+          <div className="sigilo" style={{ fontFamily: 'var(--f-display)', fontSize: 19, fontWeight: 300, marginBottom: 2, color: 'var(--ink-soft)' }}>{p.nome}</div>
           <div style={{ fontSize: 12, color: 'var(--muted)' }}>
             {p.totalSessoes} {p.totalSessoes === 1 ? 'sessão' : 'sessões'}
             {' · '}{p.minutosMedia} min em média
@@ -113,7 +142,7 @@ function ProfileCard(p: ProfileCardProps) {
 function SparksRow({ sparkHumor, sparkRitmo }: { sparkHumor: number[]; sparkRitmo: number[] }) {
   if (sparkHumor.length < 2 && sparkRitmo.length < 2) return null
   return (
-    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginTop: 16, paddingTop: 14, borderTop: '1px solid var(--border)' }}>
+    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 16, marginTop: 16, paddingTop: 14, borderTop: '1px solid var(--border)' }}>
       {sparkHumor.length >= 2 ? (
         <SparkBlock
           title="Humor ao longo do tempo"
@@ -136,15 +165,31 @@ function SparksRow({ sparkHumor, sparkRitmo }: { sparkHumor: number[]; sparkRitm
 }
 
 function SparkBlock({ title, hint, values, color, showDots }: { title: string; hint: string; values: number[]; color: string; showDots?: boolean }) {
+  const t = tendencia(values)
   return (
     <div>
-      <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: 6 }}>
+      <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 8, marginBottom: 6 }}>
         <span style={{ fontSize: 10, color: 'var(--faint)', textTransform: 'uppercase', letterSpacing: 1.5, fontWeight: 500 }}>{title}</span>
-        <span style={{ fontSize: 11, color: 'var(--muted)' }}>{hint}</span>
+        <span style={{ fontSize: 11, color: 'var(--muted)', whiteSpace: 'nowrap' }}>
+          {t.seta} {t.delta > 0 ? '+' : ''}{t.delta} · {hint}
+        </span>
       </div>
       <Sparkline values={values} width={180} height={32} color={color} showDots={showDots} ariaLabel={title} />
     </div>
   )
+}
+
+/** Tendência de uma série: compara a janela recente com a anterior. */
+function tendencia(valores: number[], janela = 4): { seta: string; delta: number } {
+  if (valores.length < 2) return { seta: '→', delta: 0 }
+  const n = valores.length
+  const j = Math.min(janela, Math.max(1, Math.floor(n / 2)))
+  const recente = valores.slice(-j)
+  const anterior = valores.slice(0, n - j)
+  const avg = (a: number[]) => a.reduce((x, y) => x + y, 0) / a.length
+  const delta = avg(recente) - (anterior.length ? avg(anterior) : recente[0])
+  const d = Math.round(delta * 10) / 10
+  return { seta: Math.abs(d) < 0.1 ? '→' : d > 0 ? '↑' : '↓', delta: d }
 }
 
 function formatEstadoLabel(estado: number): string {

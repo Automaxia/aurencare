@@ -83,12 +83,17 @@ export async function assinar(
   if (ciclo === 'anual') expira.setFullYear(expira.getFullYear() + 1)
   else expira.setMonth(expira.getMonth() + 1)
 
+  // Só libera acesso ('ativo') se o Pagar.me confirmou a assinatura ativa. Se
+  // veio 'future'/'failed'/etc, fica 'inadimplente' e o webhook promove quando
+  // a fatura for paga — evita liberar plano com cartão recusado.
+  const statusInicial = sub.status === 'active' ? 'ativo' : 'inadimplente'
+
   await db.query(
     `UPDATE psicologos
-        SET plano = $2, plano_status = 'ativo', plano_ciclo = $3,
+        SET plano = $2, plano_status = $6, plano_ciclo = $3,
             pagarme_subscription_id = $4, plano_expira_em = $5, plano_atualizado_em = NOW()
       WHERE id = $1`,
-    [psicologoId, plano, ciclo, sub.subscriptionId, sub.proximaCobranca ?? expira.toISOString()],
+    [psicologoId, plano, ciclo, sub.subscriptionId, sub.proximaCobranca ?? expira.toISOString(), statusInicial],
   )
   log.ok('assinatura.assinar', `psicologo=${psicologoId} plano=${plano} sub=${sub.subscriptionId}`)
   return { ok: true, plano }
@@ -131,8 +136,8 @@ export async function aplicarEventoAssinatura(
   acao: 'renovado' | 'falhou' | 'cancelado',
   fimCicloIso?: string | null,
 ): Promise<void> {
-  const { rows } = await db.query<{ id: string; plano_ciclo: Ciclo | null }>(
-    `SELECT id, plano_ciclo FROM psicologos WHERE pagarme_subscription_id = $1 LIMIT 1`,
+  const { rows } = await db.query<{ id: string; plano_ciclo: Ciclo | null; plano_status: string | null }>(
+    `SELECT id, plano_ciclo, plano_status FROM psicologos WHERE pagarme_subscription_id = $1 LIMIT 1`,
     [subscriptionId],
   )
   const psi = rows[0]
@@ -152,17 +157,28 @@ export async function aplicarEventoAssinatura(
       [psi.id],
     )
   } else {
-    // renovado: estende a validade. Usa o fim de ciclo do evento, ou calcula.
-    let expira = fimCicloIso ? new Date(fimCicloIso) : new Date()
-    if (!fimCicloIso) {
-      if (psi.plano_ciclo === 'anual') expira.setFullYear(expira.getFullYear() + 1)
-      else expira.setMonth(expira.getMonth() + 1)
+    // renovado: não reativa um plano já cancelado (replay/evento atrasado do
+    // Pagar.me não deve ressuscitar acesso que o usuário cancelou; uma nova
+    // assinatura real cria outro subscription_id e passa por assinar()).
+    if (psi.plano_status === 'cancelado') {
+      log.warn('assinatura.webhook', `sub=${subscriptionId} renovado ignorado (plano cancelado)`)
+      return
     }
+    // Expiry: usa o fim de ciclo do evento SE for válido e futuro, senão calcula.
+    // Clampa em (agora + ciclo + 7d) — não aceita data arbitrária do payload
+    // (evita expiry no ano 2099 via evento forjado/malformado).
+    const agora = Date.now()
+    const cicloMs = (psi.plano_ciclo === 'anual' ? 365 : 31) * 86_400_000
+    const teto = agora + cicloMs + 7 * 86_400_000
+    const doEvento = fimCicloIso ? Date.parse(fimCicloIso) : NaN
+    const expiraMs = (!Number.isNaN(doEvento) && doEvento > agora)
+      ? Math.min(doEvento, teto)
+      : agora + cicloMs
     await db.query(
       `UPDATE psicologos
           SET plano_status = 'ativo', plano_expira_em = $2, plano_atualizado_em = NOW()
         WHERE id = $1`,
-      [psi.id, expira.toISOString()],
+      [psi.id, new Date(expiraMs).toISOString()],
     )
   }
   log.ok('assinatura.webhook', `sub=${subscriptionId} acao=${acao}`)

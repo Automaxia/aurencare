@@ -102,7 +102,8 @@ export function SessoesTable({ sessoes }: { sessoes: SessaoRow[] }) {
               {filtradas.length !== sessoes.length && ` de ${sessoes.length}`}
             </span>
           </div>
-          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+          <div style={{ overflowX: 'auto' }}>
+          <table style={{ width: '100%', minWidth: 540, borderCollapse: 'collapse', fontSize: 13 }}>
             <thead>
               <tr style={{ background: 'var(--surface)', textAlign: 'left' }}>
                 <Th>Data</Th><Th>#</Th><Th>Paciente</Th><Th>Modalidade</Th><Th>Status</Th>
@@ -129,6 +130,7 @@ export function SessoesTable({ sessoes }: { sessoes: SessaoRow[] }) {
               ))}
             </tbody>
           </table>
+          </div>
         </div>
       )}
     </div>

@@ -1,6 +1,7 @@
 'use client'
 
 import { AiChatPanel } from '@/components/AiChatPanel'
+import { Sigilo } from '@/components/Sigilo'
 
 export function TemasChat({ pacienteId, pacienteNome, selecionado }: { pacienteId: string; pacienteNome: string; selecionado: string | null }) {
   return (
@@ -8,8 +9,8 @@ export function TemasChat({ pacienteId, pacienteNome, selecionado }: { pacienteI
       endpoint="/api/analise/chat"
       payload={{ contexto: 'temas', pacienteId, foco: selecionado }}
       title="Apoio à reflexão"
-      subtitle={`Pergunte sobre os temas e conexões registrados nas sessões de ${firstName(pacienteNome)}.`}
-      initialMessage={`Vejo os registros de ${firstName(pacienteNome)}. Posso explorar como os temas se conectaram ao longo das sessões ou o que mudou com o tempo. O que gostaria de saber?`}
+      subtitle={<>Pergunte sobre os temas e conexões registrados nas sessões de <Sigilo>{firstName(pacienteNome)}</Sigilo>.</>}
+      initialMessage={`Vejo os registros deste paciente. Posso explorar como os temas se conectaram ao longo das sessões ou o que mudou com o tempo. O que gostaria de saber?`}
       quickPrompts={[
         selecionado ? `O que sabemos sobre "${selecionado}"?` : 'Quais os temas mais frequentes?',
         'Como esses temas se conectaram ao longo das sessões?',

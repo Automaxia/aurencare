@@ -100,8 +100,8 @@ export function TermoUsoVideo({ psicologaNome }: Props) {
             O sigilo profissional é assegurado nos termos do Código de Ética do(a) psicólogo(a),
             podendo ser rompido apenas nas hipóteses legalmente previstas (risco iminente à vida,
             requisição judicial fundamentada, denúncia de violência contra criança/adolescente
-            ou pessoa em vulnerabilidade). O prontuário será mantido pela psicóloga conforme a
-            Resolução CFP nº 06/2019, pelo prazo mínimo de 5 anos.
+            ou pessoa em vulnerabilidade). O prontuário será mantido pelo(a) profissional responsável
+            conforme a Resolução CFP nº 06/2019, pelo prazo mínimo de 5 anos.
           </p>
 
           <h5 style={Sub}>5. Limitações do atendimento online</h5>
@@ -121,7 +121,7 @@ export function TermoUsoVideo({ psicologaNome }: Props) {
           <h5 style={Sub}>7. Revogação</h5>
           <p>
             Você pode revogar este consentimento a qualquer momento, sem prejuízo da continuidade
-            clínica, comunicando à psicóloga. A revogação não afeta o tratamento de dados
+            clínica, comunicando ao profissional responsável. A revogação não afeta o tratamento de dados
             realizado anteriormente, mas interrompe novos processamentos.
           </p>
 

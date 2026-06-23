@@ -22,23 +22,19 @@ export function SalaPaciente({ token, psicologaNome, pacienteNome, jaAceitou }: 
   async function entrarNaSala() {
     if (!aceito) return
     setErroAceite(null)
-    // Se já tinha aceite registrado no DB, pula a chamada (idempotência).
+    setRegistrando(true)
+    // Registra o aceite (IP+UA) como evidência, mas NÃO bloqueia a entrada por
+    // causa disso — rede instável não pode trancar o paciente na tela do termo.
+    // Best-effort, com timeout curto; entra de qualquer forma.
     if (!jaAceitou) {
-      setRegistrando(true)
       try {
-        const r = await fetch(`/api/sala/${token}/aceite-termo`, { method: 'POST' })
-        if (!r.ok) {
-          setErroAceite('Não foi possível registrar seu aceite. Tente novamente.')
-          setRegistrando(false)
-          return
-        }
-      } catch {
-        setErroAceite('Sem conexão com o Audere. Verifique sua internet.')
-        setRegistrando(false)
-        return
-      }
-      setRegistrando(false)
+        const ctrl = new AbortController()
+        const t = setTimeout(() => ctrl.abort(), 4000)
+        await fetch(`/api/sala/${token}/aceite-termo`, { method: 'POST', signal: ctrl.signal })
+        clearTimeout(t)
+      } catch { /* aceite é best-effort; segue mesmo assim */ }
     }
+    setRegistrando(false)
     setEntrou(true)
   }
 
@@ -56,7 +52,7 @@ export function SalaPaciente({ token, psicologaNome, pacienteNome, jaAceitou }: 
 
           <ul style={{ fontSize: 12, color: 'var(--muted)', lineHeight: 1.65, padding: '12px 16px', background: 'var(--surface)', borderRadius: 'var(--rsm)', listStyle: 'none', margin: '0 0 14px' }}>
             <li>· Use fones de ouvido se possível, melhora a qualidade.</li>
-            <li>· Sua psicóloga vai te ver e ouvir quando ambos estiverem na sala.</li>
+            <li>· {psicologaNome.split(' ')[0]} vai te ver e ouvir quando ambos estiverem na sala.</li>
             <li>· O áudio é processado para apoio à continuidade; nada é gravado em vídeo.</li>
           </ul>
 
@@ -103,7 +99,7 @@ export function SalaPaciente({ token, psicologaNome, pacienteNome, jaAceitou }: 
               style={{ padding: '10px 24px' }}
               title={!aceito ? 'Marque o aceite do termo para continuar' : undefined}
             >
-              {registrando ? 'Registrando aceite…' : 'Entrar na sala'}
+              {registrando ? 'Entrando…' : 'Entrar na sala'}
             </button>
           </div>
 
@@ -115,17 +111,29 @@ export function SalaPaciente({ token, psicologaNome, pacienteNome, jaAceitou }: 
     )
   }
 
+  // Tela cheia estilo WhatsApp: o vídeo da psicóloga ocupa todo o viewport
+  // (celular/tablet/PC). As infos viram um overlay translúcido no topo, sem
+  // barra empurrando a imagem pra baixo. `fixed inset:0` cobre 100% mesmo no
+  // mobile (melhor que 100vh com a barra do navegador).
   return (
-    <div style={{ minHeight: '100vh', background: '#0e0c18', display: 'flex', flexDirection: 'column' }}>
-      <header style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px 24px', background: 'rgba(255,255,255,.04)', color: 'rgba(255,255,255,.7)' }}>
-        <div style={{ fontSize: 13, fontWeight: 500 }}>
-          Sessão com {psicologaNome.split(' ').slice(0, 2).join(' ')}
-        </div>
-        <CfpBadge />
-      </header>
-      <div style={{ flex: 1, minHeight: 0 }}>
-        <VideoCall token={token} role="paciente" caller={false} onEncerrar={() => setEntrou(false)} />
+    <div style={{ position: 'fixed', inset: 0, background: '#0e0c18' }}>
+      {/* Rótulo da sessão — overlay topo-esquerda (direita fica pros controles da janela) */}
+      <div
+        style={{
+          position: 'absolute', top: 0, left: 0, right: 120, zIndex: 4,
+          padding: 'calc(12px + env(safe-area-inset-top)) 16px 28px',
+          background: 'linear-gradient(180deg, rgba(14,12,24,.6), transparent)',
+          color: 'rgba(255,255,255,.92)', pointerEvents: 'none',
+          fontSize: 13, fontWeight: 500, textShadow: '0 1px 4px rgba(0,0,0,.5)',
+        }}
+      >
+        Sessão com {psicologaNome.split(' ').slice(0, 2).join(' ')}
       </div>
+      {/* Selo CFP — obrigatório em telas com IA (canto inferior esquerdo) */}
+      <div style={{ position: 'absolute', left: 14, bottom: 'calc(20px + env(safe-area-inset-bottom))', zIndex: 5 }}>
+        <CfpBadge />
+      </div>
+      <VideoCall token={token} role="paciente" caller={false} fill onEncerrar={() => setEntrou(false)} />
     </div>
   )
 }

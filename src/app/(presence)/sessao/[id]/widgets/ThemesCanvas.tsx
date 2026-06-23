@@ -74,7 +74,7 @@ const RECENT_WINDOW_MS = 15 * 60 * 1000   // 15min
 const DECAY_HALF_LIFE_MS = 5 * 60 * 1000  // peso cai pela metade a cada 5min
 const FADE_OUT_MS = 1200
 
-export function ThemesCanvas({ turnos }: { turnos: Turno[] }) {
+export function ThemesCanvas({ turnos, emptyHint }: { turnos: Turno[]; emptyHint?: string }) {
   const [mode, setMode] = useState<Mode>('recent')
   const wrapRef = useRef<HTMLDivElement | null>(null)
   const canvasRef = useRef<HTMLCanvasElement | null>(null)
@@ -183,10 +183,7 @@ export function ThemesCanvas({ turnos }: { turnos: Turno[] }) {
       ctx.clearRect(0, 0, W, H)
 
       if (nodes.length === 0) {
-        ctx.fillStyle = 'rgba(122,117,144,.45)'
-        ctx.font = '11px DM Sans, sans-serif'
-        ctx.textAlign = 'center'
-        ctx.fillText('Os temas aparecerão aqui conforme a conversa for transcrita.', W / 2, H / 2)
+        // Estado vazio é renderizado como overlay HTML (quebra linha melhor).
       } else {
         // arestas
         ctx.strokeStyle = 'rgba(122,117,144,.18)'
@@ -266,6 +263,15 @@ export function ThemesCanvas({ turnos }: { turnos: Turno[] }) {
       </div>
       <div ref={wrapRef} style={{ position: 'relative', width: '100%', height: CANVAS_HEIGHT }}>
         <canvas ref={canvasRef} style={{ display: 'block' }} />
+        {wordWeights.size === 0 && (
+          <div style={{
+            position: 'absolute', inset: 0, display: 'grid', placeItems: 'center',
+            padding: '0 24px', textAlign: 'center', pointerEvents: 'none',
+            fontSize: 12, lineHeight: 1.5, color: 'var(--muted)',
+          }}>
+            <span>{emptyHint ?? 'Os temas aparecerão aqui conforme a conversa for transcrita.'}</span>
+          </div>
+        )}
       </div>
     </div>
   )

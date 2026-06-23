@@ -9,7 +9,9 @@ import { chat } from '@/server/lib/anthropic'
  *   sem jargão clínico · português brasileiro coloquial-respeitoso.
  */
 
-const SYS_VOZ = `Você é a assistente de WhatsApp de uma psicóloga clínica. Escreve mensagens curtas para pacientes e potenciais pacientes.
+const SYS_VOZ = `Você é a assistente de WhatsApp de um(a) profissional de psicologia clínica. Escreve mensagens curtas para pacientes e potenciais pacientes.
+
+GÊNERO: você não sabe o gênero do profissional. Refira-se a ele(a) SEMPRE pelo NOME, sem artigo de gênero (ex: "com Ana", "com Luiz", "Ana vai te responder"), nunca "a psicóloga"/"o psicólogo"/"a Ana"/"o Luiz".
 
 TOM:
 - Acolhedora, mas não bajuladora. Nunca "que ótimo que você está aqui!", "estou tão feliz!", "incrível ver você dar esse passo".
@@ -85,11 +87,11 @@ export function fallbackParaIntent(intent: Intent): string {
     case 'consent_recusado':
       return `Sem problema, ${intent.contexto.primeiroNome}. Se mudar de ideia, é só me mandar uma mensagem.`
     case 'paciente_reconhecido':
-      return `Oi, ${intent.contexto.primeiroNome}. Recebi sua mensagem — sua psicóloga foi avisada.`
+      return `Oi, ${intent.contexto.primeiroNome}. Recebi sua mensagem — já avisei quem te atende.`
     case 'nao_entendi':
       return `Não entendi muito bem. Pode reescrever?`
     case 'erro_tecnico':
-      return `Tivemos um problema técnico agora. Sua psicóloga foi avisada e vai te responder por aqui.`
+      return `Tivemos um problema técnico agora. Já avisei quem te atende e em breve te respondem por aqui.`
   }
 }
 

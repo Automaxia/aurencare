@@ -17,3 +17,6 @@ next-env.d.ts
 # kubeconfig com token — nunca commitar
 local.yaml
 *.kubeconfig
+
+# settings local do Claude Code (contem tokens/PAT — nunca versionar)
+.claude/settings.local.json

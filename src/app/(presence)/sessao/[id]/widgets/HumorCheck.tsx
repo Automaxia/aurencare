@@ -47,9 +47,9 @@ function labelFromScale(val: number, marks: readonly (readonly [number, string])
   return chosen
 }
 
-type Props = { value: HumorState; onChange: (v: HumorState) => void }
+type Props = { value: HumorState; onChange: (v: HumorState) => void; className?: string }
 
-export function HumorCheck({ value, onChange }: Props) {
+export function HumorCheck({ value, onChange, className }: Props) {
   const update = (patch: Partial<HumorState>) => onChange({ ...value, ...patch })
   const updateMoment = (key: 'predominante' | 'inicio' | 'fim', patch: Partial<Momento>) =>
     onChange({ ...value, [key]: { ...value[key], ...patch } })
@@ -57,7 +57,7 @@ export function HumorCheck({ value, onChange }: Props) {
   const estadoPct = useMemo(() => ((value.estado + 5) / 10) * 100, [value.estado])
 
   return (
-    <div className="talk-card wide" data-widget-id="humor">
+    <div className={`talk-card wide ${className ?? ''}`} data-widget-id="humor">
       <WidgetGrip />
       <div className="sec-lbl" style={{ marginBottom: 2 }}>Checagem de humor</div>
 

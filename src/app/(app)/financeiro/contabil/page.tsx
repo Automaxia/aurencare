@@ -30,7 +30,7 @@ export default async function VisaoContabilPage() {
       )}
 
       {/* KPIs principais */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12, marginBottom: 14 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 12, marginBottom: 14 }}>
         <Kpi
           label="Recebido bruto"
           value={formatBRL(v.mesAtual.recebidoBruto)}
@@ -101,7 +101,8 @@ export default async function VisaoContabilPage() {
         <section style={{ marginBottom: 22 }}>
           <h3 style={Section}>Comparativo</h3>
           <div className="card" style={{ padding: 0 }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+            <div style={{ overflowX: 'auto' }}>
+            <table style={{ width: '100%', minWidth: 480, borderCollapse: 'collapse', fontSize: 13 }}>
               <thead>
                 <tr style={{ background: 'var(--surface)' }}>
                   <Th>Indicador</Th>
@@ -135,6 +136,7 @@ export default async function VisaoContabilPage() {
                 />
               </tbody>
             </table>
+            </div>
           </div>
         </section>
       )}
@@ -142,7 +144,7 @@ export default async function VisaoContabilPage() {
       {/* Resumo de NF */}
       <section style={{ marginBottom: 22 }}>
         <h3 style={Section}>Notas fiscais do mês</h3>
-        <div className="card" style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 18 }}>
+        <div className="card" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 18 }}>
           <NfStat label="Emitidas" valor={v.mesAtual.cobrancasNfEmitida} cor="var(--sage)" />
           <NfStat label="Pendentes" valor={v.mesAtual.cobrancasNfPendente} cor={v.mesAtual.cobrancasNfPendente > 0 ? 'var(--rose)' : 'var(--muted)'} />
           <NfStat label="Dispensadas" valor={v.mesAtual.cobrancasNfDispensada} cor="var(--muted)" />

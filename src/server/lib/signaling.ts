@@ -31,11 +31,16 @@ if (!globalAny.__aurenSalas) globalAny.__aurenSalas = salas
 export function subscribe(token: string, sub: Subscriber): () => void {
   let s = salas.get(token)
   if (!s) { s = new Set(); salas.set(token, s) }
-  s.add(sub)
 
-  // notifica os outros que entrou
-  const hello: SignalMessage = { type: 'hello', from: sub.role, ts: Date.now() }
-  for (const o of s) if (o !== sub) try { o.send(hello) } catch { /* */ }
+  // Handshake bidirecional: avisa os que JÁ ESTAVAM que o novo entrou E avisa o
+  // NOVO sobre cada um que já estava. Sem o segundo, se o paciente entrava antes
+  // do psicólogo (caller), o psicólogo nunca recebia 'hello' → nunca criava a
+  // offer → ficavam "em salas diferentes". Iteramos antes de adicionar `sub`.
+  for (const o of s) {
+    try { o.send({ type: 'hello', from: sub.role, ts: Date.now() }) } catch { /* */ }
+    try { sub.send({ type: 'hello', from: o.role, ts: Date.now() }) } catch { /* */ }
+  }
+  s.add(sub)
 
   return () => {
     s!.delete(sub)

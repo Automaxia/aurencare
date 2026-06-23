@@ -13,7 +13,7 @@ Legenda prioridade: **P0** crítico (segurança/risco) · **P1** importante · *
 - ✅ Deploy no Kubernetes — monolito em 1 pod (`aurencare-web`), Ingress dos dois hosts.
 - ✅ Job de migrations (`migrate.mjs` em JS puro) + 17 migrations aplicadas.
 - ✅ Banco/role `aurencare` criados no Postgres do cluster.
-- ✅ Domínio de produção `aurencare.automaxia.com.br` + TLS (Cloudflare Full strict).
+- ✅ Domínio de produção `app.audere.ia.br` + TLS (Cloudflare Full strict).
 - ✅ WhatsApp funcionando — correção do payload Evolution **v2** (`{ number, text }`).
 - ✅ Email funcionando — Resend configurado + domínio `automaxia.com.br` verificado.
 - ✅ IA em produção — `ANTHROPIC_API_KEY` real no secret do cluster.
@@ -56,6 +56,10 @@ Legenda prioridade: **P0** crítico (segurança/risco) · **P1** importante · *
 
 ## Futuro (fora do MVP)
 
+- 🔮 **Modelo `usuarios` + papéis (admin)** — separar autenticação dos perfis
+  `psicologos`/`pacientes` para suportar administrador/backoffice. Plano completo
+  (5 fases, baixo risco) em [`usuarios-papeis.md`](./usuarios-papeis.md). Gatilho:
+  surgir necessidade concreta de admin.
 - 🔮 Modo supervisor (Fase 3).
 - 🔮 Agendamento inbound pelo paciente via WhatsApp (TODO `WA.3`).
 - 🔮 UI de escolha de parcelas (1–6x) no fluxo de cartão.

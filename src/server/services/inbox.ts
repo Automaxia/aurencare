@@ -4,7 +4,9 @@ import { db } from '@/server/db/pool'
 import { enviarWA, WA_TEMPLATES } from '@/server/lib/evolution'
 import { log } from '@/server/lib/log'
 import { gerarCobrancaPix, gerarCobrancaCartao, cancelarSessao, buscarSessao } from './sessoes'
-import { obterConversa, atualizarConversa, registrarSaida, buscarPacientePorTelefone, resolverPsicologo, normalizar } from './wa-conversa'
+import { criarOuObterSala } from './salaVideo'
+import { formatDateTimeBR } from '@/lib/formatters'
+import { obterConversa, atualizarConversa, registrarSaida, registrarMensagem, buscarPacientePorTelefone, resolverPsicologo, normalizar } from './wa-conversa'
 import { gerarMensagemSegura, type Intent } from './wa-voz'
 import { env } from '@/server/lib/env'
 import { processarResposta, acharSessaoPendentePorTelefone, type RespostaPaciente } from './confirmacaoSessao'
@@ -17,12 +19,20 @@ import { processarResposta, acharSessaoPendentePorTelefone, type RespostaPacient
  *  2. Estado da conversa (wa_conversas) — onboarding inbound
  *  3. Paciente já cadastrado ou não
  */
-type Inbound = { telefone: string; texto: string }
+type Inbound = { telefone: string; texto: string; instance?: string | null }
 
 export async function processarMensagemRecebida(msg: Inbound): Promise<void> {
   const tel = normalizar(msg.telefone)
   const cmd = (msg.texto ?? '').trim()
   const cmdUpper = cmd.toUpperCase()
+
+  // Persiste a mensagem recebida no histórico (inbox). Resolve psi/paciente pra
+  // garantir que apareça na caixa de entrada da psicóloga, inclusive em comandos.
+  {
+    const psi = await resolverPsicologo(msg.instance).catch(() => null)
+    const pac = await buscarPacientePorTelefone(tel).catch(() => null)
+    await registrarMensagem(tel, 'in', cmd, { psicologoId: psi?.id ?? null, pacienteId: pac?.id ?? null })
+  }
 
   // ──────────────────────────────────────────────────────────────────
   // 0) Confirmação pós-sessão (Fluxo 7) — SIM/NAO/NÃO
@@ -38,17 +48,26 @@ export async function processarMensagemRecebida(msg: Inbound): Promise<void> {
 
   // ──────────────────────────────────────────────────────────────────
   // 1) Comandos clássicos do fluxo de pagamento — independem do estado
-  //    (paciente já tem sessão aberta esperando método/confirmação)
+  //    (paciente já tem sessão aberta esperando método/confirmação).
+  //    Aceita a palavra exata ("PIX") OU frases naturais ("quero pagar via
+  //    pix", "pode ser no crédito") — ver detectarComandoPagamento.
   // ──────────────────────────────────────────────────────────────────
-  if (['PIX', 'CREDITO', 'CRÉDITO', 'DEBITO', 'DÉBITO', 'CONFIRMAR', 'CANCELAR'].includes(cmdUpper)) {
-    return processarComandoPagamento({ telefone: tel, cmd: cmdUpper })
+  const cmdPagamento = detectarComandoPagamento(cmd)
+  if (cmdPagamento) {
+    const exato = ['PIX', 'CREDITO', 'CRÉDITO', 'DEBITO', 'DÉBITO', 'CONFIRMAR', 'CANCELAR'].includes(cmdUpper)
+    // Palavra exata sempre intercepta (compat). Frase natural só intercepta se
+    // o remetente já é paciente — evita sequestrar o onboarding de um lead novo
+    // que por acaso mencione "pix" na saudação.
+    if (exato || (await buscarPacientePorTelefone(tel))) {
+      return processarComandoPagamento({ telefone: tel, cmd: cmdPagamento })
+    }
   }
 
   // ──────────────────────────────────────────────────────────────────
   // 2) Roteador conversacional baseado em estado
   // ──────────────────────────────────────────────────────────────────
   const conversa = await obterConversa(tel)
-  const psicologo = await resolverPsicologo()
+  const psicologo = await resolverPsicologo(msg.instance)
   if (!psicologo) {
     log.warn('wa.inbox', 'nenhuma psicóloga configurada — ignorando')
     return
@@ -82,7 +101,7 @@ export async function processarMensagemRecebida(msg: Inbound): Promise<void> {
 
     case 'onboarded':
     case 'livre':
-      return responderPacienteConhecido(tel, cmd, pacienteExistente ?? null)
+      return responderPacienteConhecido(tel, cmd, pacienteExistente ?? null, psicologo)
 
     default:
       // Em estados intermediários de pagamento, se chegar algo não-comando,
@@ -214,20 +233,137 @@ async function receberConsent(tel: string, cmd: string, psicologo: { id: string;
   log.ok('wa.inbox', `paciente cadastrado via WhatsApp: ${nome} (${tel})`)
 }
 
+// ── Assistente do paciente (intents básicos por WhatsApp) ───────────────
+
+const semAcento = (s: string) => s.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '')
+type IntentPaciente = 'proxima' | 'link' | 'pagamento' | 'ajuda' | 'desconhecido'
+
+function detectarIntentPaciente(texto: string): IntentPaciente {
+  const t = semAcento(texto).trim()
+  // Resposta pelo número do menu
+  if (/^1\b/.test(t)) return 'proxima'
+  if (/^2\b/.test(t)) return 'link'
+  if (/^3\b/.test(t)) return 'pagamento'
+  const tt = ` ${t} `
+  // Pagamento antes de 'link' — "link de pagamento" deve cair aqui, não no vídeo.
+  if (/\b(pagar|pagamento|pix|cobranca|boleto|cartao|fatura|valor|preco|quanto custa|debito|credito|nota fiscal)\b/.test(tt)) return 'pagamento'
+  if (/\b(proxima sessao|minha sessao|quando|que dia|que horas|qual dia|qual horario|que horario|quando e|tenho sessao|tem sessao)\b/.test(tt)) return 'proxima'
+  if (/\b(link|sala|entrar|acesso|video|chamada|reuniao|como entro|onde entro)\b/.test(tt)) return 'link'
+  if (/\b(ajuda|duvida|como funciona|menu|opcoes|oi|ola|bom dia|boa tarde|boa noite|obrigad)\b/.test(tt) || texto.includes('?')) return 'ajuda'
+  return 'desconhecido'
+}
+
+function menuAjuda(nome?: string, psi?: string): string {
+  const ola = nome ? `Oi, ${nome}! 💜 Que bom falar com você.` : `Oi! 💜 Que bom falar com você.`
+  const quem = psi ?? 'quem te atende'
+  return `${ola}\n\n` +
+    `Posso te ajudar com:\n\n` +
+    `*1* — 📅 O dia e horário da sua próxima sessão\n` +
+    `*2* — 🔗 O link da sua sessão de vídeo\n` +
+    `*3* — 💳 Reenviar o link de pagamento ou tirar dúvidas\n\n` +
+    `É só responder com o número. Ou me escreva o que precisar — sua mensagem fica com ${quem}, que te responde por aqui. 🤗`
+}
+
 async function responderPacienteConhecido(
   tel: string,
   texto: string,
   paciente: { id: string; psicologoId: string; nome: string } | null,
+  psicologo: { id: string; nome: string },
 ) {
-  const primeiroNome = (paciente?.nome ?? '').split(' ')[0] || 'você'
-  const msg = await gerarMensagemSegura({
-    kind: 'paciente_reconhecido',
-    contexto: { primeiroNome },
-  })
-  await enviarERegistrar(tel, msg)
-  // TODO: futura WA.3 — entrar em "escolhendo_horario" se mensagem indicar intenção
-  log.info('wa.inbox', `paciente conhecido respondeu: ${tel} · "${texto.slice(0, 60)}"`)
+  const intent = detectarIntentPaciente(texto)
+  log.info('wa.inbox', `paciente ${tel} intent=${intent} · "${texto.slice(0, 60)}"`)
+
+  const psiNome = psicologo.nome.split(' ')[0]
+  if (!paciente) { await enviarERegistrar(tel, menuAjuda(undefined, psiNome)); return }
+  const primeiro = paciente.nome.split(' ')[0]
+
+  switch (intent) {
+    case 'proxima':    return responderProximaSessao(tel, paciente, psicologo)
+    case 'link':       return responderLinkSessao(tel, paciente, psicologo)
+    case 'pagamento':  return responderPagamentoFAQ(tel, paciente, psicologo)
+    case 'ajuda':      await enviarERegistrar(tel, menuAjuda(primeiro, psiNome)); return
+    default:
+      // Mensagem livre: registra (vai pro inbox /conversas) e responde com carinho.
+      await enviarERegistrar(tel,
+        `Recebi sua mensagem, ${primeiro} 💜 ${psiNome} acompanha as conversas por aqui e te responde.\n\n` +
+        `Se precisar de algo rápido, é só mandar *1* (próxima sessão), *2* (link de vídeo) ou *3* (pagamento). 🤗`)
+      return
+  }
 }
+
+async function responderProximaSessao(tel: string, paciente: { id: string; nome: string }, psicologo: { nome: string }) {
+  const nome = paciente.nome.split(' ')[0]
+  const psi = psicologo.nome.split(' ')[0]
+  const s = await proximaSessaoPaciente(paciente.id)
+  if (!s) {
+    await enviarERegistrar(tel, `${nome}, no momento você não tem nenhuma sessão marcada. 🌿 Assim que ${psi} agendar, eu te aviso por aqui. 💜`)
+    return
+  }
+  const mod = s.modalidade === 'online' ? 'online, por vídeo' : 'presencial'
+  const extra = s.modalidade === 'online' ? `\n\nVou te mandar o link da sala ~15 minutos antes — pode relaxar. 🤗` : ''
+  await enviarERegistrar(tel, `${nome}, sua próxima sessão é em *${formatDateTimeBR(s.data_hora)}* (${mod}). 💜${extra}`)
+}
+
+/** Próxima sessão futura do paciente (não cancelada/concluída). */
+async function proximaSessaoPaciente(pacienteId: string): Promise<{ id: string; data_hora: string; modalidade: string; status: string } | null> {
+  const { rows } = await db.query<{ id: string; data_hora: string; modalidade: string; status: string }>(
+    `SELECT id, data_hora, modalidade, status FROM sessoes
+      WHERE paciente_id = $1
+        AND data_hora > NOW() - INTERVAL '1 hour'
+        AND status NOT IN ('cancelada','no_show','concluida')
+      ORDER BY data_hora ASC LIMIT 1`,
+    [pacienteId],
+  )
+  return rows[0] ?? null
+}
+
+async function responderLinkSessao(tel: string, paciente: { id: string; nome: string }, psicologo: { nome: string }) {
+  const nome = paciente.nome.split(' ')[0]
+  const psi = psicologo.nome.split(' ')[0]
+  const s = await proximaSessaoPaciente(paciente.id)
+  if (!s) {
+    await enviarERegistrar(tel, `${nome}, por enquanto você não tem nenhuma sessão marcada. 🌿 Assim que ${psi} agendar, eu te aviso por aqui com o link. 💜`)
+    return
+  }
+  const dataFmt = formatDateTimeBR(s.data_hora)
+  if (s.modalidade !== 'online') {
+    await enviarERegistrar(tel, `${nome}, sua próxima sessão (${dataFmt}) é presencial 🌿 — então não tem sala de vídeo. Qualquer dúvida do endereço, ${psi} te ajuda. Até lá! 💜`)
+    return
+  }
+  try {
+    const sala = await criarOuObterSala(s.id, 4)
+    const link = `${env.appUrl.replace(/\/$/, '')}/sala/${sala.token}`
+    await enviarERegistrar(tel, `Prontinho, ${nome}! 💜 Aqui está o link da sua sessão de ${dataFmt}:\n${link}\n\nPode entrar uns minutinhos antes, sem pressa. Eu também te mando esse link automaticamente ~15 minutos antes. Até logo! 🤗`)
+  } catch (err) {
+    log.err('wa.inbox', 'falha ao gerar sala', err)
+    await enviarERegistrar(tel, `${nome}, não consegui gerar o link agorinha 😕 — tenta de novo em uns instantes. Sem preocupação: ele também chega aqui ~15 min antes da sessão. 💜`)
+  }
+}
+
+async function responderPagamentoFAQ(tel: string, paciente: { id: string; nome: string }, psicologo: { nome: string }) {
+  const nome = paciente.nome.split(' ')[0]
+  const psi = psicologo.nome.split(' ')[0]
+  const { rows } = await db.query<{ id: string; data_hora: string; valor: any; status: string }>(
+    `SELECT id, data_hora, valor, status FROM sessoes
+      WHERE paciente_id = $1 AND status IN ('aguardando_metodo','aguardando_pagamento')
+      ORDER BY data_hora ASC LIMIT 1`,
+    [paciente.id],
+  )
+  const pend = rows[0]
+  if (pend && pend.status === 'aguardando_metodo') {
+    await enviarERegistrar(tel, WA_TEMPLATES.fluxo2_perguntarMetodo(formatDateTimeBR(pend.data_hora), parseFloat(pend.valor ?? 0)))
+    return
+  }
+  if (pend && pend.status === 'aguardando_pagamento') {
+    await enviarERegistrar(tel, `${nome}, ainda tem um pagamentinho em aberto da sua sessão de ${formatDateTimeBR(pend.data_hora)}. 💜\nSe o link tiver expirado, é só responder *PIX*, *CREDITO* ou *DEBITO* que eu gero outro pra você na hora.`)
+    return
+  }
+  await enviarERegistrar(tel,
+    `Sobre pagamento 💜\n\n` +
+    `Quando ${psi} marca uma sessão, você recebe aqui o pedidinho — é só responder *PIX*, *CREDITO* ou *DEBITO* e o link chega na hora. A sessão confirma sozinha assim que o pagamento entra. 🤗\n\n` +
+    `Por enquanto está tudo em dia, ${nome} — nada pendente. 🌿`)
+}
+
 
 // ──────────────────────────────────────────────────────────────────
 // Comandos clássicos de pagamento (mantém fluxo existente)
@@ -236,12 +372,12 @@ async function responderPacienteConhecido(
 async function processarComandoPagamento(opts: { telefone: string; cmd: string }) {
   const { telefone, cmd } = opts
   const { rows: pRows } = await db.query<{ id: string }>(
-    `SELECT id FROM pacientes WHERE right(telefone, 11) = right($1, 11) LIMIT 1`,
+    `SELECT id FROM pacientes WHERE tel_canon(telefone) = tel_canon($1) LIMIT 1`,
     [telefone],
   )
   const paciente = pRows[0]
   if (!paciente) {
-    await enviarERegistrar(telefone, 'Não encontrei seu cadastro. Sua psicóloga foi avisada.')
+    await enviarERegistrar(telefone, 'Não encontrei seu cadastro. Avisei quem te atende.')
     log.warn('wa.inbox', `${telefone} respondeu ${cmd} mas não é cadastrado`)
     return
   }
@@ -258,7 +394,7 @@ async function processarComandoPagamento(opts: { telefone: string; cmd: string }
 
   if (['PIX', 'CREDITO', 'CRÉDITO', 'DEBITO', 'DÉBITO'].includes(cmd)) {
     if (!sessao) {
-      await enviarERegistrar(telefone, 'Não encontrei uma sessão aguardando pagamento. Sua psicóloga foi avisada.')
+      await enviarERegistrar(telefone, 'Não encontrei uma sessão aguardando pagamento. Avisei quem te atende.')
       return
     }
     try {
@@ -267,7 +403,7 @@ async function processarComandoPagamento(opts: { telefone: string; cmd: string }
       else                                                  await gerarCobrancaCartao(sessao.id, 'debito')
     } catch (err) {
       log.err('wa.inbox', 'falha ao gerar cobrança', err)
-      await enviarERegistrar(telefone, 'Tivemos um problema ao gerar a cobrança. Sua psicóloga foi notificada.')
+      await enviarERegistrar(telefone, 'Tivemos um problema ao gerar a cobrança. Avisei quem te atende.')
     }
     return
   }
@@ -293,6 +429,7 @@ async function processarComandoPagamento(opts: { telefone: string; cmd: string }
 async function enviarERegistrar(telefone: string, texto: string) {
   await enviarWA(telefone, texto)
   await registrarSaida(telefone, texto)
+  await registrarMensagem(telefone, 'out', texto)
 }
 
 function limparNome(input: string): string | null {
@@ -300,9 +437,63 @@ function limparNome(input: string): string | null {
   // Mínimo 2 letras, máx 80, sem símbolos estranhos
   if (s.length < 2 || s.length > 80) return null
   if (!/[a-záàâãéêíóôõúüç]/i.test(s)) return null
-  // Bloqueia comandos comuns que claramente não são nome
-  if (/^(oi|olá|ola|hello|hi|test|teste|email|nome|sim|nao|não|ok|pix|cancelar|confirmar)$/i.test(s)) return null
+  // Bloqueia saudações/comandos que claramente não são nome — inclusive de duas
+  // palavras ("bom dia", "boa tarde"), que antes viravam nome de paciente.
+  const norm = s.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '')
+    .replace(/[^a-z\s]/g, ' ').replace(/\s+/g, ' ').trim()
+  const NAO_NOME = new Set([
+    'oi', 'ola', 'alo', 'hello', 'hi', 'hey', 'eai', 'eae', 'opa', 'salve', 'blz', 'beleza',
+    'bom', 'boa', 'bom dia', 'boa tarde', 'boa noite', 'boa madrugada',
+    'tudo bem', 'tudo bom', 'oi tudo bem', 'ola tudo bem', 'oi bom dia', 'ola bom dia',
+    'test', 'teste', 'email', 'nome', 'sim', 'nao', 'ok', 'pix', 'cancelar', 'confirmar',
+    'obrigado', 'obrigada', 'valeu',
+  ])
+  if (NAO_NOME.has(norm)) return null
   return s.split(' ').map(w => w[0]?.toUpperCase() + w.slice(1).toLowerCase()).join(' ')
+}
+
+/**
+ * Detecta o comando de pagamento a partir da mensagem do paciente.
+ * Aceita a palavra exata ("PIX") ou frases naturais ("quero pagar via pix",
+ * "pode ser no crédito", "vou cancelar"). Retorna o comando canônico (sem
+ * acento) ou null se não houver intenção clara.
+ *
+ * Princípios:
+ *  - Métodos (PIX/CREDITO/DEBITO) são não-destrutivos (geram um link/QR que o
+ *    paciente pode ignorar) → toleramos frases. Se a mensagem citar mais de um
+ *    método, é ambígua → null (não adivinha).
+ *  - CANCELAR dispara cancelamento/reembolso → exige verbo claro de cancelar.
+ *  - Negação ("não") suprime o disparo automático (evita "não quero pix").
+ */
+function detectarComandoPagamento(texto: string): 'PIX' | 'CREDITO' | 'DEBITO' | 'CONFIRMAR' | 'CANCELAR' | null {
+  const t = ` ${texto
+    .normalize('NFD').replace(/[̀-ͯ]/g, '')   // remove acentos
+    .toLowerCase()
+    .replace(/[^a-z0-9\s]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()} `
+  if (!t.trim()) return null
+
+  const negado = /\b(nao|jamais|nunca)\b/.test(t)
+
+  const temPix     = /\bpix\b/.test(t)
+  const temCredito = /\bcredito\b|\bcredit\b/.test(t)
+  const temDebito  = /\bdebito\b|\bdebit\b/.test(t)
+  const metodos = [temPix && 'PIX', temCredito && 'CREDITO', temDebito && 'DEBITO']
+    .filter(Boolean) as Array<'PIX' | 'CREDITO' | 'DEBITO'>
+
+  // Um único método citado, sem negação → dispara a cobrança.
+  if (metodos.length === 1 && !negado) return metodos[0]
+  // Mais de um método (ambíguo) → não adivinha.
+  if (metodos.length > 1) return null
+
+  // CANCELAR — verbo claro, sem negação ("não quero cancelar").
+  if (!negado && /\bcancelar\b|\bcancela\b|\bcancelo\b|\bcancelamento\b/.test(t)) return 'CANCELAR'
+
+  // CONFIRMAR — confirmação do agendamento (Fluxo 3).
+  if (!negado && /\bconfirmar\b|\bconfirmo\b|\bconfirma\b|\bconfirmado\b/.test(t)) return 'CONFIRMAR'
+
+  return null
 }
 
 /**

@@ -7,10 +7,11 @@ type Props = {
   token: string
   pacienteNome: string
   psicologaNome: string
-  dataHora: string
+  /** Data/hora JÁ formatada no servidor (timezone fixo) — evita mismatch de hidratação. */
+  horaSessao: string
   numero: number
   respostaAtual: string | null
-  janelaExpiraEm: string | null
+  janelaExpirou: boolean
 }
 
 export function ConfirmarClient(props: Props) {
@@ -18,28 +19,34 @@ export function ConfirmarClient(props: Props) {
   const [enviando, setEnviando] = useState<'sim' | 'contestou' | null>(null)
   const [erro, setErro] = useState<string | null>(null)
 
-  const janelaExpirou = props.janelaExpiraEm && new Date(props.janelaExpiraEm) < new Date()
+  const janelaExpirou = props.janelaExpirou
   const ja = resposta === 'sim' || resposta === 'contestou'
 
   async function responder(r: 'sim' | 'contestou') {
     if (enviando || ja) return
     setEnviando(r); setErro(null)
-    const res = await responderConfirmacaoAction(props.token, r)
-    setEnviando(null)
-    if (res.ok) {
-      setResposta(res.resposta)
-    } else {
-      setErro({
-        token_invalido: 'Link inválido. Talvez já tenha sido respondido.',
-        janela_expirada: 'A janela de confirmação já passou. O pagamento foi liberado automaticamente.',
-        sessao_invalida: 'Sessão inválida.',
-      }[res.razao])
+    try {
+      const res = await responderConfirmacaoAction(props.token, r)
+      if (res.ok) {
+        setResposta(res.resposta)
+      } else {
+        const MENSAGENS: Record<string, string> = {
+          token_invalido: 'Link inválido. Talvez já tenha sido respondido.',
+          janela_expirada: 'A janela de confirmação já passou. O pagamento foi liberado automaticamente.',
+          sessao_invalida: 'Sessão inválida.',
+          erro_interno: 'Tivemos um problema técnico ao registrar. Tente novamente em instantes.',
+        }
+        setErro(MENSAGENS[res.razao] ?? 'Não foi possível registrar agora. Tente novamente.')
+      }
+    } catch {
+      // Nunca deixar o botão preso em "Confirmando…": mostra erro e libera o retry.
+      setErro('Não foi possível registrar agora. Verifique sua conexão e tente novamente.')
+    } finally {
+      setEnviando(null)
     }
   }
 
-  const horaSessao = new Date(props.dataHora).toLocaleString('pt-BR', {
-    weekday: 'long', day: '2-digit', month: 'long', hour: '2-digit', minute: '2-digit',
-  })
+  const horaSessao = props.horaSessao
 
   // Estados terminais
   if (resposta === 'sim') return (
@@ -64,7 +71,7 @@ export function ConfirmarClient(props: Props) {
       <h1 style={titulo}>Janela encerrada</h1>
       <p style={corpo}>
         O prazo de confirmação passou e o pagamento foi liberado automaticamente.
-        Se precisar relatar algo, fale com sua psicóloga ou pelo nosso suporte.
+        Se precisar relatar algo, fale com quem te atende ou pelo nosso suporte.
       </p>
     </Card>
   )

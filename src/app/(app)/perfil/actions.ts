@@ -10,6 +10,7 @@ export type SalvarInput = {
   email: string
   telefone: string
   valorSessao: number | null
+  genero: 'f' | 'm' | null
   novaSenha: string
   confirmarNovaSenha: string
   senhaAtual: string   // exigida quando muda senha OU email
@@ -63,6 +64,7 @@ export async function salvarPerfilAction(input: SalvarInput): Promise<SalvarResu
     nome, crp, email,
     telefone: telefone || null,
     valorSessao: valor,
+    genero: input.genero === 'f' || input.genero === 'm' ? input.genero : null,
   }
   if (trocandoSenha) patch.novaSenha = novaSenha
 

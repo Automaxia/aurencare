@@ -1,8 +1,10 @@
 'use client'
 
 import { useState } from 'react'
+import { Sparkles } from 'lucide-react'
 import type { Objetivo, MetricaTipo, MetricaDirecao } from '@/server/services/objetivos'
-import { criarObjetivoAction } from './actions'
+import type { GasEscala } from '@/server/services/gasObjetivos'
+import { criarObjetivoAction, criarGasAction } from './actions'
 
 /**
  * Wizard de criação de objetivo no padrão SMART, inspirado em planejadores
@@ -22,16 +24,39 @@ import { criarObjetivoAction } from './actions'
 
 type Props = {
   pacienteId: string
-  onCriado: (o: Objetivo) => void
+  tituloInicial?: string
+  onCriado: (o: Objetivo, gas?: GasEscala) => void
   onCancelar: () => void
 }
 
-type Step = 'tipo' | 's' | 'r' | 'm' | 'a' | 't' | 'revisao'
+type Step = 'tipo' | 'gasq' | 'gascfg' | 's' | 'r' | 'm' | 'a' | 't' | 'revisao' | 'livre'
 
-export function NovoObjetivoWizard({ pacienteId, onCriado, onCancelar }: Props) {
+const GAS_NIVEIS = [
+  { campo: 'nivelP2', v: 2,  rotulo: '+2 · muito acima do esperado' },
+  { campo: 'nivelP1', v: 1,  rotulo: '+1 · acima do esperado' },
+  { campo: 'nivel0',  v: 0,  rotulo: '0 · nível esperado' },
+  { campo: 'nivelM1', v: -1, rotulo: '−1 · abaixo do esperado' },
+  { campo: 'nivelM2', v: -2, rotulo: '−2 · muito abaixo do esperado' },
+] as const
+const sinalN = (n: number) => (n > 0 ? `+${n}` : `${n}`)
+
+/** Espelha SmartSugestao do server (copilotoObjetivos) — tipo local pra não
+ *  importar módulo server-only no client. */
+type SmartSugestao = {
+  titulo: string
+  relevancia: string
+  metricaTipo: 'absoluta' | 'gas'
+  unidade: string | null
+  baseline: number | null
+  alvo: number | null
+  prazoSemanas: number | null
+  tema: string | null
+}
+
+export function NovoObjetivoWizard({ pacienteId, tituloInicial, onCriado, onCancelar }: Props) {
   // ── Estado dos campos ────────────────────────────────────────────
   const [tipo, setTipo]           = useState<MetricaTipo>('absoluta')
-  const [titulo, setTitulo]       = useState('')
+  const [titulo, setTitulo]       = useState(tituloInicial ?? '')
   const [descricao, setDescricao] = useState('')   // R — relevância clínica
   const [unidade, setUnidade]     = useState('')
   const [baseline, setBaseline]   = useState('')
@@ -39,18 +64,69 @@ export function NovoObjetivoWizard({ pacienteId, onCriado, onCancelar }: Props) 
   const [subPassos, setSubPassos] = useState('')   // A — sub-passos/recursos/obstáculos (texto livre)
   const [prazo, setPrazo]         = useState('')
 
+  // GAS opcional dentro do fluxo SMART (perguntado logo após escolher o método)
+  const [usarGas, setUsarGas]         = useState(false)
+  const [gasTitulo, setGasTitulo]     = useState('')
+  const [gasNv, setGasNv]             = useState<Record<string, string>>({ nivelP2: '', nivelP1: '', nivel0: '', nivelM1: '', nivelM2: '' })
+  const [gasPartida, setGasPartida]   = useState(-1)
+  const [gasEsperado, setGasEsperado] = useState(2)
+
   // ── Wizard state ─────────────────────────────────────────────────
   const [step, setStep]           = useState<Step>('tipo')
   const [erro, setErro]           = useState<string | null>(null)
   const [salvando, setSalvando]   = useState(false)
 
-  // Passos a percorrer (varia conforme tipo)
-  const sequencia: Step[] = tipo === 'gas'
-    ? ['tipo', 's', 'r', 'a', 't', 'revisao']
-    : ['tipo', 's', 'r', 'm', 'a', 't', 'revisao']
+  // ── Copiloto da Audere (sugestões SMART por IA, sob demanda) ─────
+  const [sugIa, setSugIa]               = useState<SmartSugestao[] | null>(null)
+  const [carregandoIa, setCarregandoIa] = useState(false)
+  const [erroIa, setErroIa]             = useState<string | null>(null)
+
+  async function pedirCopiloto() {
+    setCarregandoIa(true); setErroIa(null)
+    try {
+      const res = await fetch(`/api/pacientes/${pacienteId}/objetivos/copiloto`, { method: 'POST' })
+      const json = await res.json().catch(() => ({}))
+      if (!res.ok) { setErroIa('Não consegui sugerir agora. Tente de novo.'); setSugIa(null) }
+      else if (!json.sugestoes?.length) { setErroIa('Ainda não há temas suficientes para sugerir — registre mais sessões.'); setSugIa([]) }
+      else { setSugIa(json.sugestoes); setErroIa(null) }
+    } catch {
+      setErroIa('Não consegui sugerir agora. Tente de novo.')
+    } finally {
+      setCarregandoIa(false)
+    }
+  }
+
+  function aplicarSugestao(s: SmartSugestao) {
+    // Se o psicólogo já escolheu o método Simples (nenhuma) ou está no passo livre,
+    // a sugestão é mantida como Simples. Senão, segue o tipo da sugestão
+    // ('gas' subjetiva → 'nenhuma'; o GAS é configurado na tela da meta).
+    const querSimples = tipo === 'nenhuma' || step === 'livre'
+    const tipoAplicado: MetricaTipo = querSimples ? 'nenhuma' : (s.metricaTipo === 'absoluta' ? 'absoluta' : 'nenhuma')
+    setTipo(tipoAplicado)
+    setTitulo(s.titulo)
+    setDescricao(s.relevancia)
+    if (tipoAplicado === 'absoluta') {
+      setUnidade(s.unidade ?? '')
+      setBaseline(s.baseline != null ? String(s.baseline) : '')
+      setAlvo(s.alvo != null ? String(s.alvo) : '')
+    } else {
+      setUnidade(''); setBaseline(''); setAlvo('')
+    }
+    if (s.prazoSemanas && s.prazoSemanas > 0) {
+      const d = new Date(); d.setDate(d.getDate() + s.prazoSemanas * 7)
+      setPrazo(d.toISOString().slice(0, 10))
+    }
+    setSugIa(null); setErroIa(null); setErro(null)
+    setStep(tipoAplicado === 'absoluta' ? 'revisao' : 'livre')
+  }
+
+  // Dois métodos: SMART (absoluta) pergunta GAS logo após o método; Livre (nenhuma) é entrada única.
+  const sequencia: Step[] = tipo === 'absoluta'
+    ? ['tipo', 'gasq', ...(usarGas ? ['gascfg' as Step] : []), 's', 'r', 'm', 'a', 't', 'revisao']
+    : ['tipo', 'livre']
   const idx       = sequencia.indexOf(step)
   const primeiro  = idx === 0
-  const ultimo    = step === 'revisao'
+  const ultimo    = idx === sequencia.length - 1
 
   // ── Direção sugerida (Métrica absoluta) ──────────────────────────
   const baselineN = parseFloat(baseline.replace(',', '.'))
@@ -67,6 +143,14 @@ export function NovoObjetivoWizard({ pacienteId, onCriado, onCancelar }: Props) 
       case 's':
         if (titulo.trim().length < 4) { setErro('Descreva o objetivo de forma específica (mínimo 4 caracteres).'); return false }
         return true
+      case 'livre':
+        if (titulo.trim().length < 4) { setErro('Escreva o objetivo (mínimo 4 caracteres).'); return false }
+        return true
+      case 'gasq':
+        return true
+      case 'gascfg':
+        if (gasTitulo.trim().length < 2) { setErro('Dê um nome à escala GAS (ex: "Relação com o chefe").'); return false }
+        return true
       case 'r':
         // Descricao opcional, mas recomendada — não bloqueia
         return true
@@ -82,7 +166,7 @@ export function NovoObjetivoWizard({ pacienteId, onCriado, onCancelar }: Props) 
         // Texto livre opcional
         return true
       case 't':
-        if (!prazo) { setErro('Defina um prazo realista.'); return false }
+        // #5: prazo é opcional (varia caso a caso).
         return true
       default: return true
     }
@@ -112,23 +196,46 @@ export function NovoObjetivoWizard({ pacienteId, onCriado, onCancelar }: Props) 
       metricaDirecao: tipo === 'absoluta' ? direcao : 'aumentar',
       prazoEm: prazo || null,
     })
+    if (!r) { setSalvando(false); setErro('Não foi possível criar agora.'); return }
+
+    // GAS opcional configurado no fluxo SMART → cria a escala junto.
+    let gasCriado: GasEscala | undefined
+    if (tipo === 'absoluta' && usarGas && gasTitulo.trim()) {
+      const g = await criarGasAction(r.id, {
+        titulo: gasTitulo.trim(),
+        nivelM2: gasNv.nivelM2.trim() || null, nivelM1: gasNv.nivelM1.trim() || null, nivel0: gasNv.nivel0.trim() || null,
+        nivelP1: gasNv.nivelP1.trim() || null, nivelP2: gasNv.nivelP2.trim() || null,
+        nivelPartida: gasPartida, nivelEsperado: gasEsperado,
+      })
+      gasCriado = g ?? undefined
+    }
     setSalvando(false)
-    if (r) onCriado(r)
-    else setErro('Não foi possível criar agora.')
+    onCriado(r, gasCriado)
   }
 
   // ── Render ───────────────────────────────────────────────────────
   return (
     <div className="card" style={{ display: 'grid', gap: 18, marginBottom: 16, padding: 22 }}>
+      <CopilotoObjetivos
+        sugestoes={sugIa}
+        carregando={carregandoIa}
+        erro={erroIa}
+        onPedir={pedirCopiloto}
+        onAplicar={aplicarSugestao}
+      />
+
       <Stepper sequencia={sequencia} atual={step} />
 
       {step === 'tipo'    && <PassoTipo   tipo={tipo} onChange={setTipo} />}
+      {step === 'gasq'    && <PassoGasQuestion usar={usarGas} onChange={setUsarGas} />}
+      {step === 'gascfg'  && <PassoGasConfig titulo={gasTitulo} setTitulo={setGasTitulo} nv={gasNv} setNv={setGasNv} partida={gasPartida} setPartida={setGasPartida} esperado={gasEsperado} setEsperado={setGasEsperado} />}
+      {step === 'livre'   && <PassoLivre  titulo={titulo} setTitulo={setTitulo} descricao={descricao} setDescricao={setDescricao} prazo={prazo} setPrazo={setPrazo} />}
       {step === 's'       && <PassoS      titulo={titulo} onChange={setTitulo} />}
       {step === 'r'       && <PassoR      descricao={descricao} onChange={setDescricao} />}
       {step === 'm'       && <PassoM      tipo={tipo} unidade={unidade} setUnidade={setUnidade} baseline={baseline} setBaseline={setBaseline} alvo={alvo} setAlvo={setAlvo} direcaoSugerida={!isNaN(baselineN) && !isNaN(alvoN) && baselineN !== alvoN ? direcao : null} />}
       {step === 'a'       && <PassoA      subPassos={subPassos} onChange={setSubPassos} />}
       {step === 't'       && <PassoT      prazo={prazo} onChange={setPrazo} />}
-      {step === 'revisao' && <Revisao     {...{ tipo, titulo, descricao, unidade, baseline, alvo, direcao, subPassos, prazo }} />}
+      {step === 'revisao' && <Revisao     {...{ tipo, titulo, descricao, unidade, baseline, alvo, direcao, subPassos, prazo, usarGas, gasTitulo }} />}
 
       {erro && <div style={{ color: 'var(--rose)', fontSize: 12 }}>{erro}</div>}
 
@@ -158,16 +265,82 @@ export function NovoObjetivoWizard({ pacienteId, onCriado, onCancelar }: Props) 
   )
 }
 
+// ─── Copiloto da Audere ─────────────────────────────────────────────────
+
+function CopilotoObjetivos({ sugestoes, carregando, erro, onPedir, onAplicar }: {
+  sugestoes: SmartSugestao[] | null
+  carregando: boolean
+  erro: string | null
+  onPedir: () => void
+  onAplicar: (s: SmartSugestao) => void
+}) {
+  return (
+    <div style={{
+      borderRadius: 12, border: '1px solid var(--border)', padding: 14,
+      background: 'linear-gradient(135deg, rgba(106,78,200,.06), rgba(90,158,138,.045))',
+    }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 9 }}>
+          <Sparkles size={16} style={{ color: 'var(--accent)', flexShrink: 0 }} />
+          <div>
+            <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--ink)' }}>Copiloto da Audere</div>
+            <div style={{ fontSize: 11.5, color: 'var(--muted)', lineHeight: 1.4 }}>
+              Sugestões de metas SMART a partir dos temas observados nas sessões.
+            </div>
+          </div>
+        </div>
+        {!sugestoes?.length && (
+          <button type="button" className="btn ghost" onClick={onPedir} disabled={carregando}
+            style={{ whiteSpace: 'nowrap', fontSize: 12.5, display: 'inline-flex', alignItems: 'center', gap: 5 }}>
+            {carregando ? 'Pensando…' : <><Sparkles size={13} /> Sugerir metas</>}
+          </button>
+        )}
+      </div>
+
+      {erro && <div style={{ fontSize: 12, color: 'var(--muted)', marginTop: 10, lineHeight: 1.5 }}>{erro}</div>}
+
+      {!!sugestoes?.length && (
+        <div style={{ display: 'grid', gap: 10, marginTop: 12 }}>
+          {sugestoes.map((s, i) => (
+            <div key={i} style={{ padding: 14, borderRadius: 10, background: 'var(--card)', border: '1px solid var(--border)', display: 'grid', gap: 7 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10, alignItems: 'flex-start' }}>
+                <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--ink)', lineHeight: 1.3 }}>{s.titulo}</div>
+                <button type="button" className="btn primary" onClick={() => onAplicar(s)}
+                  style={{ flex: 'none', fontSize: 12, padding: '7px 12px', whiteSpace: 'nowrap' }}>
+                  Usar esta meta →
+                </button>
+              </div>
+              <div style={{ fontSize: 12.5, color: 'var(--ink-soft)', lineHeight: 1.5 }}>{s.relevancia}</div>
+              <div style={{ fontSize: 11, color: 'var(--muted)', fontFamily: 'var(--font-mono), monospace' }}>
+                {s.metricaTipo === 'absoluta'
+                  ? `${s.unidade ?? 'unidade'} · ${s.baseline ?? '—'} → ${s.alvo ?? '—'}`
+                  : 'GAS · escala −2…+2'}
+                {s.prazoSemanas ? ` · ${s.prazoSemanas} sem` : ''}
+              </div>
+            </div>
+          ))}
+          <div style={{ fontSize: 10.5, color: 'var(--faint)', lineHeight: 1.5 }}>
+            Rascunho gerado pela Audere · revise e ajuste cada campo antes de salvar · observação, não diagnóstico · CFP 09/2024
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
 // ─── Stepper visual ─────────────────────────────────────────────────────
 
 const STEP_LABELS: Record<Step, string> = {
-  tipo:    'Métrica',
+  tipo:    'Método',
+  gasq:    'GAS?',
+  gascfg:  'Escala GAS',
   s:       'Específico',
   r:       'Relevante',
   m:       'Mensurável',
   a:       'Atingível',
   t:       'Temporal',
   revisao: 'Revisão',
+  livre:   'Objetivo',
 }
 
 function Stepper({ sequencia, atual }: { sequencia: Step[]; atual: Step }) {
@@ -272,19 +445,19 @@ function HeaderPasso({ letra, titulo, sub }: { letra: string; titulo: string; su
 function PassoTipo({ tipo, onChange }: { tipo: MetricaTipo; onChange: (t: MetricaTipo) => void }) {
   return (
     <div style={{ display: 'grid', gap: 14 }}>
-      <HeaderPasso letra="·" titulo="Como vamos medir esse objetivo?" sub="O modo de medição muda o que você preenche nos próximos passos." />
+      <HeaderPasso letra="·" titulo="Como você quer registrar os objetivos?" sub="Escolha o método. Você pode misturar os dois na mesma terapia — cada meta no formato que fizer sentido." />
       <div style={{ display: 'grid', gap: 10 }}>
         <OpcaoCard
           ativo={tipo === 'absoluta'}
           onClick={() => onChange('absoluta')}
-          titulo="Métrica absoluta"
-          corpo="O objetivo tem uma unidade clara que pode ser contada (ex: ataques por semana, minutos de respiração por dia, horas de sono). Use para metas com baseline e alvo numéricos definidos."
+          titulo="Objetivos SMART + GAS"
+          corpo="Método estruturado: meta específica, mensurável (unidade, baseline e alvo) e temporal — com acompanhamento por escalas GAS. Para quando você quer medir a evolução com precisão."
         />
         <OpcaoCard
-          ativo={tipo === 'gas'}
-          onClick={() => onChange('gas')}
-          titulo="GAS — Goal Attainment Scale (−2 a +2)"
-          corpo="Escala padronizada quando a meta é subjetiva ou sem unidade clara (ex: reduzir senso de culpa, melhorar relação com chefe). 0 = baseline, +2 = muito melhor que esperado, −2 = muito pior."
+          ativo={tipo === 'nenhuma'}
+          onClick={() => onChange('nenhuma')}
+          titulo="Objetivo Terapêutico Simples"
+          corpo="Livre é livre: uma única caixa de texto, do seu jeito. Sem campos obrigatórios nem etapas. Você ainda pode acompanhar com escalas GAS depois, se quiser."
         />
       </div>
     </div>
@@ -307,6 +480,100 @@ function OpcaoCard({ ativo, onClick, titulo, corpo }: { ativo: boolean; onClick:
       <div style={{ fontSize: 14, fontWeight: 500, color: 'var(--ink)' }}>{titulo}</div>
       <div style={{ fontSize: 12, color: 'var(--muted)', lineHeight: 1.55 }}>{corpo}</div>
     </button>
+  )
+}
+
+function PassoGasQuestion({ usar, onChange }: { usar: boolean; onChange: (v: boolean) => void }) {
+  return (
+    <div style={{ display: 'grid', gap: 14 }}>
+      <HeaderPasso letra="◬" titulo="Quer acompanhar com uma escala GAS?" sub="O GAS é opcional. Configure agora, no mesmo fluxo, ou adicione depois na tela da meta." />
+      <div style={{ display: 'grid', gap: 10 }}>
+        <OpcaoCard
+          ativo={usar}
+          onClick={() => onChange(true)}
+          titulo="Sim, configurar GAS agora"
+          corpo="Defina os 5 níveis (−2 a +2) com partida e esperado. A escala é criada junto com a meta e você já registra os andamentos."
+        />
+        <OpcaoCard
+          ativo={!usar}
+          onClick={() => onChange(false)}
+          titulo="Não, seguir sem GAS"
+          corpo="A meta SMART é criada normalmente. Se quiser, você adiciona uma ou mais escalas GAS depois, na tela da meta."
+        />
+      </div>
+    </div>
+  )
+}
+
+function PassoGasConfig({ titulo, setTitulo, nv, setNv, partida, setPartida, esperado, setEsperado }: {
+  titulo: string; setTitulo: (v: string) => void
+  nv: Record<string, string>; setNv: (updater: (s: Record<string, string>) => Record<string, string>) => void
+  partida: number; setPartida: (v: number) => void
+  esperado: number; setEsperado: (v: number) => void
+}) {
+  return (
+    <div style={{ display: 'grid', gap: 14 }}>
+      <HeaderPasso letra="◬" titulo="Escala GAS" sub="Descreva os 5 níveis e marque partida e esperado. Depois de criada, a escala não é editável — só pausar ou excluir." />
+      <input value={titulo} onChange={e => setTitulo(e.target.value)} placeholder="Nome da escala (ex: Relação com o chefe)" className="gas-inp" autoFocus />
+      <div style={{ display: 'grid', gap: 7 }}>
+        {GAS_NIVEIS.map(n => (
+          <div key={n.v} style={{ display: 'grid', gridTemplateColumns: '56px 1fr', gap: 8, alignItems: 'start' }}>
+            <span style={{ fontSize: 12, fontWeight: 600, color: n.v === 0 ? 'var(--accent)' : 'var(--muted)', paddingTop: 9, fontVariantNumeric: 'tabular-nums' }}>{sinalN(n.v)}</span>
+            <textarea value={nv[n.campo]} onChange={e => setNv(s => ({ ...s, [n.campo]: e.target.value }))} rows={1} placeholder={n.rotulo} className="gas-inp gas-area" />
+          </div>
+        ))}
+      </div>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 10 }}>
+        <label style={{ display: 'grid', gap: 4 }}>
+          <span style={{ fontSize: 11, color: 'var(--muted)' }}>Nível de partida</span>
+          <select value={partida} onChange={e => setPartida(Number(e.target.value))} className="gas-inp">{[2, 1, 0, -1, -2].map(v => <option key={v} value={v}>{sinalN(v)}</option>)}</select>
+        </label>
+        <label style={{ display: 'grid', gap: 4 }}>
+          <span style={{ fontSize: 11, color: 'var(--muted)' }}>Nível esperado (meta)</span>
+          <select value={esperado} onChange={e => setEsperado(Number(e.target.value))} className="gas-inp">{[2, 1, 0, -1, -2].map(v => <option key={v} value={v}>{sinalN(v)}</option>)}</select>
+        </label>
+      </div>
+      <style jsx>{`
+        .gas-inp { width: 100%; box-sizing: border-box; padding: 11px 13px; border-radius: 9px; border: 1px solid var(--border); background: white; font-size: 14px; font-family: inherit; color: var(--ink); outline: none; transition: border-color .15s var(--ease); }
+        .gas-inp:focus { border-color: var(--accent); }
+        .gas-area { resize: vertical; min-height: 34px; line-height: 1.4; }
+      `}</style>
+    </div>
+  )
+}
+
+function PassoLivre({ titulo, setTitulo, descricao, setDescricao, prazo, setPrazo }: {
+  titulo: string; setTitulo: (v: string) => void
+  descricao: string; setDescricao: (v: string) => void
+  prazo: string; setPrazo: (v: string) => void
+}) {
+  return (
+    <div style={{ display: 'grid', gap: 14 }}>
+      <HeaderPasso letra="·" titulo="Objetivo Terapêutico Simples" sub="Livre é livre. Escreva do seu jeito — sem campos obrigatórios nem etapas." />
+      <input
+        autoFocus value={titulo} onChange={e => setTitulo(e.target.value)}
+        placeholder="Escreva o objetivo…" className="liv-inp"
+      />
+      <label style={{ display: 'grid', gap: 5 }}>
+        <span style={{ fontSize: 11, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '.06em' }}>Detalhes (opcional)</span>
+        <textarea value={descricao} onChange={e => setDescricao(e.target.value)} rows={4}
+          placeholder="Contexto, o que observar, como saberá que avançou…" className="liv-inp liv-area" />
+      </label>
+      <label style={{ display: 'grid', gap: 5 }}>
+        <span style={{ fontSize: 11, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '.06em' }}>Prazo (opcional)</span>
+        <input type="date" value={prazo} onChange={e => setPrazo(e.target.value)} className="liv-inp" style={{ maxWidth: 200 }} />
+      </label>
+      <style jsx>{`
+        .liv-inp {
+          width: 100%; box-sizing: border-box; padding: 13px 16px; border-radius: 10px;
+          border: 1px solid var(--border); background: white;
+          font-size: 15px; font-family: inherit; color: var(--ink); outline: none;
+          transition: border-color .15s var(--ease);
+        }
+        .liv-inp:focus { border-color: var(--accent); }
+        .liv-area { font-size: 14px; resize: vertical; min-height: 90px; line-height: 1.5; }
+      `}</style>
+    </div>
   )
 }
 
@@ -480,9 +747,9 @@ function PassoA({ subPassos, onChange }: { subPassos: string; onChange: (v: stri
 function PassoT({ prazo, onChange }: { prazo: string; onChange: (v: string) => void }) {
   return (
     <div style={{ display: 'grid', gap: 14 }}>
-      <HeaderPasso letra="T" titulo="Temporal" sub="Em quanto tempo você espera atingir esse objetivo?" />
+      <HeaderPasso letra="T" titulo="Temporal" sub="Em quanto tempo você espera atingir esse objetivo? (opcional)" />
       <Tip
-        titulo="Definir um prazo realista"
+        titulo="Definir um prazo realista (opcional)"
         perguntas={[
           'O prazo é compatível com o ritmo terapêutico desse paciente?',
           'Curto demais (gera frustração) ou longo demais (perde tração)?',
@@ -515,6 +782,8 @@ function Revisao(p: {
   direcao: MetricaDirecao
   subPassos: string
   prazo: string
+  usarGas: boolean
+  gasTitulo: string
 }) {
   return (
     <div style={{ display: 'grid', gap: 14 }}>
@@ -533,10 +802,11 @@ function Revisao(p: {
             valor={`${p.unidade || '—'} · de ${p.baseline || '—'} para ${p.alvo || '—'} (${p.direcao === 'aumentar' ? 'aumentar' : 'reduzir'})`}
           />
         ) : (
-          <RevisaoLinha letra="M+A" titulo="Métrica" valor="GAS — Goal Attainment Scale (−2 a +2)" />
+          <RevisaoLinha letra="·" titulo="Método" valor="Objetivo Terapêutico Simples · preenchimento livre. Acompanhe com escalas GAS na tela da meta, se quiser (opcional)." />
         )}
         {p.subPassos && <RevisaoLinha letra="A" titulo="Atingível · plano" valor={p.subPassos} multiLinha />}
         <RevisaoLinha letra="T" titulo="Temporal" valor={p.prazo ? formatPrazo(p.prazo) : '—'} />
+        <RevisaoLinha letra="◬" titulo="GAS" valor={p.usarGas && p.gasTitulo.trim() ? `Escala "${p.gasTitulo.trim()}" será criada junto` : 'Sem escala GAS (pode adicionar depois na meta)'} />
       </div>
     </div>
   )

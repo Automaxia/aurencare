@@ -1,7 +1,8 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
+import { Pencil, Archive, RotateCw } from 'lucide-react'
 import {
   atualizarPacienteAction, arquivarPacienteAction,
   reativarPacienteAction, excluirPacienteAction,
@@ -24,8 +25,18 @@ type Modal = null | 'editar' | 'arquivar' | 'reativar' | 'excluir'
 export function AcoesPaciente({ pacienteId, inicial, totalSessoes }: Props) {
   const [aberto, setAberto] = useState(false)
   const [modal, setModal] = useState<Modal>(null)
+  const menuRef = useRef<HTMLDivElement>(null)
 
   function abrir(m: Modal) { setAberto(false); setModal(m) }
+
+  // Menu: fecha no ESC e foca o primeiro item ao abrir (acessibilidade).
+  useEffect(() => {
+    if (!aberto) return
+    menuRef.current?.querySelector<HTMLButtonElement>('button')?.focus()
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setAberto(false) }
+    document.addEventListener('keydown', onKey)
+    return () => document.removeEventListener('keydown', onKey)
+  }, [aberto])
 
   const arquivado = inicial.status === 'inativo'
 
@@ -36,6 +47,7 @@ export function AcoesPaciente({ pacienteId, inicial, totalSessoes }: Props) {
           type="button" className="btn ghost"
           onClick={() => setAberto(a => !a)}
           title="Ações do paciente"
+          aria-haspopup="menu" aria-expanded={aberto}
           style={{ padding: '6px 12px' }}
         >
           ⋯
@@ -43,17 +55,17 @@ export function AcoesPaciente({ pacienteId, inicial, totalSessoes }: Props) {
         {aberto && (
           <>
             <div onClick={() => setAberto(false)} style={{ position: 'fixed', inset: 0, zIndex: 70 }} />
-            <div style={{
+            <div ref={menuRef} role="menu" aria-label="Ações do paciente" style={{
               position: 'absolute', right: 0, top: '100%', marginTop: 4, zIndex: 71,
               minWidth: 200, background: 'white', borderRadius: 10,
               border: '1px solid var(--border)',
               boxShadow: '0 8px 24px rgba(26,24,37,.10)',
               overflow: 'hidden',
             }}>
-              <ItemMenu icone="✎" label="Editar dados" onClick={() => abrir('editar')} />
+              <ItemMenu icone={<Pencil size={14} />} label="Editar dados" onClick={() => abrir('editar')} />
               {!arquivado
-                ? <ItemMenu icone="⊘" label="Arquivar" onClick={() => abrir('arquivar')} />
-                : <ItemMenu icone="↻" label="Reativar" onClick={() => abrir('reativar')} />
+                ? <ItemMenu icone={<Archive size={14} />} label="Arquivar" onClick={() => abrir('arquivar')} />
+                : <ItemMenu icone={<RotateCw size={14} />} label="Reativar" onClick={() => abrir('reativar')} />
               }
               <ItemMenu
                 icone="×" label="Excluir definitivamente"
@@ -91,11 +103,11 @@ export function AcoesPaciente({ pacienteId, inicial, totalSessoes }: Props) {
 }
 
 function ItemMenu({ icone, label, onClick, vermelho }: {
-  icone: string; label: string; onClick: () => void; vermelho?: boolean
+  icone: React.ReactNode; label: string; onClick: () => void; vermelho?: boolean
 }) {
   return (
     <button
-      type="button" onClick={onClick}
+      type="button" role="menuitem" onClick={onClick}
       style={{
         width: '100%', textAlign: 'left',
         padding: '10px 14px', background: 'transparent', border: 'none',
@@ -108,7 +120,7 @@ function ItemMenu({ icone, label, onClick, vermelho }: {
       onMouseEnter={e => (e.currentTarget.style.background = 'var(--surface)')}
       onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
     >
-      <span style={{ width: 16, textAlign: 'center', color: vermelho ? 'var(--rose)' : 'var(--muted)' }}>{icone}</span>
+      <span style={{ width: 16, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', color: vermelho ? 'var(--rose)' : 'var(--muted)' }}>{icone}</span>
       {label}
     </button>
   )
@@ -116,10 +128,24 @@ function ItemMenu({ icone, label, onClick, vermelho }: {
 
 // ─── Modal genérico ─────────────────────────────────────────────────
 
-function Backdrop({ children, onClose }: { children: React.ReactNode; onClose: () => void }) {
+function Backdrop({ children, onClose, label }: { children: React.ReactNode; onClose: () => void; label?: string }) {
+  const cardRef = useRef<HTMLDivElement>(null)
+  const onCloseRef = useRef(onClose)
+  onCloseRef.current = onClose
+
+  // Fecha no ESC; foca o diálogo ao abrir e devolve o foco ao fechar.
+  // Roda só na montagem (ref evita re-focar e roubar o cursor a cada render).
+  useEffect(() => {
+    const anterior = document.activeElement as HTMLElement | null
+    cardRef.current?.focus()
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onCloseRef.current() }
+    document.addEventListener('keydown', onKey)
+    return () => { document.removeEventListener('keydown', onKey); anterior?.focus?.() }
+  }, [])
+
   return (
     <div
-      role="dialog" aria-modal="true"
+      role="dialog" aria-modal="true" aria-label={label}
       onClick={onClose}
       style={{
         position: 'fixed', inset: 0, zIndex: 80,
@@ -128,9 +154,10 @@ function Backdrop({ children, onClose }: { children: React.ReactNode; onClose: (
       }}
     >
       <div
+        ref={cardRef} tabIndex={-1}
         className="card"
         onClick={e => e.stopPropagation()}
-        style={{ maxWidth: 480, width: '100%', padding: 28 }}
+        style={{ maxWidth: 480, width: '100%', padding: 28, outline: 'none' }}
       >
         {children}
       </div>
@@ -143,7 +170,7 @@ function CabecalhoModal({ titulo, onClose }: { titulo: string; onClose: () => vo
     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12, marginBottom: 18 }}>
       <h3 style={{ fontFamily: 'var(--font-display)', fontSize: 22, fontWeight: 400, margin: 0 }}>{titulo}</h3>
       <button
-        type="button" onClick={onClose}
+        type="button" onClick={onClose} aria-label="Fechar"
         style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: 'var(--muted)', fontSize: 18, padding: 0 }}
         title="Fechar"
       >×</button>
@@ -180,7 +207,7 @@ function ModalEditar({ pacienteId, inicial, onFechar }: {
   }
 
   return (
-    <Backdrop onClose={() => !salvando && onFechar()}>
+    <Backdrop onClose={() => !salvando && onFechar()} label="Editar paciente">
       <CabecalhoModal titulo="Editar paciente" onClose={onFechar} />
 
       <form onSubmit={submit} style={{ display: 'grid', gap: 12 }}>
@@ -213,11 +240,15 @@ function ModalEditar({ pacienteId, inicial, onFechar }: {
 
         <style jsx>{`
           input {
-            width: 100%; padding: 10px 14px; border-radius: 10px;
-            border: 1px solid var(--border); background: white;
+            width: 100%; padding: 10px 14px; border-radius: var(--field-radius);
+            border: 1px solid var(--field-border); background: var(--field-bg);
             font-size: 13px; font-family: inherit; color: var(--ink); outline: none;
+            transition: border-color .15s var(--ease), box-shadow .15s var(--ease);
           }
-          input:focus { border-color: var(--accent); }
+          input:hover { border-color: var(--field-border-hover); }
+          input:focus { border-color: var(--accent); box-shadow: var(--field-ring); }
+          input:user-invalid { border-color: var(--rose); }
+          input:user-invalid:focus { box-shadow: var(--field-ring-error); }
         `}</style>
       </form>
     </Backdrop>
@@ -238,7 +269,7 @@ function ModalArquivar({ pacienteId, nome, onFechar }: { pacienteId: string; nom
   }
 
   return (
-    <Backdrop onClose={onFechar}>
+    <Backdrop onClose={onFechar} label="Arquivar paciente">
       <CabecalhoModal titulo="Arquivar paciente" onClose={onFechar} />
       <p style={{ fontSize: 13, color: 'var(--ink-soft)', lineHeight: 1.6, margin: '0 0 18px' }}>
         <strong>{nome}</strong> ficará marcado como inativo e some dos atalhos do dia-a-dia.
@@ -270,7 +301,7 @@ function ModalReativar({ pacienteId, nome, onFechar }: { pacienteId: string; nom
   }
 
   return (
-    <Backdrop onClose={onFechar}>
+    <Backdrop onClose={onFechar} label="Reativar paciente">
       <CabecalhoModal titulo="Reativar paciente" onClose={onFechar} />
       <p style={{ fontSize: 13, color: 'var(--ink-soft)', lineHeight: 1.6, margin: '0 0 20px' }}>
         <strong>{nome}</strong> voltará a aparecer nas listas e atalhos. Pode agendar novas sessões normalmente.
@@ -312,7 +343,7 @@ function ModalExcluir({ pacienteId, nome, totalSessoes, onFechar }: {
   }
 
   return (
-    <Backdrop onClose={() => !salvando && onFechar()}>
+    <Backdrop onClose={() => !salvando && onFechar()} label="Excluir definitivamente">
       <CabecalhoModal titulo="Excluir definitivamente" onClose={onFechar} />
 
       {bloqueado ? (

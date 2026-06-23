@@ -245,7 +245,7 @@ export function ProntuarioIaPDF(input: ProntuarioIaPdfInput) {
 function formatLonga(iso: string): string {
   try {
     return new Date(iso).toLocaleDateString('pt-BR', {
-      day: '2-digit', month: 'long', year: 'numeric',
+      day: '2-digit', month: 'long', year: 'numeric', timeZone: 'America/Sao_Paulo',
     })
   } catch { return iso }
 }
@@ -253,7 +253,7 @@ function formatHora(iso: string): string {
   try {
     return new Date(iso).toLocaleString('pt-BR', {
       day: '2-digit', month: '2-digit', year: 'numeric',
-      hour: '2-digit', minute: '2-digit',
+      hour: '2-digit', minute: '2-digit', timeZone: 'America/Sao_Paulo',
     })
   } catch { return iso }
 }

@@ -1,5 +1,6 @@
 import 'server-only'
 import { db } from '@/server/db/pool'
+import { log } from '@/server/lib/log'
 
 /**
  * Estado da conversa via WhatsApp.
@@ -91,21 +92,70 @@ export async function registrarSaida(telefone: string, texto: string): Promise<v
   await atualizarConversa(telefone, { contexto: { ultimaSaida: texto.slice(0, 800) } })
 }
 
+/**
+ * Persiste uma mensagem no histórico (inbox). psicologo_id/paciente_id, se não
+ * passados, vêm da wa_conversas. Best-effort — nunca lança.
+ */
+export async function registrarMensagem(
+  telefone: string, direcao: 'in' | 'out', texto: string,
+  ids?: { psicologoId?: string | null; pacienteId?: string | null },
+): Promise<void> {
+  try {
+    const tel = normalizar(telefone)
+    let psicologoId = ids?.psicologoId ?? null
+    let pacienteId = ids?.pacienteId ?? null
+    if (psicologoId == null || pacienteId == null) {
+      const { rows } = await db.query<{ psicologo_id: string | null; paciente_id: string | null }>(
+        `SELECT psicologo_id, paciente_id FROM wa_conversas WHERE telefone = $1 LIMIT 1`, [tel],
+      )
+      psicologoId = psicologoId ?? rows[0]?.psicologo_id ?? null
+      pacienteId = pacienteId ?? rows[0]?.paciente_id ?? null
+    }
+    await db.query(
+      `INSERT INTO wa_mensagens (telefone, psicologo_id, paciente_id, direcao, texto)
+       VALUES ($1, $2, $3, $4, $5)`,
+      [tel, psicologoId, pacienteId, direcao, (texto ?? '').slice(0, 4000)],
+    )
+  } catch (err) {
+    log.err('wa.mensagens', 'falha ao registrar', err)
+  }
+}
+
+/** Marca a conversa como lida pela psicóloga (zera não-lidas). */
+export async function marcarConversaLida(telefone: string): Promise<void> {
+  await db.query(`UPDATE wa_conversas SET psi_lida_em = NOW() WHERE telefone = $1`, [normalizar(telefone)])
+    .catch(() => { /* */ })
+}
+
 /** Localiza paciente pelo telefone — qualquer psicóloga. */
 export async function buscarPacientePorTelefone(telefone: string): Promise<{ id: string; psicologoId: string; nome: string } | null> {
   const tel = normalizar(telefone)
   const { rows } = await db.query<{ id: string; psicologo_id: string; nome: string }>(
     `SELECT id, psicologo_id, nome FROM pacientes
-      WHERE right(telefone, 11) = right($1, 11) LIMIT 1`,
+      WHERE tel_canon(telefone) = tel_canon($1) LIMIT 1`,
     [tel],
   )
   return rows[0] ? { id: rows[0].id, psicologoId: rows[0].psicologo_id, nome: rows[0].nome } : null
 }
 
-/** Resolve psicóloga "dona" da instância Evolution (por enquanto, a única ativa). */
-export async function resolverPsicologo(): Promise<{ id: string; nome: string } | null> {
+/**
+ * Resolve a psicóloga dona da conversa.
+ * - Se a instância Evolution for informada (webhook), casa por `wa_instancia` —
+ *   caminho multi-tenant correto (cada psicóloga com seu número/instância).
+ * - Fallback (solo / instância única atual): a psicóloga ATIVA mais antiga.
+ * Forward-compat: quando houver provisionamento por instância, o match já
+ * funciona sem mudar isto. Evita o vazamento do "pega o primeiro" cego.
+ */
+export async function resolverPsicologo(instance?: string | null): Promise<{ id: string; nome: string } | null> {
+  if (instance) {
+    const { rows } = await db.query<{ id: string; nome: string }>(
+      `SELECT id, nome FROM psicologos WHERE wa_instancia = $1 AND status = 'ativo' LIMIT 1`,
+      [instance],
+    )
+    if (rows[0]) return rows[0]
+  }
   const { rows } = await db.query<{ id: string; nome: string }>(
-    `SELECT id, nome FROM psicologos ORDER BY created_at ASC LIMIT 1`,
+    `SELECT id, nome FROM psicologos WHERE status = 'ativo' ORDER BY created_at ASC LIMIT 1`,
   )
   return rows[0] ?? null
 }

@@ -62,11 +62,12 @@ export async function enviarConfirmacaoPosSessao(sessaoId: string): Promise<Envi
     paciente_nome: string; paciente_telefone: string;
     psicologa_nome: string;
     confirmacao_enviada_em: string | null;
+    valor: string | null; pagamento_status: string | null;
   }>(
     `SELECT s.id, s.data_hora, s.numero,
             p.nome AS paciente_nome, p.telefone AS paciente_telefone,
             ps.nome AS psicologa_nome,
-            s.confirmacao_enviada_em
+            s.confirmacao_enviada_em, s.valor, s.pagamento_status
        FROM sessoes s
        JOIN pacientes p ON p.id = s.paciente_id
        JOIN psicologos ps ON ps.id = s.psicologo_id
@@ -84,7 +85,9 @@ export async function enviarConfirmacaoPosSessao(sessaoId: string): Promise<Envi
   const agora = new Date()
   const expira = calcularJanelaConfirmacao(agora)
   const token = randomBytes(24).toString('base64url')
-  const horaSessao = new Date(s.data_hora).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
+  const horaSessao = new Date(s.data_hora).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', timeZone: 'America/Sao_Paulo' })
+  // Sessão grátis: o aviso não menciona pagamento (não há cobrança a liberar).
+  const gratuita = Number(s.valor ?? 0) <= 0 || s.pagamento_status === 'isento'
 
   await db.query(
     `UPDATE sessoes SET
@@ -101,6 +104,7 @@ export async function enviarConfirmacaoPosSessao(sessaoId: string): Promise<Envi
     psicologa: s.psicologa_nome,
     janela: descreverJanela(expira, agora),
     linkConfirmacao: `${env.appUrl}/confirmar/${token}`,
+    gratuita,
   }))
 
   log.ok('confirmacao', `enviada sessao=${sessaoId} expira=${expira.toISOString()}`)
@@ -137,7 +141,12 @@ export async function processarResposta(
   )
   const s = rows[0]
   if (!s) return { ok: false, razao: 'token_invalido' }
-  if (!s.confirmacao_janela_expira_em) return { ok: false, razao: 'sessao_invalida' }
+  // Token válido basta pra registrar a resposta. A janela só importa pro cron de
+  // silêncio; se estiver nula (sessão antiga / edge de dados), NÃO bloqueamos o
+  // paciente — antes isso devolvia "Sessão inválida" e travava a confirmação (#8).
+  if (!s.confirmacao_janela_expira_em) {
+    log.warn('confirmacao', `sessao ${s.id} sem janela definida — registrando resposta mesmo assim`)
+  }
 
   // Já respondeu antes → idempotente
   if (s.confirmacao_resposta === 'sim' || s.confirmacao_resposta === 'contestou') {
@@ -152,10 +161,10 @@ export async function processarResposta(
 
   await db.query(
     `UPDATE sessoes SET
-        confirmacao_resposta = $2,
+        confirmacao_resposta = $2::text,
         confirmacao_resposta_em = NOW(),
-        confirmacao_evidencia = $3,
-        pagamento_status = CASE WHEN $2 = 'contestou' THEN 'contestado' ELSE pagamento_status END
+        confirmacao_evidencia = $3::jsonb,
+        pagamento_status = CASE WHEN $2::text = 'contestou' THEN 'contestado' ELSE pagamento_status END
       WHERE id = $1`,
     [s.id, resposta, JSON.stringify(evid)],
   )
@@ -189,16 +198,15 @@ export async function liberarSilenciosos(): Promise<number> {
  * Usa a sessão mais recente com confirmação pendente.
  */
 export async function acharSessaoPendentePorTelefone(telefone: string): Promise<string | null> {
-  const tel = telefone.replace(/\D/g, '')
   const { rows } = await db.query<{ id: string }>(
     `SELECT s.id FROM sessoes s
        JOIN pacientes p ON p.id = s.paciente_id
-      WHERE regexp_replace(p.telefone, '\\D', '', 'g') = $1
+      WHERE tel_canon(p.telefone) = tel_canon($1)
         AND s.confirmacao_resposta IS NULL
         AND s.confirmacao_token IS NOT NULL
       ORDER BY s.confirmacao_enviada_em DESC NULLS LAST
       LIMIT 1`,
-    [tel],
+    [telefone],
   )
   return rows[0]?.id ?? null
 }

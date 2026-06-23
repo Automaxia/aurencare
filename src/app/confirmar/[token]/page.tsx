@@ -44,10 +44,13 @@ export default async function ConfirmarPage({ params }: Props) {
               token={params.token}
               pacienteNome={s.paciente_nome}
               psicologaNome={s.psicologa_nome}
-              dataHora={s.data_hora}
+              horaSessao={new Date(s.data_hora).toLocaleString('pt-BR', {
+                weekday: 'long', day: '2-digit', month: 'long', hour: '2-digit', minute: '2-digit',
+                timeZone: 'America/Sao_Paulo',
+              })}
               numero={s.numero}
               respostaAtual={s.confirmacao_resposta}
-              janelaExpiraEm={s.confirmacao_janela_expira_em}
+              janelaExpirou={!!s.confirmacao_janela_expira_em && new Date(s.confirmacao_janela_expira_em) < new Date()}
             />
           )}
         </div>

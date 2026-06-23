@@ -5,9 +5,17 @@ import { db } from '@/server/db/pool'
 import { salvarCondicoesPaciente, type Condicoes } from '@/server/services/contexto'
 import {
   atualizarPaciente, arquivarPaciente, reativarPaciente, excluirPacienteDefinitivo,
-  type AtualizarPacienteInput, type AtualizarPacienteResult, type ExcluirResult,
+  salvarDadosCadastro, reenviarConsentimento, type DadosCadastro,
+  type AtualizarPacienteInput, type AtualizarPacienteResult, type ExcluirResult, type ReenviarResult,
 } from '@/server/services/pacientes'
 import { revalidatePath } from 'next/cache'
+
+export async function salvarDadosCadastroAction(pacienteId: string, dados: DadosCadastro): Promise<{ ok: boolean }> {
+  const user = await requirePsicologo()
+  const r = await salvarDadosCadastro(user.id, pacienteId, dados)
+  if (r.ok) revalidatePath(`/pacientes/${pacienteId}`)
+  return r
+}
 
 export async function salvarCondicoesAction(pacienteId: string, condicoes: Condicoes): Promise<{ ok: boolean }> {
   const user = await requirePsicologo()
@@ -48,6 +56,11 @@ export async function reativarPacienteAction(pacienteId: string): Promise<{ ok: 
     revalidatePath('/pacientes')
   }
   return { ok }
+}
+
+export async function reenviarConsentimentoAction(pacienteId: string): Promise<ReenviarResult> {
+  const user = await requirePsicologo()
+  return reenviarConsentimento(user.id, pacienteId, user.name ?? 'quem vai te atender')
 }
 
 export async function excluirPacienteAction(pacienteId: string): Promise<ExcluirResult> {

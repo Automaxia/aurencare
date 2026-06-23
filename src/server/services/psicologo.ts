@@ -9,11 +9,17 @@ export type PerfilPsicologo = {
   email: string
   telefone: string | null
   valorSessao: number | null
+  genero: 'f' | 'm' | null
   /** Detalhe técnico — gerenciado pelo Audere, não exposto na UI. */
   waInstancia: string | null
   waConectado: boolean
   pagarmeRecipientId: string | null
   createdAt: string
+}
+
+/** Título profissional correto conforme o gênero informado. Neutro se não informado. */
+export function tituloPsicologo(genero?: string | null): string {
+  return genero === 'f' ? 'psicóloga' : genero === 'm' ? 'psicólogo' : 'profissional'
 }
 
 function rowToPerfil(r: any): PerfilPsicologo {
@@ -24,6 +30,7 @@ function rowToPerfil(r: any): PerfilPsicologo {
     email: r.email,
     telefone: r.telefone,
     valorSessao: r.valor_sessao !== null ? parseFloat(r.valor_sessao) : null,
+    genero: (r.genero === 'f' || r.genero === 'm') ? r.genero : null,
     waInstancia: r.wa_instancia,
     waConectado: r.wa_conectado,
     pagarmeRecipientId: r.pagarme_recipient_id,
@@ -33,7 +40,7 @@ function rowToPerfil(r: any): PerfilPsicologo {
 
 export async function obterPerfil(psicologoId: string): Promise<PerfilPsicologo | null> {
   const { rows } = await db.query(
-    `SELECT id, nome, crp, email, telefone, valor_sessao, wa_instancia, wa_conectado, pagarme_recipient_id, created_at
+    `SELECT id, nome, crp, email, telefone, valor_sessao, genero, wa_instancia, wa_conectado, pagarme_recipient_id, created_at
        FROM psicologos WHERE id = $1 LIMIT 1`,
     [psicologoId],
   )
@@ -46,6 +53,7 @@ export type PerfilPatch = {
   email?: string
   telefone?: string | null
   valorSessao?: number | null
+  genero?: 'f' | 'm' | null
   /** Detalhe técnico — gerenciado nos bastidores. Não vem da UI da psicóloga. */
   waInstancia?: string | null
   /** Se fornecido, troca a senha. Verificação de senha antiga deve acontecer ANTES. */
@@ -62,6 +70,7 @@ export async function atualizarPerfil(psicologoId: string, patch: PerfilPatch): 
   if (patch.email !== undefined)       add('email', patch.email.toLowerCase().trim())
   if (patch.telefone !== undefined)    add('telefone', patch.telefone?.replace(/\D/g, '') || null)
   if (patch.valorSessao !== undefined) add('valor_sessao', patch.valorSessao)
+  if (patch.genero !== undefined)      add('genero', patch.genero)
   if (patch.waInstancia !== undefined) add('wa_instancia', patch.waInstancia)
   if (patch.novaSenha !== undefined && patch.novaSenha.length > 0) {
     const hash = await bcrypt.hash(patch.novaSenha, 10)
@@ -76,7 +85,7 @@ export async function atualizarPerfil(psicologoId: string, patch: PerfilPatch): 
 
   const { rows } = await db.query(
     `UPDATE psicologos SET ${sets.join(', ')} WHERE id = $1
-     RETURNING id, nome, crp, email, telefone, valor_sessao, wa_instancia, wa_conectado, pagarme_recipient_id, created_at`,
+     RETURNING id, nome, crp, email, telefone, valor_sessao, genero, wa_instancia, wa_conectado, pagarme_recipient_id, created_at`,
     params,
   )
   return rowToPerfil(rows[0])

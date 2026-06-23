@@ -2,6 +2,7 @@ import 'server-only'
 import { chat, type ChatMessage } from '@/server/lib/anthropic'
 import { CLINICAL_VOICE } from '@/server/lib/clinicalVoice'
 import { coletarDadosProntuario } from './prontuarioExport'
+import { formatCadastrais, formatClinicas } from './pacientePerfilContexto'
 
 /**
  * Chat IA para redação de prontuário em linguagem natural.
@@ -45,17 +46,31 @@ async function montarContexto(psicologoId: string, pacienteId: string): Promise<
 
   const linhas: string[] = []
   linhas.push(`PACIENTE: ${d.paciente.nome}`)
-  linhas.push(`PSICÓLOGA RESPONSÁVEL: ${d.psicologo.nome} (${d.psicologo.crp})`)
-  linhas.push(`ATENDIMENTO INICIADO EM: ${new Date(d.paciente.cadastradoEm).toLocaleDateString('pt-BR')}`)
+  linhas.push(`PROFISSIONAL RESPONSÁVEL: ${d.psicologo.nome} (${d.psicologo.crp})`)
+  linhas.push(`ATENDIMENTO INICIADO EM: ${new Date(d.paciente.cadastradoEm).toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' })}`)
   linhas.push(`SESSÕES ASSINADAS: ${d.totaisAssinadas}`)
   linhas.push('')
+
+  const cad = formatCadastrais(d.paciente.dadosCadastro)
+  if (cad) {
+    linhas.push('## Dados cadastrais / sociodemográficos')
+    linhas.push(cad)
+    linhas.push('')
+  }
+
+  const clin = formatClinicas(d.paciente.condicoes)
+  if (clin) {
+    linhas.push('## Informações clínicas registradas (pelo profissional)')
+    linhas.push(clin)
+    linhas.push('')
+  }
 
   if (d.sessoes.length > 0) {
     linhas.push('## Histórico de sessões assinadas')
     // Inclui até as últimas 20 sessões pra controlar tokens
     const ultimas = d.sessoes.slice(-20)
     for (const s of ultimas) {
-      const data = new Date(s.dataHora).toLocaleDateString('pt-BR')
+      const data = new Date(s.dataHora).toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' })
       linhas.push(`Sessão #${s.numero} (${data}, ${s.duracaoMin}min, ${s.modalidade}):`)
       if (s.resumo) linhas.push(s.resumo)
       if (s.indicadores) {

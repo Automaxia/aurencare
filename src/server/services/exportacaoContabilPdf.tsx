@@ -288,7 +288,7 @@ export function ExportacaoContabilPDF({ d }: { d: ExportacaoMensal }) {
         {/* Rodapé */}
         <View style={s.rodape} fixed>
           <Text>
-            Audere · Documento emitido em {new Date().toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
+            Audere · Documento emitido em {new Date().toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit', timeZone: 'America/Sao_Paulo' })}
           </Text>
           <Text render={({ pageNumber, totalPages }) => `${pageNumber}/${totalPages}`} />
         </View>

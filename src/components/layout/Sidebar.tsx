@@ -2,6 +2,7 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
+import { Settings } from 'lucide-react'
 import { signOut, useSession } from 'next-auth/react'
 import { useState, useRef, useEffect } from 'react'
 import { ChevronLeft, ChevronRight, LogOut, User } from 'lucide-react'
@@ -26,16 +27,35 @@ export function Sidebar() {
         aria-label={collapsed ? 'Expandir sidebar' : 'Recolher sidebar'}
         title={collapsed ? 'Expandir' : 'Recolher'}
       >
-        {collapsed ? <ChevronRight size={11} /> : <ChevronLeft size={11} />}
+        {collapsed ? <ChevronRight size={14} /> : <ChevronLeft size={14} />}
       </button>
 
       <div className="sb-logo">
-        {collapsed ? <LogoMark size={28} /> : <Logo size={28} tagline />}
+        {collapsed ? (
+          <button className="sb-logo-btn" onClick={toggle} title="Expandir menu" aria-label="Expandir menu">
+            <LogoMark size={28} />
+          </button>
+        ) : <Logo size={28} tagline="Inteligência Clínica Longitudinal" />}
       </div>
 
       <nav className="sb-nav">
         <Group label="Mundo Clínico" items={CLINICO} active={active} mundo="clinico" collapsed={collapsed} />
         <Group label="Mundo Prática" items={PRATICA} active={active} mundo="pratica" collapsed={collapsed} />
+        {(session?.user as any)?.role === 'admin' && (
+          <div className="sb-group">
+            {!collapsed && <div className="sb-label">Gestão</div>}
+            <Link
+              href="/admin"
+              className="sb-item"
+              data-world="pratica"
+              data-active={pathname.startsWith('/admin') ? 'true' : 'false'}
+              title="Administração"
+            >
+              <span className="sb-icon" aria-hidden="true" style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}><Settings size={16} /></span>
+              {!collapsed && <span className="sb-lbl">Administração</span>}
+            </Link>
+          </div>
+        )}
       </nav>
 
       <div className="sb-bot">
