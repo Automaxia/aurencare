@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react'
 import { Mic, MicOff, Video, VideoOff, PhoneOff, Maximize2, Minimize2, Aperture, ScreenShare, ScreenShareOff, Settings } from 'lucide-react'
 import { useWebRTC, type WebRTCState } from '@/lib/useWebRTC'
 import { useBackgroundBlur } from '@/lib/useBackgroundBlur'
+import { useFaceFraming } from '@/lib/useFaceFraming'
 
 type Props = {
   token: string
@@ -63,6 +64,10 @@ export function VideoCall({ token, role, caller, compact, fill, onEncerrar, onRe
   const [blur, setBlur] = useState(false)
   const blurProc = useBackgroundBlur(ctrl.localStream, blur)
   const blurOk = !blurProc.error
+
+  // Enquadramento facial do vídeo remoto quando há recorte forte (tela cheia /
+  // sala do paciente em fullscreen): segue o rosto em vez de cortar no centro.
+  useFaceFraming(remoteRef, (maximized || !!fill) && !!ctrl.remoteStream)
 
   // Compartilhamento de tela
   const [screenStream, setScreenStream] = useState<MediaStream | null>(null)
