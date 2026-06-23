@@ -10,6 +10,14 @@ import { redis } from '@/server/lib/redis'
  * Combina dados estatísticos + observações textuais geradas pela IA.
  */
 
+/** Um ponto de sparkline = uma sessão assinada. Carrega valor + contexto
+ * (nº da sessão e data) pra alimentar tooltips na UI. */
+export type SparkPonto = {
+  v: number       // valor do indicador na sessão
+  n: number       // nº da sessão assinada (1-based, ordem cronológica)
+  data: string    // ISO da sessão
+}
+
 export type PerfilEvolucao = {
   avatar: string                 // iniciais
   nome: string
@@ -18,8 +26,8 @@ export type PerfilEvolucao = {
   desde: string                  // data primeira sessão
   presenca: number               // 0-100 (% comparecimento)
   abertura: number               // 0-100 (avg humor.estado mapeado)
-  sparkHumor: number[]
-  sparkRitmo: number[]
+  sparkHumor: SparkPonto[]
+  sparkRitmo: SparkPonto[]
 }
 
 export type EvolucaoDados = {
@@ -132,13 +140,14 @@ async function lerPerfilEvolucao(pacienteId: string, pacienteNome: string) {
     : 50
   const desde = sessoesA[0]?.data_hora ?? new Date().toISOString()
 
-  // sparklines — humor e ritmo por sessão (cronológico)
-  const sparkHumor: number[] = sessoesA
-    .map(s => s.indicadores?.humor?.estado)
-    .filter((v): v is number => typeof v === 'number')
-  const sparkRitmo: number[] = sessoesA
-    .map(s => s.indicadores?.ritmo?.paciente)
-    .filter((v): v is number => typeof v === 'number')
+  // sparklines — humor e ritmo por sessão (cronológico). Cada ponto guarda
+  // o nº da sessão (posição em sessoesA) e a data, pra tooltip na UI.
+  const sparkHumor: SparkPonto[] = sessoesA
+    .map((s, i) => ({ v: s.indicadores?.humor?.estado, n: i + 1, data: s.data_hora }))
+    .filter((p): p is SparkPonto => typeof p.v === 'number')
+  const sparkRitmo: SparkPonto[] = sessoesA
+    .map((s, i) => ({ v: s.indicadores?.ritmo?.paciente, n: i + 1, data: s.data_hora }))
+    .filter((p): p is SparkPonto => typeof p.v === 'number')
 
   return {
     avatar: iniciais(pacienteNome),

@@ -24,7 +24,7 @@ function tendencia(valores: number[], janela = 4): '↑' | '↓' | '→' {
 
 export async function mudancasEPadroes(
   pacienteId: string,
-  perfil: { sparkHumor: number[]; sparkRitmo: number[]; presenca: number },
+  perfil: { sparkHumor: { v: number }[]; sparkRitmo: { v: number }[]; presenca: number },
 ): Promise<MudancasPadroes> {
   const [grafo, sessRes] = await Promise.all([
     lerGrafo(pacienteId),
@@ -36,10 +36,10 @@ export async function mudancasEPadroes(
   // ── O QUE MUDOU ──
   const mudancas: string[] = []
   if (perfil.presenca >= 80) mudancas.push('Presença manteve-se consistente.')
-  const th = tendencia(perfil.sparkHumor)
+  const th = tendencia(perfil.sparkHumor.map(p => p.v))
   if (th === '↑') mudancas.push('Maior abertura emocional ao longo do processo.')
   else if (th === '↓') mudancas.push('Abertura emocional com leve redução recente.')
-  if (tendencia(perfil.sparkRitmo) === '↑') mudancas.push('Aumento da participação do paciente nas sessões.')
+  if (tendencia(perfil.sparkRitmo.map(p => p.v)) === '↑') mudancas.push('Aumento da participação do paciente nas sessões.')
 
   // Temas emergindo / recuando (janela recente × anterior)
   if (N >= 4) {
