@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
+import { Clock } from 'lucide-react'
 import { salvarOnboardingAction } from './actions'
 import type { OnboardingInput, CampoErro, TipoChavePix } from '@/server/services/onboardingPagamento'
 
@@ -161,6 +162,8 @@ export function Wizard({ nomePsicologa }: Props) {
   return (
     <div>
       <Stepper step={step} />
+
+      <AvisoPagamentoBeta />
 
       <h1 style={{ fontFamily: 'var(--font-display)', fontSize: 32, fontWeight: 400, color: 'var(--ink)', margin: '4px 0 8px' }}>
         {step === 1 ? 'Configurar recebimentos' : step === 2 ? 'Conta bancária' : 'Chave PIX'}
@@ -389,6 +392,37 @@ export function Wizard({ nomePsicologa }: Props) {
       <p style={{ fontSize: 11, color: 'var(--faint)', textAlign: 'center', marginTop: 20, lineHeight: 1.6 }}>
         Seus dados ficam criptografados em repouso. CPF/CNPJ usados apenas pra registro no Pagar.me.
       </p>
+    </div>
+  )
+}
+
+/** Aviso de beta: a cobrança automática via WhatsApp ainda não está ativa.
+ * O psicólogo pode deixar os dados de recebimento prontos desde já. */
+function AvisoPagamentoBeta() {
+  return (
+    <div
+      role="status"
+      style={{
+        display: 'flex', alignItems: 'flex-start', gap: 11,
+        padding: '13px 15px', borderRadius: 12, marginBottom: 20,
+        background: 'rgba(176,125,64,.08)', border: '1px solid rgba(176,125,64,.22)',
+      }}
+    >
+      <span aria-hidden style={{ flexShrink: 0, marginTop: 1 }}>
+        <Clock size={16} color="#b07d40" />
+      </span>
+      <div style={{ flex: 1 }}>
+        <div style={{ fontSize: 12.5, fontWeight: 600, color: '#7a5520', marginBottom: 2 }}>
+          Cobrança pelo WhatsApp em ativação
+        </div>
+        <div style={{ fontSize: 12, color: '#9a7030', lineHeight: 1.55 }}>
+          O envio automático de cobranças (PIX e cartão) pelo WhatsApp ainda
+          está sendo liberado durante o beta. Você já pode <strong>deixar seus
+          dados de recebimento prontos</strong> aqui — assim que ativarmos, a
+          cobrança funciona sem nenhum passo extra. Por enquanto, combine o
+          pagamento com seus pacientes da forma habitual.
+        </div>
+      </div>
     </div>
   )
 }
