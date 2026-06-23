@@ -62,6 +62,11 @@ export type WebRTCState = {
   trocarMicrofone: (deviceId: string) => void
   /** true quando a chamada caiu pra só-áudio (câmera indisponível/recusada). */
   semVideo: boolean
+  /** true quando o OUTRO peer está compartilhando a tela (vídeo remoto deve ser
+   * exibido inteiro/contain, sem recorte). */
+  outroCompartilhando: boolean
+  /** Avisa o outro peer que começou/parou de compartilhar a tela. */
+  sinalizarTela: (on: boolean) => void
 }
 
 export function useWebRTC({ token, role, caller, withVideo = true }: Options): WebRTCState {
@@ -69,6 +74,7 @@ export function useWebRTC({ token, role, caller, withVideo = true }: Options): W
   const [localStream, setLocalStream] = useState<MediaStream | null>(null)
   const [remoteStream, setRemoteStream] = useState<MediaStream | null>(null)
   const [outroPresente, setOutroPresente] = useState(false)
+  const [outroCompartilhando, setOutroCompartilhando] = useState(false)
   const [err, setErr] = useState<string | null>(null)
   const [micOn, setMicOnState] = useState(true)
   const [camOn, setCamOnState] = useState(withVideo)
@@ -209,6 +215,9 @@ export function useWebRTC({ token, role, caller, withVideo = true }: Options): W
               }
             } else if (data.type === 'bye') {
               setOutroPresente(false)
+              setOutroCompartilhando(false)
+            } else if (data.type === 'screen') {
+              setOutroCompartilhando(!!data.on)
             } else if (data.type === 'offer' && !caller && pc) {
               setEstado('conectando')
               await pc.setRemoteDescription({ type: 'offer', sdp: data.sdp })
@@ -290,6 +299,8 @@ export function useWebRTC({ token, role, caller, withVideo = true }: Options): W
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
+  const sinalizarTela = useCallback((on: boolean) => { sendSignal({ type: 'screen', on }) }, [sendSignal])
+
   const trocarCamera = useCallback((deviceId: string) => { recapturar(deviceId, micId) }, [recapturar, micId])
   const trocarMicrofone = useCallback((deviceId: string) => { recapturar(camId, deviceId) }, [recapturar, camId])
 
@@ -319,5 +330,5 @@ export function useWebRTC({ token, role, caller, withVideo = true }: Options): W
     setEstado('encerrado')
   }, [sendSignal])
 
-  return { estado, localStream, remoteStream, outroPresente, err, micOn, setMicOn, camOn, setCamOn, replaceVideoTrack, encerrar, cameras, microfones, camId, micId, trocarCamera, trocarMicrofone, semVideo }
+  return { estado, localStream, remoteStream, outroPresente, err, micOn, setMicOn, camOn, setCamOn, replaceVideoTrack, encerrar, cameras, microfones, camId, micId, trocarCamera, trocarMicrofone, semVideo, outroCompartilhando, sinalizarTela }
 }
