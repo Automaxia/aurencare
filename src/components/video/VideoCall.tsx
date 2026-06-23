@@ -18,9 +18,12 @@ type Props = {
   /** Notifica quando o stream remoto (do outro lado) muda. Usado pra plumbar
    * o áudio do paciente pra transcrição AssemblyAI no Modo Presença. */
   onRemoteStream?: (stream: MediaStream | null) => void
+  /** Notifica quando minimiza/restaura — pra o container (MovableWindow) sumir
+   * e não deixar uma caixa vazia no lugar. */
+  onMinimizedChange?: (minimized: boolean) => void
 }
 
-export function VideoCall({ token, role, caller, compact, fill, onEncerrar, onRemoteStream }: Props) {
+export function VideoCall({ token, role, caller, compact, fill, onEncerrar, onRemoteStream, onMinimizedChange }: Props) {
   const ctrl = useWebRTC({ token, role, caller })
   const localRef = useRef<HTMLVideoElement>(null)
   const remoteRef = useRef<HTMLVideoElement>(null)
@@ -87,6 +90,9 @@ export function VideoCall({ token, role, caller, compact, fill, onEncerrar, onRe
   // Ao maximizar/minimizar o quadro muda de tamanho — a posição arrastada (em px)
   // ficaria fora dos novos limites e o self-view "sumia". Reseta pra posição padrão.
   useEffect(() => { setPos(null) }, [minimized, maximized])
+
+  // Avisa o container (MovableWindow) pra ele sumir quando minimizado.
+  useEffect(() => { onMinimizedChange?.(minimized) }, [minimized, onMinimizedChange])
 
   async function toggleFullscreen() {
     const el = shellRef.current

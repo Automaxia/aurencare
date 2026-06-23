@@ -71,6 +71,7 @@ export function PresenceClient(props: Props) {
   const [obsViva, setObsViva] = useState<string | null>(null)
   const [obsLoading, setObsLoading] = useState(false)
   const [chamada, setChamada] = useState<{ token: string; urlPaciente: string } | null>(null)
+  const [videoMinimizado, setVideoMinimizado] = useState(false)
   const [mostrarModalSala, setMostrarModalSala] = useState(false)
   const [iniciandoChamada, setIniciandoChamada] = useState(false)
   const [remoteStream, setRemoteStream] = useState<MediaStream | null>(null)
@@ -636,13 +637,14 @@ export function PresenceClient(props: Props) {
 
       {/* Janela de vídeo arrastável pela tela inteira (alça no topo) */}
       {chamada && (
-        <MovableWindow width={360} height={282}>
+        <MovableWindow width={360} height={282} minimized={videoMinimizado}>
           <VideoCall
             token={chamada.token}
             role="psicologo"
             caller
             compact
-            onEncerrar={() => { setChamada(null); setRemoteStream(null) }}
+            onEncerrar={() => { setChamada(null); setRemoteStream(null); setVideoMinimizado(false) }}
+            onMinimizedChange={setVideoMinimizado}
             onRemoteStream={setRemoteStream}
           />
         </MovableWindow>
