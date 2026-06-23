@@ -2,7 +2,8 @@ import { redirect, notFound } from 'next/navigation'
 import { Compass } from 'lucide-react'
 import { PageHeader } from '@/components/PageHeader'
 import { PatientSelector } from '@/components/PatientSelector'
-import { Sparkline } from '@/components/Sparkline'
+import { EvolucaoSparks } from './EvolucaoSparks'
+import type { SparkPonto } from '@/server/services/evolucao'
 import { requirePsicologo } from '@/server/lib/auth'
 import { db } from '@/server/db/pool'
 import { lerEvolucaoEstatisticas } from '@/server/services/evolucao'
@@ -105,8 +106,8 @@ type ProfileCardProps = {
   desde: string
   presenca: number
   abertura: number
-  sparkHumor: number[]
-  sparkRitmo: number[]
+  sparkHumor: SparkPonto[]
+  sparkRitmo: SparkPonto[]
 }
 
 function ProfileCard(p: ProfileCardProps) {
@@ -123,81 +124,26 @@ function ProfileCard(p: ProfileCardProps) {
           </div>
         </div>
         <div className="profile-kpis">
-          <div className="profile-kpi" style={{ background: 'var(--accent-lo)' }}>
-            <span className="kn" style={{ color: 'var(--accent)' }}>{p.presenca}</span>
+          <div
+            className="profile-kpi" style={{ background: 'var(--accent-lo)', cursor: 'help' }}
+            title="Presença — % de comparecimento: sessões realizadas entre as agendadas que já passaram."
+          >
+            <span className="kn" style={{ color: 'var(--accent)' }}>{p.presenca}<span style={{ fontSize: '.6em', opacity: .7 }}>%</span></span>
             <span className="kl">Presença</span>
           </div>
-          <div className="profile-kpi" style={{ background: 'var(--sage-lo)' }}>
-            <span className="kn" style={{ color: 'var(--sage)' }}>{p.abertura}</span>
+          <div
+            className="profile-kpi" style={{ background: 'var(--sage-lo)', cursor: 'help' }}
+            title="Abertura — índice 0–100 da média do humor relatado nas sessões (quanto mais alto, mais agradável)."
+          >
+            <span className="kn" style={{ color: 'var(--sage)' }}>{p.abertura}<span style={{ fontSize: '.6em', opacity: .7 }}>/100</span></span>
             <span className="kl">Abertura</span>
           </div>
         </div>
       </div>
 
-      <SparksRow sparkHumor={p.sparkHumor ?? []} sparkRitmo={p.sparkRitmo ?? []} />
+      <EvolucaoSparks humor={p.sparkHumor ?? []} ritmo={p.sparkRitmo ?? []} />
     </div>
   )
-}
-
-function SparksRow({ sparkHumor, sparkRitmo }: { sparkHumor: number[]; sparkRitmo: number[] }) {
-  if (sparkHumor.length < 2 && sparkRitmo.length < 2) return null
-  return (
-    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 16, marginTop: 16, paddingTop: 14, borderTop: '1px solid var(--border)' }}>
-      {sparkHumor.length >= 2 ? (
-        <SparkBlock
-          title="Humor ao longo do tempo"
-          hint={`últ.: ${formatEstadoLabel(sparkHumor[sparkHumor.length - 1])}`}
-          values={sparkHumor}
-          color="var(--accent)"
-          showDots
-        />
-      ) : <div />}
-      {sparkRitmo.length >= 2 ? (
-        <SparkBlock
-          title="Voz do paciente"
-          hint={`últ.: ${sparkRitmo[sparkRitmo.length - 1]}% do tempo`}
-          values={sparkRitmo}
-          color="var(--sage)"
-        />
-      ) : <div />}
-    </div>
-  )
-}
-
-function SparkBlock({ title, hint, values, color, showDots }: { title: string; hint: string; values: number[]; color: string; showDots?: boolean }) {
-  const t = tendencia(values)
-  return (
-    <div>
-      <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 8, marginBottom: 6 }}>
-        <span style={{ fontSize: 10, color: 'var(--faint)', textTransform: 'uppercase', letterSpacing: 1.5, fontWeight: 500 }}>{title}</span>
-        <span style={{ fontSize: 11, color: 'var(--muted)', whiteSpace: 'nowrap' }}>
-          {t.seta} {t.delta > 0 ? '+' : ''}{t.delta} · {hint}
-        </span>
-      </div>
-      <Sparkline values={values} width={180} height={32} color={color} showDots={showDots} ariaLabel={title} />
-    </div>
-  )
-}
-
-/** Tendência de uma série: compara a janela recente com a anterior. */
-function tendencia(valores: number[], janela = 4): { seta: string; delta: number } {
-  if (valores.length < 2) return { seta: '→', delta: 0 }
-  const n = valores.length
-  const j = Math.min(janela, Math.max(1, Math.floor(n / 2)))
-  const recente = valores.slice(-j)
-  const anterior = valores.slice(0, n - j)
-  const avg = (a: number[]) => a.reduce((x, y) => x + y, 0) / a.length
-  const delta = avg(recente) - (anterior.length ? avg(anterior) : recente[0])
-  const d = Math.round(delta * 10) / 10
-  return { seta: Math.abs(d) < 0.1 ? '→' : d > 0 ? '↑' : '↓', delta: d }
-}
-
-function formatEstadoLabel(estado: number): string {
-  if (estado >= 3) return 'agradável'
-  if (estado >= 1) return 'levemente agradável'
-  if (estado <= -3) return 'desagradável'
-  if (estado <= -1) return 'levemente desagradável'
-  return 'neutro'
 }
 
 function formatMesAno(iso: string): string {
