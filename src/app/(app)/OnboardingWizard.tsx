@@ -1,4 +1,5 @@
 import Link from 'next/link'
+import { Clock } from 'lucide-react'
 import type { OnboardingStatus } from '@/server/services/onboarding'
 import { DemoControl } from './pacientes/DemoControl'
 
@@ -82,6 +83,20 @@ export function OnboardingWizard({ status, nome, demoId }: { status: OnboardingS
           )
         })}
       </ol>
+
+      <div style={{
+        marginTop: 14, display: 'flex', alignItems: 'flex-start', gap: 8,
+        padding: '10px 12px', borderRadius: 10,
+        background: 'rgba(176,125,64,.07)', border: '1px solid rgba(176,125,64,.20)',
+        fontSize: 11.5, color: '#9a7030', lineHeight: 1.5,
+      }}>
+        <span aria-hidden style={{ flexShrink: 0, marginTop: 1 }}><Clock size={13} color="#b07d40" /></span>
+        <span>
+          <strong style={{ color: '#7a5520' }}>Cobrança pelo WhatsApp em ativação:</strong> o envio
+          automático de cobranças (PIX e cartão) pelo WhatsApp está sendo liberado durante o beta.
+          Você já pode configurar tudo — por enquanto, combine o pagamento com seus pacientes da forma habitual.
+        </span>
+      </div>
 
       <div style={{
         marginTop: 14, paddingTop: 14, borderTop: '1px solid var(--border)',
