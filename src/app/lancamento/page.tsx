@@ -1,7 +1,6 @@
 import { Logo } from '@/components/brand/Logo'
 import { ListaEsperaForm } from './ListaEsperaForm'
 import { RevealObserver } from './Reveal'
-import { HeroVideo } from './HeroVideo'
 
 export const dynamic = 'force-dynamic'
 
@@ -95,7 +94,6 @@ function Hero() {
         background: 'radial-gradient(ellipse 62% 68% at 50% 48%, rgba(249,248,245,.93) 0%, rgba(249,248,245,.64) 40%, rgba(249,248,245,0) 73%)',
       }} />
       <div className="lp-wrap" style={{ display: 'grid', gridTemplateColumns: '1fr', gap: 26, textAlign: 'center', maxWidth: 860, position: 'relative', zIndex: 1 }}>
-        <HeroVideo />
         <div style={{
           fontSize: 12, color: 'var(--accent)', textTransform: 'uppercase',
           letterSpacing: '.16em', fontWeight: 600,
@@ -885,12 +883,9 @@ function Styles() {
       /* Ken-burns no fundo do herói (scale ≥1.06 sempre cobre, sem brechas). */
       @keyframes lp-kenburns { 0% { transform: scale(1.06) translate(0, 0); } 100% { transform: scale(1.2) translate(-3%, -2%); } }
       .lp-kenburns { animation: lp-kenburns 17s ease-in-out infinite alternate; transform-origin: 50% 45%; will-change: transform; }
-      /* Vídeo-espiral do herói: entrada + float perceptível. */
-      @keyframes lp-hero-in { from { opacity: 0; transform: scale(.8); } to { opacity: 1; transform: scale(1); } }
-      .lp-hero-video { animation: lp-hero-in 1s var(--ease) both, lp-float 5.5s ease-in-out 1.1s infinite; }
       @media (prefers-reduced-motion: reduce) {
         .lp-reveal { opacity: 1 !important; transform: none !important; transition: none; }
-        .lp-float, .lp-hero-video, .lp-kenburns { animation: none !important; }
+        .lp-float, .lp-kenburns { animation: none !important; }
       }
 
       .lp-link { color: var(--ink-soft); text-decoration: none; transition: color .15s var(--ease); }
