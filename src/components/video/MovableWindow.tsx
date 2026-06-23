@@ -9,7 +9,7 @@ const clamp = (v: number, lo: number, hi: number) => Math.max(lo, Math.min(v, hi
  * no topo move toda a janela; o conteúdo (ex: VideoCall) fica abaixo, intacto.
  * Posição inicial no canto inferior direito; vira left/top ao arrastar.
  */
-export function MovableWindow({ width, height, children }: { width: number; height: number; children: React.ReactNode }) {
+export function MovableWindow({ width, height, minimized, children }: { width: number; height: number; minimized?: boolean; children: React.ReactNode }) {
   const [pos, setPos] = useState<{ left: number; top: number } | null>(null)
   const drag = useRef<{ sx: number; sy: number; bl: number; bt: number } | null>(null)
   const winRef = useRef<HTMLDivElement>(null)
@@ -36,6 +36,11 @@ export function MovableWindow({ width, height, children }: { width: number; heig
   const place: React.CSSProperties = pos
     ? { left: pos.left, top: pos.top }
     : { right: 20, bottom: 20 }
+
+  // Minimizado: o próprio VideoCall (.vc-min) já se posiciona fixo no canto.
+  // Não renderizamos a janela (caixa + alça) pra não sobrar uma caixa preta
+  // vazia no lugar original.
+  if (minimized) return <>{children}</>
 
   return (
     <div
