@@ -2,128 +2,17 @@ import 'server-only'
 import { db } from '@/server/db/pool'
 
 /**
- * Extração de palavras-chave e arestas (co-ocorrência por sessão).
+ * Extração de temas (nós + arestas) das falas do paciente para o grafo.
  * §8: clusters emocional · relacional · situacional · cognitivo.
  *
- * Estratégia: heurística com listas-base por cluster. Palavras conhecidas
- * recebem cluster fixo; palavras genéricas não-stopwords vão para cluster
- * inferido pela co-ocorrência. Não usa IA para reduzir custo+latência.
+ * Estratégia: extração SEMÂNTICA via IA (MODE: GRAPH) — construtos clínicos,
+ * não palavras. Fail-closed: se a IA falhar, não grava nada. O antigo fallback
+ * por contagem de tokens foi removido porque poluía o grafo clínico com
+ * fragmentos gramaticais ("estava", "menos", "nessa") que pareciam análise mas
+ * eram só frequência de palavra.
  */
 
 export type Cluster = 'emocional' | 'relacional' | 'situacional' | 'cognitivo'
-
-/**
- * Stopwords expandida — fillers/pronomes/auxiliares/conjunções/marcadores
- * conversacionais comuns em PT-BR que NUNCA são tema clínico.
- */
-const STOPWORDS = new Set([
-  // pronomes + artigos compostos
-  'para','como','isso','aquilo','minha','meu','também','muito','mais','sobre','quando','porque',
-  'então','mesmo','assim','depois','tinha','tenho','estar','estou','sendo','sempre','nunca',
-  'aqui','agora','ainda','você','vocês','dele','dela','quero','quase','algum','alguma',
-  'tive','consegui','conseguir','está','estão','este','esta','esse','essa','aquele','aquela',
-  'porque','porquê','porqué','sobre','sobretudo','onde','quem','qual','quais','foram','foi',
-  'sou','será','seja','seria','têm','tem','sem','com','por','dos','das','nos','nas',
-  'pela','pelo','pelos','pelas','suas','seus','sua','seu','aquilo','aquele','aqueles',
-  // marcadores conversacionais (verbos genéricos de fala)
-  'sabe','olha','veja','vamos','vamos','vamo','viu','sabe','sei','sabia','acho','achei',
-  'penso','pensei','digo','disse','dizer','falo','falei','falar','vou','foi','indo','ido',
-  'fico','ficou','ficar','ficaram','ficamos','fica','fiquei','ficando',
-  'pode','podia','poder','consegue','consegui','conseguiu','conseguia','consigo',
-  'preciso','precisei','queria','quis','quero','querer','tenta','tentar','tentei','tentou',
-  'usar','usei','uso','usou','dou','dei','dar','dado','tive','tinha','têm',
-  // adjetivos genéricos
-  'pouco','pouca','poucos','muita','muitos','muitas','grande','grandes','pequeno','pequena',
-  'certo','errado','difícil','fácil','novo','nova','velho','velha','bom','boa','ruim',
-  'melhor','pior','perto','longe','dentro','fora','antes','depois','agora','hoje','ontem',
-  'amanhã','manhã','tarde','noite','semana','semanas','mês','meses','ano','anos',
-  'dia','dias','hora','horas','tempo','vez','vezes','momento','momentos',
-  // preenchedores e exclamações
-  'tudo','nada','algo','alguém','ninguém','todo','toda','todos','todas','nenhum','nenhuma',
-  'cada','outro','outra','outros','outras','próprio','própria','mesma','mesmas','mesmos',
-  'aquilo','aquele','aqueles','aquelas','tipo','sorte','jeito','coisa','coisas','meio',
-  'modo','forma','formas','lado','tipo','tipos','parte','partes',
-  // verbos auxiliares e cognitivos genéricos demais
-  'verdade','realmente','exatamente','simplesmente','geralmente','provavelmente','talvez',
-  'embora','enquanto','desde','até','até','contra','entre','sob','perante','salvo',
-  'além','antes','após','dentro','fora','sob','sobre','depois','durante',
-  // contractions e conectores
-  'pra','pro','pras','pros','num','nuns','numa','dum','duma','no','na','do','da',
-  'duas','dois','três','quatro','cinco','seis','sete','oito','nove','dez',
-  // marcadores acolhedores neutros
-  'obrigada','obrigado','desculpa','desculpe','espera','espere','calma','tchau',
-  // verbos de sentir/perceber muito genéricos
-  'sentir','senti','sente','sentindo','sentia','percebe','percebi','percebeu','perceber',
-  'vejo','vi','via','viu','olhar','olho','olhei','ouvir','ouvi','ouve','ouço',
-  // outros enchedores
-  'mente','cabeça','jeito','assim','desse','dessa','daquilo','daquela','disso','dessa',
-  'mil','meses','passou','passar','passei','volta','voltar','voltei','volto',
-  // resposta afirmativa/negativa
-  'sim','não','talvez','claro','óbvio',
-  // muito comuns mas pouco específicos
-  'casa','vida','gente','pessoa','pessoas','homem','mulher','crianças','criança',
-  'lugar','lugares','feito','fazer','faço','fiz','fazendo','fazendo','feita',
-  // bordões, gírias e fillers conversacionais (#3) — nunca são tema clínico
-  'né','sacou','saca','manja','manjou','mano','cara','véi','vei','tá','to','tô',
-  'beleza','blz','nossa','putz','uai','ué','poxa','caramba','aff','enfim',
-  'ahn','hum','hã','ahã','uhum','aham','eh','ah','oh','daí','aí','massa',
-  'vish','eita','oxe','pô','po','cê','ce','tipo','tá','tipão','rolê','role',
-])
-
-const SEEDS: Record<Cluster, string[]> = {
-  emocional: [
-    'medo','ansiedade','ansioso','ansiosa','tristeza','triste','raiva','culpa','vergonha',
-    'alegria','feliz','irritação','irritado','irritada','frustração','frustrado','frustrada',
-    'angústia','solidão','vazio','calma','tranquilo','tranquila','euforia','pânico','tensão',
-    'humor','emoção','emoções','sentimento','sentimentos','sofrimento','desconforto',
-  ],
-  relacional: [
-    'mãe','pai','filho','filha','irmão','irmã','marido','esposa','namorado','namorada','parceiro',
-    'parceira','companheiro','companheira','amigo','amiga','colega','chefe','equipe','família',
-    'casamento','relacionamento','relação','vínculo','divórcio','separação','conflito','briga',
-  ],
-  situacional: [
-    'trabalho','emprego','reunião','reuniões','apresentação','prova','escola','faculdade','viagem',
-    'mudança','casa','dinheiro','rotina','agenda','prazo','projeto','férias','demissão','contratação',
-    'crise','pandemia','consulta','médico','hospital','remédio','medicação','sono','exercício',
-  ],
-  cognitivo: [
-    'pensamento','pensamentos','ideia','ideias','lembrança','memória','reflexão','decisão','escolha',
-    'dúvida','dúvidas','crença','crenças','padrão','padrões','perspectiva','autocrítica','julgamento',
-    'planejamento','foco','atenção','concentração','rumination','ruminação','perfeccionismo',
-  ],
-}
-
-function inferirCluster(palavra: string): Cluster {
-  for (const c of Object.keys(SEEDS) as Cluster[]) {
-    if (SEEDS[c].includes(palavra)) return c
-  }
-  // Heurística leve para sufixos:
-  if (/^(senti|emo|raiv|trist|med|alegr|ang|cult|vergonh|frust|ansi|calm)/.test(palavra)) return 'emocional'
-  if (/^(mãe|pai|filh|irmã|maridã|esposa|namora|amig|coleg|chefe|famíl|relação)/.test(palavra)) return 'relacional'
-  if (/^(trabalh|reuni|apresent|escola|facul|prov|viagem|casa|dinheir|rotin|prazo|projet|consult)/.test(palavra)) return 'situacional'
-  return 'cognitivo'
-}
-
-/** Heurística: descarta verbos terminados em -ar/-er/-ir que NÃO sejam seed. */
-function pareceVerboGenerico(w: string): boolean {
-  if (isSeed(w)) return false
-  // pegadores comuns de conjugação
-  return /(?:ar|er|ir|ado|ada|ido|ida|ando|endo|indo|aria|eria|iria|amos|emos|imos|aram|eram|iram|asse|esse|isse|ou)$/.test(w)
-}
-
-function tokenize(texto: string): string[] {
-  return texto.toLowerCase()
-    .replace(/[.,;:!?()"…“”‘’\-]/g, ' ')
-    .split(/\s+/)
-    .filter(w => {
-      if (w.length < 5) return false               // 4 era muito permissivo
-      if (STOPWORDS.has(w)) return false
-      if (/^\d+$/.test(w)) return false
-      if (pareceVerboGenerico(w)) return false
-      return true
-    })
-}
 
 /**
  * Mantém só as falas do PACIENTE para a análise de temas.
@@ -141,11 +30,6 @@ function somenteFalasDoPaciente(transcricao: string): string {
   const temRotulos = linhas.some(l => /^\s*[PC]:\s/.test(l))
   return temRotulos ? '' : transcricao
 }
-
-/**
- * Extrai palavras significativas e atualiza palavras_chave + arestas_tema.
- * Considera SOMENTE as falas do paciente (a análise é sobre o paciente).
- */
 
 // As 10 categorias do MODE: GRAPH → os 4 clusters da viz (cores do §8).
 const CAT_TO_CLUSTER: Record<string, Cluster> = {
@@ -174,20 +58,36 @@ Return ONLY JSON (no prose, no markdown), processing the ENTIRE transcript as on
 { "nodes": [ { "term": "...", "category": "...", "reinforcement": false } ], "edges": [ { "source": "...", "target": "...", "type": "..." } ] }
 If nothing clinically relevant: { "nodes": [], "edges": [] }`
 
-/** Extração via IA (MODE: GRAPH). Retorna null se falhar/parsear inválido → fallback. */
+/** Extração via IA (MODE: GRAPH). Retorna null em falha (erro de API ou JSON
+ *  inválido/truncado); o chamador faz fail-closed (não grava nada). */
 async function extrairTemasComIA(opts: { pacienteId: string; sessaoId: string; transcricao: string }): Promise<{ palavrasInseridas: number; arestasInseridas: number } | null> {
   const texto = somenteFalasDoPaciente(opts.transcricao).slice(0, 40_000)
   if (!texto.trim()) return { palavrasInseridas: 0, arestasInseridas: 0 }
 
   const { chat } = await import('@/server/lib/anthropic')
   const user = `<chunk>\n  <speaker>patient</speaker>\n  <text>\n${texto}\n  </text>\n</chunk>`
-  let raw: string
-  try { raw = await chat(GRAPH_PROMPT, [{ role: 'user', content: user }], { scope: 'temas.grafo', maxTokens: 1500, model: 'fast' }) }
-  catch { return null }
-
-  let parsed: any
-  try { const m = raw.match(/\{[\s\S]*\}/); parsed = m ? JSON.parse(m[0]) : null } catch { return null }
-  if (!parsed || !Array.isArray(parsed.nodes)) return null
+  // maxTokens folgado: sessões densas geram JSON maior; o teto antigo de 1500
+  // truncava o JSON das maiores → parse falhava → caía no contador de tokens.
+  // 1 retry cobre erro transitório de API / truncamento pontual.
+  let parsed: any = null
+  for (let tentativa = 1; tentativa <= 2 && !parsed; tentativa++) {
+    let raw: string
+    try {
+      raw = await chat(GRAPH_PROMPT, [{ role: 'user', content: user }], { scope: 'temas.grafo', maxTokens: 4000, model: 'fast' })
+    } catch (err) {
+      console.warn(`[temas.grafo] chamada IA falhou (tentativa ${tentativa}/2) sessao=${opts.sessaoId}:`, err)
+      continue
+    }
+    try {
+      const m = raw.match(/\{[\s\S]*\}/)
+      const p = m ? JSON.parse(m[0]) : null
+      if (p && Array.isArray(p.nodes)) parsed = p
+      else console.warn(`[temas.grafo] resposta sem nodes válidos (tentativa ${tentativa}/2) sessao=${opts.sessaoId}`)
+    } catch {
+      console.warn(`[temas.grafo] JSON inválido/truncado (tentativa ${tentativa}/2) sessao=${opts.sessaoId}`)
+    }
+  }
+  if (!parsed) return null
 
   const nodes = parsed.nodes
     .map((n: any) => ({
@@ -248,93 +148,27 @@ async function extrairTemasComIA(opts: { pacienteId: string; sessaoId: string; t
 }
 
 /**
- * Extrai temas da sessão: IA (MODE: GRAPH) primeiro; se falhar/vazio, heurístico.
+ * Extrai temas da sessão via IA (MODE: GRAPH).
+ *
+ * Fail-closed: se a IA falhar (erro de API, JSON truncado/inválido), NÃO grava
+ * nada — mostrar o grafo vazio é melhor que poluí-lo com ruído de token. A
+ * extração é reexecutável depois via recalcularGrafo().
  */
 export async function extrairTemasDaSessao(opts: {
   pacienteId: string
   sessaoId: string
   transcricao: string
 }): Promise<{ palavrasInseridas: number; arestasInseridas: number }> {
+  let r: { palavrasInseridas: number; arestasInseridas: number } | null = null
   try {
-    const r = await extrairTemasComIA(opts)
-    if (r && (r.palavrasInseridas > 0 || r.arestasInseridas > 0)) return r
-  } catch { /* fallback heurístico abaixo */ }
-  return extrairTemasHeuristico(opts)
-}
-
-/** Fallback heurístico (sem IA): listas-base por cluster + co-ocorrência. */
-async function extrairTemasHeuristico(opts: {
-  pacienteId: string
-  sessaoId: string
-  transcricao: string
-}): Promise<{ palavrasInseridas: number; arestasInseridas: number }> {
-  const tokens = tokenize(somenteFalasDoPaciente(opts.transcricao))
-  if (tokens.length === 0) return { palavrasInseridas: 0, arestasInseridas: 0 }
-
-  // Frequência local na sessão.
-  const local: Record<string, number> = {}
-  for (const t of tokens) local[t] = (local[t] ?? 0) + 1
-
-  // Mantém só palavras com sinal forte: freq >= 3 na sessão OU é seed conhecida.
-  const candidatas = Object.entries(local).filter(([w, c]) => c >= 3 || isSeed(w))
-  if (candidatas.length === 0) return { palavrasInseridas: 0, arestasInseridas: 0 }
-
-  const client = await db.connect()
-  try {
-    await client.query('BEGIN')
-
-    // Upsert palavras (acumula frequência + append sessao_id em sessoes_ids).
-    for (const [palavra, freqLocal] of candidatas) {
-      const cluster = inferirCluster(palavra)
-      await client.query(
-        `INSERT INTO palavras_chave (paciente_id, palavra, cluster, frequencia, ultima_sessao_id, sessoes_ids, updated_at)
-         VALUES ($1, $2, $3, $4, $5::uuid, jsonb_build_array($6::text), NOW())
-         ON CONFLICT (paciente_id, palavra)
-         DO UPDATE SET
-           frequencia = palavras_chave.frequencia + EXCLUDED.frequencia,
-           cluster = EXCLUDED.cluster,
-           ultima_sessao_id = EXCLUDED.ultima_sessao_id,
-           sessoes_ids = CASE
-             WHEN palavras_chave.sessoes_ids @> jsonb_build_array($6::text)
-               THEN palavras_chave.sessoes_ids
-             ELSE palavras_chave.sessoes_ids || jsonb_build_array($6::text)
-           END,
-           updated_at = NOW()`,
-        [opts.pacienteId, palavra, cluster, freqLocal, opts.sessaoId, opts.sessaoId],
-      )
-    }
-
-    // Arestas: pares apenas quando AO MENOS UMA das palavras é "forte"
-    // (seed conhecida OU freq local >= 3). Reduz ruído de pares irrelevantes.
-    const fortes = new Set(candidatas.filter(([w, c]) => c >= 3 || isSeed(w)).map(c => c[0]))
-    const palavras = candidatas.map(c => c[0]).sort()
-    let arestas = 0
-    for (let i = 0; i < palavras.length; i++) {
-      for (let j = i + 1; j < palavras.length; j++) {
-        const a = palavras[i], b = palavras[j]
-        if (!fortes.has(a) && !fortes.has(b)) continue
-        await client.query(
-          `INSERT INTO arestas_tema (paciente_id, palavra_a, palavra_b, weight, updated_at)
-           VALUES ($1, $2, $3, 1, NOW())
-           ON CONFLICT (paciente_id, palavra_a, palavra_b)
-           DO UPDATE SET weight = arestas_tema.weight + 1, updated_at = NOW()`,
-          [opts.pacienteId, a, b],
-        )
-        arestas++
-      }
-    }
-    await client.query('COMMIT')
-    return { palavrasInseridas: candidatas.length, arestasInseridas: arestas }
+    r = await extrairTemasComIA(opts)
   } catch (err) {
-    await client.query('ROLLBACK')
-    throw err
-  } finally {
-    client.release()
+    console.warn(`[temas.grafo] extração lançou erro sessao=${opts.sessaoId}:`, err)
   }
-}
-
-function isSeed(palavra: string): boolean {
-  return (Object.values(SEEDS) as string[][]).some(arr => arr.includes(palavra))
+  if (r) return r
+  // Fail-closed: IA indisponível/sem JSON válido → não grava nós.
+  console.warn(`[temas.grafo] sem resultado de IA sessao=${opts.sessaoId} — grafo não atualizado (fail-closed)`)
+  return { palavrasInseridas: 0, arestasInseridas: 0 }
 }
 
 // ── Leitura agregada para o grafo ─────────────────────────────────────────
@@ -415,4 +249,30 @@ export async function recalcularGrafo(pacienteId: string): Promise<{ sessoes: nu
     `SELECT count(*)::int AS n FROM palavras_chave WHERE paciente_id = $1`, [pacienteId],
   )
   return { sessoes: sessoes.length, nodes: count[0].n }
+}
+
+/**
+ * Manutenção (one-off pós-deploy): recalcula o grafo dos pacientes cujo grafo
+ * tem origem heurística — aresta sem `tipo` (o contador nunca preenchia tipo) ou
+ * nó com `frequencia >= 3` (a IA grava só 1–2). Purga o ruído de token e
+ * reextrai via IA. Idempotente e reexecutável. Sequencial pra não saturar a IA.
+ */
+export async function recalcularGrafosHeuristicos(): Promise<{
+  pacientes: number
+  resultados: Array<{ pacienteId: string; sessoes: number; nodes: number }>
+}> {
+  const { rows } = await db.query<{ paciente_id: string }>(
+    `SELECT DISTINCT pc.paciente_id
+       FROM palavras_chave pc
+      WHERE EXISTS (SELECT 1 FROM arestas_tema a
+                     WHERE a.paciente_id = pc.paciente_id AND a.tipo IS NULL)
+         OR EXISTS (SELECT 1 FROM palavras_chave p2
+                     WHERE p2.paciente_id = pc.paciente_id AND p2.frequencia >= 3)`,
+  )
+  const resultados: Array<{ pacienteId: string; sessoes: number; nodes: number }> = []
+  for (const { paciente_id } of rows) {
+    const r = await recalcularGrafo(paciente_id)
+    resultados.push({ pacienteId: paciente_id, ...r })
+  }
+  return { pacientes: rows.length, resultados }
 }
