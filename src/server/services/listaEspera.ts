@@ -98,3 +98,19 @@ export async function contarListaEspera(): Promise<number> {
     return 0
   }
 }
+
+/**
+ * Remove o lead da lista de espera — chamado quando ele vira usuário (cadastro).
+ * Idempotente; nunca lança (falha aqui não pode derrubar o cadastro).
+ */
+export async function removerListaEspera(email: string): Promise<number> {
+  const e = email.toLowerCase().trim()
+  try {
+    const { rowCount } = await db.query(`DELETE FROM lista_espera WHERE lower(email) = $1`, [e])
+    if (rowCount) log.ok('lista-espera', `removido (virou usuário): ${e}`)
+    return rowCount ?? 0
+  } catch (err) {
+    log.err('lista-espera', 'falha ao remover', err)
+    return 0
+  }
+}

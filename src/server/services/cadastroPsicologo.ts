@@ -2,6 +2,7 @@ import 'server-only'
 import bcrypt from 'bcrypt'
 import { db } from '@/server/db/pool'
 import { log } from '@/server/lib/log'
+import { removerListaEspera } from './listaEspera'
 
 export type NovaPsicologa = {
   nome: string
@@ -67,6 +68,8 @@ export async function cadastrarPsicologa(input: NovaPsicologa): Promise<Cadastro
       [nome, crp, email, senha_hash, telefone, waInstancia, 200],
     )
     log.ok('cadastro', `nova psicóloga: ${email} (instância wa=${waInstancia})`)
+    // Lead virou usuário: tira da lista de espera (não bloqueia o cadastro).
+    void removerListaEspera(email)
     return { ok: true, id: rows[0].id, email }
   } catch (err: any) {
     if (err?.code === '23505') {
