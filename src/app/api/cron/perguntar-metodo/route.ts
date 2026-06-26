@@ -1,18 +1,17 @@
 import { NextResponse } from 'next/server'
-import { db } from '@/server/db/pool'
-import { enviarWA, WA_TEMPLATES } from '@/server/lib/evolution'
-import { formatDateTimeBR } from '@/lib/formatters'
+import { perguntarMetodoPendentes } from '@/server/lib/cron'
 import { log } from '@/server/lib/log'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 
 /**
- * Cron: pra cada sessão de série em `aguardando_metodo` cujo wa_pergunta_metodo_em
- * ainda é NULL e está entre [agora, agora+50h], dispara Fluxo 2 e grava timestamp.
+ * Gatilho HTTP do Fluxo 2 das séries. A lógica vive em `perguntarMetodoPendentes`
+ * (src/server/lib/cron.ts) — também agendada in-process a cada 30min. Esta rota
+ * permite disparo manual/externo.
  *
- * Janela 50h em vez de 48h pra absorver atraso do scheduler (rodando a cada 30min).
- * Auth: mesmo CRON_SECRET de /api/cron/liberar-confirmacoes.
+ * Auth: header `Authorization: Bearer <CRON_SECRET>` ou query `?key=<CRON_SECRET>`.
+ * Sem CRON_SECRET configurado, aceita qualquer chamada (modo dev).
  */
 export async function GET(req: Request) {
   const secret = process.env.CRON_SECRET
@@ -27,36 +26,8 @@ export async function GET(req: Request) {
   }
 
   try {
-    const { rows } = await db.query<{
-      id: string; data_hora: string; valor: string; telefone: string;
-    }>(
-      `SELECT s.id, s.data_hora, s.valor, p.telefone
-         FROM sessoes s JOIN pacientes p ON p.id = s.paciente_id
-        WHERE s.serie_id IS NOT NULL
-          AND s.status = 'aguardando_metodo'
-          AND s.wa_pergunta_metodo_em IS NULL
-          AND s.data_hora >= NOW()
-          AND s.data_hora <= NOW() + INTERVAL '50 hours'
-        ORDER BY s.data_hora ASC
-        LIMIT 50`,
-      [],
-    )
-
-    let enviadas = 0
-    for (const r of rows) {
-      try {
-        await enviarWA(
-          r.telefone,
-          WA_TEMPLATES.fluxo2_perguntarMetodo(formatDateTimeBR(r.data_hora), parseFloat(r.valor)),
-        )
-        await db.query(`UPDATE sessoes SET wa_pergunta_metodo_em = NOW() WHERE id = $1`, [r.id])
-        enviadas++
-      } catch (err) {
-        log.err('cron.perguntar', `falha sessao=${r.id}`, err)
-      }
-    }
-
-    return NextResponse.json({ ok: true, enviadas, total: rows.length })
+    const r = await perguntarMetodoPendentes()
+    return NextResponse.json({ ok: true, ...r })
   } catch (err) {
     log.err('cron.perguntar', 'falha', err)
     return NextResponse.json({ error: 'internal' }, { status: 500 })
