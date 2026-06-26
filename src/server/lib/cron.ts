@@ -5,6 +5,7 @@ import { enviarWA, WA_TEMPLATES } from './evolution'
 import { enviarEmailPacientePorSessao } from './emailPaciente'
 import { tplLembrete24h, tplLembrete15min } from './emailTemplates'
 import { criarOuObterSala } from '@/server/services/salaVideo'
+import { liberarSilenciosos } from '@/server/services/confirmacaoSessao'
 import { env } from './env'
 import { log } from './log'
 import { formatDateTimeBR } from '@/lib/formatters'
@@ -27,8 +28,46 @@ export function startCron() {
   cron.schedule('*/30 7-21 * * *', () => { void lembrete2h() }, { timezone: 'America/Sao_Paulo' })
   // A cada 5 min — lembrete "15 min antes" com link da sala (WhatsApp + email)
   cron.schedule('*/5 * * * *', () => { void lembrete15min() }, { timezone: 'America/Sao_Paulo' })
+  // A cada 5 min — libera confirmações pós-sessão sem resposta (silêncio = consentimento)
+  cron.schedule('*/5 * * * *', () => { void liberarSilenciosos() }, { timezone: 'America/Sao_Paulo' })
+  // A cada 30 min (7–21h) — pergunta método de pagamento das séries (Fluxo 2, ~48h antes)
+  cron.schedule('*/30 7-21 * * *', () => { void perguntarMetodoPendentes() }, { timezone: 'America/Sao_Paulo' })
 
-  log.ok('cron', 'agendamentos registrados (24h@18h · 2h a cada 30min · 15min a cada 5min)')
+  log.ok('cron', 'agendamentos registrados (24h@18h · 2h@30min · 15min@5min · liberar@5min · perguntar-metodo@30min)')
+}
+
+/**
+ * Cron: pra cada sessão de série em `aguardando_metodo` cujo wa_pergunta_metodo_em
+ * é NULL e está em [agora, agora+50h], dispara Fluxo 2 e grava o timestamp.
+ * Fonte única — a rota /api/cron/perguntar-metodo também chama esta função.
+ */
+export async function perguntarMetodoPendentes(): Promise<{ enviadas: number; total: number }> {
+  const { rows } = await db.query<{ id: string; data_hora: string; valor: string; telefone: string }>(
+    `SELECT s.id, s.data_hora, s.valor, p.telefone
+       FROM sessoes s JOIN pacientes p ON p.id = s.paciente_id
+      WHERE s.serie_id IS NOT NULL
+        AND s.status = 'aguardando_metodo'
+        AND s.wa_pergunta_metodo_em IS NULL
+        AND s.data_hora >= NOW()
+        AND s.data_hora <= NOW() + INTERVAL '50 hours'
+      ORDER BY s.data_hora ASC
+      LIMIT 50`,
+  )
+  let enviadas = 0
+  for (const r of rows) {
+    try {
+      await enviarWA(
+        r.telefone,
+        WA_TEMPLATES.fluxo2_perguntarMetodo(formatDateTimeBR(r.data_hora), parseFloat(r.valor)),
+      )
+      await db.query(`UPDATE sessoes SET wa_pergunta_metodo_em = NOW() WHERE id = $1`, [r.id])
+      enviadas++
+    } catch (err) {
+      log.err('cron.perguntar', `falha sessao=${r.id}`, err)
+    }
+  }
+  if (enviadas) log.ok('cron.perguntar', `${enviadas} pergunta(s) de método enviada(s)`)
+  return { enviadas, total: rows.length }
 }
 
 export async function lembrete15min(): Promise<number> {
