@@ -8,6 +8,7 @@ import { getServerSession } from 'next-auth/next'
 import { authOptions } from '@/server/auth/options'
 import { redirect } from 'next/navigation'
 import { bootstrap } from '@/server/bootstrap'
+import { tocarAcesso } from '@/server/services/usoPsicologo'
 import { obterAtalhos } from '@/server/services/atalhos'
 import { lerStatusOnboarding } from '@/server/services/onboardingPagamento'
 import { obterAssinatura } from '@/server/services/assinatura'
@@ -18,6 +19,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   if (!session) redirect('/login')
 
   const userId = (session.user as any).id
+  void tocarAcesso(userId) // "visto por último" (throttled a 5min no SQL)
   const [atalhos, onboarding, assinatura] = await Promise.all([
     obterAtalhos(userId),
     lerStatusOnboarding(userId),

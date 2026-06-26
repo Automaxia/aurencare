@@ -3,6 +3,7 @@ import type { NextAuthOptions } from 'next-auth'
 import CredentialsProvider from 'next-auth/providers/credentials'
 import bcrypt from 'bcrypt'
 import { db } from '@/server/db/pool'
+import { registrarLogin } from '@/server/services/usoPsicologo'
 
 export const authOptions: NextAuthOptions = {
   // Timeout absoluto a partir do login (8h — cobre um dia de atendimentos sem
@@ -16,7 +17,7 @@ export const authOptions: NextAuthOptions = {
         email: { label: 'Email', type: 'email' },
         password: { label: 'Senha', type: 'password' },
       },
-      async authorize(creds) {
+      async authorize(creds, req) {
         if (!creds?.email || !creds?.password) return null
         const { rows } = await db.query<{
           id: string; nome: string; email: string; senha_hash: string; crp: string;
@@ -33,6 +34,11 @@ export const authOptions: NextAuthOptions = {
         // que a gestão seta (ciclo ativo↔suspenso). Não bloqueia 'inativo' nem
         // outros (podem ser status legado de psicólogo e travariam por engano).
         if (u.status === 'suspenso') return null
+        // Observabilidade (beta): registra o login com IP/UA. Fire-and-forget —
+        // tracking não pode atrasar nem derrubar o login.
+        const h = (req?.headers ?? {}) as Record<string, string | undefined>
+        const ip = (h['x-forwarded-for']?.split(',')[0]?.trim() || h['x-real-ip'] || null) as string | null
+        void registrarLogin(u.id, ip, h['user-agent'] ?? null)
         return { id: u.id, name: u.nome, email: u.email, crp: u.crp, role: u.role ?? 'psicologo' } as any
       },
     }),
