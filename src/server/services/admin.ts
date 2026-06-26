@@ -1,5 +1,6 @@
 import 'server-only'
 import { db } from '@/server/db/pool'
+import { log } from '@/server/lib/log'
 
 /**
  * Gestão da plataforma (cockpit do admin). Foco solo: lista os psicólogos,
@@ -120,15 +121,19 @@ export type UsuarioAdmin = {
   pacientes: number
   sessoes: number
   createdAt: string
+  ultimoLoginEm: string | null
+  loginCount: number
+  ultimoAcessoEm: string | null
 }
 
 export async function listarUsuariosAdmin(): Promise<UsuarioAdmin[]> {
   const { rows } = await db.query<any>(`
     SELECT p.id, p.nome, p.email, p.crp, p.role, p.status, p.plano, p.plano_status, p.created_at,
+           p.ultimo_login_em, p.login_count, p.ultimo_acesso_em,
            (SELECT count(*) FROM pacientes pa WHERE pa.psicologo_id = p.id AND pa.status = 'ativo') AS pacientes,
            (SELECT count(*) FROM sessoes s  WHERE s.psicologo_id  = p.id)                            AS sessoes
       FROM psicologos p
-     ORDER BY p.created_at ASC
+     ORDER BY p.ultimo_acesso_em DESC NULLS LAST, p.created_at ASC
   `)
   return rows.map((r: any) => ({
     id: r.id, nome: r.nome, email: r.email, crp: r.crp,
@@ -136,6 +141,9 @@ export async function listarUsuariosAdmin(): Promise<UsuarioAdmin[]> {
     plano: r.plano ?? null, planoStatus: r.plano_status ?? null,
     pacientes: Number(r.pacientes), sessoes: Number(r.sessoes),
     createdAt: r.created_at,
+    ultimoLoginEm: r.ultimo_login_em ?? null,
+    loginCount: Number(r.login_count ?? 0),
+    ultimoAcessoEm: r.ultimo_acesso_em ?? null,
   }))
 }
 
@@ -154,5 +162,25 @@ export async function definirRoleUsuario(adminId: string, alvoId: string, role: 
   if (alvoId === adminId) return { ok: false, error: 'Você não pode alterar o próprio papel.' }
   if (!['admin', 'psicologo'].includes(role)) return { ok: false, error: 'Papel inválido.' }
   await db.query('UPDATE psicologos SET role = $2 WHERE id = $1', [alvoId, role])
+  return { ok: true }
+}
+
+/**
+ * HARD DELETE de um psicólogo. A cascata do banco apaga TODOS os pacientes,
+ * sessões e prontuários dele. Irreversível. Trava: não pode apagar a própria
+ * conta e exige o email exato como confirmação (checado também no servidor).
+ */
+export async function excluirPsicologo(adminId: string, alvoId: string, emailConfirmado: string): Promise<AdminResult> {
+  if (alvoId === adminId) return { ok: false, error: 'Você não pode excluir a própria conta.' }
+  const { rows } = await db.query<{ email: string; nome: string }>(
+    'SELECT email, nome FROM psicologos WHERE id = $1', [alvoId],
+  )
+  const alvo = rows[0]
+  if (!alvo) return { ok: false, error: 'Psicólogo não encontrado.' }
+  if (emailConfirmado.toLowerCase().trim() !== alvo.email.toLowerCase().trim()) {
+    return { ok: false, error: 'O email digitado não confere com o do psicólogo.' }
+  }
+  await db.query('DELETE FROM psicologos WHERE id = $1', [alvoId])
+  log.warn('admin', `HARD DELETE psicólogo ${alvo.email} (${alvoId}) por admin ${adminId}`)
   return { ok: true }
 }
