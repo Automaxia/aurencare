@@ -46,15 +46,6 @@ function efemeras(secret: string, ttlSec: number): { username: string; credentia
   return { username, credential }
 }
 
-export function turnConfigured(): boolean {
-  const urls = turnUrls()
-  if (urls.length === 0) return false
-  return (
-    isConfigured(process.env.TURN_STATIC_AUTH_SECRET) ||
-    (isConfigured(process.env.TURN_USERNAME) && isConfigured(process.env.TURN_PASSWORD))
-  )
-}
-
 /**
  * Lista de ICE servers para esta requisição. STUN sempre; TURN quando configurado.
  * Gera credenciais novas a cada chamada (no modo efêmero).

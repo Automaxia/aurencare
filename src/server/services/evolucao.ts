@@ -93,15 +93,6 @@ export async function lerEvolucaoObservacoes(
   return { temas, instrumentos }
 }
 
-/** Mantida pra compatibilidade. Chama o caminho lento — usar apenas onde a latência IA é aceitável. */
-export async function lerEvolucaoDados(pacienteId: string, pacienteNome: string): Promise<EvolucaoDados> {
-  const [estat, obs] = await Promise.all([
-    lerEvolucaoEstatisticas(pacienteId, pacienteNome),
-    lerEvolucaoObservacoes(pacienteId, pacienteNome),
-  ])
-  return { perfil: estat.perfil, ...obs }
-}
-
 async function lerPerfilEvolucao(pacienteId: string, pacienteNome: string) {
   // 1) Sessões assinadas (para perfil e abertura)
   const { rows: sessoesA } = await db.query<{ data_hora: string; duracao_min: number; indicadores: any }>(

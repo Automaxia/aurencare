@@ -61,9 +61,3 @@ export function publish(token: string, fromRole: SignalRole, message: SignalMess
     try { sub.send(message) } catch { /* */ }
   }
 }
-
-export function listarOcupantes(token: string): SignalRole[] {
-  const s = salas.get(token)
-  if (!s) return []
-  return Array.from(s).map(x => x.role)
-}

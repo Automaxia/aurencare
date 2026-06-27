@@ -128,27 +128,6 @@ export async function atualizarPerfilTributario(
   }
 }
 
-// ─── Helpers de classificação ────────────────────────────────────────
-
-export function ehAutonomoPf(regime: RegimeTributario | null): boolean {
-  return regime === 'autonomo_pf'
-}
-
-export function ehPjSimples(regime: RegimeTributario | null): boolean {
-  return regime === 'pj_simples_anexo3' || regime === 'pj_simples_anexo5'
-}
-
-/**
- * Alíquota INICIAL do Simples Nacional para a faixa 1 (até R$ 180k/ano).
- * Faixas superiores são tratadas como aproximação — para precisão, o
- * contador faz o cálculo final.
- */
-export function aliquotaSimplesInicial(regime: RegimeTributario | null): number | null {
-  if (regime === 'pj_simples_anexo3') return 6.0
-  if (regime === 'pj_simples_anexo5') return 15.5
-  return null
-}
-
 export const LIMITE_ISENCAO_CARNE_LEAO_2026 = 2824.00  // R$/mês
 
 export const REGIME_LABELS: Record<RegimeTributario, string> = {

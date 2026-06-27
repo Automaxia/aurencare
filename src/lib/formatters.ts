@@ -57,13 +57,3 @@ export function formatTimeBR(iso: string): string {
 export function formatDateTimeBR(iso: string): string {
   return `${formatDateBR(iso)} às ${formatTimeBR(iso)}`
 }
-
-export function formatRelativeDays(iso: string | null): string | null {
-  if (!iso) return null
-  const dias = Math.floor((Date.now() - +new Date(iso)) / 86_400_000)
-  if (dias === 0) return 'hoje'
-  if (dias === 1) return 'ontem'
-  if (dias < 7) return `${dias} dias atrás`
-  if (dias < 30) return `${Math.floor(dias / 7)} sem atrás`
-  return `${Math.floor(dias / 30)} mês${Math.floor(dias / 30) > 1 ? 'es' : ''} atrás`
-}
