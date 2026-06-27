@@ -17,11 +17,6 @@ export type PerfilPsicologo = {
   createdAt: string
 }
 
-/** Título profissional correto conforme o gênero informado. Neutro se não informado. */
-export function tituloPsicologo(genero?: string | null): string {
-  return genero === 'f' ? 'psicóloga' : genero === 'm' ? 'psicólogo' : 'profissional'
-}
-
 function rowToPerfil(r: any): PerfilPsicologo {
   return {
     id: r.id,

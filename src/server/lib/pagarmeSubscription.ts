@@ -105,20 +105,3 @@ export async function cancelarAssinatura(subscriptionId: string): Promise<boolea
     return false
   }
 }
-
-/** Consulta status atual da assinatura (reconciliação). null se não encontrada. */
-export async function obterAssinatura(subscriptionId: string): Promise<{ status: string; proximaCobranca: string | null } | null> {
-  if (subscriptionId.startsWith('mock_sub_')) {
-    return { status: 'active', proximaCobranca: null }
-  }
-  try {
-    const { data } = await axios.get(`${BASE}/subscriptions/${subscriptionId}`, { auth: auth(), timeout: 15_000 })
-    return {
-      status: data.status ?? 'unknown',
-      proximaCobranca: data.next_billing_at ?? data.current_cycle?.end_at ?? null,
-    }
-  } catch (err) {
-    log.err('pagarme.sub', `falha ao consultar ${subscriptionId}`, err instanceof Error ? err.message : err)
-    return null
-  }
-}

@@ -72,9 +72,3 @@ export async function buscarSalaPorToken(token: string): Promise<SalaVideo | nul
   )
   return rows[0] ? rowToSala(rows[0]) : null
 }
-
-export async function encerrarSala(token: string): Promise<void> {
-  await db.query(
-    `UPDATE salas_video SET encerrada_em = NOW() WHERE token = $1`, [token],
-  )
-}

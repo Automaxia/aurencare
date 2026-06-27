@@ -8,30 +8,6 @@ import { log } from '@/server/lib/log'
  * Toda autorização é no caller (requireRole('admin')).
  */
 
-export type CockpitKpis = {
-  usuarios: number
-  ativos: number
-  suspensos: number
-  novos30: number
-  pacientes: number
-  sessoes: number
-  pagantes: number
-}
-
-export async function obterCockpit(): Promise<CockpitKpis> {
-  const { rows } = await db.query<CockpitKpis>(`
-    SELECT
-      (SELECT count(*) FROM psicologos)                                                          AS usuarios,
-      (SELECT count(*) FROM psicologos WHERE status = 'ativo')                                   AS ativos,
-      (SELECT count(*) FROM psicologos WHERE status IN ('suspenso','inativo','bloqueado'))       AS suspensos,
-      (SELECT count(*) FROM psicologos WHERE created_at >= NOW() - INTERVAL '30 days')           AS novos30,
-      (SELECT count(*) FROM pacientes WHERE status = 'ativo')                                    AS pacientes,
-      (SELECT count(*) FROM sessoes)                                                             AS sessoes,
-      (SELECT count(*) FROM psicologos WHERE plano IS NOT NULL AND plano <> 'free')              AS pagantes
-  `)
-  return rows[0]
-}
-
 /**
  * Cockpit de PRODUTO (não cadastro). Responde "o produto gera valor?":
  * crescimento, adoção real, funil de ativação, saúde de uso e receita.

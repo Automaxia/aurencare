@@ -88,17 +88,6 @@ export async function listarListaEspera(): Promise<ListaEsperaItem[]> {
   }))
 }
 
-export async function contarListaEspera(): Promise<number> {
-  try {
-    const { rows } = await db.query<{ n: number }>(
-      `SELECT count(*)::int AS n FROM lista_espera`,
-    )
-    return rows[0]?.n ?? 0
-  } catch {
-    return 0
-  }
-}
-
 /**
  * Remove o lead da lista de espera — chamado quando ele vira usuário (cadastro).
  * Idempotente; nunca lança (falha aqui não pode derrubar o cadastro).
