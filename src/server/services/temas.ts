@@ -62,7 +62,16 @@ Responda SÓ JSON (sem prosa, sem markdown):
 { "nos": [ { "nucleo": "...", "construto": "...", "categoria": "Emocional", "relevancia": 0.0, "contextos": ["..."], "fora_da_conceitualizacao": false } ], "arestas": [ { "de": "...", "para": "...", "relacao": "leva a" } ] }
 Se nada relevante: { "nos": [], "arestas": [] }`
 
-function promptClinico(threshold: number, teto: number): string {
+// §8 — camada aditiva. Crítico: SÓ PROMOVE, nunca rebaixa (senão vira câmara de
+// eco da hipótese do clínico e some com o dado que deveria fazê-lo revisar).
+function blocoConceitualizacao(texto: string): string {
+  return `CAMADA DE CONCEITUALIZAÇÃO — a formulação/objetivos abaixo SÓ PROMOVE. Eleve a "relevancia" de construtos que se conectam a ela. NUNCA rebaixe nem descarte um construto por NÃO se encaixar — o piso é sempre a rubrica base. Se algo relevante CONTRADIZ ou foge da conceitualização, INCLUA e marque "fora_da_conceitualizacao": true (é o que faz o terapeuta revisar a hipótese).
+"""
+${texto}
+"""`
+}
+
+function promptClinico(threshold: number, teto: number, conc?: string | null): string {
   return `Você extrai os construtos clinicamente relevantes da transcrição de UMA sessão de psicoterapia e mapeia as relações entre eles, para montar um grafo.
 
 OBJETIVO: capturar os construtos com significado clínico e como se relacionam. O grafo traz à tona o que pode ter passado despercebido — inclusive coisas claras que o terapeuta não reteve por estar focado em outra coisa.
@@ -71,7 +80,7 @@ ${BLOCO_UNIDADE}
 
 RUBRICA — relevante se carregar UM OU MAIS: carga afetiva; recorrência/padrão; ligação com queixa/objetivo; dinâmica relacional; padrão cognitivo (crença, pensamento automático, distorção, regra); movimento vs. estagnação; evitação/minimização; impacto funcional.
 DESCARTAR: logística (agenda, pagamento, atraso); conversa social; tecido narrativo e conectivos; fragmentos gramaticais e verbos soltos; menção factual única sem carga.
-
+${conc ? '\n' + blocoConceitualizacao(conc) + '\n' : ''}
 ${BLOCO_RELACOES}
 
 MENOS É MAIS = cortar RUÍDO, não conteúdo clínico real. Se procrastinação, culpa e autocrítica são todas relevantes, inclua TODAS.
@@ -95,6 +104,25 @@ ${BLOCO_RELACOES}
 CALIBRAÇÃO: no máximo ${teto} nós; SEM corte de relevância ("relevancia" pode ser 0).
 
 ${BLOCO_SAIDA}`
+}
+
+/**
+ * Conceitualização do paciente (§8) = objetivos terapêuticos ativos. Retorna o
+ * texto pra injetar no prompt + uma versão estável (hash do conteúdo) pra gravar
+ * no snapshot — quando a conceitualização muda, a versão muda.
+ */
+async function lerConceitualizacao(pacienteId: string): Promise<{ texto: string | null; versao: string | null }> {
+  const { rows } = await db.query<{ titulo: string; descricao: string | null }>(
+    `SELECT titulo, descricao FROM objetivos WHERE paciente_id = $1 AND status = 'ativo' ORDER BY created_at ASC`,
+    [pacienteId],
+  )
+  if (rows.length === 0) return { texto: null, versao: null }
+  const texto = rows
+    .map(o => `- ${o.titulo}${o.descricao && o.descricao.trim() ? ': ' + o.descricao.trim().replace(/\s+/g, ' ') : ''}`)
+    .join('\n')
+  let h = 5381
+  for (let i = 0; i < texto.length; i++) h = ((h << 5) + h + texto.charCodeAt(i)) | 0
+  return { texto, versao: 'conc-' + (h >>> 0).toString(36) }
 }
 
 /**
@@ -142,12 +170,15 @@ type ArestaSnapshot = { de: string; para: string; relacao: string | null }
 async function extrairTemasComIA(
   opts: { pacienteId: string; sessaoId: string; transcricao: string },
   modo: Modo = 'clinico',
+  conc: { texto: string | null; versao: string | null } = { texto: null, versao: null },
 ): Promise<{ palavrasInseridas: number; arestasInseridas: number } | null> {
   const texto = somenteFalasDoPaciente(opts.transcricao).slice(0, 40_000)
   if (!texto.trim()) return { palavrasInseridas: 0, arestasInseridas: 0 }
 
   const { threshold, teto } = TEMAS_CONFIG[modo]
-  const system = modo === 'amplo' ? promptAmplo(teto) : promptClinico(threshold, teto)
+  // Conceitualização (§8) só entra no Clínico (o Amplo não julga relevância).
+  const usaConc = modo === 'clinico' && !!conc.texto
+  const system = modo === 'amplo' ? promptAmplo(teto) : promptClinico(threshold, teto, usaConc ? conc.texto : null)
   const { chat } = await import('@/server/lib/anthropic')
   const user = `<chunk>\n  <speaker>patient</speaker>\n  <text>\n${texto}\n  </text>\n</chunk>`
 
@@ -210,7 +241,7 @@ async function extrairTemasComIA(
        versao_prompt = EXCLUDED.versao_prompt,
        versao_conceitualizacao = EXCLUDED.versao_conceitualizacao,
        nos = EXCLUDED.nos, arestas = EXCLUDED.arestas, criado_em = NOW()`,
-    [opts.pacienteId, opts.sessaoId, `extracao-v3-${modo}`, null, JSON.stringify(nos), JSON.stringify(arestas)],
+    [opts.pacienteId, opts.sessaoId, `extracao-v3-${modo}`, usaConc ? conc.versao : null, JSON.stringify(nos), JSON.stringify(arestas)],
   )
   return { palavrasInseridas: nos.length, arestasInseridas: arestas.length }
 }
@@ -296,7 +327,8 @@ export async function extrairTemasDaSessao(opts: {
 }): Promise<{ palavrasInseridas: number; arestasInseridas: number }> {
   let r: { palavrasInseridas: number; arestasInseridas: number } | null = null
   try {
-    r = await extrairTemasComIA(opts, opts.modo ?? 'clinico')
+    const conc = await lerConceitualizacao(opts.pacienteId)
+    r = await extrairTemasComIA(opts, opts.modo ?? 'clinico', conc)
   } catch (err) {
     console.warn(`[temas.grafo] extração lançou erro sessao=${opts.sessaoId}:`, err)
   }
@@ -380,11 +412,14 @@ export async function recalcularGrafo(pacienteId: string, modo: Modo = 'clinico'
     [pacienteId],
   )
 
+  // Conceitualização (§8) é a mesma pra todas as sessões do paciente — busca 1×.
+  const conc = await lerConceitualizacao(pacienteId)
+
   // Grava o snapshot de cada sessão (sem derivar a cada uma)…
   for (const s of sessoes) {
     const tx = tryDecrypt(s.transcricao_texto) ?? tryDecrypt(s.resumo_ia) ?? ''
     if (!tx) continue
-    try { await extrairTemasComIA({ pacienteId, sessaoId: s.id, transcricao: tx }, modo) }
+    try { await extrairTemasComIA({ pacienteId, sessaoId: s.id, transcricao: tx }, modo, conc) }
     catch (err) { console.warn(`[temas.grafo] falha extração sessao=${s.id} no recálculo:`, err) }
   }
   // …e deriva o agregado uma única vez a partir do store completo.
@@ -401,12 +436,16 @@ export async function recalcularGrafo(pacienteId: string, modo: Modo = 'clinico'
  * uma sessão assinada — popula o store por-sessão (sessao_grafo) e deriva o
  * agregado. Idempotente e reexecutável. Sequencial pra não saturar a IA.
  */
-export async function recalcularGrafosTodos(modo: Modo = 'clinico'): Promise<{
+export async function recalcularGrafosTodos(modo: Modo = 'clinico', soComObjetivos = false): Promise<{
   pacientes: number
   resultados: Array<{ pacienteId: string; sessoes: number; nodes: number }>
 }> {
   const { rows } = await db.query<{ paciente_id: string }>(
-    `SELECT DISTINCT paciente_id FROM sessoes WHERE assinada = TRUE`,
+    soComObjetivos
+      ? `SELECT DISTINCT s.paciente_id FROM sessoes s
+          WHERE s.assinada = TRUE
+            AND EXISTS (SELECT 1 FROM objetivos o WHERE o.paciente_id = s.paciente_id AND o.status = 'ativo')`
+      : `SELECT DISTINCT paciente_id FROM sessoes WHERE assinada = TRUE`,
   )
   const resultados: Array<{ pacienteId: string; sessoes: number; nodes: number }> = []
   for (const { paciente_id } of rows) {

@@ -30,10 +30,12 @@ export async function POST(req: Request) {
   }
 
   try {
-    const modo = new URL(req.url).searchParams.get('modo') === 'amplo' ? 'amplo' : 'clinico'
-    const r = await recalcularGrafosTodos(modo)
-    log.info('cron.recalcular-temas', `recalculados ${r.pacientes} paciente(s) [modo=${modo}]`)
-    return NextResponse.json({ ok: true, modo, ...r })
+    const sp = new URL(req.url).searchParams
+    const modo = sp.get('modo') === 'amplo' ? 'amplo' : 'clinico'
+    const soComObjetivos = sp.get('objetivos') === '1'
+    const r = await recalcularGrafosTodos(modo, soComObjetivos)
+    log.info('cron.recalcular-temas', `recalculados ${r.pacientes} paciente(s) [modo=${modo}${soComObjetivos ? ', só c/ objetivos' : ''}]`)
+    return NextResponse.json({ ok: true, modo, soComObjetivos, ...r })
   } catch (err) {
     log.err('cron.recalcular-temas', 'falha', err)
     return NextResponse.json({ error: 'internal' }, { status: 500 })
