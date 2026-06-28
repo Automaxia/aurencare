@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
+import { iaIndisponivel } from '@/lib/ia'
 import { TranscriptionCard, type Turno, type TurnMark, type TurnTone } from './widgets/TranscriptionCard'
 import { RhythmWidget } from './widgets/RhythmWidget'
 import { ThemesCanvas } from './widgets/ThemesCanvas'
@@ -60,9 +61,11 @@ export function PresenceClient(props: Props) {
   const [sessaoIniciada, setSessaoIniciada] = useState(props.status === 'em_curso')
   const [iniciandoSessao, setIniciandoSessao] = useState(false)
   const [recording, setRecording] = useState(false)
+  const [iniciandoRegistro, setIniciandoRegistro] = useState(false)
   const [encerrando, setEncerrando] = useState(false)
   const [showPostModal, setShowPostModal] = useState(false)
   const [resumoIA, setResumoIA] = useState<string | null>(null)
+  const [resumoIndisponivel, setResumoIndisponivel] = useState(false)
   const [sugestaoTurnos, setSugestaoTurnos] = useState<Array<{ idx: number; mark: TurnMark; razao: string }> | null>(null)
   const [sugestaoRisco, setSugestaoRisco] = useState<{ autolesao: 'lo'|'md'|'hi'; ideacao: 'lo'|'md'|'hi'; plano: 'lo'|'md'|'hi'; justificativa: string } | null>(null)
   const [risco, setRisco] = useState<{ autolesao: 'lo'|'md'|'hi'; ideacao: 'lo'|'md'|'hi'; plano: 'lo'|'md'|'hi' }>({ autolesao: 'lo', ideacao: 'lo', plano: 'lo' })
@@ -70,6 +73,7 @@ export function PresenceClient(props: Props) {
   const [notaRapida, setNotaRapida] = useState('')
   const [obsViva, setObsViva] = useState<string | null>(null)
   const [obsLoading, setObsLoading] = useState(false)
+  const [obsErro, setObsErro] = useState(false)
   const [chamada, setChamada] = useState<{ token: string; urlPaciente: string } | null>(null)
   const [videoMinimizado, setVideoMinimizado] = useState(false)
   const [mostrarModalSala, setMostrarModalSala] = useState(false)
@@ -311,8 +315,11 @@ export function PresenceClient(props: Props) {
       body: JSON.stringify({ turnos: turnosPaciente.map(t => ({ who: t.who, texto: t.texto })) }),
     })
       .then(r => r.json())
-      .then(j => setObsViva(j?.text ?? null))
-      .catch(() => {})
+      .then(j => {
+        if (iaIndisponivel(j?.text)) { setObsErro(true) }
+        else { setObsViva(j?.text ?? null); setObsErro(false) }
+      })
+      .catch(() => setObsErro(true))
       .finally(() => setObsLoading(false))
   }, [turnos.length, props.sessaoId])
 
@@ -345,7 +352,8 @@ export function PresenceClient(props: Props) {
 
   // Inicia o registro (transcrição/IA) após passar pelo gate de cota mensal.
   async function iniciarRegistro() {
-    if (!sessaoIniciada) return
+    if (!sessaoIniciada || iniciandoRegistro) return
+    setIniciandoRegistro(true)
     try {
       const r = await fetch(`/api/sessao/${props.sessaoId}/ia/iniciar`, { method: 'POST' })
       if (r.status === 403) {
@@ -354,6 +362,7 @@ export function PresenceClient(props: Props) {
         return
       }
     } catch { /* rede instável: deixa gravar mesmo assim, não trava o atendimento */ }
+    finally { setIniciandoRegistro(false) }
     setBloqueio(null)
     setRecording(true)
   }
@@ -375,6 +384,7 @@ export function PresenceClient(props: Props) {
     })
     const json = await res.json().catch(() => ({} as any))
     setResumoIA(json.resumo ?? null)
+    setResumoIndisponivel(json.iaIndisponivel === true)
 
     if (transcricao.length > 60) {
       Promise.all([
@@ -438,7 +448,7 @@ export function PresenceClient(props: Props) {
         : 'Conectando a transcrição do paciente…')
 
   const widgets = [
-    <LiveInsight key="live-insight" text={obsViva} loading={obsLoading} numeroTurnos={turnos.length} />,
+    <LiveInsight key="live-insight" text={obsViva} loading={obsLoading} erro={obsErro} numeroTurnos={turnos.length} />,
     <RhythmWidget key="ritmo" pctPsic={pctPsic} pctPac={pctPac} counts={counts} armed={armed} setArmed={setArmed} />,
     <div key="temas" className="themes-card" data-widget-id="temas">
       <WidgetGrip />
@@ -499,10 +509,10 @@ export function PresenceClient(props: Props) {
             <button
               className="btn"
               onClick={iniciarRegistro}
-              disabled={!sessaoIniciada}
+              disabled={!sessaoIniciada || iniciandoRegistro}
               title={sessaoIniciada ? 'Iniciar transcrição e registro' : 'Inicie a sessão primeiro'}
             >
-              ● Iniciar registro
+              {iniciandoRegistro ? 'Iniciando…' : '● Iniciar registro'}
             </button>
           ) : (
             <button className="btn ghost" onClick={() => setRecording(false)}>⏸</button>
@@ -524,7 +534,7 @@ export function PresenceClient(props: Props) {
             </button>
           )}
           <button className="btn primary" onClick={encerrar} disabled={encerrando}>
-            {encerrando ? 'Encerrando…' : 'Encerrar'}
+            {encerrando ? 'Encerrando · gerando laudo…' : 'Encerrar'}
           </button>
           <a className="btn ghost" href={`/pacientes/${props.pacienteId}`}>← Voltar ao paciente</a>
         </div>
@@ -656,6 +666,7 @@ export function PresenceClient(props: Props) {
           numero={props.numeroSessao}
           pacienteNome={props.pacienteNome}
           resumoIA={resumoIA}
+          resumoIndisponivel={resumoIndisponivel}
           pagamentoStatus={props.pagamentoStatus}
           sugestaoMarcacao={sugestaoTurnos}
           sugestaoRisco={sugestaoRisco}
