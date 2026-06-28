@@ -58,6 +58,14 @@ Return ONLY JSON (no prose, no markdown), processing the ENTIRE transcript as on
 { "nodes": [ { "term": "...", "category": "...", "reinforcement": false } ], "edges": [ { "source": "...", "target": "...", "type": "..." } ] }
 If nothing clinically relevant: { "nodes": [], "edges": [] }`
 
+// Versão do prompt de extração gravada em cada snapshot (sessao_grafo). Trocar
+// quando a rubrica/prompt mudar de forma relevante → permite distinguir
+// "não apareceu porque não aconteceu" de "a regra da época era cega pra isso".
+const VERSAO_PROMPT = 'extracao-v3'
+
+type NoSnapshot = { nucleo: string; cluster: Cluster; reinforcement: boolean }
+type ArestaSnapshot = { a: string; b: string; tipo: string | null }
+
 /** Extração via IA (MODE: GRAPH). Retorna null em falha (erro de API ou JSON
  *  inválido/truncado); o chamador faz fail-closed (não grava nada). */
 async function extrairTemasComIA(opts: { pacienteId: string; sessaoId: string; transcricao: string }): Promise<{ palavrasInseridas: number; arestasInseridas: number } | null> {
@@ -107,38 +115,82 @@ async function extrairTemasComIA(opts: { pacienteId: string; sessaoId: string; t
     }))
     .filter((e: { source: string; target: string }) => e.source && e.target && e.source !== e.target && termSet.has(e.source) && termSet.has(e.target))
 
+  // Snapshot da SESSÃO (fonte da verdade). O agregado é derivado disto depois.
+  const nos: NoSnapshot[] = (nodes as Array<{ term: string; cluster: Cluster; reinforcement: boolean }>)
+    .map(n => ({ nucleo: n.term, cluster: n.cluster, reinforcement: n.reinforcement }))
+  const arestas: ArestaSnapshot[] = (edges as Array<{ source: string; target: string; tipo: string | null }>)
+    .map(e => {
+      const [a, b] = e.source < e.target ? [e.source, e.target] : [e.target, e.source]
+      return { a, b, tipo: e.tipo }
+    })
+
+  // sessao_num vem do banco (subquery) → não precisa mudar a assinatura do caller.
+  await db.query(
+    `INSERT INTO sessao_grafo (paciente_id, sessao_id, sessao_num, versao_prompt, versao_conceitualizacao, nos, arestas, criado_em)
+     VALUES ($1, $2::uuid, (SELECT numero FROM sessoes WHERE id = $2::uuid), $3, $4, $5::jsonb, $6::jsonb, NOW())
+     ON CONFLICT (paciente_id, sessao_id) DO UPDATE SET
+       sessao_num = EXCLUDED.sessao_num,
+       versao_prompt = EXCLUDED.versao_prompt,
+       versao_conceitualizacao = EXCLUDED.versao_conceitualizacao,
+       nos = EXCLUDED.nos, arestas = EXCLUDED.arestas, criado_em = NOW()`,
+    [opts.pacienteId, opts.sessaoId, VERSAO_PROMPT, null, JSON.stringify(nos), JSON.stringify(arestas)],
+  )
+  return { palavrasInseridas: nos.length, arestasInseridas: arestas.length }
+}
+
+/**
+ * Deriva o agregado (palavras_chave/arestas_tema) a partir dos snapshots por
+ * sessão. Recorrência = nº de sessões DISTINTAS em que o nó/aresta aparece
+ * (contada do store, não inferida pelo LLM — §7.4). cluster/tipo seguem a
+ * sessão mais recente. Reescreve o agregado inteiro do paciente.
+ */
+async function derivarAgregado(pacienteId: string): Promise<void> {
+  const { rows } = await db.query<{ sessao_id: string; sessao_num: number | null; nos: any; arestas: any }>(
+    `SELECT sessao_id, sessao_num, nos, arestas FROM sessao_grafo WHERE paciente_id = $1 ORDER BY sessao_num ASC NULLS FIRST`,
+    [pacienteId],
+  )
+  const nodeMap = new Map<string, { cluster: string; sessoes: Set<string>; ultimaNum: number; ultimaSessao: string }>()
+  const edgeMap = new Map<string, { a: string; b: string; tipo: string | null; sessoes: Set<string>; ultimaNum: number }>()
+  for (const r of rows) {
+    const num = r.sessao_num ?? 0
+    for (const n of (Array.isArray(r.nos) ? r.nos : [])) {
+      const nucleo = String(n?.nucleo ?? '').trim()
+      if (!nucleo) continue
+      let e = nodeMap.get(nucleo)
+      if (!e) { e = { cluster: n?.cluster ?? 'cognitivo', sessoes: new Set(), ultimaNum: -1, ultimaSessao: r.sessao_id }; nodeMap.set(nucleo, e) }
+      e.sessoes.add(r.sessao_id)
+      if (num >= e.ultimaNum) { e.ultimaNum = num; if (n?.cluster) e.cluster = n.cluster; e.ultimaSessao = r.sessao_id }
+    }
+    for (const a of (Array.isArray(r.arestas) ? r.arestas : [])) {
+      const x = String(a?.a ?? '').trim(), y = String(a?.b ?? '').trim()
+      if (!x || !y) continue
+      const key = x + '\u0001' + y
+      let e = edgeMap.get(key)
+      if (!e) { e = { a: x, b: y, tipo: a?.tipo ?? null, sessoes: new Set(), ultimaNum: -1 }; edgeMap.set(key, e) }
+      e.sessoes.add(r.sessao_id)
+      if (num >= e.ultimaNum) { e.ultimaNum = num; if (a?.tipo) e.tipo = a.tipo }
+    }
+  }
   const client = await db.connect()
   try {
     await client.query('BEGIN')
-    for (const n of nodes as Array<{ term: string; cluster: Cluster; reinforcement: boolean }>) {
+    await client.query(`DELETE FROM palavras_chave WHERE paciente_id = $1`, [pacienteId])
+    await client.query(`DELETE FROM arestas_tema   WHERE paciente_id = $1`, [pacienteId])
+    for (const [nucleo, e] of nodeMap) {
       await client.query(
         `INSERT INTO palavras_chave (paciente_id, palavra, cluster, frequencia, ultima_sessao_id, sessoes_ids, updated_at)
-         VALUES ($1, $2, $3, $4, $5::uuid, jsonb_build_array($6::text), NOW())
-         ON CONFLICT (paciente_id, palavra) DO UPDATE SET
-           frequencia = palavras_chave.frequencia + EXCLUDED.frequencia,
-           cluster = EXCLUDED.cluster,
-           ultima_sessao_id = EXCLUDED.ultima_sessao_id,
-           sessoes_ids = CASE WHEN palavras_chave.sessoes_ids @> jsonb_build_array($6::text)
-                              THEN palavras_chave.sessoes_ids
-                              ELSE palavras_chave.sessoes_ids || jsonb_build_array($6::text) END,
-           updated_at = NOW()`,
-        [opts.pacienteId, n.term, n.cluster, n.reinforcement ? 2 : 1, opts.sessaoId, opts.sessaoId],
+         VALUES ($1, $2, $3, $4, $5::uuid, $6::jsonb, NOW())`,
+        [pacienteId, nucleo, e.cluster, e.sessoes.size, e.ultimaSessao, JSON.stringify([...e.sessoes])],
       )
     }
-    let arestas = 0
-    for (const e of edges as Array<{ source: string; target: string; tipo: string | null }>) {
-      const [a, b] = e.source < e.target ? [e.source, e.target] : [e.target, e.source]
+    for (const e of edgeMap.values()) {
       await client.query(
         `INSERT INTO arestas_tema (paciente_id, palavra_a, palavra_b, weight, tipo, updated_at)
-         VALUES ($1, $2, $3, 1, $4, NOW())
-         ON CONFLICT (paciente_id, palavra_a, palavra_b)
-         DO UPDATE SET weight = arestas_tema.weight + 1, tipo = COALESCE(EXCLUDED.tipo, arestas_tema.tipo), updated_at = NOW()`,
-        [opts.pacienteId, a, b, e.tipo],
+         VALUES ($1, $2, $3, $4, $5, NOW())`,
+        [pacienteId, e.a, e.b, e.sessoes.size, e.tipo],
       )
-      arestas++
     }
     await client.query('COMMIT')
-    return { palavrasInseridas: nodes.length, arestasInseridas: arestas }
   } catch (err) {
     await client.query('ROLLBACK')
     throw err
@@ -165,7 +217,13 @@ export async function extrairTemasDaSessao(opts: {
   } catch (err) {
     console.warn(`[temas.grafo] extração lançou erro sessao=${opts.sessaoId}:`, err)
   }
-  if (r) return r
+  if (r) {
+    // Snapshot gravado → re-deriva o agregado do paciente a partir do store.
+    try { await derivarAgregado(opts.pacienteId) } catch (err) {
+      console.warn(`[temas.grafo] falha ao derivar agregado paciente=${opts.pacienteId}:`, err)
+    }
+    return r
+  }
   // Fail-closed: IA indisponível/sem JSON válido → não grava nós.
   console.warn(`[temas.grafo] sem resultado de IA sessao=${opts.sessaoId} — grafo não atualizado (fail-closed)`)
   return { palavrasInseridas: 0, arestasInseridas: 0 }
@@ -227,6 +285,7 @@ export async function recalcularGrafo(pacienteId: string): Promise<{ sessoes: nu
   const r = await redis()
   if (r) await r.del(`temas-insight:${pacienteId}`)
 
+  await db.query(`DELETE FROM sessao_grafo   WHERE paciente_id = $1`, [pacienteId])
   await db.query(`DELETE FROM arestas_tema   WHERE paciente_id = $1`, [pacienteId])
   await db.query(`DELETE FROM palavras_chave WHERE paciente_id = $1`, [pacienteId])
 
@@ -238,12 +297,15 @@ export async function recalcularGrafo(pacienteId: string): Promise<{ sessoes: nu
     [pacienteId],
   )
 
+  // Grava o snapshot de cada sessão (sem derivar a cada uma)…
   for (const s of sessoes) {
     const tx = tryDecrypt(s.transcricao_texto) ?? tryDecrypt(s.resumo_ia) ?? ''
-    if (tx) await extrairTemasDaSessao({ pacienteId, sessaoId: s.id, transcricao: tx })
+    if (!tx) continue
+    try { await extrairTemasComIA({ pacienteId, sessaoId: s.id, transcricao: tx }) }
+    catch (err) { console.warn(`[temas.grafo] falha extração sessao=${s.id} no recálculo:`, err) }
   }
-
-  // (A extração já é via IA com filtro de relevância — sem passo de validação extra.)
+  // …e deriva o agregado uma única vez a partir do store completo.
+  await derivarAgregado(pacienteId)
 
   const { rows: count } = await db.query<{ n: number }>(
     `SELECT count(*)::int AS n FROM palavras_chave WHERE paciente_id = $1`, [pacienteId],
@@ -252,22 +314,16 @@ export async function recalcularGrafo(pacienteId: string): Promise<{ sessoes: nu
 }
 
 /**
- * Manutenção (one-off pós-deploy): recalcula o grafo dos pacientes cujo grafo
- * tem origem heurística — aresta sem `tipo` (o contador nunca preenchia tipo) ou
- * nó com `frequencia >= 3` (a IA grava só 1–2). Purga o ruído de token e
- * reextrai via IA. Idempotente e reexecutável. Sequencial pra não saturar a IA.
+ * Manutenção / backfill: recalcula o grafo de TODOS os pacientes com ao menos
+ * uma sessão assinada — popula o store por-sessão (sessao_grafo) e deriva o
+ * agregado. Idempotente e reexecutável. Sequencial pra não saturar a IA.
  */
-export async function recalcularGrafosHeuristicos(): Promise<{
+export async function recalcularGrafosTodos(): Promise<{
   pacientes: number
   resultados: Array<{ pacienteId: string; sessoes: number; nodes: number }>
 }> {
   const { rows } = await db.query<{ paciente_id: string }>(
-    `SELECT DISTINCT pc.paciente_id
-       FROM palavras_chave pc
-      WHERE EXISTS (SELECT 1 FROM arestas_tema a
-                     WHERE a.paciente_id = pc.paciente_id AND a.tipo IS NULL)
-         OR EXISTS (SELECT 1 FROM palavras_chave p2
-                     WHERE p2.paciente_id = pc.paciente_id AND p2.frequencia >= 3)`,
+    `SELECT DISTINCT paciente_id FROM sessoes WHERE assinada = TRUE`,
   )
   const resultados: Array<{ pacienteId: string; sessoes: number; nodes: number }> = []
   for (const { paciente_id } of rows) {
