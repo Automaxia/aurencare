@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { recalcularGrafosHeuristicos } from '@/server/services/temas'
+import { recalcularGrafosTodos } from '@/server/services/temas'
 import { log } from '@/server/lib/log'
 
 export const runtime = 'nodejs'
@@ -30,7 +30,7 @@ export async function POST(req: Request) {
   }
 
   try {
-    const r = await recalcularGrafosHeuristicos()
+    const r = await recalcularGrafosTodos()
     log.info('cron.recalcular-temas', `recalculados ${r.pacientes} paciente(s)`)
     return NextResponse.json({ ok: true, ...r })
   } catch (err) {
