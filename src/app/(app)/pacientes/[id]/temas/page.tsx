@@ -3,7 +3,7 @@ import { PageHeader } from '@/components/PageHeader'
 import { PatientSelector } from '@/components/PatientSelector'
 import { requirePsicologo } from '@/server/lib/auth'
 import { db } from '@/server/db/pool'
-import { lerGrafo } from '@/server/services/temas'
+import { lerGrafo, padroesLongitudinais } from '@/server/services/temas'
 import { TemasView } from './view'
 
 export const dynamic = 'force-dynamic'
@@ -20,8 +20,9 @@ export default async function TemasPage({ params }: { params: { id: string } }) 
   if (!paciente) notFound()
   if (paciente.psicologo_id !== user.id) redirect('/pacientes')
 
-  const [grafo, sessoesAssinadas, count] = await Promise.all([
+  const [grafo, padroes, sessoesAssinadas, count] = await Promise.all([
     lerGrafo(params.id),
+    padroesLongitudinais(params.id),
     db.query<SessaoOpt>(
       `SELECT id, numero, data_hora AS "dataHora", assinada
          FROM sessoes
@@ -47,6 +48,7 @@ export default async function TemasPage({ params }: { params: { id: string } }) 
         pacienteId={params.id}
         pacienteNome={paciente.nome}
         initialGrafo={grafo}
+        padroes={padroes}
         sessoes={sessoesAssinadas}
       />
     </div>

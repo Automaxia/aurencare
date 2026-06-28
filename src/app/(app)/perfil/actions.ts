@@ -3,6 +3,7 @@
 import { revalidatePath } from 'next/cache'
 import { requirePsicologo } from '@/server/lib/auth'
 import { atualizarPerfil, verificarSenha, emailEmUso, type PerfilPatch } from '@/server/services/psicologo'
+import { normalizarAbordagem } from '@/server/services/temas'
 
 export type SalvarInput = {
   nome: string
@@ -11,6 +12,7 @@ export type SalvarInput = {
   telefone: string
   valorSessao: number | null
   genero: 'f' | 'm' | null
+  abordagem: string
   novaSenha: string
   confirmarNovaSenha: string
   senhaAtual: string   // exigida quando muda senha OU email
@@ -65,6 +67,7 @@ export async function salvarPerfilAction(input: SalvarInput): Promise<SalvarResu
     telefone: telefone || null,
     valorSessao: valor,
     genero: input.genero === 'f' || input.genero === 'm' ? input.genero : null,
+    abordagem: normalizarAbordagem(input.abordagem),
   }
   if (trocandoSenha) patch.novaSenha = novaSenha
 

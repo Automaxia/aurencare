@@ -11,6 +11,7 @@ type InitialPerfil = {
   telefone: string
   valorSessao: number | null
   genero: 'f' | 'm' | null
+  abordagem: string
 }
 
 type Props = {
@@ -25,6 +26,7 @@ export function PerfilForm({ initial, emailAtual, waConectado }: Props) {
   const [email, setEmail] = useState(initial.email)
   const [telefone, setTelefone] = useState(initial.telefone)
   const [genero, setGenero] = useState<'f' | 'm' | ''>(initial.genero ?? '')
+  const [abordagem, setAbordagem] = useState(initial.abordagem || 'tcc')
   const [valorSessao, setValor] = useState<string>(initial.valorSessao !== null ? String(initial.valorSessao) : '')
   const [novaSenha, setNovaSenha] = useState('')
   const [confirmarNovaSenha, setConfirmar] = useState('')
@@ -51,9 +53,10 @@ export function PerfilForm({ initial, emailAtual, waConectado }: Props) {
       telAtual !== telInit ||
       valorAtual !== initial.valorSessao ||
       (genero || null) !== initial.genero ||
+      abordagem !== (initial.abordagem || 'tcc') ||
       trocandoSenha
     )
-  }, [nome, crp, email, telefone, genero, valorSessao, novaSenha, initial, trocandoEmail, trocandoSenha])
+  }, [nome, crp, email, telefone, genero, abordagem, valorSessao, novaSenha, initial, trocandoEmail, trocandoSenha])
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -62,6 +65,7 @@ export function PerfilForm({ initial, emailAtual, waConectado }: Props) {
       nome, crp, email, telefone,
       valorSessao: valorSessao === '' ? null : parseFloat(valorSessao.replace(',', '.')),
       genero: genero === '' ? null : genero,
+      abordagem,
       novaSenha, confirmarNovaSenha, senhaAtual,
     }
     const r = await salvarPerfilAction(input)
@@ -126,6 +130,18 @@ export function PerfilForm({ initial, emailAtual, waConectado }: Props) {
             <option value="f">Psicóloga</option>
             <option value="m">Psicólogo</option>
             <option value="">Prefiro não informar (termo neutro)</option>
+          </select>
+        </Field>
+
+        <Field
+          label="Abordagem terapêutica"
+          hint="Ajusta a lente do grafo de Temas: reordena o peso dos critérios da rubrica (não troca a rubrica base). Vale para novas sessões; recalcule um paciente para aplicar ao histórico."
+        >
+          <select value={abordagem} onChange={e => setAbordagem(e.target.value)}>
+            <option value="tcc">TCC — cognitivo-comportamental</option>
+            <option value="humanista">Humanista / Centrada na Pessoa</option>
+            <option value="psicanalitica">Psicanalítica / Psicodinâmica</option>
+            <option value="sistemica">Sistêmica</option>
           </select>
         </Field>
 

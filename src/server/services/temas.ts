@@ -16,10 +16,32 @@ import { db } from '@/server/db/pool'
 export type Cluster = 'emocional' | 'relacional' | 'situacional' | 'cognitivo'
 export type Modo = 'clinico' | 'amplo'
 
-// Threshold/teto por modo (configuráveis; calibrar contra sessões reais — §7).
+// Threshold/teto por modo. §4: o STORE é permissivo (threshold 0 → captura
+// sinais fracos com score); a TELA filtra por relevância. teto folgado pro
+// store guardar mais; o display (lerGrafo) e o filtro client cortam.
 const TEMAS_CONFIG: Record<Modo, { threshold: number; teto: number }> = {
-  clinico: { threshold: 0.2, teto: 18 },
-  amplo:   { threshold: 0,   teto: 28 },
+  clinico: { threshold: 0, teto: 24 },
+  amplo:   { threshold: 0, teto: 28 },
+}
+
+// §6 — lentes de rubrica por abordagem. Reordenam o PESO dos critérios; nunca
+// trocam a rubrica base (o piso é sempre a base).
+export type Abordagem = 'tcc' | 'humanista' | 'psicanalitica' | 'sistemica'
+const LENTES: Record<Abordagem, string> = {
+  tcc:          'LENTE (TCC): eleve o peso de padrão cognitivo (crença central, pensamento automático, distorção, regra condicional) e de impacto funcional/evitação.',
+  humanista:    'LENTE (Humanista/Centrada na Pessoa): eleve o peso de experiência vivida, congruência/incongruência, autoconceito e qualidade da relação.',
+  psicanalitica:'LENTE (Psicanalítica): eleve o peso de conflito, mecanismos de defesa, padrão relacional/transferencial e material que recorre.',
+  sistemica:    'LENTE (Sistêmica): eleve o peso de padrões relacionais, papéis, dinâmicas familiares e contexto.',
+}
+export function normalizarAbordagem(a: string | null | undefined): Abordagem {
+  const v = (a || 'tcc').toLowerCase()
+  if (v.startsWith('human')) return 'humanista'
+  if (v.startsWith('psican') || v.startsWith('psicod')) return 'psicanalitica'
+  if (v.startsWith('sist')) return 'sistemica'
+  return 'tcc'
+}
+function blocoLente(ab: Abordagem): string {
+  return `${LENTES[ab]} A lente SÓ REORDENA o peso — o piso é sempre a rubrica base; não descarte um construto por não pertencer à lente.`
 }
 
 function normalizarCategoria(c: string): Cluster {
@@ -71,7 +93,7 @@ ${texto}
 """`
 }
 
-function promptClinico(threshold: number, teto: number, conc?: string | null): string {
+function promptClinico(threshold: number, teto: number, conc?: string | null, lente?: string | null): string {
   return `Você extrai os construtos clinicamente relevantes da transcrição de UMA sessão de psicoterapia e mapeia as relações entre eles, para montar um grafo.
 
 OBJETIVO: capturar os construtos com significado clínico e como se relacionam. O grafo traz à tona o que pode ter passado despercebido — inclusive coisas claras que o terapeuta não reteve por estar focado em outra coisa.
@@ -80,7 +102,7 @@ ${BLOCO_UNIDADE}
 
 RUBRICA — relevante se carregar UM OU MAIS: carga afetiva; recorrência/padrão; ligação com queixa/objetivo; dinâmica relacional; padrão cognitivo (crença, pensamento automático, distorção, regra); movimento vs. estagnação; evitação/minimização; impacto funcional.
 DESCARTAR: logística (agenda, pagamento, atraso); conversa social; tecido narrativo e conectivos; fragmentos gramaticais e verbos soltos; menção factual única sem carga.
-${conc ? '\n' + blocoConceitualizacao(conc) + '\n' : ''}
+${lente ? '\n' + lente + '\n' : ''}${conc ? '\n' + blocoConceitualizacao(conc) + '\n' : ''}
 ${BLOCO_RELACOES}
 
 MENOS É MAIS = cortar RUÍDO, não conteúdo clínico real. Se procrastinação, culpa e autocrítica são todas relevantes, inclua TODAS.
@@ -123,6 +145,15 @@ async function lerConceitualizacao(pacienteId: string): Promise<{ texto: string 
   let h = 5381
   for (let i = 0; i < texto.length; i++) h = ((h << 5) + h + texto.charCodeAt(i)) | 0
   return { texto, versao: 'conc-' + (h >>> 0).toString(36) }
+}
+
+/** Abordagem do psicólogo dono do paciente (§6) → lente da rubrica. Default TCC. */
+async function lerAbordagem(pacienteId: string): Promise<Abordagem> {
+  const { rows } = await db.query<{ abordagem: string | null }>(
+    `SELECT ps.abordagem FROM pacientes pa JOIN psicologos ps ON ps.id = pa.psicologo_id WHERE pa.id = $1`,
+    [pacienteId],
+  )
+  return normalizarAbordagem(rows[0]?.abordagem)
 }
 
 /**
@@ -174,14 +205,15 @@ async function extrairGrafoSessao(
   modo: Modo,
   conc: { texto: string | null; versao: string | null },
   model: 'fast' | 'strong' = 'fast',
+  abordagem: Abordagem = 'tcc',
 ): Promise<GrafoSessao | null> {
   const texto = somenteFalasDoPaciente(opts.transcricao).slice(0, 40_000)
   if (!texto.trim()) return { nos: [], arestas: [] }
 
   const { threshold, teto } = TEMAS_CONFIG[modo]
-  // Conceitualização (§8) só entra no Clínico (o Amplo não julga relevância).
+  // Conceitualização (§8) e lente (§6) só entram no Clínico (o Amplo não julga relevância).
   const usaConc = modo === 'clinico' && !!conc.texto
-  const system = modo === 'amplo' ? promptAmplo(teto) : promptClinico(threshold, teto, usaConc ? conc.texto : null)
+  const system = modo === 'amplo' ? promptAmplo(teto) : promptClinico(threshold, teto, usaConc ? conc.texto : null, blocoLente(abordagem))
   const { chat } = await import('@/server/lib/anthropic')
   const user = `<chunk>\n  <speaker>patient</speaker>\n  <text>\n${texto}\n  </text>\n</chunk>`
 
@@ -247,8 +279,9 @@ async function extrairTemasComIA(
   opts: { pacienteId: string; sessaoId: string; transcricao: string },
   modo: Modo = 'clinico',
   conc: { texto: string | null; versao: string | null } = { texto: null, versao: null },
+  abordagem: Abordagem = 'tcc',
 ): Promise<{ palavrasInseridas: number; arestasInseridas: number } | null> {
-  const g = await extrairGrafoSessao(opts, modo, conc, 'fast')
+  const g = await extrairGrafoSessao(opts, modo, conc, 'fast', abordagem)
   if (!g) return null
   if (g.nos.length === 0) return { palavrasInseridas: 0, arestasInseridas: 0 } // sem falas do paciente
 
@@ -261,7 +294,7 @@ async function extrairTemasComIA(
        versao_prompt = EXCLUDED.versao_prompt,
        versao_conceitualizacao = EXCLUDED.versao_conceitualizacao,
        nos = EXCLUDED.nos, arestas = EXCLUDED.arestas, criado_em = NOW()`,
-    [opts.pacienteId, opts.sessaoId, `extracao-v3-${modo}`, usaConc ? conc.versao : null, JSON.stringify(g.nos), JSON.stringify(g.arestas)],
+    [opts.pacienteId, opts.sessaoId, `extracao-v3-${modo}-${abordagem}`, usaConc ? conc.versao : null, JSON.stringify(g.nos), JSON.stringify(g.arestas)],
   )
   return { palavrasInseridas: g.nos.length, arestasInseridas: g.arestas.length }
 }
@@ -347,8 +380,8 @@ export async function extrairTemasDaSessao(opts: {
 }): Promise<{ palavrasInseridas: number; arestasInseridas: number }> {
   let r: { palavrasInseridas: number; arestasInseridas: number } | null = null
   try {
-    const conc = await lerConceitualizacao(opts.pacienteId)
-    r = await extrairTemasComIA(opts, opts.modo ?? 'clinico', conc)
+    const [conc, abordagem] = await Promise.all([lerConceitualizacao(opts.pacienteId), lerAbordagem(opts.pacienteId)])
+    r = await extrairTemasComIA(opts, opts.modo ?? 'clinico', conc, abordagem)
   } catch (err) {
     console.warn(`[temas.grafo] extração lançou erro sessao=${opts.sessaoId}:`, err)
   }
@@ -487,14 +520,14 @@ export async function recalcularGrafo(pacienteId: string, modo: Modo = 'clinico'
     [pacienteId],
   )
 
-  // Conceitualização (§8) é a mesma pra todas as sessões do paciente — busca 1×.
-  const conc = await lerConceitualizacao(pacienteId)
+  // Conceitualização (§8) e abordagem (§6) são as mesmas do paciente — busca 1×.
+  const [conc, abordagem] = await Promise.all([lerConceitualizacao(pacienteId), lerAbordagem(pacienteId)])
 
   // Grava o snapshot de cada sessão (sem derivar a cada uma)…
   for (const s of sessoes) {
     const tx = tryDecrypt(s.transcricao_texto) ?? tryDecrypt(s.resumo_ia) ?? ''
     if (!tx) continue
-    try { await extrairTemasComIA({ pacienteId, sessaoId: s.id, transcricao: tx }, modo, conc) }
+    try { await extrairTemasComIA({ pacienteId, sessaoId: s.id, transcricao: tx }, modo, conc, abordagem) }
     catch (err) { console.warn(`[temas.grafo] falha extração sessao=${s.id} no recálculo:`, err) }
   }
   // …e deriva o agregado uma única vez a partir do store completo.
@@ -557,13 +590,13 @@ export async function compararModelos(pacienteId: string, limite = 4): Promise<{
       WHERE paciente_id = $1 AND assinada = TRUE ORDER BY data_hora DESC LIMIT $2`,
     [pacienteId, limite],
   )
-  const conc = await lerConceitualizacao(pacienteId)
+  const [conc, abordagem] = await Promise.all([lerConceitualizacao(pacienteId), lerAbordagem(pacienteId)])
   const sessoes: Array<{ sessaoId: string; sessaoNum: number | null; haiku: ResumoExtracao | null; sonnet: ResumoExtracao | null }> = []
   for (const s of rows) {
     const tx = tryDecrypt(s.transcricao_texto) ?? tryDecrypt(s.resumo_ia) ?? ''
     if (!tx) continue
-    const haiku = await extrairGrafoSessao({ sessaoId: s.id, transcricao: tx }, 'clinico', conc, 'fast')
-    const sonnet = await extrairGrafoSessao({ sessaoId: s.id, transcricao: tx }, 'clinico', conc, 'strong')
+    const haiku = await extrairGrafoSessao({ sessaoId: s.id, transcricao: tx }, 'clinico', conc, 'fast', abordagem)
+    const sonnet = await extrairGrafoSessao({ sessaoId: s.id, transcricao: tx }, 'clinico', conc, 'strong', abordagem)
     sessoes.push({ sessaoId: s.id, sessaoNum: s.numero, haiku: resumirGrafo(haiku), sonnet: resumirGrafo(sonnet) })
   }
   return { pacienteId, sessoes }
