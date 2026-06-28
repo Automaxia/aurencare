@@ -1,5 +1,6 @@
 import 'server-only'
 import { chat } from '@/server/lib/anthropic'
+import { iaIndisponivel } from '@/lib/ia'
 
 /**
  * "Voz da clínica" — gera o texto de cada mensagem WhatsApp.
@@ -100,8 +101,8 @@ export function fallbackParaIntent(intent: Intent): string {
  */
 export async function gerarMensagemSegura(intent: Intent): Promise<string> {
   const texto = await gerarMensagem(intent)
-  if (!texto || texto.startsWith('[Resposta de IA') || texto.startsWith('[Não foi possível')) {
-    return fallbackParaIntent(intent)
-  }
+  // iaIndisponivel() é a fonte única (back+front) p/ detectar placeholder — evita
+  // o paciente receber "[Não foi possível…]" no WhatsApp se o texto mudar.
+  if (iaIndisponivel(texto)) return fallbackParaIntent(intent)
   return texto
 }
