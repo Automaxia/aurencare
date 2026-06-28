@@ -257,7 +257,10 @@ async function extrairGrafoSessao(
     if (!ex.construto && novo.construto) ex.construto = novo.construto
   }
   const nos = [...porNucleo.values()]
-  if (nos.length === 0) return null
+  // IA respondeu, mas sem nós (paciente falou pouco / nenhum tema extraível).
+  // É um resultado VÁLIDO e vazio — NÃO é falha. Retornar grafo vazio (não null)
+  // pro chamador distinguir "nada a extrair" de "extração falhou".
+  if (nos.length === 0) return { nos: [], arestas: [] }
 
   const nucleoSet = new Set(nos.map(n => n.nucleo))
   const arestas: ArestaSnapshot[] = arestasRaw
@@ -531,9 +534,11 @@ export async function recalcularGrafo(pacienteId: string, modo: Modo = 'clinico'
 
   const contar = async () => (await db.query<{ n: number }>(`SELECT count(*)::int AS n FROM palavras_chave WHERE paciente_id = $1`, [pacienteId])).rows[0].n
 
-  // 2) Trava de segurança: havia texto mas NADA extraiu (IA indisponível) →
-  //    preserva o grafo, não apaga.
-  if (comTexto > 0 && novos.length === 0) {
+  // 2) Trava de segurança: só aborta+preserva quando NÃO extraiu nada novo E houve
+  //    falha real de extração (IA indisponível). Se a IA respondeu vazio em todas as
+  //    sessões (paciente sem temas extraíveis), `falhas === 0` → segue e grava grafo
+  //    vazio honestamente, em vez de mascarar como "indisponível".
+  if (comTexto > 0 && novos.length === 0 && falhas > 0) {
     console.warn(`[temas.grafo] recálculo abortado paciente=${pacienteId}: extração indisponível (${falhas}/${comTexto} falharam) — grafo preservado`)
     return { sessoes: sessoes.length, nodes: await contar(), abortado: true }
   }
