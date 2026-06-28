@@ -388,6 +388,61 @@ export async function lerGrafo(pacienteId: string): Promise<GrafoDados> {
   }
 }
 
+// ── Análise longitudinal (§7.3/§7.4) ──────────────────────────────────────
+// Recorrência CONTADA do store (não inferida pelo LLM): em quantas/quais sessões
+// cada núcleo e cada aresta aparece, e se some-e-reaparece (movimento).
+export type PadroesLongitudinais = {
+  totalSessoes: number
+  nos: Array<{ nucleo: string; construto: string | null; cluster: Cluster; sessoes: number[]; nSessoes: number; reaparece: boolean }>
+  arestas: Array<{ a: string; b: string; relacao: string | null; sessoes: number[]; nSessoes: number }>
+}
+
+export async function padroesLongitudinais(pacienteId: string): Promise<PadroesLongitudinais> {
+  const { rows } = await db.query<{ sessao_num: number | null; nos: any; arestas: any }>(
+    `SELECT sessao_num, nos, arestas FROM sessao_grafo WHERE paciente_id = $1 ORDER BY sessao_num ASC NULLS LAST`,
+    [pacienteId],
+  )
+  const totalSessoes = rows.length
+  // pos = posição entre as sessões ANALISADAS (1..N) — gap aqui = sumiço real,
+  // sem falso-gap de sessão não-assinada. num = nº da sessão (display).
+  const nodeMap = new Map<string, { construto: string | null; cluster: Cluster; pos: Set<number>; nums: Set<number>; ultimoPos: number }>()
+  const edgeMap = new Map<string, { a: string; b: string; relacao: string | null; pos: Set<number>; nums: Set<number>; ultimoPos: number }>()
+  rows.forEach((r, idx) => {
+    const pos = idx + 1
+    const num = r.sessao_num ?? pos
+    for (const n of (Array.isArray(r.nos) ? r.nos : [])) {
+      const nucleo = String(n?.nucleo ?? '').trim()
+      if (!nucleo) continue
+      let e = nodeMap.get(nucleo)
+      if (!e) { e = { construto: n?.construto ?? null, cluster: n?.cluster ?? 'cognitivo', pos: new Set(), nums: new Set(), ultimoPos: -1 }; nodeMap.set(nucleo, e) }
+      e.pos.add(pos); e.nums.add(num)
+      if (pos >= e.ultimoPos) { e.ultimoPos = pos; if (n?.construto) e.construto = n.construto; if (n?.cluster) e.cluster = n.cluster }
+    }
+    for (const a of (Array.isArray(r.arestas) ? r.arestas : [])) {
+      const de = String(a?.de ?? '').trim(), para = String(a?.para ?? '').trim()
+      if (!de || !para) continue
+      const [x, y] = de < para ? [de, para] : [para, de]
+      const key = JSON.stringify([x, y])
+      let e = edgeMap.get(key)
+      if (!e) { e = { a: x, b: y, relacao: a?.relacao ?? null, pos: new Set(), nums: new Set(), ultimoPos: -1 }; edgeMap.set(key, e) }
+      e.pos.add(pos); e.nums.add(num)
+      if (pos >= e.ultimoPos) { e.ultimoPos = pos; if (a?.relacao) e.relacao = a.relacao }
+    }
+  })
+  const reaparece = (pos: Set<number>) => {
+    const s = [...pos].sort((a, b) => a - b)
+    return s.length >= 2 && (s[s.length - 1] - s[0] + 1) > s.length
+  }
+  const ord = (s: Set<number>) => [...s].sort((a, b) => a - b)
+  const nos = [...nodeMap.entries()]
+    .map(([nucleo, e]) => ({ nucleo, construto: e.construto, cluster: e.cluster, sessoes: ord(e.nums), nSessoes: e.pos.size, reaparece: reaparece(e.pos) }))
+    .sort((a, b) => b.nSessoes - a.nSessoes)
+  const arestas = [...edgeMap.values()]
+    .map(e => ({ a: e.a, b: e.b, relacao: e.relacao, sessoes: ord(e.nums), nSessoes: e.pos.size }))
+    .sort((a, b) => b.nSessoes - a.nSessoes)
+  return { totalSessoes, nos, arestas }
+}
+
 /**
  * Recalcula tudo a partir das sessões assinadas (idempotente). Grava o snapshot
  * de cada sessão e deriva o agregado UMA vez no fim.

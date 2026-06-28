@@ -1,7 +1,7 @@
 import 'server-only'
 import { db } from '@/server/db/pool'
 import { tryDecrypt } from '@/server/lib/crypto'
-import { lerGrafo } from './temas'
+import { padroesLongitudinais, type PadroesLongitudinais } from './temas'
 import { chat } from '@/server/lib/anthropic'
 import { redis } from '@/server/lib/redis'
 
@@ -74,18 +74,12 @@ export async function lerEvolucaoObservacoes(
     }
   }
 
-  // Conta sessões assinadas pra contexto da IA (uma query simples)
-  const { rows: cnt } = await db.query<{ n: number }>(
-    `SELECT count(*)::int AS n FROM sessoes WHERE paciente_id = $1 AND assinada = TRUE`,
-    [pacienteId],
-  )
-  const totalAssinadas = cnt[0]?.n ?? 0
-
-  const grafo = await lerGrafo(pacienteId)
+  // Recorrência CONTADA do store (§7.4) — não inferida pelo LLM.
+  const padroes = await padroesLongitudinais(pacienteId)
   let temas: TemaDescritivo[] = []
   let instrumentos: Instrumento[] = []
-  if (grafo.nodes.length > 0) {
-    const ger = await gerarObservacoes({ pacienteNome, totalSessoes: totalAssinadas, grafo })
+  if (padroes.nos.length > 0) {
+    const ger = await gerarObservacoes({ pacienteNome, padroes })
     temas = ger.temas
     instrumentos = ger.instrumentos
   }
@@ -153,8 +147,11 @@ async function lerPerfilEvolucao(pacienteId: string, pacienteNome: string) {
   }
 }
 
-const SYS_OBS = `Você analisa o histórico clínico de um paciente para gerar OBSERVAÇÕES descritivas para a psicóloga.
-Recebe: nome, total de sessões, lista de temas (palavras+cluster+frequência) e co-ocorrências.
+const SYS_OBS = `Você sintetiza a análise LONGITUDINAL de um paciente para a psicóloga: padrões que se repetem ao longo das sessões.
+
+As contagens de recorrência ("em X de Y sessões") JÁ VÊM CALCULADAS no input — use-as EXATAMENTE, NUNCA invente nem estime números. Você rotula e sintetiza; a estrutura já contou.
+
+Priorize: (1) ARESTAS que recorrem em sessões diferentes (padrão transversal mais forte); (2) núcleos recorrentes; (3) núcleos que somem e reaparecem (movimento).
 
 Produza um JSON EXCLUSIVAMENTE neste formato (sem prosa, sem markdown):
 {
@@ -167,29 +164,35 @@ Produza um JSON EXCLUSIVAMENTE neste formato (sem prosa, sem markdown):
 }
 
 Regras:
-- 2 a 4 temas descritivos. Use linguagem observacional ("aparecem juntos em N sessões", "co-ocorre com…", "tendência de redução").
-- "titulo" curto (até 80 chars) factual. "descricao" 1-2 frases com números concretos. "trend" opcional, só se houver tendência clara.
-- "positivo": true APENAS se a observação descreve melhora/redução de sintoma/abertura crescente.
-- Sugira 1-2 instrumentos APENAS se o padrão de temas justifica claramente (ex: ansiedade frequente → GAD-7; humor baixo + sono + culpa → PHQ-9). NÃO sugira por padrão.
-- NUNCA emita diagnóstico, hipótese clínica ou recomendação terapêutica. Apenas observe frequências e sugira rastreio.
-- Português brasileiro.`
+- 2 a 4 temas. Cada um ancorado num padrão recorrente do input, com a contagem dada ("recorre em 4 das 7 sessões").
+- Apresente como HIPÓTESE A INVESTIGAR, não achado afirmado ("padrão a observar", "vale checar se…") — nunca como conclusão.
+- "titulo" curto (até 80 chars) factual. "descricao" 1-2 frases. "trend" opcional, só se houver movimento claro.
+- "positivo": true APENAS se descreve melhora/redução de sintoma/abertura crescente.
+- Sugira 1-2 instrumentos APENAS se o padrão justifica claramente (ex: ansiedade recorrente → GAD-7; humor baixo + sono + culpa → PHQ-9). NÃO sugira por padrão.
+- NUNCA emita diagnóstico nem recomendação terapêutica. Português brasileiro.`
 
 async function gerarObservacoes(opts: {
   pacienteNome: string
-  totalSessoes: number
-  grafo: { nodes: { palavra: string; cluster: string; frequencia: number }[]; edges: { a: string; b: string; weight: number }[] }
+  padroes: PadroesLongitudinais
 }): Promise<{ temas: TemaDescritivo[]; instrumentos: Instrumento[] }> {
-  const top = opts.grafo.nodes.slice(0, 20).map(n => `${n.palavra} · ${n.cluster} · ${n.frequencia}x`).join('\n')
-  const arestas = opts.grafo.edges.slice(0, 18).map(e => `${e.a} + ${e.b} (peso ${e.weight})`).join('\n')
+  const { totalSessoes, nos, arestas } = opts.padroes
+  const emY = (n: number) => `em ${n} de ${totalSessoes} ${totalSessoes === 1 ? 'sessão' : 'sessões'}`
+  // Arestas recorrentes primeiro (padrão transversal mais forte — §7.3).
+  const arestasTxt = arestas.slice(0, 18)
+    .map(e => `${e.a} ${e.relacao ? '—' + e.relacao + '→' : '—'} ${e.b} · ${emY(e.nSessoes)}${e.nSessoes >= 2 ? ' [RECORRE]' : ''}`)
+    .join('\n')
+  const nosTxt = nos.slice(0, 24)
+    .map(n => `${n.nucleo} · ${n.cluster} · ${emY(n.nSessoes)}${n.reaparece ? ' [some e reaparece]' : ''}${n.construto ? ' — ' + n.construto : ''}`)
+    .join('\n')
 
   const userMsg = `Paciente: ${opts.pacienteNome}
-Total de sessões assinadas: ${opts.totalSessoes}
+Total de sessões analisadas: ${totalSessoes}
 
-Palavras (palavra · cluster · frequência):
-${top || '(nenhuma)'}
+ARESTAS (relação entre construtos — contagem já calculada):
+${arestasTxt || '(nenhuma)'}
 
-Co-ocorrências (peso = co-aparecer):
-${arestas || '(nenhuma)'}`
+NÚCLEOS (construto · cluster · recorrência):
+${nosTxt || '(nenhum)'}`
 
   const raw = await chat(SYS_OBS, [{ role: 'user', content: userMsg }], { scope: 'evolucao.obs', maxTokens: 900, model: 'strong' })
 
