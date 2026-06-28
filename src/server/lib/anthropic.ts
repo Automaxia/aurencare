@@ -29,6 +29,16 @@ function getClient() {
 
 export type ChatMessage = { role: 'user' | 'assistant'; content: string }
 
+// Placeholders/detector vêm de @/lib/ia (client-safe, fonte única).
+import { IA_SEM_CHAVE, IA_FALHA, iaIndisponivel } from '@/lib/ia'
+export { iaIndisponivel }
+
+/** Detecta erro de saldo/billing da Anthropic (mensagem específica de crédito). */
+function ehErroDeCredito(err: any): boolean {
+  const msg = (err?.error?.error?.message ?? err?.message ?? '').toString().toLowerCase()
+  return err?.status === 400 && (msg.includes('credit balance') || msg.includes('billing'))
+}
+
 export async function chat(
   systemPrompt: string,
   messages: ChatMessage[],
@@ -37,7 +47,7 @@ export async function chat(
   const c = getClient()
   if (!c) {
     log.warn(opts.scope ?? 'anthropic', 'sem ANTHROPIC_API_KEY — retornando placeholder')
-    return '[Resposta de IA indisponível neste ambiente — configure ANTHROPIC_API_KEY em .env.local.]'
+    return IA_SEM_CHAVE
   }
 
   try {
@@ -67,8 +77,12 @@ export async function chat(
     const raw = res.content.find(b => b.type === 'text')?.text ?? ''
     return validarTextoIA(raw) ? raw : sanitizarTextoIA(raw)
   } catch (err) {
-    log.err(opts.scope ?? 'anthropic', 'falha ao gerar', err)
-    return '[Não foi possível gerar a resposta de IA agora.]'
+    if (ehErroDeCredito(err)) {
+      log.err(opts.scope ?? 'anthropic', 'SALDO DE CRÉDITO ESGOTADO na Anthropic — recarregue em console.anthropic.com/billing', undefined)
+    } else {
+      log.err(opts.scope ?? 'anthropic', 'falha ao gerar', err)
+    }
+    return IA_FALHA
   }
 }
 

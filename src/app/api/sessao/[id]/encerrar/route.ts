@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { requirePsicologo } from '@/server/lib/auth'
 import { encerrarSessao, salvarResumoIA, buscarSessao, resumosAnteriores } from '@/server/services/sessoes'
-import { gerarResumoSessao } from '@/server/lib/anthropic'
+import { gerarResumoSessao, iaIndisponivel } from '@/server/lib/anthropic'
 import { enviarConfirmacaoPosSessao } from '@/server/services/confirmacaoSessao'
 import { registrarCustoAssemblyEstimado } from '@/server/services/custos'
 import { log } from '@/server/lib/log'
@@ -36,6 +36,12 @@ export async function POST(req: Request, { params }: { params: { id: string } })
     const historico = await resumosAnteriores(sessao.psicologoId, sessao.pacienteId, sessao.numero)
       .catch(() => [])
     const resumo = await gerarResumoSessao(transcricao, { numero: sessao.numero, pacienteNome: sessao.pacienteNome }, historico)
+    // Se a IA está fora (sem crédito/erro), NÃO salva o placeholder como laudo —
+    // sinaliza pro front mostrar estado claro em vez de "[Não foi possível…]".
+    if (iaIndisponivel(resumo)) {
+      log.warn('encerrar', `IA indisponível ao gerar laudo sessao=${params.id} — laudo não salvo`)
+      return NextResponse.json({ ok: true, resumo: null, iaIndisponivel: true })
+    }
     await salvarResumoIA(params.id, resumo)
     return NextResponse.json({ ok: true, resumo })
   }

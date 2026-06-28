@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
+import { iaIndisponivel, MSG_IA_INDISPONIVEL } from '@/lib/ia'
 
 /**
  * Painel de chat com IA — dark theme, alinhado ao mockup v12.5.
@@ -8,7 +9,7 @@ import { useEffect, useRef, useState } from 'react'
  * §9 — IA não emite diagnóstico; aiGuard validado no servidor.
  */
 
-export type AiChatMessage = { role: 'user' | 'assistant'; content: string }
+export type AiChatMessage = { role: 'user' | 'assistant'; content: string; erro?: boolean }
 
 export type AiChatProps = {
   endpoint: string                       // POST endpoint que retorna { text: string }
@@ -45,10 +46,14 @@ export function AiChatPanel({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ ...payload, messages: next }),
       })
-      const json = await res.json()
-      setMsgs(m => [...m, { role: 'assistant', content: json.text ?? '[Sem resposta]' }])
+      const json = await res.json().catch(() => ({} as any))
+      if (!res.ok || iaIndisponivel(json?.text)) {
+        setMsgs(m => [...m, { role: 'assistant', content: MSG_IA_INDISPONIVEL, erro: true }])
+      } else {
+        setMsgs(m => [...m, { role: 'assistant', content: json.text }])
+      }
     } catch {
-      setMsgs(m => [...m, { role: 'assistant', content: '[Erro ao consultar IA]' }])
+      setMsgs(m => [...m, { role: 'assistant', content: MSG_IA_INDISPONIVEL, erro: true }])
     } finally {
       setLoading(false)
     }
@@ -66,7 +71,8 @@ export function AiChatPanel({
 
       <div ref={scrollRef} className="ai-msgs">
         {msgs.map((m, i) => (
-          <div key={i} className={m.role === 'assistant' ? 'ai-msg-ai' : 'ai-msg-user'}>
+          <div key={i} className={m.role === 'assistant' ? 'ai-msg-ai' : 'ai-msg-user'}
+               style={m.erro ? { opacity: .85, fontStyle: 'italic' } : undefined}>
             {m.content}
           </div>
         ))}

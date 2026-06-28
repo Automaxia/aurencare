@@ -3,12 +3,15 @@
 import { useState } from 'react'
 import { Compass } from 'lucide-react'
 import { CfpBadge } from '@/components/brand/CfpBadge'
+import { iaIndisponivel } from '@/lib/ia'
 
 type Props = {
   sessaoId: string
   numero: number
   pacienteNome: string
   resumoIA: string | null
+  /** true quando o laudo automático não pôde ser gerado (IA fora). */
+  resumoIndisponivel?: boolean
   pagamentoStatus: string
   sugestaoMarcacao: Array<{ idx: number; mark: string; razao: string }> | null
   sugestaoRisco: { autolesao: string; ideacao: string; plano: string; justificativa: string } | null
@@ -18,13 +21,16 @@ type Props = {
 }
 
 export function PostSessionModal(p: Props) {
-  const [resumo, setResumo] = useState(p.resumoIA ?? '')
+  // Nunca injeta placeholder de IA no textarea; começa vazio se o laudo não veio.
+  const [resumo, setResumo] = useState(iaIndisponivel(p.resumoIA) ? '' : (p.resumoIA ?? ''))
+  const laudoFalhou = p.resumoIndisponivel || iaIndisponivel(p.resumoIA)
   const [nota, setNota] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [signed, setSigned] = useState(false)
   const [marcacaoAplicada, setMarcacaoAplicada] = useState(false)
   const [riscoAplicado, setRiscoAplicado] = useState(false)
+  const [cobranca, setCobranca] = useState<{ estado: 'idle' | 'enviando' | 'ok' | 'erro' }>({ estado: 'idle' })
 
   async function assinar() {
     setLoading(true); setError(null)
@@ -46,7 +52,14 @@ export function PostSessionModal(p: Props) {
   }
 
   async function reenviarCobranca() {
-    await fetch(`/api/sessao/${p.sessaoId}/reenviar-cobranca`, { method: 'POST' })
+    if (cobranca.estado === 'enviando') return
+    setCobranca({ estado: 'enviando' })
+    try {
+      const res = await fetch(`/api/sessao/${p.sessaoId}/reenviar-cobranca`, { method: 'POST' })
+      setCobranca({ estado: res.ok ? 'ok' : 'erro' })
+    } catch {
+      setCobranca({ estado: 'erro' })
+    }
   }
 
   return (
@@ -65,12 +78,21 @@ export function PostSessionModal(p: Props) {
             <span style={{ color: 'var(--sage)' }}>pagamento confirmado</span>
           ) : p.pagamentoStatus === 'isento' ? (
             <span style={{ color: 'var(--muted)' }}>sessão sem cobrança</span>
+          ) : cobranca.estado === 'ok' ? (
+            <span style={{ color: 'var(--sage)' }}>cobrança reenviada ao paciente ✓</span>
           ) : (
-            <button className="btn ghost" style={{ padding: 0, color: 'var(--amber)' }} onClick={reenviarCobranca}>
-              pagamento pendente · reenviar cobrança
+            <button className="btn ghost" style={{ padding: 0, color: cobranca.estado === 'erro' ? 'var(--rose)' : 'var(--amber)' }}
+              onClick={reenviarCobranca} disabled={cobranca.estado === 'enviando'}>
+              {cobranca.estado === 'enviando' ? 'reenviando…' : cobranca.estado === 'erro' ? 'falhou · tentar reenviar de novo' : 'pagamento pendente · reenviar cobrança'}
             </button>
           )}
         </p>
+
+        {laudoFalhou && (
+          <div style={{ background: 'var(--amber-lo, rgba(176,125,64,.10))', borderRadius: 10, padding: '10px 14px', marginBottom: 12, fontSize: 12, color: 'var(--amber)', lineHeight: 1.5 }}>
+            O rascunho automático não pôde ser gerado (a inteligência da Audere está temporariamente indisponível). Você pode escrever o resumo manualmente abaixo e assinar normalmente.
+          </div>
+        )}
 
         {/* Sugestões IA — banner com ação de aplicar */}
         {p.sugestaoMarcacao && p.sugestaoMarcacao.length > 0 && !marcacaoAplicada && (
