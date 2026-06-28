@@ -162,18 +162,21 @@ function objetosDeArray(raw: string, chave: string): any[] {
 type NoSnapshot = { nucleo: string; construto: string | null; cluster: Cluster; relevancia: number; contextos: string[]; fora: boolean }
 type ArestaSnapshot = { de: string; para: string; relacao: string | null }
 
+type GrafoSessao = { nos: NoSnapshot[]; arestas: ArestaSnapshot[] }
+
 /**
- * Extrai o grafo de UMA sessão via IA e grava o snapshot em sessao_grafo.
- * Retorna null em falha (erro de API ou JSON irrecuperável); o chamador faz
- * fail-closed. NÃO deriva o agregado — quem chama decide quando derivar.
+ * Chama a IA e parseia o grafo de UMA sessão — SEM gravar nada. `model` e `cache`
+ * ficam parametrizados pro harness de validação (Haiku×Sonnet, §12). Retorna
+ * null em falha; { nos:[], arestas:[] } quando não há falas do paciente.
  */
-async function extrairTemasComIA(
-  opts: { pacienteId: string; sessaoId: string; transcricao: string },
-  modo: Modo = 'clinico',
-  conc: { texto: string | null; versao: string | null } = { texto: null, versao: null },
-): Promise<{ palavrasInseridas: number; arestasInseridas: number } | null> {
+async function extrairGrafoSessao(
+  opts: { sessaoId: string; transcricao: string },
+  modo: Modo,
+  conc: { texto: string | null; versao: string | null },
+  model: 'fast' | 'strong' = 'fast',
+): Promise<GrafoSessao | null> {
   const texto = somenteFalasDoPaciente(opts.transcricao).slice(0, 40_000)
-  if (!texto.trim()) return { palavrasInseridas: 0, arestasInseridas: 0 }
+  if (!texto.trim()) return { nos: [], arestas: [] }
 
   const { threshold, teto } = TEMAS_CONFIG[modo]
   // Conceitualização (§8) só entra no Clínico (o Amplo não julga relevância).
@@ -183,12 +186,13 @@ async function extrairTemasComIA(
   const user = `<chunk>\n  <speaker>patient</speaker>\n  <text>\n${texto}\n  </text>\n</chunk>`
 
   // maxTokens folgado + 1 retry; parser tolerante recupera objetos completos
-  // mesmo se o JSON truncar.
+  // mesmo se o JSON truncar. cache: no-op no Haiku (system < 4096 tok), mas
+  // ativa no Sonnet do harness.
   let nosRaw: any[] = [], arestasRaw: any[] = [], ok = false
   for (let tentativa = 1; tentativa <= 2 && !ok; tentativa++) {
     let raw: string
     try {
-      raw = await chat(system, [{ role: 'user', content: user }], { scope: `temas.grafo.${modo}`, maxTokens: 4000, model: 'fast' })
+      raw = await chat(system, [{ role: 'user', content: user }], { scope: `temas.grafo.${modo}`, maxTokens: 4000, model, cache: true })
     } catch (err) {
       console.warn(`[temas.grafo] IA falhou (${tentativa}/2) sessao=${opts.sessaoId}:`, err)
       continue
@@ -232,7 +236,23 @@ async function extrairTemasComIA(
     }))
     .filter(e => e.de && e.para && e.de !== e.para && nucleoSet.has(e.de) && nucleoSet.has(e.para))
 
-  // sessao_num vem do banco (subquery) → não precisa mudar a assinatura do caller.
+  return { nos, arestas }
+}
+
+/**
+ * Extrai o grafo de UMA sessão (Haiku/Clínico) e grava o snapshot em sessao_grafo.
+ * Retorna null em falha (o chamador faz fail-closed). NÃO deriva o agregado.
+ */
+async function extrairTemasComIA(
+  opts: { pacienteId: string; sessaoId: string; transcricao: string },
+  modo: Modo = 'clinico',
+  conc: { texto: string | null; versao: string | null } = { texto: null, versao: null },
+): Promise<{ palavrasInseridas: number; arestasInseridas: number } | null> {
+  const g = await extrairGrafoSessao(opts, modo, conc, 'fast')
+  if (!g) return null
+  if (g.nos.length === 0) return { palavrasInseridas: 0, arestasInseridas: 0 } // sem falas do paciente
+
+  const usaConc = modo === 'clinico' && !!conc.texto
   await db.query(
     `INSERT INTO sessao_grafo (paciente_id, sessao_id, sessao_num, versao_prompt, versao_conceitualizacao, nos, arestas, criado_em)
      VALUES ($1, $2::uuid, (SELECT numero FROM sessoes WHERE id = $2::uuid), $3, $4, $5::jsonb, $6::jsonb, NOW())
@@ -241,9 +261,9 @@ async function extrairTemasComIA(
        versao_prompt = EXCLUDED.versao_prompt,
        versao_conceitualizacao = EXCLUDED.versao_conceitualizacao,
        nos = EXCLUDED.nos, arestas = EXCLUDED.arestas, criado_em = NOW()`,
-    [opts.pacienteId, opts.sessaoId, `extracao-v3-${modo}`, usaConc ? conc.versao : null, JSON.stringify(nos), JSON.stringify(arestas)],
+    [opts.pacienteId, opts.sessaoId, `extracao-v3-${modo}`, usaConc ? conc.versao : null, JSON.stringify(g.nos), JSON.stringify(g.arestas)],
   )
-  return { palavrasInseridas: nos.length, arestasInseridas: arestas.length }
+  return { palavrasInseridas: g.nos.length, arestasInseridas: g.arestas.length }
 }
 
 /**
@@ -508,4 +528,43 @@ export async function recalcularGrafosTodos(modo: Modo = 'clinico', soComObjetiv
     resultados.push({ pacienteId: paciente_id, ...r })
   }
   return { pacientes: rows.length, resultados }
+}
+
+// ── Harness de validação Haiku × Sonnet (§12) ─────────────────────────────
+// Roda a MESMA sessão pelos dois modelos (Clínico), SEM gravar, e devolve um
+// comparativo. Decide se o Haiku segura a rubrica ou se vale Sonnet na extração.
+type ResumoExtracao = { nos: number; arestas: number; relevMedia: number; relevMin: number; topNucleos: string[] }
+
+function resumirGrafo(g: GrafoSessao | null): ResumoExtracao | null {
+  if (!g) return null
+  const rel = g.nos.map(n => n.relevancia)
+  return {
+    nos: g.nos.length,
+    arestas: g.arestas.length,
+    relevMedia: rel.length ? +(rel.reduce((a, b) => a + b, 0) / rel.length).toFixed(2) : 0,
+    relevMin: rel.length ? +Math.min(...rel).toFixed(2) : 0,
+    topNucleos: g.nos.slice().sort((a, b) => b.relevancia - a.relevancia).slice(0, 10).map(n => n.nucleo),
+  }
+}
+
+export async function compararModelos(pacienteId: string, limite = 4): Promise<{
+  pacienteId: string
+  sessoes: Array<{ sessaoId: string; sessaoNum: number | null; haiku: ResumoExtracao | null; sonnet: ResumoExtracao | null }>
+}> {
+  const { tryDecrypt } = await import('@/server/lib/crypto')
+  const { rows } = await db.query<{ id: string; numero: number | null; transcricao_texto: string | null; resumo_ia: string | null }>(
+    `SELECT id, numero, transcricao_texto, resumo_ia FROM sessoes
+      WHERE paciente_id = $1 AND assinada = TRUE ORDER BY data_hora DESC LIMIT $2`,
+    [pacienteId, limite],
+  )
+  const conc = await lerConceitualizacao(pacienteId)
+  const sessoes: Array<{ sessaoId: string; sessaoNum: number | null; haiku: ResumoExtracao | null; sonnet: ResumoExtracao | null }> = []
+  for (const s of rows) {
+    const tx = tryDecrypt(s.transcricao_texto) ?? tryDecrypt(s.resumo_ia) ?? ''
+    if (!tx) continue
+    const haiku = await extrairGrafoSessao({ sessaoId: s.id, transcricao: tx }, 'clinico', conc, 'fast')
+    const sonnet = await extrairGrafoSessao({ sessaoId: s.id, transcricao: tx }, 'clinico', conc, 'strong')
+    sessoes.push({ sessaoId: s.id, sessaoNum: s.numero, haiku: resumirGrafo(haiku), sonnet: resumirGrafo(sonnet) })
+  }
+  return { pacienteId, sessoes }
 }

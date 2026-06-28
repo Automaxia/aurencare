@@ -32,7 +32,7 @@ export type ChatMessage = { role: 'user' | 'assistant'; content: string }
 export async function chat(
   systemPrompt: string,
   messages: ChatMessage[],
-  opts: { maxTokens?: number; scope?: string; model?: ModelTier } = {},
+  opts: { maxTokens?: number; scope?: string; model?: ModelTier; cache?: boolean } = {},
 ): Promise<string> {
   const c = getClient()
   if (!c) {
@@ -42,17 +42,27 @@ export async function chat(
 
   try {
     const modelo = MODEL_IDS[opts.model ?? 'fast']
+    // Prompt caching (§10): só vale quando o prefixo estável (system) é grande —
+    // mínimo cacheável é 4096 tokens no Haiku, 2048 no Sonnet. System curto não
+    // cacheia (silenciosamente). Por isso só ligamos onde o prompt é volumoso.
+    const system = opts.cache
+      ? [{ type: 'text' as const, text: systemPrompt, cache_control: { type: 'ephemeral' as const } }]
+      : systemPrompt
     const res = await c.messages.create({
       model: modelo,
       max_tokens: opts.maxTokens ?? 1000,
-      system: systemPrompt,
+      system,
       messages: messages.slice(-8),
     })
-    // Registra custo (tokens reais). Best-effort, não bloqueia a resposta.
+    const u: any = res.usage
+    const cacheRead = u?.cache_read_input_tokens ?? 0
+    const cacheWrite = u?.cache_creation_input_tokens ?? 0
+    if (cacheRead > 0) log.ok(opts.scope ?? 'anthropic', `cache hit: ${cacheRead} tokens lidos do cache`)
+    // Registra custo (tokens reais, incluindo os de cache). Best-effort.
     import('@/server/services/custos').then(m => m.registrarCustoAnthropic({
       operacao: opts.scope, modelo,
-      tokensEntrada: res.usage?.input_tokens ?? 0,
-      tokensSaida: res.usage?.output_tokens ?? 0,
+      tokensEntrada: (u?.input_tokens ?? 0) + cacheRead + cacheWrite,
+      tokensSaida: u?.output_tokens ?? 0,
     })).catch(() => {})
     const raw = res.content.find(b => b.type === 'text')?.text ?? ''
     return validarTextoIA(raw) ? raw : sanitizarTextoIA(raw)
@@ -148,5 +158,6 @@ ${transcricao.slice(0, 40_000)}
 
 Gere o laudo estruturado da sessão #${contexto.numero} de ${contexto.pacienteNome}, em Markdown, seguindo exatamente o formato MODE: SUMMARY. Rascunho para revisão e assinatura do psicólogo.${historico.length ? '' : ' Não há laudos anteriores — trate "Avaliação do Progresso" como linha de base (sessão inicial ou primeira com registro).'}`
 
-  return chat(SUMMARY_PROMPT, [{ role: 'user', content: user }], { maxTokens: 4_000, scope: 'anthropic.resumo', model: 'strong' })
+  // cache: SUMMARY_PROMPT é grande e estável → cacheável no Sonnet (min 2048 tok).
+  return chat(SUMMARY_PROMPT, [{ role: 'user', content: user }], { maxTokens: 4_000, scope: 'anthropic.resumo', model: 'strong', cache: true })
 }
