@@ -93,10 +93,14 @@ export default async function InicioPage() {
     && s.pacienteStatus === 'ativo',   // paciente arquivado não gera cobrança pendente
   ).length
   const pendenciasCount = pendentes.length + cobrancasPendentes + agg.objetivos_estagnados
-  // Destino contextual da pílula "pendências": sessão pra assinar > financeiro
+  // Destino contextual da pílula "pendências", por prioridade: sessão pra assinar >
+  // cobrança > objetivos estagnados. Sempre leva a um lugar onde dá pra resolver —
+  // nunca de volta pro próprio dashboard (mesmos destinos do card "Pendências").
   const pendenciasHref = pendentes.length > 0
     ? `/sessao/${pendentes[0].id}`
-    : cobrancasPendentes > 0 ? '/financeiro' : '/'
+    : cobrancasPendentes > 0 ? '/financeiro'
+    : agg.objetivos_estagnados > 0 ? '/pacientes'
+    : '/'
 
   const ativos = pacientes.filter(p => p.status === 'ativo').length
 
