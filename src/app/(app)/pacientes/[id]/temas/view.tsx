@@ -1,8 +1,8 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, type CSSProperties } from 'react'
 import { RotateCw } from 'lucide-react'
-import type { GrafoDados, GrafoNode } from '@/server/services/temas'
+import type { GrafoDados, GrafoNode, PadroesLongitudinais } from '@/server/services/temas'
 import { GrafoCanvas } from './GrafoCanvas'
 import { TemasChat } from './TemasChat'
 import { CfpBadge } from '@/components/brand/CfpBadge'
@@ -28,10 +28,13 @@ type Props = {
   pacienteId: string
   pacienteNome: string
   initialGrafo: GrafoDados
+  padroes: PadroesLongitudinais
   sessoes: SessaoOpt[]
 }
 
-export function TemasView({ pacienteId, pacienteNome, initialGrafo, sessoes }: Props) {
+const LIMIAR_CLINICO = 0.5
+
+export function TemasView({ pacienteId, pacienteNome, initialGrafo, padroes, sessoes }: Props) {
   const [grafo, setGrafo] = useState(initialGrafo)
   const [selecionado, setSelecionado] = useState<GrafoNode | null>(null)
   const [recalc, setRecalc] = useState(false)
@@ -39,6 +42,9 @@ export function TemasView({ pacienteId, pacienteNome, initialGrafo, sessoes }: P
   const [insightLoading, setInsightLoading] = useState(false)
   const [activeCluster, setActiveCluster] = useState('all')
   const [filterSessao, setFilterSessao] = useState<string>('all')
+  // §4: o store é permissivo; a TELA filtra. Clínico = só relevância alta; Tudo = tudo.
+  const [vista, setVista] = useState<'clinico' | 'tudo'>('clinico')
+  const [ocultarIsolados, setOcultarIsolados] = useState(false)
 
   async function fetchInsight() {
     if (grafo.nodes.length === 0) return
@@ -66,17 +72,23 @@ export function TemasView({ pacienteId, pacienteNome, initialGrafo, sessoes }: P
     }
   }
 
-  // Filtra localmente por cluster + sessão
-  const filteredNodes = grafo.nodes.filter(n => {
+  // Filtra localmente por cluster + sessão + relevância (vista) + isolados.
+  let fNodes = grafo.nodes.filter(n => {
     if (activeCluster !== 'all' && n.cluster !== activeCluster) return false
     if (filterSessao !== 'all' && !(n.sessoesIds ?? []).includes(filterSessao)) return false
+    if (vista === 'clinico' && n.relevancia != null && n.relevancia < LIMIAR_CLINICO) return false
     return true
   })
-  const filteredSet = new Set(filteredNodes.map(n => n.palavra))
-  const filteredGrafo: GrafoDados = {
-    nodes: filteredNodes,
-    edges: grafo.edges.filter(e => filteredSet.has(e.a) && filteredSet.has(e.b)),
+  let fSet = new Set(fNodes.map(n => n.palavra))
+  let fEdges = grafo.edges.filter(e => fSet.has(e.a) && fSet.has(e.b))
+  if (ocultarIsolados) {
+    const conectados = new Set<string>()
+    for (const e of fEdges) { conectados.add(e.a); conectados.add(e.b) }
+    fNodes = fNodes.filter(n => conectados.has(n.palavra))
+    fSet = new Set(fNodes.map(n => n.palavra))
+    fEdges = fEdges.filter(e => fSet.has(e.a) && fSet.has(e.b))
   }
+  const filteredGrafo: GrafoDados = { nodes: fNodes, edges: fEdges }
 
   if (grafo.nodes.length === 0) {
     return (
@@ -103,6 +115,9 @@ export function TemasView({ pacienteId, pacienteNome, initialGrafo, sessoes }: P
       {/* Auto-insight banner */}
       <InsightCard text={insight} loading={insightLoading} />
 
+      {/* §3/§7.4 — padrões que recorrem ao longo das sessões (contado do store) */}
+      <PadroesPanel padroes={padroes} />
+
       {/* Filtros + select de sessão + recalcular */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', margin: '14px 0 14px', gap: 12, flexWrap: 'wrap' }}>
         <div className="ftabs">
@@ -127,7 +142,20 @@ export function TemasView({ pacienteId, pacienteNome, initialGrafo, sessoes }: P
           ))}
         </div>
 
-        <div style={{ display: 'flex', gap: 7, alignItems: 'center' }}>
+        <div style={{ display: 'flex', gap: 7, alignItems: 'center', flexWrap: 'wrap' }}>
+          <div className="ftabs" title="Clínico mostra só os construtos mais relevantes; Tudo mostra o que o store guardou (sinais fracos inclusive).">
+            <button type="button" className={`ftab${vista === 'clinico' ? ' active' : ''}`} onClick={() => setVista('clinico')}>Clínico</button>
+            <button type="button" className={`ftab${vista === 'tudo' ? ' active' : ''}`} onClick={() => setVista('tudo')}>Tudo</button>
+          </div>
+          <button
+            type="button"
+            className={`ftab${ocultarIsolados ? ' active' : ''}`}
+            onClick={() => setOcultarIsolados(v => !v)}
+            title="Esconde nós que não se conectam a nenhum outro"
+            style={{ borderRadius: 9 }}
+          >
+            Só conectados
+          </button>
           <select
             value={filterSessao}
             onChange={e => setFilterSessao(e.target.value)}
@@ -265,6 +293,47 @@ function NodePlaceholder() {
 }
 
 const rotuloStyle = { fontSize: 9.5, fontWeight: 500, letterSpacing: 2, textTransform: 'uppercase' as const, color: 'var(--faint)', marginBottom: 8 }
+
+function PadroesPanel({ padroes }: { padroes: PadroesLongitudinais }) {
+  const N = padroes.totalSessoes
+  const arestasRec = padroes.arestas.filter(a => a.nSessoes >= 2).slice(0, 6)
+  const nosRec = padroes.nos.filter(n => n.nSessoes >= 2).slice(0, 8)
+  if (arestasRec.length === 0 && nosRec.length === 0) return null
+  const linha: CSSProperties = { fontSize: 12.5, color: 'var(--ink-soft)', display: 'flex', justifyContent: 'space-between', gap: 12, padding: '2px 0' }
+  const cont = (n: number) => <span style={{ color: 'var(--muted)', whiteSpace: 'nowrap', fontVariantNumeric: 'tabular-nums' }}>em {n} de {N} sessões</span>
+  return (
+    <div className="card" style={{ padding: 16, marginTop: 14 }}>
+      <div style={{ fontSize: 13.5, fontFamily: 'var(--f-display)', color: 'var(--ink-soft)', marginBottom: 2 }}>Padrões ao longo do tempo</div>
+      <div style={{ fontSize: 11.5, color: 'var(--faint)', marginBottom: 12 }}>Recorrência contada das sessões — hipóteses a investigar, não conclusões.</div>
+      {arestasRec.length > 0 && (
+        <div style={{ marginBottom: nosRec.length ? 14 : 0 }}>
+          <div style={rotuloStyle}>Relações que recorrem</div>
+          <div style={{ display: 'grid', gap: 2 }}>
+            {arestasRec.map((a, i) => (
+              <div key={i} style={linha}>
+                <span>{a.a} <span style={{ color: 'var(--faint)' }}>{a.relacao ? `—${a.relacao}→` : '—'}</span> {a.b}</span>
+                {cont(a.nSessoes)}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+      {nosRec.length > 0 && (
+        <div>
+          <div style={rotuloStyle}>Núcleos recorrentes</div>
+          <div style={{ display: 'grid', gap: 2 }}>
+            {nosRec.map((n, i) => (
+              <div key={i} style={linha}>
+                <span>{n.nucleo}{n.reaparece && <span style={{ color: 'var(--amber)', fontSize: 11 }}> · some e reaparece</span>}</span>
+                {cont(n.nSessoes)}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
 
 function NodeDetail({ node, grafo }: { node: GrafoNode; grafo: GrafoDados }) {
   const conexoes = grafo.edges
