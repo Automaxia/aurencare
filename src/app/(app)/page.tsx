@@ -8,6 +8,7 @@ import {
   proximaSessao, listarSessoesEntre, sessoesPendentesAssinatura,
 } from '@/server/services/sessoes'
 import { listarPacientes } from '@/server/services/pacientes'
+import { gerarMemoriaClinica } from '@/server/services/memoriaClinica'
 import { statusOnboarding } from '@/server/services/onboarding'
 import { temPacienteDemo } from '@/server/services/pacienteDemo'
 import { formatTimeBR, formatBRL } from '@/lib/formatters'
@@ -84,8 +85,6 @@ export default async function InicioPage() {
     temPacienteDemo(user.id),
   ])
 
-  const realizadasSemana = sessoesSemana.filter(s => s.status === 'concluida').length
-  const pctAssinadas = agg.concluidas_total > 0 ? Math.round((agg.assinadas_total / agg.concluidas_total) * 100) : 100
   const ultimaEvolStr = agg.ultima_evolucao
     ? new Date(agg.ultima_evolucao).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', timeZone: 'America/Sao_Paulo' })
     : null
@@ -118,6 +117,18 @@ export default async function InicioPage() {
   const ultimaEvolucaoNome = agg.ultima_evolucao_paciente
     ? pacientes.find(p => p.id === agg.ultima_evolucao_paciente)?.nome ?? null
     : null
+
+  // Briefing pré-sessão: memória clínica determinística (sem IA) do paciente da
+  // próxima sessão — o que vem sendo trabalhado, o que emergiu/recuou, objetivo
+  // parado. É o preparo que justifica o Audere. Falha nunca quebra o dashboard.
+  const briefing = proxima ? await gerarMemoriaClinica(proxima.pacienteId).catch(() => null) : null
+  const brRecorrente = briefing
+    ? (briefing.continuidade.recorrente.length > 0 ? briefing.continuidade.recorrente : briefing.temasPredominantes.slice(0, 4))
+    : []
+  const brEmergindo = briefing?.continuidade.emergindo ?? []
+  const brRecuando = briefing?.continuidade.recuando ?? []
+  const brEstagnados = briefing?.continuidade.objetivos.filter(o => o.estado === 'estagnado').map(o => o.titulo) ?? []
+  const temBriefing = !!briefing && (brRecorrente.length > 0 || brEmergindo.length > 0 || brRecuando.length > 0 || brEstagnados.length > 0)
 
   const ativos = pacientes.filter(p => p.status === 'ativo').length
 
@@ -184,7 +195,33 @@ export default async function InicioPage() {
             {proxima.status === 'em_curso' ? 'Retomar sessão' : 'Abrir sessão'}
           </button>
         </Link>
-        <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: -12, marginBottom: 22 }}>
+
+        {/* Preparo pra esta sessão — memória clínica determinística (sem IA) */}
+        {temBriefing && (
+          <div className="card-warm" style={{ marginTop: 10, marginBottom: 14, padding: '14px 18px', borderRadius: 'var(--r)' }}>
+            <div className="sec-lbl" style={{ marginBottom: 8 }}>
+              Preparo pra esta sessão · <Sigilo>{firstName(proxima.pacienteNome)}</Sigilo>
+              {briefing!.totalSessoes > 0 && (
+                <span style={{ color: 'var(--muted)', textTransform: 'none', letterSpacing: 0 }}>
+                  {' · '}{briefing!.totalSessoes} {briefing!.totalSessoes === 1 ? 'sessão registrada' : 'sessões registradas'}
+                </span>
+              )}
+            </div>
+            <div style={{ display: 'grid', gap: 6 }}>
+              {brRecorrente.length > 0 && <BriefLine label="Vem trabalhando" itens={brRecorrente} cor="var(--accent)" />}
+              {brEmergindo.length > 0 && <BriefLine label="Emergiu há pouco" itens={brEmergindo} cor="var(--sage)" />}
+              {brRecuando.length > 0 && <BriefLine label="Recuando" itens={brRecuando} cor="var(--muted)" />}
+              {brEstagnados.length > 0 && <BriefLine label="⚠ Objetivo sem movimento" itens={brEstagnados} cor="var(--amber)" />}
+            </div>
+            <div style={{ marginTop: 10, display: 'flex', gap: 16 }}>
+              <Link href={`/pacientes/${proxima.pacienteId}/temas`} style={{ fontSize: 12, color: 'var(--accent)' }}>Temas →</Link>
+              <Link href={`/pacientes/${proxima.pacienteId}/evolucao`} style={{ fontSize: 12, color: 'var(--accent)' }}>Evolução →</Link>
+              <Link href={`/pacientes/${proxima.pacienteId}/objetivos`} style={{ fontSize: 12, color: 'var(--accent)' }}>Objetivos →</Link>
+            </div>
+          </div>
+        )}
+
+        <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: temBriefing ? 0 : -12, marginBottom: 22 }}>
           <Link href={`/pacientes/${proxima.pacienteId}`} style={{ fontSize: 12, color: 'var(--muted)' }}>Abrir paciente →</Link>
         </div>
         </>
@@ -290,48 +327,36 @@ export default async function InicioPage() {
             </div>
           </div>
 
-          {/* Sua prática — clínico, sem R$ (financeiro fica em "Previsão") */}
-          <Link href="/saude" className="kpi-quiet">
-            <div className="kl">Sua prática esta semana</div>
-            <div className="kv" style={{ fontSize: 22 }}>{realizadasSemana} {realizadasSemana === 1 ? 'realizada' : 'realizadas'}</div>
-            <div className="kn">
-              {ativos} {ativos === 1 ? 'paciente ativo' : 'pacientes ativos'} · {agg.assinadas_total} registradas · {pctAssinadas}% assinadas
-            </div>
-          </Link>
+          {/* Continuidade clínica — atalho pra retomar onde parou (1 paciente, nomeado) */}
+          {ultimaEvolucaoNome && (
+            <Link
+              href={`/pacientes/${agg.ultima_evolucao_paciente}/evolucao`}
+              className="card-warm"
+              style={{ display: 'block', padding: '14px 18px', textDecoration: 'none', color: 'inherit', borderRadius: 'var(--r)' }}
+            >
+              <div className="sec-lbl" style={{ marginBottom: 6 }}>Retomar acompanhamento</div>
+              <div style={{ fontSize: 13, color: 'var(--ink-soft)', lineHeight: 1.6 }}>
+                Última evolução registrada: <Sigilo>{ultimaEvolucaoNome}</Sigilo>{ultimaEvolStr ? ` · ${ultimaEvolStr}` : ''}
+              </div>
+              <div style={{ fontSize: 12, color: 'var(--accent)', marginTop: 8 }}>
+                Abrir evolução de <Sigilo>{firstName(ultimaEvolucaoNome)}</Sigilo> →
+              </div>
+            </Link>
+          )}
 
-          {/* Continuidade clínica — lembra o diferencial, sem análise */}
-          <Link
-            href={agg.ultima_evolucao_paciente ? `/pacientes/${agg.ultima_evolucao_paciente}/evolucao` : '/pacientes'}
-            className="card-warm"
-            style={{ display: 'block', padding: '16px 18px', textDecoration: 'none', color: 'inherit', borderRadius: 'var(--r)' }}
-          >
-            <div className="sec-lbl" style={{ marginBottom: 6 }}>Continuidade clínica · toda a sua prática</div>
-            <div style={{ fontSize: 12.5, color: 'var(--accent)', fontWeight: 500, marginBottom: 8 }}>
-              {(agg.assinadas_total > 0 || agg.objetivos_ativos > 0) ? 'Processo terapêutico ativo' : 'Processo em formação'}
-            </div>
-            <div style={{ fontSize: 13, color: 'var(--ink-soft)', lineHeight: 1.7 }}>
-              {agg.assinadas_total} {agg.assinadas_total === 1 ? 'sessão registrada' : 'sessões registradas'} no total<br />
-              {agg.objetivos_ativos} {agg.objetivos_ativos === 1 ? 'objetivo em acompanhamento' : 'objetivos em acompanhamento'}<br />
-              {ultimaEvolucaoNome
-                ? <>Última evolução: <Sigilo>{ultimaEvolucaoNome}</Sigilo>{ultimaEvolStr ? ` · ${ultimaEvolStr}` : ''}</>
-                : 'Ainda sem evolução registrada'}<br />
-              <span style={{ color: agg.objetivos_estagnados > 0 ? 'var(--amber)' : 'var(--muted)' }}>
-                {agg.objetivos_estagnados > 0
-                  ? `${agg.objetivos_estagnados} ${agg.objetivos_estagnados === 1 ? 'objetivo sem atualização' : 'objetivos sem atualização'}`
-                  : 'Nenhuma pendência clínica identificada'}
-              </span>
-            </div>
-            <div style={{ fontSize: 12, color: 'var(--accent)', marginTop: 10 }}>
-              {ultimaEvolucaoNome ? <>Abrir evolução de <Sigilo>{firstName(ultimaEvolucaoNome)}</Sigilo> →</> : 'Ver pacientes →'}
-            </div>
-          </Link>
-
-          {/* Pacientes — linguagem natural (perto do clínico) */}
-          <Link href="/pacientes?filtro=ativos" className="kpi-quiet" style={{ background: 'var(--card)' }}>
-            <div className="kl">Pacientes</div>
-            <div className="kv">{ativos} <span style={{ fontSize: 14, fontWeight: 300, color: 'var(--muted)' }}>{ativos === 1 ? 'ativo' : 'ativos'}</span></div>
-            <div className="kn">Ver lista →</div>
-          </Link>
+          {/* Atalhos enxutos — métricas de prática vivem na Saúde da Prática */}
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+            <Link href="/pacientes?filtro=ativos" className="kpi-quiet" style={{ background: 'var(--card)' }}>
+              <div className="kl">Pacientes</div>
+              <div className="kv">{ativos} <span style={{ fontSize: 14, fontWeight: 300, color: 'var(--muted)' }}>{ativos === 1 ? 'ativo' : 'ativos'}</span></div>
+              <div className="kn">Ver lista →</div>
+            </Link>
+            <Link href="/saude" className="kpi-quiet" style={{ background: 'var(--card)' }}>
+              <div className="kl">Saúde da prática</div>
+              <div className="kv" style={{ fontSize: 18, fontWeight: 300 }}>Indicadores</div>
+              <div className="kn">Ver números →</div>
+            </Link>
+          </div>
 
           {/* Previsão do mês — financeiro é suporte, fica por último */}
           <Link href="/financeiro" className="card-warm" style={{
@@ -357,6 +382,17 @@ function greeting(): string {
   if (h < 12) return 'Bom dia'
   if (h < 18) return 'Boa tarde'
   return 'Boa noite'
+}
+
+// Uma linha do briefing pré-sessão: rótulo + itens (temas/objetivos).
+// Linguagem observacional (frequência), nunca diagnóstica — CFP 09/2024.
+function BriefLine({ label, itens, cor }: { label: string; itens: string[]; cor: string }) {
+  return (
+    <div style={{ fontSize: 13, color: 'var(--ink-soft)', lineHeight: 1.5 }}>
+      <span style={{ color: cor, fontWeight: 500 }}>{label}:</span>{' '}
+      {itens.slice(0, 4).join(' · ')}
+    </div>
+  )
 }
 
 function firstName(nome?: string | null): string {
