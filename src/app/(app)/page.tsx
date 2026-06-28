@@ -51,7 +51,7 @@ export default async function InicioPage() {
   const fimSemanaAnt = new Date(inicioSemana); fimSemanaAnt.setDate(inicioSemana.getDate() - 1); fimSemanaAnt.setHours(23, 59, 59, 999)
   const iniSemanaAnt = new Date(inicioSemana); iniSemanaAnt.setDate(inicioSemana.getDate() - 7)
 
-  const [proxima, sessoesHoje, sessoesSemana, sessoesAnt, pendentes, pacientes, onb, agg, demoId] = await Promise.all([
+  const [proxima, sessoesHoje, sessoesSemana, sessoesAnt, pendentes, pacientes, onb, agg, estagnados, demoId] = await Promise.all([
     proximaSessao(user.id),
     listarSessoesEntre(user.id, inicioDia.toISOString(), fimDia.toISOString()),
     listarSessoesEntre(user.id, inicioSemana.toISOString(), fimSemana.toISOString()),
@@ -71,6 +71,16 @@ export default async function InicioPage() {
         (SELECT max(data_hora) FROM sessoes WHERE psicologo_id = $1 AND assinada = TRUE) AS ultima_evolucao,
         (SELECT paciente_id FROM sessoes WHERE psicologo_id = $1 AND assinada = TRUE ORDER BY data_hora DESC LIMIT 1) AS ultima_evolucao_paciente
     `, [user.id]).then(r => r.rows[0]),
+    // Pacientes com objetivo ativo sem atualização há +14 dias — pra dizer QUEM
+    // está com a pendência (não só "2 objetivos sem atualização").
+    db.query<{ id: string; nome: string; n: number; mais_antigo: string }>(`
+      SELECT p.id, p.nome, count(*)::int AS n, min(o.updated_at) AS mais_antigo
+        FROM objetivos o JOIN pacientes p ON p.id = o.paciente_id
+       WHERE p.psicologo_id = $1 AND o.status = 'ativo' AND p.status = 'ativo'
+         AND o.updated_at < NOW() - INTERVAL '14 days'
+       GROUP BY p.id, p.nome
+       ORDER BY mais_antigo ASC
+    `, [user.id]).then(r => r.rows),
     temPacienteDemo(user.id),
   ])
 
@@ -96,11 +106,18 @@ export default async function InicioPage() {
   // Destino contextual da pílula "pendências", por prioridade: sessão pra assinar >
   // cobrança > objetivos estagnados. Sempre leva a um lugar onde dá pra resolver —
   // nunca de volta pro próprio dashboard (mesmos destinos do card "Pendências").
+  // Se só um paciente tem objetivo parado, vai direto pra ele.
   const pendenciasHref = pendentes.length > 0
     ? `/sessao/${pendentes[0].id}`
     : cobrancasPendentes > 0 ? '/financeiro'
-    : agg.objetivos_estagnados > 0 ? '/pacientes'
+    : estagnados.length === 1 ? `/pacientes/${estagnados[0].id}/objetivos`
+    : estagnados.length > 1 ? '/pacientes'
     : '/'
+
+  // Nome do paciente da última evolução registrada (a query traz só o id).
+  const ultimaEvolucaoNome = agg.ultima_evolucao_paciente
+    ? pacientes.find(p => p.id === agg.ultima_evolucao_paciente)?.nome ?? null
+    : null
 
   const ativos = pacientes.filter(p => p.status === 'ativo').length
 
@@ -252,10 +269,19 @@ export default async function InicioPage() {
                       <span className="pend-act">→</span>
                     </Link>
                   )}
-                  {agg.objetivos_estagnados > 0 && (
+                  {estagnados.slice(0, 3).map(pe => (
+                    <Link key={pe.id} href={`/pacientes/${pe.id}/objetivos`} className="pend-row">
+                      <span className="pend-ico" style={{ display: 'inline-flex', alignItems: 'center' }}><AlertTriangle size={14} /></span>
+                      <span className="pend-lbl">
+                        {pe.n === 1 ? 'Objetivo parado' : `${pe.n} objetivos parados`} (+14 dias) — <Sigilo>{pe.nome}</Sigilo>
+                      </span>
+                      <span className="pend-act">→</span>
+                    </Link>
+                  ))}
+                  {estagnados.length > 3 && (
                     <Link href="/pacientes" className="pend-row">
                       <span className="pend-ico" style={{ display: 'inline-flex', alignItems: 'center' }}><AlertTriangle size={14} /></span>
-                      <span className="pend-lbl">{agg.objetivos_estagnados} {agg.objetivos_estagnados === 1 ? 'objetivo sem atualização' : 'objetivos sem atualização'} (+14 dias)</span>
+                      <span className="pend-lbl">+{estagnados.length - 3} {estagnados.length - 3 === 1 ? 'outro paciente' : 'outros pacientes'} com objetivo parado</span>
                       <span className="pend-act">→</span>
                     </Link>
                   )}
@@ -279,21 +305,25 @@ export default async function InicioPage() {
             className="card-warm"
             style={{ display: 'block', padding: '16px 18px', textDecoration: 'none', color: 'inherit', borderRadius: 'var(--r)' }}
           >
-            <div className="sec-lbl" style={{ marginBottom: 6 }}>Continuidade clínica</div>
+            <div className="sec-lbl" style={{ marginBottom: 6 }}>Continuidade clínica · toda a sua prática</div>
             <div style={{ fontSize: 12.5, color: 'var(--accent)', fontWeight: 500, marginBottom: 8 }}>
               {(agg.assinadas_total > 0 || agg.objetivos_ativos > 0) ? 'Processo terapêutico ativo' : 'Processo em formação'}
             </div>
             <div style={{ fontSize: 13, color: 'var(--ink-soft)', lineHeight: 1.7 }}>
-              {agg.assinadas_total} {agg.assinadas_total === 1 ? 'sessão registrada' : 'sessões registradas'}<br />
+              {agg.assinadas_total} {agg.assinadas_total === 1 ? 'sessão registrada' : 'sessões registradas'} no total<br />
               {agg.objetivos_ativos} {agg.objetivos_ativos === 1 ? 'objetivo em acompanhamento' : 'objetivos em acompanhamento'}<br />
-              {ultimaEvolStr ? `Última evolução registrada em ${ultimaEvolStr}` : 'Ainda sem evolução registrada'}<br />
+              {ultimaEvolucaoNome
+                ? <>Última evolução: <Sigilo>{ultimaEvolucaoNome}</Sigilo>{ultimaEvolStr ? ` · ${ultimaEvolStr}` : ''}</>
+                : 'Ainda sem evolução registrada'}<br />
               <span style={{ color: agg.objetivos_estagnados > 0 ? 'var(--amber)' : 'var(--muted)' }}>
                 {agg.objetivos_estagnados > 0
                   ? `${agg.objetivos_estagnados} ${agg.objetivos_estagnados === 1 ? 'objetivo sem atualização' : 'objetivos sem atualização'}`
                   : 'Nenhuma pendência clínica identificada'}
               </span>
             </div>
-            <div style={{ fontSize: 12, color: 'var(--accent)', marginTop: 10 }}>Abrir Evolução →</div>
+            <div style={{ fontSize: 12, color: 'var(--accent)', marginTop: 10 }}>
+              {ultimaEvolucaoNome ? <>Abrir evolução de <Sigilo>{firstName(ultimaEvolucaoNome)}</Sigilo> →</> : 'Ver pacientes →'}
+            </div>
           </Link>
 
           {/* Pacientes — linguagem natural (perto do clínico) */}
