@@ -16,6 +16,8 @@ export type Paciente = {
   consentimentoAceito: boolean
   consentimentoToken: string | null
   createdAt: string
+  /** Paciente de demonstração (fictício) — não deve gerar nudges/observações. */
+  demo: boolean
 }
 
 export type PacienteComBadge = Paciente & {
@@ -34,6 +36,7 @@ function rowToPaciente(r: any): Paciente {
     id: r.id, nome: r.nome, telefone: r.telefone, email: r.email,
     status: r.status, consentimentoAceito: r.consentimento_aceito,
     consentimentoToken: r.consentimento_token, createdAt: r.created_at,
+    demo: r.demo === true,
   }
 }
 

@@ -1,7 +1,6 @@
 'use client'
 
 import { useState } from 'react'
-import { CfpBadge } from '@/components/brand/CfpBadge'
 
 /**
  * Nível 3 do dashboard — Inteligência silenciosa.
@@ -33,7 +32,9 @@ export function IntelSection({ pacientesEspacando, novos }: { pacientesEspacando
           <ul style={{ margin: 0, paddingLeft: 18, fontSize: 13, color: 'var(--ink-soft)', lineHeight: 1.6 }}>
             {observacoes.map((o, i) => <li key={i}>{o}</li>)}
           </ul>
-          <div style={{ marginTop: 12 }}><CfpBadge /></div>
+          <div style={{ marginTop: 12, fontSize: 11, color: 'var(--faint)' }}>
+            Apoio à reflexão · observações factuais a partir da sua agenda (sem IA).
+          </div>
         </div>
       )}
     </section>
