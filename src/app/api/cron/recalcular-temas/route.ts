@@ -30,9 +30,10 @@ export async function POST(req: Request) {
   }
 
   try {
-    const r = await recalcularGrafosTodos()
-    log.info('cron.recalcular-temas', `recalculados ${r.pacientes} paciente(s)`)
-    return NextResponse.json({ ok: true, ...r })
+    const modo = new URL(req.url).searchParams.get('modo') === 'amplo' ? 'amplo' : 'clinico'
+    const r = await recalcularGrafosTodos(modo)
+    log.info('cron.recalcular-temas', `recalculados ${r.pacientes} paciente(s) [modo=${modo}]`)
+    return NextResponse.json({ ok: true, modo, ...r })
   } catch (err) {
     log.err('cron.recalcular-temas', 'falha', err)
     return NextResponse.json({ error: 'internal' }, { status: 500 })
