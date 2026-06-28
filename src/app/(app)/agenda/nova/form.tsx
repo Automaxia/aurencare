@@ -32,6 +32,7 @@ export function NewSessionForm({ pacientes }: { pacientes: { id: string; nome: s
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [conflitos, setConflitos] = useState<Set<string>>(new Set())
+  const [conflitoCheckFalhou, setConflitoCheckFalhou] = useState(false)
   const [datasPreview, setDatasPreview] = useState<string[]>([])
 
   // Recalcula preview sempre que entradas da série mudam
@@ -47,8 +48,11 @@ export function NewSessionForm({ pacientes }: { pacientes: { id: string; nome: s
       datas.push(d.toISOString())
     }
     setDatasPreview(datas)
-    // Busca conflitos no backend
-    conflitosSerieAction(datas).then(c => setConflitos(new Set(c))).catch(() => {})
+    // Busca conflitos no backend. Se falhar, AVISA — não pode parecer que checou.
+    setConflitoCheckFalhou(false)
+    conflitosSerieAction(datas)
+      .then(c => { setConflitos(new Set(c)); setConflitoCheckFalhou(false) })
+      .catch(() => { setConflitos(new Set()); setConflitoCheckFalhou(true) })
   }, [modo, data, hora, frequencia, quantidade])
 
   const diaSemana = (() => {
@@ -133,6 +137,11 @@ export function NewSessionForm({ pacientes }: { pacientes: { id: string; nome: s
               {conflitos.size > 0 && (
                 <div style={{ marginTop: 10, color: 'var(--rose)', fontSize: 11 }}>
                   Existe(m) {conflitos.size} sessão(ões) no mesmo horário. Confirme antes de salvar.
+                </div>
+              )}
+              {conflitoCheckFalhou && (
+                <div style={{ marginTop: 10, color: 'var(--amber)', fontSize: 11 }}>
+                  ⚠ Não foi possível verificar conflitos de horário agora — confira a agenda manualmente antes de salvar.
                 </div>
               )}
             </div>
