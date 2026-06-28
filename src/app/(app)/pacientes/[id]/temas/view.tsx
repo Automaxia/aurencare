@@ -264,35 +264,59 @@ function NodePlaceholder() {
   )
 }
 
+const rotuloStyle = { fontSize: 9.5, fontWeight: 500, letterSpacing: 2, textTransform: 'uppercase' as const, color: 'var(--faint)', marginBottom: 8 }
+
 function NodeDetail({ node, grafo }: { node: GrafoNode; grafo: GrafoDados }) {
   const conexoes = grafo.edges
     .filter(e => e.a === node.palavra || e.b === node.palavra)
-    .map(e => ({ outra: e.a === node.palavra ? e.b : e.a, weight: e.weight }))
+    .map(e => ({ outra: e.a === node.palavra ? e.b : e.a, weight: e.weight, tipo: e.tipo ?? null }))
     .sort((a, b) => b.weight - a.weight)
     .slice(0, 6)
+  const nSess = node.frequencia
   return (
     <div className="card">
-      <div style={{ display: 'flex', alignItems: 'center', gap: 9, marginBottom: 14 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 9, marginBottom: 12 }}>
         <div style={{ width: 10, height: 10, borderRadius: '50%', flexShrink: 0, background: CLUSTER_COLORS[node.cluster] }} />
         <div>
           <div style={{ fontSize: 17, fontFamily: 'var(--f-display)', fontWeight: 400, color: 'var(--ink-soft)' }}>{node.palavra}</div>
-          <div style={{ fontSize: 11, color: 'var(--muted)' }}>{capitalize(node.cluster)} · {node.frequencia}× nas sessões</div>
+          <div style={{ fontSize: 11, color: 'var(--muted)' }}>
+            {capitalize(node.cluster)} · {nSess === 1 ? 'em 1 sessão' : `em ${nSess} sessões`}
+            {node.relevancia != null && ` · relevância ${Math.round(node.relevancia * 100)}%`}
+          </div>
         </div>
       </div>
+
+      {node.construto && (
+        <p style={{ fontSize: 13, color: 'var(--ink-soft)', lineHeight: 1.55, margin: '0 0 14px' }}>{node.construto}</p>
+      )}
+
+      {node.contextos.length > 0 && (
+        <div style={{ marginBottom: 14 }}>
+          <div style={rotuloStyle}>Onde aparece</div>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+            {node.contextos.map((c, i) => (
+              <span key={i} style={{ fontSize: 11.5, color: 'var(--ink-soft)', background: 'var(--surface)', borderRadius: 999, padding: '3px 10px' }}>{c}</span>
+            ))}
+          </div>
+        </div>
+      )}
+
       {conexoes.length > 0 && (
         <>
-          <div style={{ fontSize: 9.5, fontWeight: 500, letterSpacing: 2, textTransform: 'uppercase', color: 'var(--faint)', marginBottom: 8 }}>
-            Conexões com outros temas
-          </div>
+          <div style={rotuloStyle}>Conexões com outros temas</div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
             {conexoes.map(c => (
-              <div key={c.outra} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, color: 'var(--ink-soft)' }}>
-                <span>{c.outra}</span>
-                <span style={{ color: 'var(--muted)' }}>×{c.weight}</span>
+              <div key={c.outra} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 8, fontSize: 12, color: 'var(--ink-soft)' }}>
+                <span>{c.outra}{c.tipo && <span style={{ color: 'var(--faint)' }}> · {c.tipo}</span>}</span>
+                <span style={{ color: 'var(--muted)', whiteSpace: 'nowrap' }}>{c.weight === 1 ? '1 sessão' : `${c.weight} sessões`}</span>
               </div>
             ))}
           </div>
         </>
+      )}
+
+      {node.foraConceitualizacao && (
+        <div style={{ marginTop: 12, fontSize: 11, color: 'var(--amber)' }}>⚠ fora da conceitualização atual</div>
       )}
     </div>
   )
