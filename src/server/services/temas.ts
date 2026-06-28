@@ -497,20 +497,14 @@ export async function padroesLongitudinais(pacienteId: string): Promise<PadroesL
 }
 
 /**
- * Recalcula tudo a partir das sessões assinadas (idempotente). Grava o snapshot
- * de cada sessão e deriva o agregado UMA vez no fim.
+ * Recalcula tudo a partir das sessões assinadas (idempotente). NÃO-DESTRUTIVO:
+ * extrai TUDO em memória primeiro e só troca o store se houver resultado. Se a
+ * IA estiver indisponível (ex.: sem crédito) e nada extrair, ABORTA e preserva
+ * o grafo existente — em vez de apagar e deixar vazio.
  */
-export async function recalcularGrafo(pacienteId: string, modo: Modo = 'clinico'): Promise<{ sessoes: number; nodes: number }> {
+export async function recalcularGrafo(pacienteId: string, modo: Modo = 'clinico'): Promise<{ sessoes: number; nodes: number; abortado?: boolean }> {
   const { tryDecrypt } = await import('@/server/lib/crypto')
   const { redis } = await import('@/server/lib/redis')
-
-  // invalida cache do auto-insight
-  const r = await redis()
-  if (r) await r.del(`temas-insight:${pacienteId}`)
-
-  await db.query(`DELETE FROM sessao_grafo   WHERE paciente_id = $1`, [pacienteId])
-  await db.query(`DELETE FROM arestas_tema   WHERE paciente_id = $1`, [pacienteId])
-  await db.query(`DELETE FROM palavras_chave WHERE paciente_id = $1`, [pacienteId])
 
   const { rows: sessoes } = await db.query<{ id: string; transcricao_texto: string | null; resumo_ia: string | null }>(
     `SELECT id, transcricao_texto, resumo_ia
@@ -519,24 +513,60 @@ export async function recalcularGrafo(pacienteId: string, modo: Modo = 'clinico'
       ORDER BY data_hora ASC`,
     [pacienteId],
   )
-
-  // Conceitualização (§8) e abordagem (§6) são as mesmas do paciente — busca 1×.
   const [conc, abordagem] = await Promise.all([lerConceitualizacao(pacienteId), lerAbordagem(pacienteId)])
 
-  // Grava o snapshot de cada sessão (sem derivar a cada uma)…
+  // 1) Extrai em MEMÓRIA, sem tocar no que já existe.
+  const novos: Array<{ sessaoId: string; grafo: GrafoSessao }> = []
+  let comTexto = 0, falhas = 0
   for (const s of sessoes) {
     const tx = tryDecrypt(s.transcricao_texto) ?? tryDecrypt(s.resumo_ia) ?? ''
     if (!tx) continue
-    try { await extrairTemasComIA({ pacienteId, sessaoId: s.id, transcricao: tx }, modo, conc, abordagem) }
+    comTexto++
+    let g: GrafoSessao | null = null
+    try { g = await extrairGrafoSessao({ sessaoId: s.id, transcricao: tx }, modo, conc, 'fast', abordagem) }
     catch (err) { console.warn(`[temas.grafo] falha extração sessao=${s.id} no recálculo:`, err) }
+    if (g === null) { falhas++; continue }
+    if (g.nos.length > 0) novos.push({ sessaoId: s.id, grafo: g })
   }
-  // …e deriva o agregado uma única vez a partir do store completo.
-  await derivarAgregado(pacienteId)
 
-  const { rows: count } = await db.query<{ n: number }>(
-    `SELECT count(*)::int AS n FROM palavras_chave WHERE paciente_id = $1`, [pacienteId],
-  )
-  return { sessoes: sessoes.length, nodes: count[0].n }
+  const contar = async () => (await db.query<{ n: number }>(`SELECT count(*)::int AS n FROM palavras_chave WHERE paciente_id = $1`, [pacienteId])).rows[0].n
+
+  // 2) Trava de segurança: havia texto mas NADA extraiu (IA indisponível) →
+  //    preserva o grafo, não apaga.
+  if (comTexto > 0 && novos.length === 0) {
+    console.warn(`[temas.grafo] recálculo abortado paciente=${pacienteId}: extração indisponível (${falhas}/${comTexto} falharam) — grafo preservado`)
+    return { sessoes: sessoes.length, nodes: await contar(), abortado: true }
+  }
+
+  // 3) Troca atômica do store por-sessão.
+  const usaConc = modo === 'clinico' && !!conc.texto
+  const client = await db.connect()
+  try {
+    await client.query('BEGIN')
+    await client.query(`DELETE FROM sessao_grafo WHERE paciente_id = $1`, [pacienteId])
+    for (const { sessaoId, grafo } of novos) {
+      await client.query(
+        `INSERT INTO sessao_grafo (paciente_id, sessao_id, sessao_num, versao_prompt, versao_conceitualizacao, nos, arestas, criado_em)
+         VALUES ($1, $2::uuid, (SELECT numero FROM sessoes WHERE id = $2::uuid), $3, $4, $5::jsonb, $6::jsonb, NOW())
+         ON CONFLICT (paciente_id, sessao_id) DO UPDATE SET
+           sessao_num = EXCLUDED.sessao_num, versao_prompt = EXCLUDED.versao_prompt,
+           versao_conceitualizacao = EXCLUDED.versao_conceitualizacao,
+           nos = EXCLUDED.nos, arestas = EXCLUDED.arestas, criado_em = NOW()`,
+        [pacienteId, sessaoId, `extracao-v3-${modo}-${abordagem}`, usaConc ? conc.versao : null, JSON.stringify(grafo.nos), JSON.stringify(grafo.arestas)],
+      )
+    }
+    await client.query('COMMIT')
+  } catch (err) {
+    await client.query('ROLLBACK'); throw err
+  } finally {
+    client.release()
+  }
+
+  await derivarAgregado(pacienteId)
+  const rcache = await redis()
+  if (rcache) await rcache.del(`temas-insight:${pacienteId}`)
+
+  return { sessoes: sessoes.length, nodes: await contar() }
 }
 
 /**

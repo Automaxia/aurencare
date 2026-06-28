@@ -45,6 +45,7 @@ export function TemasView({ pacienteId, pacienteNome, initialGrafo, padroes, ses
   // §4: o store é permissivo; a TELA filtra. Clínico = só relevância alta; Tudo = tudo.
   const [vista, setVista] = useState<'clinico' | 'tudo'>('clinico')
   const [ocultarIsolados, setOcultarIsolados] = useState(false)
+  const [recalcErro, setRecalcErro] = useState<string | null>(null)
 
   async function fetchInsight() {
     if (grafo.nodes.length === 0) return
@@ -60,13 +61,18 @@ export function TemasView({ pacienteId, pacienteNome, initialGrafo, padroes, ses
   useEffect(() => { fetchInsight() }, [pacienteId])
 
   async function recalcular() {
-    setRecalc(true)
+    setRecalc(true); setRecalcErro(null)
     try {
-      await fetch(`/api/pacientes/${pacienteId}/temas/recalcular`, { method: 'POST' })
+      const post = await fetch(`/api/pacientes/${pacienteId}/temas/recalcular`, { method: 'POST' })
+      if (!post.ok) { setRecalcErro('Não foi possível recalcular agora. Se o paciente tiver muitas sessões pode levar um momento — recarregue a página em instantes.'); return }
+      const r = await post.json().catch(() => ({}))
+      if (r?.abortado) { setRecalcErro('A IA está indisponível no momento — o grafo foi preservado. Tente novamente mais tarde.'); return }
       const res = await fetch(`/api/pacientes/${pacienteId}/temas`)
       const json = await res.json()
       setGrafo(json)
       setInsight(null); fetchInsight()
+    } catch {
+      setRecalcErro('Falha de conexão durante o recálculo. O processamento pode seguir no servidor — recarregue a página em instantes.')
     } finally {
       setRecalc(false)
     }
@@ -186,6 +192,12 @@ export function TemasView({ pacienteId, pacienteNome, initialGrafo, padroes, ses
           </button>
         </div>
       </div>
+
+      {recalcErro && (
+        <div style={{ margin: '0 0 12px', padding: '10px 14px', borderRadius: 10, background: 'var(--rose-lo)', color: 'var(--rose)', fontSize: 12.5, lineHeight: 1.5 }}>
+          {recalcErro}
+        </div>
+      )}
 
       <div className="grafo-wrap">
         {/* Canvas com legend interna */}
