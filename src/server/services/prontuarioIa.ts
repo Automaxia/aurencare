@@ -1,5 +1,6 @@
 import 'server-only'
 import { chat, type ChatMessage } from '@/server/lib/anthropic'
+import { iaIndisponivel } from '@/lib/ia'
 import { CLINICAL_VOICE } from '@/server/lib/clinicalVoice'
 import { coletarDadosProntuario } from './prontuarioExport'
 import { formatCadastrais, formatClinicas } from './pacientePerfilContexto'
@@ -171,6 +172,9 @@ export async function chatProntuarioIa(input: ProntuarioIaInput): Promise<Prontu
       maxTokens: 1200,
       model: 'strong',
     })
+    // chat() devolve placeholder (não lança) quando a IA está fora — não deixar
+    // o "[Não foi possível…]" vazar como se fosse texto de prontuário.
+    if (iaIndisponivel(resposta)) return { ok: false, error: 'ia_indisponivel' }
     return { ok: true, resposta, contextoIncluido }
   } catch (err) {
     return { ok: false, error: 'Falha ao gerar texto agora.' }

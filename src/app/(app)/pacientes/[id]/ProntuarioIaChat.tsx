@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react'
 import { Compass } from 'lucide-react'
+import { iaIndisponivel, MSG_IA_INDISPONIVEL } from '@/lib/ia'
 
 type Mensagem = { role: 'user' | 'assistant'; content: string }
 type Sugestao = { label: string; prompt: string }
@@ -78,9 +79,11 @@ export function ProntuarioIaChat({ pacienteId }: { pacienteId: string }) {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ messages: proximas }),
       })
-      const j = await r.json()
-      if (!r.ok || !j.resposta) {
-        setErro(j?.error === 'internal' ? 'Falha ao gerar agora. Tente novamente.' : 'Não consegui responder.')
+      const j = await r.json().catch(() => ({} as any))
+      if (!r.ok || !j.resposta || iaIndisponivel(j.resposta)) {
+        setErro(j?.error === 'ia_indisponivel' || iaIndisponivel(j?.resposta)
+          ? MSG_IA_INDISPONIVEL
+          : j?.error === 'internal' ? 'Falha ao gerar agora. Tente novamente.' : 'Não consegui responder.')
         setMensagens(prev => prev.slice(0, -1))
       } else {
         setMensagens(prev => [...prev, { role: 'assistant', content: j.resposta }])
