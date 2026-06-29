@@ -73,7 +73,7 @@ function somenteFalasDoPaciente(transcricao: string): string {
 const BLOCO_UNIDADE = `UNIDADE (vale sempre):
 - "nucleo": rótulo do nó, o menor possível, idealmente UMA palavra. NUNCA verbo conjugado, conectivo ou fragmento ("estava", "comecei", "menos", "amigo" solto).
 - "construto": a descrição clínica completa por trás do nó (ex.: "culpa por afastamento de amigo").
-- "contextos": situações/gatilhos onde o construto aparece (frases curtas).
+- "contextos": situações/gatilhos onde o construto aparece (frases curtas). Quando citar uma fala LITERAL do paciente (mesmo com falhas de captação da transcrição), coloque-a entre aspas («…»); quando for sua própria síntese da situação, escreva SEM aspas. Assim o terapeuta distingue a referência exata da interpretação.
 - Fusão por núcleo: dois construtos com o mesmo núcleo funcional (duas formas de "culpa") viram UM nó (mesmo "nucleo"), acumulando contextos.`
 
 const BLOCO_RELACOES = `RELAÇÕES: mapeie como os construtos se ligam DENTRO da sessão. A maioria deve conectar-se a pelo menos um outro. Use uma relação específica em "relacao": "leva a", "alimenta", "justifica", "evita", "mascara", "precede", "reforça", "contradiz". Ambos os endpoints ("de"/"para") DEVEM existir em "nos".`
@@ -572,6 +572,34 @@ export async function recalcularGrafo(pacienteId: string, modo: Modo = 'clinico'
   if (rcache) await rcache.del(`temas-insight:${pacienteId}`)
 
   return { sessoes: sessoes.length, nodes: await contar() }
+}
+
+// ── Recálculo em BACKGROUND (evita o 504 do nginx aos 60s) ─────────────────
+// O recálculo extrai via IA sessão a sessão e passa fácil de 60s. Em vez de a
+// rota esperar (e o nginx matar a conexão), disparamos em segundo plano e o
+// cliente faz polling do status. Estado in-process — basta porque é 1 réplica.
+type RecalcResultado = { ok: boolean; abortado?: boolean; nodes?: number; erro?: boolean; em: number }
+const recalcsAtivos = new Map<string, number>()            // pacienteId → início (ms)
+const recalcsResultado = new Map<string, RecalcResultado>() // último resultado por paciente
+
+export function statusRecalculo(pacienteId: string): { processing: boolean; resultado: RecalcResultado | null } {
+  return { processing: recalcsAtivos.has(pacienteId), resultado: recalcsResultado.get(pacienteId) ?? null }
+}
+
+export function iniciarRecalculoBackground(pacienteId: string, modo: Modo = 'clinico'): { processing: boolean; jaRodando: boolean } {
+  if (recalcsAtivos.has(pacienteId)) return { processing: true, jaRodando: true }
+  recalcsAtivos.set(pacienteId, Date.now())
+  recalcsResultado.delete(pacienteId)
+  // Floating promise proposital: a rota retorna na hora; o pod (long-lived) segue
+  // processando. Recálculo é idempotente — se o pod reiniciar, basta refazer.
+  recalcularGrafo(pacienteId, modo)
+    .then(r => recalcsResultado.set(pacienteId, { ok: true, abortado: r.abortado, nodes: r.nodes, em: Date.now() }))
+    .catch(err => {
+      console.error(`[temas.grafo] recálculo background falhou paciente=${pacienteId}:`, err)
+      recalcsResultado.set(pacienteId, { ok: false, erro: true, em: Date.now() })
+    })
+    .finally(() => recalcsAtivos.delete(pacienteId))
+  return { processing: true, jaRodando: false }
 }
 
 /**

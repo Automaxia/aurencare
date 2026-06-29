@@ -46,6 +46,7 @@ export function TemasView({ pacienteId, pacienteNome, initialGrafo, padroes, ses
   const [vista, setVista] = useState<'clinico' | 'tudo'>('clinico')
   const [ocultarIsolados, setOcultarIsolados] = useState(false)
   const [recalcErro, setRecalcErro] = useState<string | null>(null)
+  const [recalcInfo, setRecalcInfo] = useState<string | null>(null)
 
   async function fetchInsight() {
     if (grafo.nodes.length === 0) return
@@ -62,19 +63,32 @@ export function TemasView({ pacienteId, pacienteNome, initialGrafo, padroes, ses
 
   async function recalcular() {
     setRecalc(true); setRecalcErro(null)
+    setRecalcInfo('Recalculando a partir das sessões assinadas — pode levar até um minuto. Pode continuar usando; o grafo atualiza sozinho.')
     try {
+      // Dispara em segundo plano (retorna na hora, sem 504) e faz polling do status.
       const post = await fetch(`/api/pacientes/${pacienteId}/temas/recalcular`, { method: 'POST' })
-      if (!post.ok) { setRecalcErro('Não foi possível recalcular agora. Se o paciente tiver muitas sessões pode levar um momento — recarregue a página em instantes.'); return }
-      const r = await post.json().catch(() => ({}))
-      if (r?.abortado) { setRecalcErro('A IA está indisponível no momento — o grafo foi preservado. Tente novamente mais tarde.'); return }
-      const res = await fetch(`/api/pacientes/${pacienteId}/temas`)
-      const json = await res.json()
-      setGrafo(json)
-      setInsight(null); fetchInsight()
+      if (!post.ok && post.status !== 202) {
+        setRecalcErro('Não foi possível iniciar o recálculo agora. Tente novamente em instantes.'); return
+      }
+      const inicio = Date.now()
+      const LIMITE_MS = 4 * 60 * 1000
+      while (Date.now() - inicio < LIMITE_MS) {
+        await new Promise(r => setTimeout(r, 4000))
+        const st = await fetch(`/api/pacientes/${pacienteId}/temas/recalcular`).then(r => r.json()).catch(() => null)
+        if (!st) continue
+        if (st.processing) continue
+        // Terminou.
+        if (st.resultado?.abortado) { setRecalcErro('A IA está indisponível no momento — o grafo foi preservado. Tente novamente mais tarde.'); return }
+        if (st.resultado?.erro) { setRecalcErro('O recálculo falhou. Tente novamente em instantes.'); return }
+        const json = await fetch(`/api/pacientes/${pacienteId}/temas`).then(r => r.json())
+        setGrafo(json); setInsight(null); fetchInsight()
+        return
+      }
+      setRecalcErro('Ainda processando no servidor — recarregue a página em instantes para ver o grafo atualizado.')
     } catch {
       setRecalcErro('Falha de conexão durante o recálculo. O processamento pode seguir no servidor — recarregue a página em instantes.')
     } finally {
-      setRecalc(false)
+      setRecalc(false); setRecalcInfo(null)
     }
   }
 
@@ -95,6 +109,10 @@ export function TemasView({ pacienteId, pacienteNome, initialGrafo, padroes, ses
     fEdges = fEdges.filter(e => fSet.has(e.a) && fSet.has(e.b))
   }
   const filteredGrafo: GrafoDados = { nodes: fNodes, edges: fEdges }
+
+  // Issue clínico==tudo: o grafo guardado não tem relevância (extração antiga).
+  // O filtro Clínico não tem como cortar — avisa e sugere recalcular.
+  const semRelevancia = grafo.nodes.length > 0 && grafo.nodes.every(n => n.relevancia == null)
 
   if (grafo.nodes.length === 0) {
     return (
@@ -193,9 +211,19 @@ export function TemasView({ pacienteId, pacienteNome, initialGrafo, padroes, ses
         </div>
       </div>
 
+      {recalcInfo && !recalcErro && (
+        <div style={{ margin: '0 0 12px', padding: '10px 14px', borderRadius: 10, background: 'var(--accent-lo)', color: 'var(--accent)', fontSize: 12.5, lineHeight: 1.5, display: 'flex', alignItems: 'center', gap: 8 }}>
+          <RotateCw size={13} /> {recalcInfo}
+        </div>
+      )}
       {recalcErro && (
         <div style={{ margin: '0 0 12px', padding: '10px 14px', borderRadius: 10, background: 'var(--rose-lo)', color: 'var(--rose)', fontSize: 12.5, lineHeight: 1.5 }}>
           {recalcErro}
+        </div>
+      )}
+      {semRelevancia && vista === 'clinico' && !recalc && (
+        <div style={{ margin: '0 0 12px', padding: '10px 14px', borderRadius: 10, background: 'var(--amber-lo, rgba(176,125,64,.10))', color: 'var(--amber)', fontSize: 12.5, lineHeight: 1.5 }}>
+          Este grafo foi gerado por uma extração antiga, sem nota de relevância — por isso “Clínico” e “Tudo” mostram os mesmos temas. Clique em <strong>Recalcular</strong> para a Audere reavaliar a relevância clínica de cada tema.
         </div>
       )}
 
@@ -375,9 +403,18 @@ function NodeDetail({ node, grafo }: { node: GrafoNode; grafo: GrafoDados }) {
         <div style={{ marginBottom: 14 }}>
           <div style={rotuloStyle}>Onde aparece</div>
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-            {node.contextos.map((c, i) => (
-              <span key={i} style={{ fontSize: 11.5, color: 'var(--ink-soft)', background: 'var(--surface)', borderRadius: 999, padding: '3px 10px' }}>{c}</span>
-            ))}
+            {node.contextos.map((c, i) => {
+              const fala = ehCitacao(c)
+              return (
+                <span key={i} style={{
+                  fontSize: 11.5, color: fala ? 'var(--ink)' : 'var(--ink-soft)',
+                  fontStyle: fala ? 'italic' : 'normal',
+                  background: 'var(--surface)', borderRadius: 999, padding: '3px 10px',
+                }} title={fala ? 'Fala literal do paciente (pode conter falhas de captação)' : undefined}>
+                  {c}
+                </span>
+              )
+            })}
           </div>
         </div>
       )}
@@ -404,3 +441,10 @@ function NodeDetail({ node, grafo }: { node: GrafoNode; grafo: GrafoDados }) {
 }
 
 function capitalize(s: string) { return s.charAt(0).toUpperCase() + s.slice(1) }
+
+// Contexto que a extração marcou como fala literal do paciente (entre aspas).
+// Renderizado em itálico pra distinguir da síntese/interpretação.
+function ehCitacao(s: string): boolean {
+  const t = s.trim()
+  return /^[«"“'].+["»”']$/.test(t)
+}
