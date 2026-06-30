@@ -31,7 +31,7 @@ WORKDIR /app
 # build tools pro bcrypt compilar (.node bindings) + libc6-compat pro Next.js
 RUN apk add --no-cache libc6-compat python3 make g++
 
-COPY package.json package-lock.json* ./
+COPY package.json package-lock.json* .npmrc ./
 RUN --mount=type=cache,target=/root/.npm \
     npm ci --include=dev
 
