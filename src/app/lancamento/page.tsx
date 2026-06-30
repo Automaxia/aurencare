@@ -1,6 +1,7 @@
 import { Logo } from '@/components/brand/Logo'
 import { ListaEsperaForm } from './ListaEsperaForm'
 import { RevealObserver } from './Reveal'
+import { CinematicHero } from './CinematicHero'
 
 export const dynamic = 'force-dynamic'
 
@@ -8,7 +9,7 @@ export default function LancamentoPage() {
   return (
     <div style={{ background: 'var(--page)', color: 'var(--ink)', overflowX: 'clip' }}>
       <NavTopo />
-      <Hero />
+      <CinematicHero />
       {/* Narrativa de categoria: problema → o que é continuidade → o que a Audere
           lembra → grafo (protagonista) → objetivos/evolução → sessão (menor) →
           infraestrutura → privacidade → manifesto → prova social → acesso. */}
@@ -71,74 +72,6 @@ function Figura({ src, style, opacity = 1, className }: {
       opacity, mixBlendMode: 'multiply',
       ...style,
     }} />
-  )
-}
-
-// ─── Hero — posicionamento de categoria ────────────────────────────────
-
-function Hero() {
-  return (
-    <section style={{
-      minHeight: 'calc(100vh - 54px)', display: 'grid', placeItems: 'center',
-      position: 'relative', overflow: 'hidden', padding: '48px 0',
-      backgroundColor: 'var(--page)',
-    }}>
-      {/* Fundo (figura do início) com ken-burns lento — movimento sutil contínuo. */}
-      <div aria-hidden className="lp-kenburns" style={{
-        position: 'absolute', inset: 0, zIndex: 0, pointerEvents: 'none',
-        backgroundImage: 'url(/landing/conversa.png)',
-        backgroundSize: 'cover', backgroundPosition: 'center', backgroundRepeat: 'no-repeat',
-      }} />
-      <div aria-hidden style={{
-        position: 'absolute', inset: 0, zIndex: 0, pointerEvents: 'none',
-        background: 'radial-gradient(ellipse 62% 68% at 50% 48%, rgba(249,248,245,.93) 0%, rgba(249,248,245,.64) 40%, rgba(249,248,245,0) 73%)',
-      }} />
-      <div className="lp-wrap" style={{ display: 'grid', gridTemplateColumns: '1fr', gap: 26, textAlign: 'center', maxWidth: 860, position: 'relative', zIndex: 1 }}>
-        <div style={{
-          fontSize: 12, color: 'var(--accent)', textTransform: 'uppercase',
-          letterSpacing: '.16em', fontWeight: 600,
-        }}>
-          Continuidade Terapêutica
-        </div>
-
-        <h1 style={{
-          fontFamily: 'var(--font-display)', fontSize: 56, fontWeight: 300,
-          color: '#291860', lineHeight: 1.08, letterSpacing: '-.015em',
-          margin: '4px 0',
-        }}>
-          A primeira plataforma de{' '}
-          <em style={{
-            fontStyle: 'italic',
-            background: 'linear-gradient(90deg, #6a4ec8, #5c9d88)',
-            WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent',
-            backgroundClip: 'text',
-          }}>Inteligência Clínica Longitudinal</em>{' '}
-          do Brasil.
-        </h1>
-
-        <p style={{
-          fontSize: 18, color: 'var(--ink-soft)', lineHeight: 1.55,
-          maxWidth: 660, margin: '0 auto',
-        }}>
-          A Audere organiza, acompanha e conecta tudo o que acontece entre uma
-          sessão e outra — para que você <strong>nunca precise reconstruir sozinho a
-          história de um paciente.</strong>
-        </p>
-
-        <div style={{ display: 'flex', justifyContent: 'center', gap: 12, marginTop: 6, flexWrap: 'wrap' }}>
-          <a href="#acesso" className="lp-btn-primary">
-            Solicitar acesso antecipado →
-          </a>
-          <a href="#observar" className="lp-btn-ghost">
-            O que a Audere lembra por você
-          </a>
-        </div>
-
-        <p style={{ fontSize: 12, color: 'var(--muted)', marginTop: 8 }}>
-          Beta por convite · vagas limitadas · sem mensalidade durante o beta
-        </p>
-      </div>
-    </section>
   )
 }
 
