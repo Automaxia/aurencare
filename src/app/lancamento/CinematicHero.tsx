@@ -83,6 +83,7 @@ export function CinematicHero() {
   const cam = useRef(0)
   const target = useRef(0)
   const buildStart = useRef<number | null>(null)
+  const settled = useRef(false)
   const [st, setSt] = useState({ step: 0, t: 0, fit: 1, build: 0 })
 
   useEffect(() => {
@@ -96,18 +97,28 @@ export function CinematicHero() {
       const total = el.offsetHeight - window.innerHeight
       const rawP = clamp01(-el.getBoundingClientRect().top / Math.max(1, total))
       const x = rawP * (NSTOPS - 1)
-      const i = Math.floor(x), f = clamp01(x - i)
-      target.current = i + smoother(f)
+      const i = Math.min(NSTOPS - 2, Math.floor(x))
+      const frac = clamp01(x - i)
+      // Platô: descansa em cada parada (primeiros/últimos ~24% do trecho ficam
+      // ancorados na parada; a câmera só viaja no miolo). Tira o "twitchy".
+      const travel = smoother(clamp01((frac - 0.24) / 0.52))
+      target.current = i + travel
     }
     const tick = () => {
       readTarget()
-      cam.current += (target.current - cam.current) * 0.16
+      cam.current += (target.current - cam.current) * 0.12
       if (Math.abs(target.current - cam.current) < 0.0008) cam.current = target.current
       const now = performance.now()
       let build = buildStart.current != null ? clamp01((now - buildStart.current) / 5400) : 0
       build = Math.max(build, clamp01(cam.current * 2.6))
       const fit = Math.min(window.innerWidth / W, window.innerHeight / H)
-      setSt({ step: cam.current, t: now / 1000, fit, build })
+      // Re-renderiza só quando precisa: câmera em movimento, build rolando, ou
+      // parado numa parada em foco (cujo painel anima). Parado fora de foco → ocioso.
+      const moving = Math.abs(target.current - cam.current) > 0.0008
+      const nearFocus = FOCUS_STEP.some(fs => Math.abs(cam.current - fs) < 1.05)
+      const active = moving || build < 1 || nearFocus
+      if (active) { setSt({ step: cam.current, t: now / 1000, fit, build }); settled.current = false }
+      else if (!settled.current) { setSt({ step: cam.current, t: now / 1000, fit, build }); settled.current = true }
       raf = requestAnimationFrame(tick)
     }
     raf = requestAnimationFrame(tick)
@@ -173,9 +184,11 @@ export function CinematicHero() {
                   <div className="cine-mini" style={{ opacity: composed * (1 - focus[i]), transform: `translate(-50%,-50%) scale(${0.82 + 0.18 * composed})` }}>
                     <SatGlyph idx={i} />
                   </div>
-                  <div className="cine-detail" style={{ opacity: focus[i], pointerEvents: focus[i] > 0.5 ? 'auto' : 'none', transform: `translate(-50%,-50%) scale(${0.92 + 0.08 * focus[i]})` }}>
-                    <SatDetail idx={i} f={focus[i]} t={t} />
-                  </div>
+                  {focus[i] > 0.012 && (
+                    <div className="cine-detail" style={{ opacity: focus[i], pointerEvents: focus[i] > 0.5 ? 'auto' : 'none', transform: `translate(-50%,-50%) scale(${0.92 + 0.08 * focus[i]})` }}>
+                      <SatDetail idx={i} f={focus[i]} t={t} />
+                    </div>
+                  )}
                   <div className="cine-sat-label" style={{ opacity: composed * (1 - focus[i]) }}>{pos.label}</div>
                 </div>
               )
@@ -422,7 +435,7 @@ function VideoDetail({ f, t }: { f: number; t: number }) {
 function CineStyles() {
   return (
     <style dangerouslySetInnerHTML={{ __html: `
-      .cine { position:relative; height:760vh; background:var(--page); }
+      .cine { position:relative; height:900vh; background:var(--page); }
       .cine-sticky { position:sticky; top:0; height:100vh; overflow:hidden;
         background:radial-gradient(circle at 50% 42%, #fdfcf9, var(--page) 60%); }
       .cine .serif { font-family:var(--font-display), serif; font-weight:300; line-height:1.1; letter-spacing:-.6px; }
@@ -509,7 +522,7 @@ function CineStyles() {
       .cd-mods { display:flex; flex-wrap:wrap; gap:7px; margin-top:14px; }
       .cd-mod { font-size:12px; font-weight:500; color:#b9a6f5; background:rgba(185,166,245,.1); border:1px solid rgba(185,166,245,.22); padding:6px 12px; border-radius:18px; }
       .cd-vid-cap { font-size:12px; color:rgba(233,228,251,.6); margin-top:12px; font-style:italic; }
-      @media (max-width:760px) { .cine { height:680vh; } }
+      @media (max-width:760px) { .cine { height:760vh; } }
     ` }} />
   )
 }
