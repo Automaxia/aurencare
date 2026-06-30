@@ -3,6 +3,7 @@ import { ListaEsperaForm } from './ListaEsperaForm'
 import { RevealObserver } from './Reveal'
 import { CinematicHero } from './CinematicHero'
 import { ModulesGrid } from './ModulesDemo'
+import { AnimatedGrafo, AnimatedEvolucao } from './EvolDemos'
 
 export const dynamic = 'force-dynamic'
 
@@ -225,22 +226,6 @@ function ContinuidadeLongitudinal() {
 }
 
 function GrafoDemo() {
-  const nodes = [
-    { id: 'ansiedade',  x: 152, y: 112, r: 27, cor: '#6a4ec8' },
-    { id: 'cobrança',   x: 256, y: 64,  r: 20, cor: '#b07d40' },
-    { id: 'trabalho',   x: 84,  y: 48,  r: 18, cor: '#5a9e8a' },
-    { id: 'autoestima', x: 252, y: 170, r: 18, cor: '#b07d40' },
-    { id: 'sono',       x: 92,  y: 182, r: 15, cor: '#5a9e8a' },
-    { id: 'mãe',        x: 36,  y: 122, r: 14, cor: '#c4607a' },
-    { id: 'sumir',      x: 210, y: 26,  r: 12, cor: '#6a4ec8' },
-  ]
-  const pos: Record<string, { x: number; y: number; r: number; cor: string }> =
-    Object.fromEntries(nodes.map(n => [n.id, n]))
-  const edges: [string, string, number][] = [
-    ['ansiedade', 'cobrança', .7], ['ansiedade', 'trabalho', .5], ['ansiedade', 'sono', .45],
-    ['ansiedade', 'sumir', .4], ['ansiedade', 'mãe', .35],
-    ['cobrança', 'autoestima', .6], ['mãe', 'autoestima', .55], ['trabalho', 'cobrança', .4],
-  ]
   return (
     <div style={{
       marginTop: 24, padding: 22, borderRadius: 14,
@@ -248,23 +233,7 @@ function GrafoDemo() {
       display: 'flex', flexWrap: 'wrap', gap: 28, alignItems: 'center',
     }}>
       <div style={{ flex: '1 1 300px', minWidth: 280 }}>
-        <div style={{
-          fontSize: 10, color: 'var(--faint)', textTransform: 'uppercase',
-          letterSpacing: '.08em', fontFamily: 'var(--font-mono), monospace', marginBottom: 12,
-        }}>Grafo de temas · Marina · 14 sessões</div>
-        <svg viewBox="0 0 340 220" style={{ width: '100%', height: 'auto', display: 'block' }}>
-          {edges.map(([a, b, w], i) => (
-            <line key={i} x1={pos[a].x} y1={pos[a].y} x2={pos[b].x} y2={pos[b].y}
-              stroke="#6a4ec8" strokeOpacity={0.12 + w * 0.2} strokeWidth={1 + w * 1.6} />
-          ))}
-          {nodes.map(n => (
-            <g key={n.id}>
-              <circle cx={n.x} cy={n.y} r={n.r} fill={n.cor} fillOpacity={0.85} />
-              <text x={n.x} y={n.y + n.r + 11} textAnchor="middle" fontSize="10"
-                fill="var(--ink-soft, #3d3852)" fontFamily="var(--font-display), serif">{n.id}</text>
-            </g>
-          ))}
-        </svg>
+        <AnimatedGrafo />
       </div>
 
       <div style={{ flex: '1 1 240px', minWidth: 220 }}>
@@ -307,40 +276,9 @@ function AcompanheEvolucao() {
         <Eyebrow>Ao longo do tempo</Eyebrow>
         <H2>Você finalmente acompanha a evolução —<br />não apenas registra sessões.</H2>
 
-        <div className="lp-grid-2" style={{ marginTop: 36 }}>
-          <FeatCard
-            tag="objetivos · SMART + GAS"
-            titulo="Objetivos Terapêuticos"
-            corpo="Cada objetivo tem métrica, baseline, alvo e prazo — com suporte a GAS (Goal Attainment Scaling) para metas subjetivas. O bullet chart mostra a posição atual em relação ao alvo, sessão após sessão. Acompanhar evolução, não só anotar a intenção."
-          />
-          <FeatCard
-            tag="evolução · longitudinal"
-            titulo="Evolução Registrada"
-            corpo="Um painel longitudinal acompanha humor, ritmo, presença e abertura ao longo do processo. Marcos são extraídos automaticamente das sessões anteriores. A Audere acompanha as mudanças — não apenas guarda o registro."
-          />
-        </div>
+        <AnimatedEvolucao />
       </div>
     </section>
-  )
-}
-
-function FeatCard({ titulo, corpo, tag }: { titulo: string; corpo: string; tag: string }) {
-  return (
-    <div style={{
-      padding: 26, borderRadius: 14,
-      background: 'var(--card)', border: '1px solid var(--border)',
-      display: 'grid', gap: 12,
-    }}>
-      <div style={{
-        fontSize: 10, color: 'var(--faint)', textTransform: 'uppercase',
-        letterSpacing: '.08em', fontFamily: 'var(--font-mono), monospace',
-      }}>{tag}</div>
-      <h3 style={{
-        fontFamily: 'var(--font-display)', fontSize: 22, fontWeight: 400, margin: 0,
-        color: 'var(--ink)',
-      }}>{titulo}</h3>
-      <p style={{ fontSize: 13.5, color: 'var(--ink-soft)', lineHeight: 1.6, margin: 0 }}>{corpo}</p>
-    </div>
   )
 }
 
