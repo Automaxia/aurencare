@@ -4,7 +4,7 @@ import 'server-only'
  * Marca o env como "configurado" se NÃO contém placeholder.
  * Permite que clients degradem para no-op quando .env.local ainda tem valor padrão.
  */
-const PLACEHOLDER_HINTS = ['change-me', 'sk-ant-...', 'sk_test_...', 'ek_test_...', 'example.com']
+const PLACEHOLDER_HINTS = ['change-me', 'sk-ant-...', 'sk-proj-...', 'sk_test_...', 'ek_test_...', 'example.com']
 
 export function isConfigured(value: string | undefined): boolean {
   if (!value || value.trim() === '') return false
@@ -12,6 +12,7 @@ export function isConfigured(value: string | undefined): boolean {
 }
 
 export const env = {
+  openaiKey:           process.env.OPENAI_API_KEY,
   anthropicKey:        process.env.ANTHROPIC_API_KEY,
   evolutionUrl:        process.env.EVOLUTION_API_URL,
   evolutionKey:        process.env.EVOLUTION_API_KEY,
@@ -27,6 +28,7 @@ export const env = {
 }
 
 export const integrationStatus = {
+  openai:    isConfigured(env.openaiKey),
   anthropic: isConfigured(env.anthropicKey),
   evolution: isConfigured(env.evolutionUrl) && isConfigured(env.evolutionKey),
   pagarme:   isConfigured(env.pagarmeKey),

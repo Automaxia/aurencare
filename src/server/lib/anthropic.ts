@@ -1,90 +1,19 @@
 import 'server-only'
-import Anthropic from '@anthropic-ai/sdk'
-import { env, integrationStatus } from './env'
-import { log } from './log'
-import { validarTextoIA, sanitizarTextoIA } from './aiGuard'
+import { chat } from './llm'
 
 /**
- * Roteamento por tier de modelo (otimização de custo §IA):
- * - `fast`   (Haiku 4.5)  — chamadas mecânicas/ao vivo (tom, falante, obs-viva,
- *   contexto, marcar-turnos, insight, temas, saúde, voz WA, marcos). ~3× mais barato.
- * - `strong` (Sonnet 4.6) — APENAS onde vira prontuário ou avalia risco
- *   (resumo, risco, evolução longitudinal, chat clínico, narrativa de prontuário).
- *   Qualidade clínica + barreira anti-diagnóstico (CFP 09/2024) não pode escorregar.
- *
- * Default é `fast` — escolha consciente: o caller sensível PRECISA pedir `strong`.
+ * COMPAT: o acesso ao LLM mora agora em `llm.ts` (multi-provedor — OpenAI
+ * primário, Anthropic fallback). Este módulo reexporta `chat`/tipos para não
+ * quebrar imports existentes (`@/server/lib/anthropic`) e mantém o helper de
+ * alto nível `gerarResumoSessao` (laudo). Prefira importar de `@/server/lib/llm`
+ * em código novo.
  */
-export type ModelTier = 'fast' | 'strong'
-const MODEL_IDS: Record<ModelTier, string> = {
-  fast:   'claude-haiku-4-5-20251001',
-  strong: 'claude-sonnet-4-6',
-}
+export { chat }
+export type { ChatMessage, ModelTier } from './llm'
 
-let client: Anthropic | null = null
-function getClient() {
-  if (!integrationStatus.anthropic) return null
-  if (!client) client = new Anthropic({ apiKey: env.anthropicKey! })
-  return client
-}
-
-export type ChatMessage = { role: 'user' | 'assistant'; content: string }
-
-// Placeholders/detector vêm de @/lib/ia (client-safe, fonte única).
-import { IA_SEM_CHAVE, IA_FALHA, iaIndisponivel } from '@/lib/ia'
-export { iaIndisponivel }
-
-/** Detecta erro de saldo/billing da Anthropic (mensagem específica de crédito). */
-function ehErroDeCredito(err: any): boolean {
-  const msg = (err?.error?.error?.message ?? err?.message ?? '').toString().toLowerCase()
-  return err?.status === 400 && (msg.includes('credit balance') || msg.includes('billing'))
-}
-
-export async function chat(
-  systemPrompt: string,
-  messages: ChatMessage[],
-  opts: { maxTokens?: number; scope?: string; model?: ModelTier; cache?: boolean } = {},
-): Promise<string> {
-  const c = getClient()
-  if (!c) {
-    log.warn(opts.scope ?? 'anthropic', 'sem ANTHROPIC_API_KEY — retornando placeholder')
-    return IA_SEM_CHAVE
-  }
-
-  try {
-    const modelo = MODEL_IDS[opts.model ?? 'fast']
-    // Prompt caching (§10): só vale quando o prefixo estável (system) é grande —
-    // mínimo cacheável é 4096 tokens no Haiku, 2048 no Sonnet. System curto não
-    // cacheia (silenciosamente). Por isso só ligamos onde o prompt é volumoso.
-    const system = opts.cache
-      ? [{ type: 'text' as const, text: systemPrompt, cache_control: { type: 'ephemeral' as const } }]
-      : systemPrompt
-    const res = await c.messages.create({
-      model: modelo,
-      max_tokens: opts.maxTokens ?? 1000,
-      system,
-      messages: messages.slice(-8),
-    })
-    const u: any = res.usage
-    const cacheRead = u?.cache_read_input_tokens ?? 0
-    const cacheWrite = u?.cache_creation_input_tokens ?? 0
-    if (cacheRead > 0) log.ok(opts.scope ?? 'anthropic', `cache hit: ${cacheRead} tokens lidos do cache`)
-    // Registra custo (tokens reais, incluindo os de cache). Best-effort.
-    import('@/server/services/custos').then(m => m.registrarCustoAnthropic({
-      operacao: opts.scope, modelo,
-      tokensEntrada: (u?.input_tokens ?? 0) + cacheRead + cacheWrite,
-      tokensSaida: u?.output_tokens ?? 0,
-    })).catch(() => {})
-    const raw = res.content.find(b => b.type === 'text')?.text ?? ''
-    return validarTextoIA(raw) ? raw : sanitizarTextoIA(raw)
-  } catch (err) {
-    if (ehErroDeCredito(err)) {
-      log.err(opts.scope ?? 'anthropic', 'SALDO DE CRÉDITO ESGOTADO na Anthropic — recarregue em console.anthropic.com/billing', undefined)
-    } else {
-      log.err(opts.scope ?? 'anthropic', 'falha ao gerar', err)
-    }
-    return IA_FALHA
-  }
-}
+// Placeholder/detector da IA — fonte única em @/lib/ia (client-safe). Reexportado
+// aqui porque há callers que importam de '@/server/lib/anthropic' (ex.: encerrar).
+export { iaIndisponivel } from '@/lib/ia'
 
 /**
  * Gera resumo de sessão para o Pós-sessão (§9 Evolução Registrada).
