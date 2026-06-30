@@ -91,28 +91,28 @@ function TScoreCard({ serie, k }: { serie: Ponto[]; k: number }) {
 
       <div style={{ position: 'relative' }} onMouseLeave={() => setHover(null)}>
         <svg viewBox={`0 0 ${W} ${H}`} style={{ width: '100%', height: 'auto', display: 'block' }} role="img" aria-label="Pontuação de progresso T-Score ao longo do tempo">
-          {/* faixas */}
-          <rect x={padL} y={yFor(80)} width={innerW} height={yFor(60) - yFor(80)} fill="rgba(90,158,138,.10)" />
-          <rect x={padL} y={yFor(40)} width={innerW} height={yFor(20) - yFor(40)} fill="rgba(196,96,122,.08)" />
-          {/* linhas de referência */}
-          {[{ v: 60, c: 'var(--sage)', t: 'Acima do esperado' }, { v: 50, c: 'var(--ink-soft)', t: 'Resultado esperado' }, { v: 40, c: 'var(--rose)', t: 'Abaixo do esperado' }].map(r => (
+          {/* faixas (suaves) */}
+          <rect x={padL} y={yFor(80)} width={innerW} height={yFor(60) - yFor(80)} fill="rgba(90,158,138,.05)" />
+          <rect x={padL} y={yFor(40)} width={innerW} height={yFor(20) - yFor(40)} fill="rgba(196,96,122,.045)" />
+          {/* linhas de referência (discretas) */}
+          {[{ v: 60, c: 'var(--sage)', t: 'Acima do esperado' }, { v: 50, c: 'var(--muted)', t: 'Resultado esperado' }, { v: 40, c: 'var(--rose)', t: 'Abaixo do esperado' }].map(r => (
             <g key={r.v}>
-              <line x1={padL} y1={yFor(r.v)} x2={padL + innerW} y2={yFor(r.v)} stroke={r.c} strokeWidth="1" strokeDasharray="5 4" opacity="0.55" />
-              <text x={padL + innerW + 6} y={yFor(r.v) + 3} fontSize="9.5" fill={r.c} opacity="0.85">{r.t}</text>
+              <line x1={padL} y1={yFor(r.v)} x2={padL + innerW} y2={yFor(r.v)} stroke={r.c} strokeWidth="0.8" strokeDasharray="3 5" opacity="0.32" />
+              <text x={padL + innerW + 6} y={yFor(r.v) + 3} fontSize="9" fill={r.c} opacity="0.6">{r.t}</text>
             </g>
           ))}
           {/* eixo Y */}
           {[20, 30, 40, 50, 60, 70, 80].map(v => (
             <text key={v} x={padL - 7} y={yFor(v) + 3} textAnchor="end" fontSize="9.5" fill="var(--faint)">{v}</text>
           ))}
-          {/* linha de progresso */}
-          {n >= 2 && <polyline points={pts.map(p => `${p.x},${p.y}`).join(' ')} fill="none" stroke="var(--accent)" strokeWidth="2.2" strokeLinejoin="round" strokeLinecap="round" />}
-          {/* marcadores */}
+          {/* linha de progresso (mais leve) */}
+          {n >= 2 && <polyline points={pts.map(p => `${p.x},${p.y}`).join(' ')} fill="none" stroke="var(--accent)" strokeOpacity="0.7" strokeWidth="1.7" strokeLinejoin="round" strokeLinecap="round" />}
+          {/* marcadores (menores e suaves) */}
           {pts.map((p, i) => {
             const lit = hover === i
-            if (p.inicial) return <path key={i} d={`M ${p.x} ${p.y - 5} L ${p.x + 5} ${p.y} L ${p.x} ${p.y + 5} L ${p.x - 5} ${p.y} Z`} fill="var(--accent)" stroke="var(--card)" strokeWidth="1.5" />
-            if (p.alerta) return <g key={i}><circle cx={p.x} cy={p.y} r={6} fill="none" stroke="var(--rose)" strokeWidth="1.6" /><circle cx={p.x} cy={p.y} r={3} fill="var(--rose)" /></g>
-            return <circle key={i} cx={p.x} cy={p.y} r={lit ? 5 : 4} fill={p.parcial ? 'var(--card)' : 'var(--accent)'} stroke="var(--accent)" strokeWidth={p.parcial ? 1.8 : 1.5} />
+            if (p.inicial) return <path key={i} d={`M ${p.x} ${p.y - 4.4} L ${p.x + 4.4} ${p.y} L ${p.x} ${p.y + 4.4} L ${p.x - 4.4} ${p.y} Z`} fill="var(--accent)" fillOpacity="0.85" stroke="var(--card)" strokeWidth="1.5" />
+            if (p.alerta) return <g key={i}><circle cx={p.x} cy={p.y} r={5.4} fill="none" stroke="var(--rose)" strokeOpacity="0.7" strokeWidth="1.3" /><circle cx={p.x} cy={p.y} r={2.6} fill="var(--rose)" fillOpacity="0.85" /></g>
+            return <circle key={i} cx={p.x} cy={p.y} r={lit ? 4.4 : 3.2} fill={p.parcial ? 'var(--card)' : 'var(--accent)'} fillOpacity={p.parcial ? 1 : 0.82} stroke="var(--accent)" strokeOpacity="0.7" strokeWidth={p.parcial ? 1.6 : 1.3} />
           })}
           {/* rótulos X */}
           {pts.map((p, i) => labelIdx.has(i) ? <text key={i} x={p.x} y={H - 12} textAnchor={i === 0 ? 'start' : i === n - 1 ? 'end' : 'middle'} fontSize="9.5" fill="var(--muted)">{p.rotulo}</text> : null)}
@@ -120,7 +120,7 @@ function TScoreCard({ serie, k }: { serie: Ponto[]; k: number }) {
           {pts.map((p, i) => (
             <rect key={i} x={p.x - innerW / (2 * Math.max(1, n - 1))} y={padT} width={innerW / Math.max(1, n - 1)} height={innerH} fill="transparent" onMouseEnter={() => setHover(i)} style={{ cursor: 'pointer' }} />
           ))}
-          {hover != null && <line x1={pts[hover].x} y1={padT} x2={pts[hover].x} y2={padT + innerH} stroke="var(--accent)" strokeWidth="1" strokeDasharray="3 3" opacity="0.5" />}
+          {hover != null && <line x1={pts[hover].x} y1={padT} x2={pts[hover].x} y2={padT + innerH} stroke="var(--accent)" strokeWidth="0.8" strokeDasharray="3 3" opacity="0.32" />}
         </svg>
 
         {hover != null && <Tooltip p={pts[hover]} prev={hover > 0 ? pts[hover - 1].t : null} inicio={pts[0].t} k={k} left={(pts[hover].x / W) * 100} top={(pts[hover].y / H) * 100} />}
@@ -177,7 +177,7 @@ function PorMetaCard({ metas, datas }: { metas: GasEscala[]; datas: string[] }) 
       <svg viewBox={`0 0 ${W} ${H}`} style={{ width: '100%', height: 'auto', display: 'block' }} role="img" aria-label="Evolução por meta GAS">
         {[2, 1, 0, -1, -2].map(v => (
           <g key={v}>
-            <line x1={padL} y1={yFor(v)} x2={padL + innerW} y2={yFor(v)} stroke="var(--border)" strokeWidth={v === 0 ? 1 : 0.5} />
+            <line x1={padL} y1={yFor(v)} x2={padL + innerW} y2={yFor(v)} stroke="var(--border)" strokeWidth={v === 0 ? 0.8 : 0.5} opacity={v === 0 ? 0.9 : 0.6} />
             <text x={padL - 6} y={yFor(v) + 3} textAnchor="end" fontSize="9.5" fill="var(--faint)">{sinal(v)}</text>
           </g>
         ))}
@@ -185,9 +185,9 @@ function PorMetaCard({ metas, datas }: { metas: GasEscala[]; datas: string[] }) 
           const cor = COLORS[mi % COLORS.length]
           const pts = cols.map((d, i) => ({ x: xFor(i), y: yFor(i === 0 ? m.nivelPartida : nivelEm(m, d)) }))
           return (
-            <g key={m.id}>
-              <polyline points={pts.map(p => `${p.x},${p.y}`).join(' ')} fill="none" stroke={cor} strokeWidth="2.2" strokeLinejoin="round" strokeLinecap="round" opacity={m.ativo ? 1 : 0.4} />
-              {pts.map((p, i) => <circle key={i} cx={p.x} cy={p.y} r={i === 0 ? 3 : 3.4} fill={i === 0 ? 'var(--card)' : cor} stroke={cor} strokeWidth="1.6" />)}
+            <g key={m.id} opacity={m.ativo ? 0.88 : 0.38}>
+              <polyline points={pts.map(p => `${p.x},${p.y}`).join(' ')} fill="none" stroke={cor} strokeWidth="1.7" strokeLinejoin="round" strokeLinecap="round" />
+              {pts.map((p, i) => <circle key={i} cx={p.x} cy={p.y} r={i === 0 ? 2.6 : 3} fill={i === 0 ? 'var(--card)' : cor} fillOpacity="0.9" stroke={cor} strokeWidth="1.4" />)}
             </g>
           )
         })}
