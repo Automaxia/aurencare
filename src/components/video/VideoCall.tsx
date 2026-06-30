@@ -61,6 +61,14 @@ export function VideoCall({ token, role, caller, compact, fill, onEncerrar, onRe
   const shellRef = useRef<HTMLDivElement>(null)
   const [minimized, setMinimized] = useState(false)
   const [maximized, setMaximized] = useState(false)
+  // Orientação do vídeo remoto: paciente no celular manda retrato. Num container
+  // paisagem, "cover" cortaria o rosto — então usamos "contain" pra mostrar o
+  // quadro inteiro quando o vídeo é mais alto que largo.
+  const [remotePortrait, setRemotePortrait] = useState(false)
+  function aferirOrientacaoRemota(e: React.SyntheticEvent<HTMLVideoElement>) {
+    const v = e.currentTarget
+    if (v.videoWidth && v.videoHeight) setRemotePortrait(v.videoHeight > v.videoWidth * 1.05)
+  }
   const [blur, setBlur] = useState(false)
   const blurProc = useBackgroundBlur(ctrl.localStream, blur)
   const blurOk = !blurProc.error
@@ -200,10 +208,13 @@ export function VideoCall({ token, role, caller, compact, fill, onEncerrar, onRe
           ref={remoteRef}
           autoPlay
           playsInline
+          onLoadedMetadata={aferirOrientacaoRemota}
+          onResize={aferirOrientacaoRemota}
           style={{
             display: 'block', width: '100%', height: '100%', background: '#0e0c18',
-            // Tela compartilhada → mostra inteira (contain). Câmera → preenche (cover).
-            objectFit: ctrl.outroCompartilhando ? 'contain' : 'cover',
+            // Tela compartilhada ou vídeo retrato (celular) → mostra inteiro (contain),
+            // pra não cortar o rosto. Câmera paisagem → preenche (cover).
+            objectFit: ctrl.outroCompartilhando || remotePortrait ? 'contain' : 'cover',
           }}
         />
         {!ctrl.outroPresente && (

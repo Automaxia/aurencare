@@ -1,9 +1,26 @@
 import { NextResponse } from 'next/server'
 import { requirePsicologo } from '@/server/lib/auth'
-import { editarResumoAssinado } from '@/server/services/sessoes'
+import { editarResumoAssinado, buscarSessao } from '@/server/services/sessoes'
 import { validarTextoIA } from '@/server/lib/aiGuard'
+import { iaIndisponivel } from '@/server/lib/anthropic'
 
 export const runtime = 'nodejs'
+
+/**
+ * Lê o laudo (resumo_ia) já salvo no banco. Serve de "retry" no pós-sessão quando
+ * o POST de encerrar deu timeout (nginx 60s) mas o servidor terminou de gerar e
+ * salvou o laudo mesmo assim.
+ */
+export async function GET(_req: Request, { params }: { params: { id: string } }) {
+  const user = await requirePsicologo()
+  const sessao = await buscarSessao(params.id)
+  if (!sessao || sessao.psicologoId !== user.id) {
+    return NextResponse.json({ error: 'nao_encontrada' }, { status: 404 })
+  }
+  const resumo = sessao.resumoIa
+  const disponivel = !!resumo && !iaIndisponivel(resumo)
+  return NextResponse.json({ resumo: disponivel ? resumo : null, disponivel })
+}
 
 /**
  * Retifica o laudo de uma sessão já assinada. Re-passa pelo guard (diagnóstico/

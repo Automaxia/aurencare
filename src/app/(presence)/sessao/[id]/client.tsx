@@ -378,13 +378,16 @@ export function PresenceClient(props: Props) {
       humor, risco, notaRapida,
     }
 
+    // Pode dar timeout (nginx 60s) gerando o laudo; res.ok falso NÃO pode abrir o
+    // modal vazio em silêncio — sinaliza indisponível (o modal oferece "tentar
+    // carregar", já que o servidor costuma terminar e salvar o laudo após o 504).
     const res = await fetch(`/api/sessao/${props.sessaoId}/encerrar`, {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ transcricao, indicadores }),
-    })
-    const json = await res.json().catch(() => ({} as any))
+    }).catch(() => null)
+    const json = res && res.ok ? await res.json().catch(() => ({} as any)) : {}
     setResumoIA(json.resumo ?? null)
-    setResumoIndisponivel(json.iaIndisponivel === true)
+    setResumoIndisponivel(!res || !res.ok || json.iaIndisponivel === true)
 
     if (transcricao.length > 60) {
       Promise.all([

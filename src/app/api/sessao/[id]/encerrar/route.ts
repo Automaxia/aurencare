@@ -33,17 +33,26 @@ export async function POST(req: Request, { params }: { params: { id: string } })
       psicologoId: sessao.psicologoId, sessaoId: sessao.id,
     }).catch(() => {})
     // Laudos anteriores do paciente → "Avaliação do Progresso" compara de verdade.
-    const historico = await resumosAnteriores(sessao.psicologoId, sessao.pacienteId, sessao.numero)
-      .catch(() => [])
-    const resumo = await gerarResumoSessao(transcricao, { numero: sessao.numero, pacienteNome: sessao.pacienteNome }, historico)
-    // Se a IA está fora (sem crédito/erro), NÃO salva o placeholder como laudo —
-    // sinaliza pro front mostrar estado claro em vez de "[Não foi possível…]".
-    if (iaIndisponivel(resumo)) {
-      log.warn('encerrar', `IA indisponível ao gerar laudo sessao=${params.id} — laudo não salvo`)
+    try {
+      const historico = await resumosAnteriores(sessao.psicologoId, sessao.pacienteId, sessao.numero)
+        .catch(() => [])
+      const resumo = await gerarResumoSessao(transcricao, { numero: sessao.numero, pacienteNome: sessao.pacienteNome }, historico)
+      // Se a IA está fora (sem crédito/erro), NÃO salva o placeholder como laudo —
+      // sinaliza pro front mostrar estado claro em vez de "[Não foi possível…]".
+      if (iaIndisponivel(resumo)) {
+        log.warn('encerrar', `IA indisponível ao gerar laudo sessao=${params.id} — laudo não salvo`)
+        return NextResponse.json({ ok: true, resumo: null, iaIndisponivel: true })
+      }
+      await salvarResumoIA(params.id, resumo)
+      return NextResponse.json({ ok: true, resumo })
+    } catch (err) {
+      // Erro ou timeout ao gerar/salvar o laudo NÃO pode virar 500 (o cliente
+      // mostraria modal vazio sem aviso). Sinaliza indisponível; o laudo pode ter
+      // sido salvo no servidor mesmo após o 504 do nginx — o modal oferece "tentar
+      // carregar" (GET /resumo) pra buscá-lo.
+      log.err('encerrar', `falha ao gerar/salvar laudo sessao=${params.id}`, err)
       return NextResponse.json({ ok: true, resumo: null, iaIndisponivel: true })
     }
-    await salvarResumoIA(params.id, resumo)
-    return NextResponse.json({ ok: true, resumo })
   }
 
   return NextResponse.json({ ok: true, resumo: null })

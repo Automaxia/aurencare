@@ -12,14 +12,16 @@ import { criarObjetivoAction, criarGasAction } from './actions'
  * "tip clínica" com perguntas-guia que ajudam o(a) psicólogo(a) a redigir
  * com qualidade.
  *
- * Passos:
- *   0. Tipo de métrica (absoluta vs GAS)
+ * Passos (na ordem do acrônimo SMART; a GAS vem ao FINAL, montada a partir do
+ * objetivo já definido):
+ *   0. Tipo de método (SMART vs Simples)
  *   1. S — Específico (título)
- *   2. R — Relevante (contexto clínico)
- *   3. M — Mensurável (unidade + baseline + alvo)  [oculto em GAS]
- *   4. A — Atingível (sub-passos, recursos, obstáculos)
+ *   2. M — Mensurável (unidade + baseline + alvo)
+ *   3. A — Atingível (sub-passos, recursos, obstáculos)
+ *   4. R — Relevante (contexto clínico)
  *   5. T — Temporal (prazo)
- *   6. Revisão final
+ *   6. Revisão do objetivo
+ *   7. GAS? (opcional) → 8. Configurar escala GAS (com base no objetivo revisado)
  */
 
 type Props = {
@@ -64,7 +66,7 @@ export function NovoObjetivoWizard({ pacienteId, tituloInicial, onCriado, onCanc
   const [subPassos, setSubPassos] = useState('')   // A — sub-passos/recursos/obstáculos (texto livre)
   const [prazo, setPrazo]         = useState('')
 
-  // GAS opcional dentro do fluxo SMART (perguntado logo após escolher o método)
+  // GAS opcional — perguntada ao FINAL, depois do objetivo SMART definido e revisado.
   const [usarGas, setUsarGas]         = useState(false)
   const [gasTitulo, setGasTitulo]     = useState('')
   const [gasNv, setGasNv]             = useState<Record<string, string>>({ nivelP2: '', nivelP1: '', nivel0: '', nivelM1: '', nivelM2: '' })
@@ -120,9 +122,11 @@ export function NovoObjetivoWizard({ pacienteId, tituloInicial, onCriado, onCanc
     setStep(tipoAplicado === 'absoluta' ? 'revisao' : 'livre')
   }
 
-  // Dois métodos: SMART (absoluta) pergunta GAS logo após o método; Livre (nenhuma) é entrada única.
+  // SMART (absoluta): passos na ordem do acrônimo S-M-A-R-T, depois revisão do
+  // objetivo e, só ao FINAL, a GAS (montada a partir do objetivo já definido).
+  // Livre (nenhuma) é entrada única.
   const sequencia: Step[] = tipo === 'absoluta'
-    ? ['tipo', 'gasq', ...(usarGas ? ['gascfg' as Step] : []), 's', 'r', 'm', 'a', 't', 'revisao']
+    ? ['tipo', 's', 'm', 'a', 'r', 't', 'revisao', 'gasq', ...(usarGas ? ['gascfg' as Step] : [])]
     : ['tipo', 'livre']
   const idx       = sequencia.indexOf(step)
   const primeiro  = idx === 0
@@ -486,7 +490,7 @@ function OpcaoCard({ ativo, onClick, titulo, corpo }: { ativo: boolean; onClick:
 function PassoGasQuestion({ usar, onChange }: { usar: boolean; onChange: (v: boolean) => void }) {
   return (
     <div style={{ display: 'grid', gap: 14 }}>
-      <HeaderPasso letra="◬" titulo="Quer acompanhar com uma escala GAS?" sub="O GAS é opcional. Configure agora, no mesmo fluxo, ou adicione depois na tela da meta." />
+      <HeaderPasso letra="◬" titulo="Quer acompanhar com uma escala GAS?" sub="Com o objetivo já definido, você pode montar agora uma escala GAS baseada nele — ou adicionar depois, na tela da meta. É opcional." />
       <div style={{ display: 'grid', gap: 10 }}>
         <OpcaoCard
           ativo={usar}
@@ -806,8 +810,10 @@ function Revisao(p: {
         )}
         {p.subPassos && <RevisaoLinha letra="A" titulo="Atingível · plano" valor={p.subPassos} multiLinha />}
         <RevisaoLinha letra="T" titulo="Temporal" valor={p.prazo ? formatPrazo(p.prazo) : '—'} />
-        <RevisaoLinha letra="◬" titulo="GAS" valor={p.usarGas && p.gasTitulo.trim() ? `Escala "${p.gasTitulo.trim()}" será criada junto` : 'Sem escala GAS (pode adicionar depois na meta)'} />
       </div>
+      <p style={{ fontSize: 12, color: 'var(--muted)', margin: 0, lineHeight: 1.5 }}>
+        No próximo passo você pode (opcionalmente) montar uma escala <strong>GAS</strong> baseada neste objetivo.
+      </p>
     </div>
   )
 }

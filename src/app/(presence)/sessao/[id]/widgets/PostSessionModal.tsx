@@ -23,7 +23,27 @@ type Props = {
 export function PostSessionModal(p: Props) {
   // Nunca injeta placeholder de IA no textarea; começa vazio se o laudo não veio.
   const [resumo, setResumo] = useState(iaIndisponivel(p.resumoIA) ? '' : (p.resumoIA ?? ''))
-  const laudoFalhou = p.resumoIndisponivel || iaIndisponivel(p.resumoIA)
+  const [laudoFalhou, setLaudoFalhou] = useState(p.resumoIndisponivel || iaIndisponivel(p.resumoIA))
+  const [carregandoLaudo, setCarregandoLaudo] = useState(false)
+  const [laudoMsg, setLaudoMsg] = useState<string | null>(null)
+
+  // Retry: o laudo pode ter sido salvo no servidor mesmo após o timeout do POST.
+  async function carregarLaudo() {
+    if (carregandoLaudo) return
+    setCarregandoLaudo(true); setLaudoMsg(null)
+    try {
+      const r = await fetch(`/api/sessao/${p.sessaoId}/resumo`).then(r => r.json()).catch(() => null)
+      if (r?.disponivel && r.resumo && !iaIndisponivel(r.resumo)) {
+        setResumo(r.resumo); setLaudoFalhou(false); setLaudoMsg(null)
+      } else {
+        setLaudoMsg('O laudo ainda não ficou pronto. Aguarde alguns segundos e tente de novo, ou escreva manualmente.')
+      }
+    } catch {
+      setLaudoMsg('Não consegui buscar o laudo agora. Tente de novo em instantes.')
+    } finally {
+      setCarregandoLaudo(false)
+    }
+  }
   const [nota, setNota] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -90,7 +110,14 @@ export function PostSessionModal(p: Props) {
 
         {laudoFalhou && (
           <div style={{ background: 'var(--amber-lo, rgba(176,125,64,.10))', borderRadius: 10, padding: '10px 14px', marginBottom: 12, fontSize: 12, color: 'var(--amber)', lineHeight: 1.5 }}>
-            O rascunho automático não pôde ser gerado (a inteligência da Audere está temporariamente indisponível). Você pode escrever o resumo manualmente abaixo e assinar normalmente.
+            O rascunho automático não apareceu agora — pode ter demorado mais que o normal pra gerar. Tente carregar o laudo, ou escreva o resumo manualmente abaixo e assine normalmente.
+            <div style={{ marginTop: 8 }}>
+              <button className="btn ghost" style={{ padding: '4px 10px', fontSize: 12, color: 'var(--amber)' }}
+                onClick={carregarLaudo} disabled={carregandoLaudo}>
+                {carregandoLaudo ? 'Carregando…' : '↻ Tentar carregar o laudo gerado'}
+              </button>
+            </div>
+            {laudoMsg && <div style={{ marginTop: 6, color: 'var(--muted)' }}>{laudoMsg}</div>}
           </div>
         )}
 
