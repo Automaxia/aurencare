@@ -11,7 +11,9 @@ const clamp = (v: number, lo: number, hi: number) => Math.max(lo, Math.min(v, hi
  */
 export function MovableWindow({ width, height, minimized, children }: { width: number; height: number; minimized?: boolean; children: React.ReactNode }) {
   const [pos, setPos] = useState<{ left: number; top: number } | null>(null)
+  const [size, setSize] = useState({ w: width, h: height })
   const drag = useRef<{ sx: number; sy: number; bl: number; bt: number } | null>(null)
+  const resz = useRef<{ sx: number; sy: number; bw: number; bh: number } | null>(null)
   const winRef = useRef<HTMLDivElement>(null)
 
   function down(e: React.PointerEvent) {
@@ -24,12 +26,30 @@ export function MovableWindow({ width, height, minimized, children }: { width: n
   function move(e: React.PointerEvent) {
     const d = drag.current
     if (!d) return
-    const left = clamp(d.bl + (e.clientX - d.sx), 4, window.innerWidth - width - 4)
-    const top = clamp(d.bt + (e.clientY - d.sy), 4, window.innerHeight - height - 4)
+    const left = clamp(d.bl + (e.clientX - d.sx), 4, window.innerWidth - size.w - 4)
+    const top = clamp(d.bt + (e.clientY - d.sy), 4, window.innerHeight - size.h - 4)
     setPos({ left, top })
   }
   function up(e: React.PointerEvent) {
     drag.current = null
+    try { e.currentTarget.releasePointerCapture(e.pointerId) } catch { /* */ }
+  }
+
+  // Redimensionar pela alça do canto inferior direito (livre, com mín/máx).
+  function downResize(e: React.PointerEvent) {
+    e.stopPropagation()
+    resz.current = { sx: e.clientX, sy: e.clientY, bw: size.w, bh: size.h }
+    try { e.currentTarget.setPointerCapture(e.pointerId) } catch { /* */ }
+  }
+  function moveResize(e: React.PointerEvent) {
+    const r = resz.current
+    if (!r) return
+    const w = clamp(r.bw + (e.clientX - r.sx), 240, Math.round(window.innerWidth * 0.95))
+    const h = clamp(r.bh + (e.clientY - r.sy), 150, Math.round(window.innerHeight * 0.92))
+    setSize({ w, h })
+  }
+  function upResize(e: React.PointerEvent) {
+    resz.current = null
     try { e.currentTarget.releasePointerCapture(e.pointerId) } catch { /* */ }
   }
 
@@ -46,7 +66,7 @@ export function MovableWindow({ width, height, minimized, children }: { width: n
     <div
       ref={winRef}
       style={{
-        position: 'fixed', width, height, zIndex: 40, ...place,
+        position: 'fixed', width: size.w, height: size.h, zIndex: 40, ...place,
         boxShadow: 'var(--sh-lg)', borderRadius: 'var(--rsm)', overflow: 'hidden',
         display: 'flex', flexDirection: 'column', background: '#0e0c18',
       }}
@@ -63,6 +83,21 @@ export function MovableWindow({ width, height, minimized, children }: { width: n
         <span style={{ width: 30, height: 3, borderRadius: 2, background: 'rgba(255,255,255,.4)' }} />
       </div>
       <div style={{ flex: 1, minHeight: 0, position: 'relative' }}>{children}</div>
+
+      {/* Alça de redimensionar (canto inferior direito) */}
+      <div
+        onPointerDown={downResize} onPointerMove={moveResize} onPointerUp={upResize}
+        title="Arraste para redimensionar"
+        style={{
+          position: 'absolute', right: 0, bottom: 0, width: 18, height: 18,
+          cursor: 'nwse-resize', touchAction: 'none', zIndex: 2,
+          display: 'flex', alignItems: 'flex-end', justifyContent: 'flex-end', padding: 3,
+        }}
+      >
+        <svg width="10" height="10" viewBox="0 0 10 10" aria-hidden="true">
+          <path d="M9 1 L1 9 M9 5 L5 9" stroke="rgba(255,255,255,.55)" strokeWidth="1.4" strokeLinecap="round" fill="none" />
+        </svg>
+      </div>
     </div>
   )
 }
