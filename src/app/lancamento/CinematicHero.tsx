@@ -13,8 +13,21 @@ import { useEffect, useRef, useState } from 'react'
 const W = 1280, H = 800, CX = 640, CY = 392
 const Z = 1.34
 
-const NATURE: Record<string, string> = {
-  emocional: '#6a4ec8', relacional: '#c4607a', situacional: '#5a9e8a', cognitivo: '#b07d40',
+const NATURE: Record<string, { color: string }> = {
+  emocional:   { color: '#c4607a' },
+  relacional:  { color: '#6a4ec8' },
+  situacional: { color: '#b07d40' },
+  cognitivo:   { color: '#5a9e8a' },
+}
+
+// Temas: relevância clínica (rel → tamanho do nó) + como apareceram na fala.
+type Quote = { s: number; q: string }
+const THEMES: Record<string, { nat: string; rel: number; quotes: Quote[] }> = {
+  ansiedade:  { nat: 'emocional',   rel: 0.95, quotes: [{ s: 2, q: 'meu peito aperta toda noite antes de dormir' }, { s: 7, q: 'fico no automático esperando algo dar errado' }, { s: 11, q: 'a respiração some quando penso no trabalho' }] },
+  trabalho:   { nat: 'situacional', rel: 0.80, quotes: [{ s: 3, q: 'as reuniões de quinta me esgotam' }, { s: 8, q: 'levo o serviço pra dentro de casa' }, { s: 13, q: 'não consigo desligar quando chego' }] },
+  cobrança:   { nat: 'situacional', rel: 0.72, quotes: [{ s: 4, q: 'senti que cobraram demais de mim na reunião' }, { s: 7, q: 'tenho medo de cobrar pelo meu próprio trabalho' }, { s: 12, q: 'de novo aquela sensação de estar devendo' }] },
+  autoestima: { nat: 'cognitivo',   rel: 0.78, quotes: [{ s: 4, q: 'acho que nunca é bom o suficiente' }, { s: 9, q: 'me surpreendi defendendo o que penso' }, { s: 14, q: 'topei algo difícil sem me diminuir' }] },
+  mãe:        { nat: 'relacional',  rel: 0.90, quotes: [{ s: 1, q: 'ligo pra minha mãe e travo' }, { s: 6, q: 'sinto que preciso dar conta por ela' }, { s: 10, q: 'consegui dizer não sem culpa' }] },
 }
 
 const SAT = {
@@ -132,7 +145,7 @@ export function CinematicHero() {
               {SPIRAL_NODES.map((n, i) => {
                 const g = ease(clamp01((buildP - n.at) / 0.12))
                 if (g <= 0.01) return null
-                const c = n.nat ? NATURE[n.nat] : 'var(--accent)'
+                const c = n.nat ? NATURE[n.nat].color : 'var(--accent)'
                 const r = (n.nat ? 7 : 3.4) * g
                 const fl = Math.sin(t * 0.6 + i) * 1.5 * idle
                 return (
@@ -157,8 +170,11 @@ export function CinematicHero() {
               const fy = Math.cos(t * 0.42 + i * 2.3) * 7 * idle
               return (
                 <div key={pos.label} className="cine-sat" style={{ left: pos.x, top: pos.y, transform: `translate(${fx}px, ${fy}px)` }}>
-                  <div className="cine-mini" style={{ opacity: composed * (1 - focus[i] * 0.4), transform: `translate(-50%,-50%) scale(${0.82 + 0.5 * composed + focus[i] * 0.9})` }}>
+                  <div className="cine-mini" style={{ opacity: composed * (1 - focus[i]), transform: `translate(-50%,-50%) scale(${0.82 + 0.18 * composed})` }}>
                     <SatGlyph idx={i} />
+                  </div>
+                  <div className="cine-detail" style={{ opacity: focus[i], pointerEvents: focus[i] > 0.5 ? 'auto' : 'none', transform: `translate(-50%,-50%) scale(${0.92 + 0.08 * focus[i]})` }}>
+                    <SatDetail idx={i} f={focus[i]} t={t} />
                   </div>
                   <div className="cine-sat-label" style={{ opacity: composed * (1 - focus[i]) }}>{pos.label}</div>
                 </div>
@@ -225,7 +241,7 @@ function SatGlyph({ idx }: { idx: number }) {
       <line x1="14" y1="-5" x2="0" y2="14" stroke="#c9bdf0" strokeWidth="1" />
       <line x1="-14" y1="-9" x2="0" y2="14" stroke="#c9bdf0" strokeWidth="1" />
       {[['emocional', -14, -9], ['situacional', 14, -5], ['relacional', 0, 14]].map(([n, x, y], i) =>
-        <circle key={i} cx={x as number} cy={y as number} r="4.5" fill={NATURE[n as string]} />)}
+        <circle key={i} cx={x as number} cy={y as number} r="4.5" fill={NATURE[n as string].color} />)}
     </svg>
   )
   if (idx === 1) return (
@@ -247,6 +263,162 @@ function SatGlyph({ idx }: { idx: number }) {
   )
 }
 
+function SatDetail({ idx, f, t }: { idx: number; f: number; t: number }) {
+  if (idx === 0) return <TemasDetail f={f} t={t} />
+  if (idx === 1) return <SessaoDetail f={f} />
+  if (idx === 2) return <EvolDetail f={f} />
+  return <VideoDetail f={f} t={t} />
+}
+
+const CD_NODES = [
+  { id: 'ansiedade', x: 168, y: 86 }, { id: 'trabalho', x: 372, y: 70 },
+  { id: 'cobrança', x: 430, y: 178 }, { id: 'autoestima', x: 256, y: 196 },
+  { id: 'mãe', x: 110, y: 196 },
+]
+const CD_EDGES: [number, number][] = [[0, 1], [1, 2], [0, 4], [3, 4], [0, 3], [2, 3]]
+
+function TemasDetail({ f, t }: { f: number; t: number }) {
+  const grow = (i: number) => ease(clamp01((f - 0.05 - i * 0.05) / 0.16))
+  const active = Math.floor(t / 3.2) % CD_NODES.length
+  const an = CD_NODES[active]
+  const ath = THEMES[an.id]
+  const quote = ath.quotes[Math.floor(t / 3.2 / CD_NODES.length) % ath.quotes.length] || ath.quotes[0]
+  const c = NATURE[ath.nat].color
+  const isNb = (i: number) => CD_EDGES.some(([a, b]) => (a === active && b === i) || (b === active && a === i))
+  return (
+    <div className="cd-panel cd-graph">
+      <div className="cd-tag" style={{ color: '#b9a6f5', borderColor: 'rgba(185,166,245,.35)' }}>relevância clínica · Marina</div>
+      <svg viewBox="0 0 520 282" className="cd-graph-svg" fill="none">
+        {CD_EDGES.map(([a, b], i) => {
+          const na = CD_NODES[a], nb = CD_NODES[b]
+          const o = Math.min(grow(a), grow(b))
+          const lit = active === a || active === b
+          const nc = NATURE[THEMES[na.id].nat].color
+          const tr = (t * 0.45 + i * 0.35) % 1
+          return (
+            <g key={i} style={{ opacity: o }}>
+              <line x1={na.x} y1={na.y} x2={nb.x} y2={nb.y} stroke={lit ? nc : '#8b7fb4'} strokeWidth={lit ? 1.5 : 1} strokeOpacity={lit ? 0.6 : 0.18} strokeLinecap="round" />
+              {lit && <circle cx={lerp(na.x, nb.x, tr)} cy={lerp(na.y, nb.y, tr)} r="2.4" fill={nc} opacity="0.9" />}
+            </g>
+          )
+        })}
+        {CD_NODES.map((n, i) => {
+          const g = grow(i)
+          const th = THEMES[n.id], nc = NATURE[th.nat].color
+          const r = (12 + th.rel * 12) * g
+          const fl = Math.sin(t * 0.6 + n.x) * 1.4
+          const isA = active === i
+          const dim = !isA && !isNb(i)
+          return (
+            <g key={n.id} transform={`translate(${n.x} ${n.y + fl})`} style={{ opacity: g * (dim ? 0.4 : 1), transition: 'opacity .4s' }}>
+              {isA && <circle r={r + 11} fill="none" stroke={nc} strokeWidth="1" strokeOpacity={0.45 + 0.25 * Math.sin(t * 3)} />}
+              <circle r={r + 5} fill={nc} opacity={0.13} />
+              <circle r={r} fill={nc} fillOpacity={isA ? 0.95 : 0.7} />
+              <text y={r + 16} fontSize="12.5" textAnchor="middle" fill={isA ? '#efeafb' : '#9990b5'} fontFamily="DM Sans" fontWeight={isA ? 600 : 400}>{n.id}</text>
+            </g>
+          )
+        })}
+      </svg>
+      <div key={active} className="cd-quote cd-fade">
+        <span className="cd-quote-head" style={{ color: c }}>{an.id}<i>·</i>Sessão {quote.s}</span>
+        <p>&ldquo;{quote.q}&rdquo;</p>
+      </div>
+    </div>
+  )
+}
+
+const CD_CHAT = [
+  { who: 'P', tx: 'Como você se sentiu na semana?', at: 0.10 },
+  { who: 'C', tx: 'Voltou a vontade de sumir.', at: 0.30 },
+  { who: 'P', tx: 'Quando isso voltou?', at: 0.52 },
+  { who: 'C', tx: 'Depois da reunião de quinta.', at: 0.70 },
+]
+function SessaoDetail({ f }: { f: number }) {
+  const flag = f > 0.34 ? clamp01((f - 0.34) / 0.12) : 0
+  return (
+    <div className="cd-panel cd-sess">
+      <div className="cd-sess-head">
+        <span className="cd-rec"><i />ao vivo</span>
+        <span className="cd-sess-id">Fernanda K. · Sessão 7</span>
+      </div>
+      <div className="cd-chat">
+        {CD_CHAT.map((m, i) => {
+          const o = clamp01((f - m.at) / 0.12)
+          return <div key={i} className={'cd-bub ' + (m.who === 'P' ? 'p' : 'c')} style={{ opacity: o, transform: `translateY(${(1 - o) * 7}px)` }}>{m.tx}</div>
+        })}
+      </div>
+      <div className="cd-flag" style={{ opacity: flag, transform: `translateY(${(1 - flag) * 7}px)` }}>
+        <b>&ldquo;sumir&rdquo;</b> já apareceu na sessão <b>4</b> — &ldquo;às vezes só queria sumir um pouco&rdquo;. O contexto aparece sozinho.
+      </div>
+    </div>
+  )
+}
+
+function EvolDetail({ f }: { f: number }) {
+  const pts = [42, 38, 48, 40, 54, 50, 44, 58, 62, 56, 66, 60, 72, 78]
+  const symptom = [80, 76, 78, 70, 66, 68, 58, 54, 50, 46, 40, 38, 32, 26]
+  const N = pts.length, Wd = 440, Hd = 168
+  const xx = (i: number) => 10 + (i / (N - 1)) * (Wd - 20)
+  const yy = (v: number) => Hd - 16 - (v / 100) * (Hd - 30)
+  const draw = ease(clamp01((f - 0.08) / 0.7))
+  const ln = (arr: number[]) => arr.map((v, i) => `${i === 0 ? 'M' : 'L'} ${xx(i)} ${yy(v)}`).join(' ')
+  const bar = ease(clamp01((f - 0.2) / 0.6))
+  return (
+    <div className="cd-panel cd-evol">
+      <div className="cd-tag" style={{ color: 'var(--sage)', borderColor: 'rgba(90,158,138,.4)' }}>evolução · objetivos · sintomas</div>
+      <svg viewBox={`0 0 ${Wd} ${Hd}`} className="cd-evol-svg" fill="none">
+        {[0, 1, 2].map(g => <line key={g} x1="0" x2={Wd} y1={16 + g * ((Hd - 30) / 2)} y2={16 + g * ((Hd - 30) / 2)} stroke="rgba(255,255,255,.06)" />)}
+        <path d={ln(pts)} stroke="var(--accent)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" pathLength={1} strokeDasharray={1} strokeDashoffset={1 - draw} />
+        <path d={ln(symptom)} stroke="var(--rose)" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" strokeDasharray="5 4" pathLength={1} strokeDashoffset={1 - draw} opacity=".8" />
+        {[4, 9].map(m => <circle key={m} cx={xx(m)} cy={yy(pts[m])} r="3.2" fill="var(--amber)" style={{ opacity: clamp01((draw - m / N) / 0.05) }} />)}
+      </svg>
+      <div className="cd-evol-foot">
+        <div className="cd-bullet">
+          <span>Autoestima</span>
+          <div className="cd-bar"><i style={{ width: 20 + bar * 52 + '%' }} /><b style={{ left: '75%' }} /></div>
+        </div>
+        <div className="cd-evol-leg">
+          <span><i style={{ background: 'var(--accent)' }} />bem-estar ↑</span>
+          <span><i style={{ background: 'var(--rose)' }} />sintomas ↓</span>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+const CD_MODS = ['Agenda', 'Financeiro', 'WhatsApp', 'Prontuário', 'Cobranças', 'Resumos']
+function Silhueta({ tone = 'rgba(185,166,245,.5)' }: { tone?: string }) {
+  return (
+    <svg width="100%" height="100%" viewBox="0 0 100 100" preserveAspectRatio="xMidYMax meet" fill={tone}>
+      <circle cx="50" cy="38" r="17" />
+      <path d="M 18 100 C 18 74 32 62 50 62 C 68 62 82 74 82 100 Z" />
+    </svg>
+  )
+}
+function VideoDetail({ f, t }: { f: number; t: number }) {
+  return (
+    <div className="cd-panel cd-video">
+      <div className="cd-vid-tile">
+        <div className="cd-vid-ph"><Silhueta /></div>
+        <div className="cd-vid-self"><Silhueta tone="rgba(127,205,184,.6)" /></div>
+        <div className="cd-vid-wave">
+          {Array.from({ length: 7 }).map((_, i) => <span key={i} style={{ height: 30 + 55 * Math.abs(Math.sin(t * 3.4 + i)) + '%' }} />)}
+        </div>
+        <span className="cd-vid-timer">42:18</span>
+        <span className="cd-vid-live">videochamada nativa</span>
+        <span className="cd-vid-tag">vídeo do paciente</span>
+      </div>
+      <div className="cd-mods">
+        {CD_MODS.map((m, i) => {
+          const o = clamp01((f - 0.2 - i * 0.06) / 0.2)
+          return <span key={m} className="cd-mod" style={{ opacity: o, transform: `translateY(${(1 - o) * 6}px)` }}>{m}</span>
+        })}
+      </div>
+      <div className="cd-vid-cap">tudo no mesmo lugar onde a continuidade clínica vive</div>
+    </div>
+  )
+}
+
 function CineStyles() {
   return (
     <style dangerouslySetInnerHTML={{ __html: `
@@ -260,7 +432,7 @@ function CineStyles() {
       .cine-svg { position:absolute; inset:0; overflow:visible; }
       .cine-spiral { position:absolute; left:${CX}px; top:${CY}px; transform-origin:center; }
       .cine-sat { position:absolute; }
-      .cine-mini { position:absolute; left:0; top:0; transform-origin:center; will-change:transform,opacity; }
+      .cine-mini, .cine-detail { position:absolute; left:0; top:0; transform-origin:center; will-change:transform,opacity; }
       .cine-sat-label { position:absolute; left:0; top:46px; transform:translateX(-50%);
         font-size:13px; font-weight:600; letter-spacing:2px; text-transform:uppercase; color:var(--muted); white-space:nowrap; }
       .cine-headline { position:absolute; left:50%; top:7%; transform:translateX(-50%); width:min(640px,86vw);
@@ -288,6 +460,55 @@ function CineStyles() {
         font-size:13px; letter-spacing:1px; color:var(--muted); z-index:7; }
       .cine-hint-arrow { font-size:18px; animation:cineBob 1.6s ease-in-out infinite; }
       @keyframes cineBob { 0%,100%{ transform:translateY(0); } 50%{ transform:translateY(6px); } }
+      @keyframes cineBlink { 0%,100%{ opacity:1; } 50%{ opacity:.3; } }
+      @keyframes cineGpFade { from{ opacity:0; transform:translateY(6px); } to{ opacity:1; transform:none; } }
+
+      /* painéis de detalhe (aparecem ao focar cada satélite) */
+      .cd-panel { border-radius:18px; padding:18px; position:relative; box-shadow:0 30px 80px rgba(26,24,37,.28); }
+      .cd-tag { position:absolute; top:12px; left:14px; font-size:11px; font-weight:600; letter-spacing:1px; text-transform:uppercase; border:1px solid; border-radius:14px; padding:4px 10px; z-index:2; }
+      .cd-graph { width:430px; background:#16111f; border:1px solid rgba(185,166,245,.2); }
+      .cd-graph-svg { width:100%; height:248px; display:block; margin-top:14px; overflow:visible; }
+      .cd-quote { margin-top:4px; padding:10px 14px; border-top:1px solid rgba(185,166,245,.16); }
+      .cd-fade { animation:cineGpFade .45s ease; }
+      .cd-quote-head { font-size:12px; font-weight:600; letter-spacing:.5px; display:inline-flex; align-items:center; gap:7px; }
+      .cd-quote-head i { color:rgba(233,228,251,.4); font-style:normal; }
+      .cd-quote p { font-family:var(--font-display), serif; font-style:italic; font-size:18px; line-height:1.35; color:#efeafb; margin-top:6px; }
+      .cd-sess { width:362px; background:#fff; border:1px solid var(--border); }
+      .cd-sess-head { display:flex; align-items:center; gap:10px; padding-bottom:12px; border-bottom:1px solid var(--border); margin-bottom:14px; }
+      .cd-rec { display:flex; align-items:center; gap:6px; font-size:11px; font-weight:600; color:var(--rose); }
+      .cd-rec i { width:7px; height:7px; border-radius:50%; background:var(--rose); animation:cineBlink 1.4s infinite; }
+      .cd-sess-id { font-size:12px; color:var(--muted); }
+      .cd-chat { display:flex; flex-direction:column; gap:10px; min-height:140px; }
+      .cd-bub { max-width:84%; font-size:14px; line-height:1.4; padding:9px 13px; border-radius:13px; }
+      .cd-bub.p { background:rgba(106,78,200,.1); color:#391d96; align-self:flex-start; border-bottom-left-radius:3px; }
+      .cd-bub.c { background:rgba(90,158,138,.13); color:var(--ink); align-self:flex-end; border-bottom-right-radius:3px; }
+      .cd-flag { margin-top:12px; font-size:13px; line-height:1.45; color:var(--ink-soft); background:rgba(106,78,200,.07); border:1px solid rgba(106,78,200,.18); border-radius:11px; padding:10px 13px; }
+      .cd-flag b { color:#391d96; }
+      .cd-evol { width:412px; background:#16111f; border:1px solid rgba(185,166,245,.2); }
+      .cd-evol-svg { width:100%; height:170px; display:block; margin-top:16px; overflow:visible; }
+      .cd-evol-foot { margin-top:6px; }
+      .cd-bullet { display:flex; align-items:center; gap:10px; font-size:12px; color:rgba(233,228,251,.8); margin-bottom:10px; }
+      .cd-bullet > span { width:74px; }
+      .cd-bar { position:relative; flex:1; height:9px; border-radius:6px; background:rgba(255,255,255,.08); }
+      .cd-bar i { position:absolute; left:0; top:0; bottom:0; border-radius:6px; background:var(--amber); }
+      .cd-bar b { position:absolute; top:-3px; bottom:-3px; width:2px; background:#fff; }
+      .cd-evol-leg { display:flex; gap:16px; }
+      .cd-evol-leg span { display:flex; align-items:center; gap:6px; font-size:11px; color:rgba(233,228,251,.7); }
+      .cd-evol-leg i { width:14px; height:3px; border-radius:2px; }
+      .cd-video { width:360px; background:#16111f; border:1px solid rgba(185,166,245,.2); }
+      .cd-vid-tile { position:relative; height:170px; border-radius:12px; overflow:hidden; background:linear-gradient(135deg,#2c2245,#1a1428); display:flex; align-items:center; justify-content:center; }
+      .cd-vid-ph { position:absolute; inset:0; display:flex; align-items:flex-end; justify-content:center; overflow:hidden; background:repeating-linear-gradient(45deg, rgba(185,166,245,.05) 0 8px, transparent 8px 16px), linear-gradient(135deg,#2c2245,#1a1428); }
+      .cd-vid-ph svg { width:120px; height:120px; }
+      .cd-vid-self { position:absolute; right:12px; bottom:12px; width:48px; height:34px; border-radius:6px; overflow:hidden; background:linear-gradient(135deg,#1d3a32,#16111f); border:1.5px solid rgba(255,255,255,.22); display:flex; align-items:flex-end; justify-content:center; }
+      .cd-vid-self svg { width:32px; height:32px; }
+      .cd-vid-wave { position:absolute; left:14px; bottom:14px; display:flex; align-items:flex-end; gap:3px; height:24px; }
+      .cd-vid-wave span { width:3px; background:#7fcdb8; border-radius:2px; }
+      .cd-vid-timer { position:absolute; left:14px; top:12px; font-size:12px; color:rgba(255,255,255,.85); font-weight:500; }
+      .cd-vid-live { position:absolute; right:12px; top:12px; font-size:10px; color:#b9a6f5; background:rgba(185,166,245,.14); padding:3px 8px; border-radius:12px; }
+      .cd-vid-tag { position:absolute; right:12px; bottom:14px; font-size:10px; font-family:ui-monospace,monospace; letter-spacing:.5px; color:rgba(233,228,251,.55); background:rgba(21,16,31,.5); padding:3px 8px; border-radius:6px; }
+      .cd-mods { display:flex; flex-wrap:wrap; gap:7px; margin-top:14px; }
+      .cd-mod { font-size:12px; font-weight:500; color:#b9a6f5; background:rgba(185,166,245,.1); border:1px solid rgba(185,166,245,.22); padding:6px 12px; border-radius:18px; }
+      .cd-vid-cap { font-size:12px; color:rgba(233,228,251,.6); margin-top:12px; font-style:italic; }
       @media (max-width:760px) { .cine { height:680vh; } }
     ` }} />
   )
