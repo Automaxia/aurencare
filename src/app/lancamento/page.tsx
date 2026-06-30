@@ -2,6 +2,7 @@ import { Logo } from '@/components/brand/Logo'
 import { ListaEsperaForm } from './ListaEsperaForm'
 import { RevealObserver } from './Reveal'
 import { CinematicHero } from './CinematicHero'
+import { ModulesGrid } from './ModulesDemo'
 
 export const dynamic = 'force-dynamic'
 
@@ -505,60 +506,17 @@ function PraticaIntegrada() {
         <Eyebrow>Infraestrutura da prática</Eyebrow>
         <H2>Operar o consultório já vem incluído.</H2>
         <P>
-          Agenda, pagamentos, WhatsApp e vídeo estão integrados — não como o
-          diferencial, mas como a base que sustenta a prática. Tudo no mesmo lugar
-          onde a continuidade clínica vive.
+          Agenda, transcrição, prontuários, vídeo, cobranças e WhatsApp integrados
+          — não como o diferencial, mas como a base que sustenta a prática. Tudo no
+          mesmo lugar onde a continuidade clínica vive.
         </P>
 
-        <div className="lp-grid-2" style={{ marginTop: 36 }}>
-          <BlocoOperacional
-            icone="◷"
-            titulo="Agenda"
-            corpo="Sessões avulsas e séries recorrentes. Visões de dia, semana e mês. Conflitos detectados antes do envio."
-          />
-          <BlocoOperacional
-            icone="◑"
-            titulo="Pagamentos seguros"
-            corpo="PIX, crédito e débito em ambiente seguro. O valor das sessões cai direto na sua conta."
-          />
-          <BlocoOperacional
-            icone="◐"
-            titulo="WhatsApp como interface do paciente"
-            corpo="O paciente nunca instala nada. Confirmações, pagamento, lembretes e pós-sessão pelo WhatsApp. Você acompanha num único painel."
-          />
-          <BlocoOperacional
-            icone="▶"
-            titulo="Sala de vídeo embutida"
-            corpo="Atendimento online com termo CFP 11/2018. Link por sessão, válido por 4h. Áudio processado — vídeo nunca gravado."
-          />
-        </div>
+        <ModulesGrid />
       </div>
     </section>
   )
 }
 
-function BlocoOperacional({ icone, titulo, corpo }: { icone: string; titulo: string; corpo: string }) {
-  return (
-    <div style={{
-      display: 'grid', gridTemplateColumns: '40px 1fr', gap: 18,
-      padding: 24, borderRadius: 14,
-      background: 'var(--card)', border: '1px solid var(--border)',
-    }}>
-      <div style={{
-        width: 40, height: 40, borderRadius: 10,
-        background: 'rgba(106,78,200,.10)', color: 'var(--accent)',
-        display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 20,
-      }}>{icone}</div>
-      <div>
-        <h3 style={{
-          fontFamily: 'var(--font-display)', fontSize: 20, fontWeight: 400,
-          margin: '0 0 6px', color: 'var(--ink)',
-        }}>{titulo}</h3>
-        <p style={{ fontSize: 13.5, color: 'var(--ink-soft)', lineHeight: 1.6, margin: 0 }}>{corpo}</p>
-      </div>
-    </div>
-  )
-}
 
 // ─── Bloco 9 — Privacidade ─────────────────────────────────────────────
 
