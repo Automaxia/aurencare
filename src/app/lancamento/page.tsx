@@ -125,7 +125,7 @@ function PraticaIntegrada() {
     }}>
       {/* Camada 1 — a plataforma completa (o mínimo esperado) */}
       <div className="lp-wrap lp-reveal">
-        <Eyebrow>A plataforma da sua prática</Eyebrow>
+        <Eyebrow>Uma plataforma completa</Eyebrow>
         <H2>Tudo para administrar o consultório.<br />Tudo para acompanhar o tratamento.</H2>
         <P>
           Agenda, WhatsApp, videochamada, transcrição, prontuário, pagamentos, gestão
@@ -138,7 +138,7 @@ function PraticaIntegrada() {
 
       {/* Camada 2 — o diferencial: tudo converge pra continuidade */}
       <div className="lp-wrap lp-reveal" style={{ marginTop: 68 }}>
-        <Eyebrow>O diferencial começa aqui</Eyebrow>
+        <Eyebrow>É aqui que tudo se conecta</Eyebrow>
         <H2>O que nenhuma outra plataforma conecta.</H2>
         <P>
           Depois de organizar toda a operação do consultório, a Audere conecta cada
@@ -149,11 +149,11 @@ function PraticaIntegrada() {
         <ConvergenceLayer />
 
         <p style={{
-          fontFamily: 'var(--font-display)', fontSize: 22, fontWeight: 300, fontStyle: 'italic',
-          color: '#291860', lineHeight: 1.45, textAlign: 'center', maxWidth: 720, margin: '30px auto 0',
+          fontFamily: 'var(--font-display)', fontSize: 24, fontWeight: 300, fontStyle: 'italic',
+          color: '#291860', lineHeight: 1.4, textAlign: 'center', maxWidth: 720, margin: '34px auto 0',
         }}>
-          Toda plataforma moderna registra uma sessão.{' '}
-          <span style={{ fontStyle: 'normal', fontWeight: 500 }}>A Audere transforma essas sessões numa história clínica contínua.</span>
+          A tecnologia cuida do contexto.{' '}
+          <span style={{ fontStyle: 'normal', fontWeight: 500 }}>O psicólogo cuida da pessoa.</span>
         </p>
       </div>
     </section>
@@ -249,7 +249,7 @@ function Manifesto() {
     'A Audere age muito, aparece pouco.',
     'Observação. Nunca diagnóstico.',
     'Rascunho até você assinar.',
-    'Você decide. A tecnologia apoia.',
+    'A tecnologia cuida do contexto. O psicólogo cuida da pessoa.',
     'O cuidado continua humano.',
   ]
   return (
