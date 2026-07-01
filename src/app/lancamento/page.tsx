@@ -96,7 +96,7 @@ function Problema() {
           fontFamily: 'var(--font-display)', fontSize: 22, fontWeight: 300, fontStyle: 'italic',
           color: '#291860', lineHeight: 1.4, margin: '26px 0 0',
         }}>
-          A Audere foi criada para resolver exatamente isso.
+          Nada do que importa se perde entre uma sessão e outra.
         </p>
       </div>
     </section>
@@ -128,9 +128,9 @@ function PraticaIntegrada() {
         <Eyebrow>Do agendamento à evolução</Eyebrow>
         <H2>Tudo o que você precisa para cuidar do consultório.<br />Tudo o que faltava para acompanhar o tratamento.</H2>
         <P>
-          Agenda, WhatsApp, videochamada, transcrição, prontuário, pagamentos, gestão
-          financeira e as automações do consultório já fazem parte da Audere — uma
-          plataforma completa para a sua prática, não apenas uma ferramenta de transcrição.
+          Agenda, WhatsApp, videochamada, transcrição, prontuário, pagamentos e o
+          financeiro do consultório já fazem parte da Audere. O dia a dia da sua
+          prática, resolvido num só lugar.
         </P>
 
         <ModulesGrid />
@@ -139,7 +139,7 @@ function PraticaIntegrada() {
       {/* Camada 2 — o diferencial: tudo converge pra continuidade */}
       <div className="lp-wrap lp-reveal" style={{ marginTop: 68 }}>
         <Eyebrow>É aqui que tudo se conecta</Eyebrow>
-        <H2>O que nenhuma outra plataforma conecta.</H2>
+        <H2>O que ninguém mais conecta.</H2>
         <P>
           Depois de organizar toda a operação do consultório, a Audere conecta cada
           atendimento numa memória clínica longitudinal — é isso que transforma
@@ -367,7 +367,7 @@ function FooterLanding() {
         <div>
           <Logo size={28} />
           <p style={{ fontSize: 12, color: 'var(--muted)', marginTop: 12, lineHeight: 1.55, maxWidth: 340 }}>
-            A primeira plataforma de Inteligência Clínica Longitudinal do Brasil.
+            A primeira Inteligência Clínica Longitudinal do Brasil.
           </p>
         </div>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 6, fontSize: 12, color: 'var(--muted)', alignItems: 'flex-end' }}>
