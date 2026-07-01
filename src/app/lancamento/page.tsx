@@ -125,8 +125,8 @@ function PraticaIntegrada() {
     }}>
       {/* Camada 1 — a plataforma completa (o mínimo esperado) */}
       <div className="lp-wrap lp-reveal">
-        <Eyebrow>Uma plataforma completa</Eyebrow>
-        <H2>Tudo para administrar o consultório.<br />Tudo para acompanhar o tratamento.</H2>
+        <Eyebrow>Do agendamento à evolução</Eyebrow>
+        <H2>Tudo o que você precisa para cuidar do consultório.<br />Tudo o que faltava para acompanhar o tratamento.</H2>
         <P>
           Agenda, WhatsApp, videochamada, transcrição, prontuário, pagamentos, gestão
           financeira e as automações do consultório já fazem parte da Audere — uma
@@ -317,6 +317,17 @@ function CtaFinal() {
       padding: '80px 0', borderTop: '1px solid var(--border)',
       background: 'var(--surface)',
     }}>
+      {/* Fecho — verdade simples que bookenda "A memória humana não [acompanha]" */}
+      <div className="lp-wrap lp-reveal" style={{ textAlign: 'center', maxWidth: 760, margin: '0 auto 60px' }}>
+        <p style={{
+          fontFamily: 'var(--font-display)', fontSize: 'clamp(30px,4.4vw,48px)', fontWeight: 300,
+          fontStyle: 'italic', color: '#291860', lineHeight: 1.18, letterSpacing: '-.012em', margin: 0,
+        }}>
+          A memória se perde.<br />
+          <span style={{ fontStyle: 'normal', fontWeight: 500 }}>A continuidade, não.</span>
+        </p>
+      </div>
+
       <div className="lp-wrap lp-reveal" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 60, alignItems: 'center' }}>
         <div>
           <Eyebrow>Acesso antecipado</Eyebrow>
