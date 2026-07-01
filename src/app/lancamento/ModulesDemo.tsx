@@ -192,12 +192,12 @@ function DemoSecretaria({ t }: { t: number }) {
   )
 }
 
-type Mod = { id: string; name: string; kind: string; desc: string; Demo: (p: { t: number }) => React.ReactElement }
+type Mod = { id: string; name: string; kind: string; sig?: string; desc: string; Demo: (p: { t: number }) => React.ReactElement }
 const MODULES: Mod[] = [
   { id: 'agenda',     name: 'Agenda',                kind: 'núcleo',   desc: 'Sessões avulsas e séries recorrentes. Dia, semana e mês — com conflitos detectados antes do envio.', Demo: DemoAgenda },
-  { id: 'transc',     name: 'Transcrição com IA',    kind: 'clínico',  desc: 'O registro acontece sozinho durante a sessão. Áudio processado e descartado em segundos.', Demo: DemoTranscricao },
-  { id: 'resumos',    name: 'Resumos & observações', kind: 'clínico',  desc: 'Resumo de cada sessão em linguagem observacional — sempre rascunho, até você revisar.', Demo: DemoResumo },
-  { id: 'pront',      name: 'Prontuários',           kind: 'clínico',  desc: 'Nenhuma nota vira prontuário sem a sua leitura e assinatura. Histórico estruturado e seu.', Demo: DemoProntuario },
+  { id: 'transc',     name: 'Transcrição com IA',    kind: 'clínico',  sig: 'Registro inteligente', desc: 'O registro acontece sozinho durante a sessão. Áudio processado e descartado em segundos.', Demo: DemoTranscricao },
+  { id: 'resumos',    name: 'Resumos & observações', kind: 'clínico',  sig: 'Memória da sessão', desc: 'Resumo de cada sessão em linguagem observacional — sempre rascunho, até você revisar.', Demo: DemoResumo },
+  { id: 'pront',      name: 'Prontuários',           kind: 'clínico',  sig: 'Linha do tempo clínica', desc: 'Nenhuma nota vira prontuário sem a sua leitura e assinatura. Histórico estruturado e seu.', Demo: DemoProntuario },
   { id: 'video',      name: 'Videochamada nativa',   kind: 'núcleo',   desc: 'Atendimento online embutido, com termo CFP 11/2018. Link por sessão, válido por 4h.', Demo: DemoVideo },
   { id: 'cobranca',   name: 'Cobranças',             kind: 'operação', desc: 'PIX, crédito e débito em ambiente seguro. Lembretes e baixa automática de cada sessão.', Demo: DemoCobranca },
   { id: 'financeiro', name: 'Financeiro',            kind: 'operação', desc: 'O valor das sessões cai direto na sua conta. Acompanhe recebimentos e fluxo num painel.', Demo: DemoFinanceiro },
@@ -224,6 +224,7 @@ export function ModulesGrid() {
               <div className="mod-card" key={m.id}>
                 <div className="mod-demo">{vis ? <m.Demo t={t} /> : null}</div>
                 <div className="mod-meta">
+                  {m.sig && <div className="mod-sig">{m.sig}</div>}
                   <h3>{m.name}</h3>
                   <p>{m.desc}</p>
                 </div>
@@ -247,6 +248,7 @@ function ModStyles() {
       .mod-card:hover { transform:translateY(-4px); box-shadow:0 16px 40px rgba(26,24,37,.09); }
       .mod-demo { height:120px; background:var(--card-warm, var(--surface)); border-bottom:1px solid var(--border); position:relative; overflow:hidden; display:flex; align-items:center; justify-content:center; padding:16px; }
       .mod-meta { padding:16px 20px 20px; }
+      .mod-sig { font-size:10px; letter-spacing:.1em; text-transform:uppercase; font-weight:600; color:var(--accent); margin-bottom:5px; }
       .mod-meta h3 { font-family:var(--font-display), serif; font-weight:400; font-size:22px; color:var(--ink); margin:0 0 7px; letter-spacing:-.3px; }
       .mod-meta p { font-size:13.5px; line-height:1.5; color:var(--muted); font-weight:300; margin:0; }
       @media (max-width:900px) { .mod-row { grid-template-columns:repeat(2,1fr); } }
