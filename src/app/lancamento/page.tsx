@@ -4,6 +4,7 @@ import { RevealObserver } from './Reveal'
 import { Hero } from './Hero'
 import { ModulesGrid } from './ModulesDemo'
 import { AnimatedGrafo, AnimatedEvolucao } from './EvolDemos'
+import { ConvergenceLayer } from './ConvergenceLayer'
 
 export const dynamic = 'force-dynamic'
 
@@ -440,16 +441,38 @@ function PraticaIntegrada() {
       padding: '72px 0',
       borderTop: '1px solid var(--border)',
     }}>
+      {/* Camada 1 — a plataforma completa (o mínimo esperado) */}
       <div className="lp-wrap lp-reveal">
-        <Eyebrow>Infraestrutura da prática</Eyebrow>
-        <H2>Operar o consultório já vem incluído.</H2>
+        <Eyebrow>A plataforma da sua prática</Eyebrow>
+        <H2>Tudo para administrar o consultório.<br />Tudo para acompanhar o tratamento.</H2>
         <P>
-          Agenda, transcrição, prontuários, vídeo, cobranças e WhatsApp integrados
-          — não como o diferencial, mas como a base que sustenta a prática. Tudo no
-          mesmo lugar onde a continuidade clínica vive.
+          Agenda, WhatsApp, videochamada, transcrição, prontuário, pagamentos, gestão
+          financeira e as automações do consultório já fazem parte da Audere — uma
+          plataforma completa para a sua prática, não apenas uma ferramenta de transcrição.
         </P>
 
         <ModulesGrid />
+      </div>
+
+      {/* Camada 2 — o diferencial: tudo converge pra continuidade */}
+      <div className="lp-wrap lp-reveal" style={{ marginTop: 68 }}>
+        <Eyebrow>O diferencial começa aqui</Eyebrow>
+        <H2>O que nenhuma outra plataforma conecta.</H2>
+        <P>
+          Depois de organizar toda a operação do consultório, a Audere conecta cada
+          atendimento numa memória clínica longitudinal — é isso que transforma
+          registros isolados em continuidade terapêutica.
+        </P>
+
+        <ConvergenceLayer />
+
+        <p style={{
+          fontFamily: 'var(--font-display)', fontSize: 22, fontWeight: 300, fontStyle: 'italic',
+          color: '#291860', lineHeight: 1.45, textAlign: 'center', maxWidth: 720, margin: '30px auto 0',
+        }}>
+          Toda plataforma moderna registra uma sessão.{' '}
+          <span style={{ fontStyle: 'normal', fontWeight: 500 }}>A Audere transforma essas sessões numa história clínica contínua.</span>
+        </p>
       </div>
     </section>
   )
