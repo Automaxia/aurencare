@@ -1,7 +1,7 @@
 import { Logo } from '@/components/brand/Logo'
 import { ListaEsperaForm } from './ListaEsperaForm'
 import { RevealObserver } from './Reveal'
-import { CinematicHero } from './CinematicHero'
+import { Hero } from './Hero'
 import { ModulesGrid } from './ModulesDemo'
 import { AnimatedGrafo, AnimatedEvolucao } from './EvolDemos'
 
@@ -11,7 +11,7 @@ export default function LancamentoPage() {
   return (
     <div style={{ background: 'var(--page)', color: 'var(--ink)', overflowX: 'clip' }}>
       <NavTopo />
-      <CinematicHero />
+      <Hero />
       {/* Narrativa de categoria: problema → o que é continuidade → o que a Audere
           lembra → grafo (protagonista) → objetivos/evolução → sessão (menor) →
           infraestrutura → privacidade → manifesto → prova social → acesso. */}
