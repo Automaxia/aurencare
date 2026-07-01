@@ -203,20 +203,32 @@ const MODULES: Mod[] = [
   { id: 'financeiro', name: 'Financeiro',            kind: 'operação', desc: 'O valor das sessões cai direto na sua conta. Acompanhe recebimentos e fluxo num painel.', Demo: DemoFinanceiro },
   { id: 'secretaria', name: 'Secretária virtual',    kind: 'operação', desc: 'Confirmações, lembretes e pós-sessão pelo WhatsApp. O paciente nunca instala nada.', Demo: DemoSecretaria },
 ]
-const kindClass = (k: string) => 'k-' + k.normalize('NFD').replace(/[^a-z]/gi, '')
+// Hierarquia visual: 3 grupos em vez de 8 cards de peso igual (menos carga).
+const GRUPOS = [
+  { label: 'Atendimento', ids: ['agenda', 'secretaria', 'video'] },
+  { label: 'Registro clínico', ids: ['transc', 'resumos', 'pront'] },
+  { label: 'Gestão', ids: ['cobranca', 'financeiro'] },
+]
+const byId = (id: string) => MODULES.find(m => m.id === id)!
 
 export function ModulesGrid() {
   const [ref, vis] = useInView()
   const t = useRaf(vis)
   return (
     <div className="mod-grid" ref={ref}>
-      {MODULES.map(m => (
-        <div className="mod-card" key={m.id}>
-          <div className="mod-demo">{vis ? <m.Demo t={t} /> : null}</div>
-          <div className="mod-meta">
-            <span className={'mod-kind ' + kindClass(m.kind)}>{m.kind}</span>
-            <h3>{m.name}</h3>
-            <p>{m.desc}</p>
+      {GRUPOS.map(g => (
+        <div key={g.label} className="mod-group">
+          <div className="mod-grouplbl">{g.label}</div>
+          <div className="mod-row">
+            {g.ids.map(id => byId(id)).map(m => (
+              <div className="mod-card" key={m.id}>
+                <div className="mod-demo">{vis ? <m.Demo t={t} /> : null}</div>
+                <div className="mod-meta">
+                  <h3>{m.name}</h3>
+                  <p>{m.desc}</p>
+                </div>
+              </div>
+            ))}
           </div>
         </div>
       ))}
@@ -228,19 +240,17 @@ export function ModulesGrid() {
 function ModStyles() {
   return (
     <style dangerouslySetInnerHTML={{ __html: `
-      .mod-grid { display:grid; grid-template-columns:repeat(4,1fr); gap:20px; margin-top:40px; }
+      .mod-grid { display:flex; flex-direction:column; gap:34px; margin-top:38px; }
+      .mod-grouplbl { font-size:11px; letter-spacing:.14em; text-transform:uppercase; font-weight:600; color:var(--muted); margin-bottom:16px; padding-bottom:11px; border-bottom:1px solid var(--border); }
+      .mod-row { display:grid; grid-template-columns:repeat(3,1fr); gap:18px; }
       .mod-card { background:var(--card); border:1px solid var(--border); border-radius:20px; overflow:hidden; display:flex; flex-direction:column; box-shadow:0 4px 22px rgba(26,24,37,.04); transition:transform .25s, box-shadow .25s; }
       .mod-card:hover { transform:translateY(-4px); box-shadow:0 16px 40px rgba(26,24,37,.09); }
-      .mod-demo { height:126px; background:var(--card-warm, var(--surface)); border-bottom:1px solid var(--border); position:relative; overflow:hidden; display:flex; align-items:center; justify-content:center; padding:16px; }
-      .mod-meta { padding:18px 20px 22px; }
-      .mod-kind { font-size:11px; font-weight:600; letter-spacing:1.5px; text-transform:uppercase; padding:4px 10px; border-radius:14px; }
-      .mod-kind.k-clinico { color:var(--accent); background:rgba(106,78,200,.1); }
-      .mod-kind.k-ncleo { color:var(--sage); background:rgba(90,158,138,.12); }
-      .mod-kind.k-operao { color:var(--amber); background:rgba(176,125,64,.12); }
-      .mod-meta h3 { font-family:var(--font-display), serif; font-weight:400; font-size:23px; color:var(--ink); margin:12px 0 8px; letter-spacing:-.3px; }
+      .mod-demo { height:120px; background:var(--card-warm, var(--surface)); border-bottom:1px solid var(--border); position:relative; overflow:hidden; display:flex; align-items:center; justify-content:center; padding:16px; }
+      .mod-meta { padding:16px 20px 20px; }
+      .mod-meta h3 { font-family:var(--font-display), serif; font-weight:400; font-size:22px; color:var(--ink); margin:0 0 7px; letter-spacing:-.3px; }
       .mod-meta p { font-size:13.5px; line-height:1.5; color:var(--muted); font-weight:300; margin:0; }
-      @media (max-width:1000px) { .mod-grid { grid-template-columns:repeat(2,1fr); } }
-      @media (max-width:560px) { .mod-grid { grid-template-columns:1fr; } }
+      @media (max-width:900px) { .mod-row { grid-template-columns:repeat(2,1fr); } }
+      @media (max-width:560px) { .mod-row { grid-template-columns:1fr; } }
 
       .d-agenda { display:flex; gap:5px; width:100%; height:100%; }
       .dag-col { flex:1; display:flex; flex-direction:column; }
