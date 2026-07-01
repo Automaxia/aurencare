@@ -28,7 +28,7 @@ export function Hero() {
           </p>
 
           <div className="hero2-cta">
-            <a href="#acesso" className="hero2-btn-primary">Quero começar preparado →</a>
+            <a href="#acesso" className="hero2-btn-primary">Quero chegar preparado →</a>
             <a href="#continuidade" className="hero2-btn-ghost">Ver como funciona</a>
           </div>
 
