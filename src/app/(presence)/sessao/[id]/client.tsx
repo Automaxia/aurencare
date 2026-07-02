@@ -67,6 +67,7 @@ export function PresenceClient(props: Props) {
   const [showPostModal, setShowPostModal] = useState(false)
   const [resumoIA, setResumoIA] = useState<string | null>(null)
   const [resumoIndisponivel, setResumoIndisponivel] = useState(false)
+  const [semTranscricao, setSemTranscricao] = useState(false)
   const [sugestaoTurnos, setSugestaoTurnos] = useState<Array<{ idx: number; mark: TurnMark; razao: string }> | null>(null)
   const [sugestaoRisco, setSugestaoRisco] = useState<{ autolesao: 'lo'|'md'|'hi'; ideacao: 'lo'|'md'|'hi'; plano: 'lo'|'md'|'hi'; justificativa: string } | null>(null)
   const [risco, setRisco] = useState<{ autolesao: 'lo'|'md'|'hi'; ideacao: 'lo'|'md'|'hi'; plano: 'lo'|'md'|'hi' }>({ autolesao: 'lo', ideacao: 'lo', plano: 'lo' })
@@ -390,6 +391,7 @@ export function PresenceClient(props: Props) {
     const json = res && res.ok ? await res.json().catch(() => ({} as any)) : {}
     setResumoIA(json.resumo ?? null)
     setResumoIndisponivel(!res || !res.ok || json.iaIndisponivel === true)
+    setSemTranscricao(json.motivo === 'sem_transcricao')
 
     if (transcricao.length > 60) {
       Promise.all([
@@ -679,6 +681,7 @@ export function PresenceClient(props: Props) {
           pacienteNome={props.pacienteNome}
           resumoIA={resumoIA}
           resumoIndisponivel={resumoIndisponivel}
+          semTranscricao={semTranscricao}
           pagamentoStatus={props.pagamentoStatus}
           sugestaoMarcacao={sugestaoTurnos}
           sugestaoRisco={sugestaoRisco}

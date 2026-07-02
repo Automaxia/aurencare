@@ -10,8 +10,10 @@ type Props = {
   numero: number
   pacienteNome: string
   resumoIA: string | null
-  /** true quando o laudo automático não pôde ser gerado (IA fora). */
+  /** true quando o laudo automático FALHOU/expirou (IA fora) — mostra retry. */
   resumoIndisponivel?: boolean
+  /** true quando não houve transcrição suficiente — não é falha, escreva manual. */
+  semTranscricao?: boolean
   pagamentoStatus: string
   sugestaoMarcacao: Array<{ idx: number; mark: string; razao: string }> | null
   sugestaoRisco: { autolesao: string; ideacao: string; plano: string; justificativa: string } | null
@@ -23,7 +25,9 @@ type Props = {
 export function PostSessionModal(p: Props) {
   // Nunca injeta placeholder de IA no textarea; começa vazio se o laudo não veio.
   const [resumo, setResumo] = useState(iaIndisponivel(p.resumoIA) ? '' : (p.resumoIA ?? ''))
-  const [laudoFalhou, setLaudoFalhou] = useState(p.resumoIndisponivel || iaIndisponivel(p.resumoIA))
+  // laudoFalhou = SÓ falha real de IA (mostra retry). Resumo null por falta de
+  // transcrição não é falha — tratado à parte (semTranscricao).
+  const [laudoFalhou, setLaudoFalhou] = useState(p.resumoIndisponivel === true || (!!p.resumoIA && iaIndisponivel(p.resumoIA)))
   const [carregandoLaudo, setCarregandoLaudo] = useState(false)
   const [laudoMsg, setLaudoMsg] = useState<string | null>(null)
 
@@ -118,6 +122,12 @@ export function PostSessionModal(p: Props) {
               </button>
             </div>
             {laudoMsg && <div style={{ marginTop: 6, color: 'var(--muted)' }}>{laudoMsg}</div>}
+          </div>
+        )}
+
+        {!laudoFalhou && p.semTranscricao && !resumo.trim() && (
+          <div style={{ background: 'var(--surface)', borderRadius: 10, padding: '10px 14px', marginBottom: 12, fontSize: 12.5, color: 'var(--ink-soft)', lineHeight: 1.5 }}>
+            Esta sessão não teve transcrição suficiente para um rascunho automático. Escreva o resumo manualmente abaixo e assine normalmente.
           </div>
         )}
 
