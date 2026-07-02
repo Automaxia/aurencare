@@ -33,7 +33,7 @@ export function Hero() {
           </div>
 
           <ul className="hero2-trust" aria-label="Confiança e conformidade">
-            <li>Feito com psicólogos brasileiros</li>
+            <li>Feito por psicólogos, para psicólogos</li>
             <li>LGPD + CFP</li>
             <li>Áudio descartado após a transcrição</li>
             <li>Beta por convite</li>
