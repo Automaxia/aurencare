@@ -303,11 +303,11 @@ function ChkRow({ titulo, corpo }: { titulo: string; corpo: string }) {
 
 function Manifesto() {
   const linhas = [
-    'A Audere age muito, aparece pouco.',
-    'Observação. Nunca diagnóstico.',
-    'Rascunho até você assinar.',
+    'A terapia acontece ao longo do tempo.',
+    'Mas cada ferramenta ainda trata a sessão como um evento isolado.',
+    'A continuidade do cuidado não deveria depender da memória de ninguém.',
     'A tecnologia cuida do contexto. O psicólogo cuida da pessoa.',
-    'O cuidado continua humano.',
+    'O paciente nunca foi uma sessão. Sempre foi uma história.',
   ]
   return (
     <section style={{
@@ -319,7 +319,7 @@ function Manifesto() {
       <Figura src="/landing/figura-3.png" opacity={0.5} className="lp-float"
         style={{ left: '-3%', top: '10%', width: 'min(260px, 26%)', height: '70%', zIndex: 0 }} />
       <div className="lp-wrap lp-reveal" style={{ maxWidth: 760, textAlign: 'center', position: 'relative', zIndex: 1 }}>
-        <Eyebrow>Manifesto Audere</Eyebrow>
+        <Eyebrow>Por que a Audere existe</Eyebrow>
         <div style={{ display: 'grid', gap: 16, marginTop: 26 }}>
           {linhas.map((l, i) => (
             <p key={i} style={{
