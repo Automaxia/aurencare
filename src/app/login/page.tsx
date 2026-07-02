@@ -72,8 +72,8 @@ function LoginForm() {
               <li key={d}><span className="ck">✓</span>{d}</li>
             ))}
           </ul>
-          <p style={{ fontFamily: 'var(--font-display)', fontSize: 15, fontStyle: 'italic', color: 'var(--ink-soft)', margin: 0, lineHeight: 1.4 }}>
-            A tecnologia cuida do contexto. <span style={{ fontStyle: 'normal', fontWeight: 500 }}>O psicólogo cuida da pessoa.</span>
+          <p style={{ fontFamily: 'var(--font-display)', fontSize: 16, fontStyle: 'italic', color: 'rgba(255,255,255,.8)', margin: 0, lineHeight: 1.45 }}>
+            A tecnologia cuida do contexto. <span style={{ fontStyle: 'normal', fontWeight: 500, color: '#fff' }}>O psicólogo cuida da pessoa.</span>
           </p>
           <div className="login-trust">
             <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}><Lock size={13} /> Dados protegidos</span>
