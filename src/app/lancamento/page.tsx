@@ -13,10 +13,10 @@ export default function LancamentoPage() {
     <div style={{ background: 'var(--page)', color: 'var(--ink)', overflowX: 'clip' }}>
       <NavTopo />
       <Hero />
-      {/* Tese (categoria) → problema → jornada → plataforma → privacidade →
-          manifesto → prova social → fecho + acesso. */}
-      <Tese />
+      {/* Identificação (problema) → tese (categoria) → jornada → plataforma →
+          privacidade → manifesto → prova social → fecho + acesso. */}
       <Problema />
+      <Tese />
       <JornadaContinuidade />
       <PraticaIntegrada />
       <Privacidade />
@@ -85,19 +85,26 @@ function Tese() {
           fontFamily: 'var(--font-display)', fontWeight: 300, fontSize: 'clamp(30px,4.6vw,52px)',
           lineHeight: 1.14, letterSpacing: '-.015em', color: '#291860', margin: 0, textWrap: 'balance',
         }}>
-          A terapia é longitudinal.<br />
+          Resolveram a sessão.<br />
           <em style={{ fontStyle: 'italic', background: 'linear-gradient(90deg,#6a4ec8,#5c9d88)', WebkitBackgroundClip: 'text', backgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
-            Tudo que a apoia ainda é episódico.
+            Não o tratamento.
           </em>
         </h2>
         <p style={{ fontSize: 16, color: 'var(--ink-soft)', lineHeight: 1.6, maxWidth: 600, margin: '20px auto 0', fontWeight: 300 }}>
-          Toda geração de software organizou uma peça da prática. A Audere organiza a
-          única que faltava — e a única que cresce a cada sessão: a continuidade.
+          Registrar cada sessão virou fácil. O difícil sempre foi conectar todas elas
+          — ao longo de meses. É a peça que faltava, e a única que cresce a cada sessão.
         </p>
       </div>
 
       <div className="lp-wrap lp-reveal" style={{ marginTop: 52 }}>
         <Geracoes />
+        <p style={{
+          fontFamily: 'var(--font-display)', fontSize: 'clamp(19px,2.2vw,26px)', fontWeight: 300, fontStyle: 'italic',
+          color: '#291860', lineHeight: 1.4, textAlign: 'center', maxWidth: 640, margin: '34px auto 0',
+        }}>
+          A tecnologia da sessão, qualquer um copia.{' '}
+          <span style={{ fontStyle: 'normal', fontWeight: 500 }}>Anos de continuidade de cada paciente, não.</span>
+        </p>
       </div>
     </section>
   )

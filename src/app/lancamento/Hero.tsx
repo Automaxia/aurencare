@@ -1,6 +1,6 @@
 'use client'
 
-import { Logo } from '@/components/brand/Logo'
+import { HeroGraph } from './HeroGraph'
 
 /**
  * Hero da landing — produto PRIMEIRO, conceito depois. Posiciona a Audere como
@@ -40,15 +40,10 @@ export function Hero() {
           </ul>
         </div>
 
-        {/* Produto — o "aha moment" */}
+        {/* Produto — o diferencial vivo: o grafo de temas em movimento */}
         <div className="hero2-product">
-          <HeroMockup />
+          <HeroGraph />
         </div>
-      </div>
-
-      {/* Diferenciação visual */}
-      <div className="lp-wrap">
-        <Diferenciacao />
       </div>
 
       <a className="hero2-scroll" href="#continuidade" aria-label="Rolar para saber mais">
@@ -58,76 +53,6 @@ export function Hero() {
 
       <HeroStyles />
     </section>
-  )
-}
-
-// ─── Mockup do produto (preparo pré-sessão · AHA) ──────────────────────
-const SINAIS = [
-  { ico: '◍', cor: 'var(--accent)', txt: <><strong>Ansiedade</strong> reapareceu — após 6 semanas ausente</> },
-  { ico: '↑', cor: 'var(--sage)',   txt: <>Objetivo <strong>Autoestima</strong> evoluiu <strong>+18%</strong></> },
-  { ico: '❝', cor: 'var(--rose)',   txt: <>Tema <strong>&ldquo;mãe&rdquo;</strong> citado de novo · 3ª sessão</> },
-  { ico: '◔', cor: 'var(--muted)',  txt: <>Última sessão há <strong>12 dias</strong></> },
-]
-
-function HeroMockup() {
-  return (
-    <div className="mock" role="img" aria-label="Painel da Audere mostrando o preparo automático da próxima sessão: ansiedade reapareceu após 6 semanas, objetivo de autoestima evoluiu 18%, tema mãe citado de novo, última sessão há 12 dias.">
-      <div className="mock-bar">
-        <span className="mock-dot" /><span className="mock-dot" /><span className="mock-dot" />
-        <span className="mock-url"><Logo size={15} /> continuidade clínica</span>
-      </div>
-      <div className="mock-body">
-        <div className="mock-head">
-          <div>
-            <div className="mock-name">Marina K. <span>· Sessão 8</span></div>
-            <div className="mock-when">próxima quinta · 18h00</div>
-          </div>
-          <span className="mock-pill">preparo automático</span>
-        </div>
-
-        <div className="mock-sec">Antes de você abrir a sessão, a Audere já reuniu:</div>
-        <ul className="mock-signals">
-          {SINAIS.map((s, i) => (
-            <li key={i} className="mock-signal" style={{ animationDelay: `${0.5 + i * 0.22}s` }}>
-              <span className="mock-ic" style={{ color: s.cor, background: `color-mix(in srgb, ${s.cor} 12%, transparent)` }}>{s.ico}</span>
-              <span className="mock-tx">{s.txt}</span>
-            </li>
-          ))}
-        </ul>
-
-        <div className="mock-tl">
-          <div className="mock-tl-lbl">linha do tempo · 8 sessões</div>
-          <svg viewBox="0 0 300 26" className="mock-tl-svg" preserveAspectRatio="none">
-            <line x1="6" y1="13" x2="294" y2="13" stroke="var(--border)" strokeWidth="2" />
-            {Array.from({ length: 8 }).map((_, i) => {
-              const x = 6 + (i / 7) * 288
-              const last = i === 7
-              return <circle key={i} cx={x} cy={13} r={last ? 5 : 3.4} fill={last ? 'var(--accent)' : 'var(--card)'} stroke="var(--accent)" strokeWidth="1.6" style={{ opacity: 0.55 + i * 0.06 }} />
-            })}
-          </svg>
-        </div>
-      </div>
-    </div>
-  )
-}
-
-// ─── Diferenciação (sem texto longo) ───────────────────────────────────
-function Diferenciacao() {
-  return (
-    <div className="hero2-diff">
-      <div className="diff-col">
-        <span className="diff-lbl">Outros sistemas</span>
-        <div className="diff-flow diff-old">
-          <span>Agenda</span><i>→</i><span>Prontuário</span><i>→</i><span className="diff-dead">Sessão isolada</span>
-        </div>
-      </div>
-      <div className="diff-col">
-        <span className="diff-lbl diff-lbl-on">Audere</span>
-        <div className="diff-flow diff-new">
-          <span>Sessão</span><i>→</i><span>Sessão</span><i>→</i><span>Sessão</span><i>→</i><span className="diff-live">Continuidade clínica</span>
-        </div>
-      </div>
-    </div>
   )
 }
 
