@@ -341,7 +341,7 @@ function Manifesto() {
 
 function ProvaSocial() {
   const itens = [
-    { t: 'Desenvolvido junto a psicólogos brasileiros', c: 'Cada decisão de produto nasce da prática clínica real — não de um genérico de software.' },
+    { t: 'Nascido na prática clínica real', c: 'Cada decisão de produto vem de quem atende — não de um genérico de software.' },
     { t: 'Construído sobre CFP 09/2024, CFP 11/2018 e LGPD', c: 'Ética e privacidade são a fundação, não um adendo. Linguagem observacional, nunca diagnóstica.' },
     { t: 'Beta por convite, acompanhado de perto', c: 'Abrimos acesso em ondas pequenas para acompanhar cada conta na fase inicial.' },
   ]
@@ -349,7 +349,7 @@ function ProvaSocial() {
     <section style={{ padding: '72px 0', borderTop: '1px solid var(--border)' }}>
       <div className="lp-wrap lp-reveal">
         <Eyebrow>Por que confiar</Eyebrow>
-        <H2>Feito com psicólogos, para psicólogos.</H2>
+        <H2>Feito por psicólogos, para psicólogos.</H2>
         <div className="lp-grid-3" style={{ marginTop: 32 }}>
           {itens.map((it, i) => (
             <div key={i} style={{
