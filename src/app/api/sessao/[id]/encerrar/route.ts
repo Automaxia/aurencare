@@ -55,5 +55,6 @@ export async function POST(req: Request, { params }: { params: { id: string } })
     }
   }
 
-  return NextResponse.json({ ok: true, resumo: null })
+  // Sem transcrição suficiente → não houve o que resumir (não é falha de IA).
+  return NextResponse.json({ ok: true, resumo: null, motivo: 'sem_transcricao' })
 }
