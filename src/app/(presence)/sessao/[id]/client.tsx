@@ -12,6 +12,7 @@ import { PostSessionModal } from './widgets/PostSessionModal'
 import { useSpeech } from './useSpeech'
 import { useRemoteTranscribe } from './useRemoteTranscribe'
 import { useContexto, UltimaSessaoWidget, TopicosWidget, InfoPacienteWidget } from './widgets/ContextWidgets'
+import { ResumoAnteriorModal } from './widgets/ResumoAnteriorModal'
 import { SortableGrid } from './widgets/SortableGrid'
 import { WidgetGrip } from '@/components/WidgetGrip'
 import { LiveInsight } from './widgets/LiveInsight'
@@ -82,6 +83,7 @@ export function PresenceClient(props: Props) {
   const [pacienteInterim, setPacienteInterim] = useState('')
   const [linkCopiado, setLinkCopiado] = useState(false)
   const [bloqueio, setBloqueio] = useState<{ cap: number; usadas: number; plano: string } | null>(null)
+  const [anteriorOpen, setAnteriorOpen] = useState(false)
   // mic local do psicólogo — só usado como FALLBACK quando o Web Speech não existe
   // (iPad/Safari/Firefox). Aí roteamos o mic local pela AssemblyAI (igual ao paciente).
   const [localMicStream, setLocalMicStream] = useState<MediaStream | null>(null)
@@ -482,6 +484,13 @@ export function PresenceClient(props: Props) {
           <span className="pb-meta">
             · Sessão {props.numeroSessao} · {!sessaoIniciada ? 'Não iniciada' : recording ? (active ? 'Presente' : 'Iniciando…') : 'Pausado'} · {fmtTime(tempoSegundos)}
           </span>
+          <button
+            type="button" onClick={() => setAnteriorOpen(true)}
+            title="Resumo e plano de ação da sessão anterior"
+            style={{ marginLeft: 10, background: 'none', border: 'none', cursor: 'pointer', padding: 0, fontSize: 12, color: 'var(--accent)', fontWeight: 500, display: 'inline-flex', alignItems: 'center', gap: 4 }}
+          >
+            ↩ Resumo da sessão anterior
+          </button>
         </div>
         <div className="pb-actions">
           {supported !== false && (
@@ -678,6 +687,8 @@ export function PresenceClient(props: Props) {
           onClose={() => { setShowPostModal(false); router.push('/') }}
         />
       )}
+
+      {anteriorOpen && <ResumoAnteriorModal sessaoId={props.sessaoId} onClose={() => setAnteriorOpen(false)} />}
     </>
   )
 }
