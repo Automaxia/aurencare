@@ -13,9 +13,9 @@ export default function LancamentoPage() {
     <div style={{ background: 'var(--page)', color: 'var(--ink)', overflowX: 'clip' }}>
       <NavTopo />
       <Hero />
-      {/* Narrativa de categoria: problema → o que é continuidade → o que a Audere
-          lembra → grafo (protagonista) → objetivos/evolução → sessão (menor) →
-          infraestrutura → privacidade → manifesto → prova social → acesso. */}
+      {/* Tese (categoria) → problema → jornada → plataforma → privacidade →
+          manifesto → prova social → fecho + acesso. */}
+      <Tese />
       <Problema />
       <JornadaContinuidade />
       <PraticaIntegrada />
@@ -71,6 +71,63 @@ function Figura({ src, style, opacity = 1, className }: {
       opacity, mixBlendMode: 'multiply',
       ...style,
     }} />
+  )
+}
+
+// ─── Tese (categoria) — a worldview + as 4 gerações ────────────────────
+
+function Tese() {
+  return (
+    <section style={{ padding: '92px 0', borderTop: '1px solid var(--border)' }}>
+      <div className="lp-wrap lp-reveal" style={{ textAlign: 'center', maxWidth: 840, margin: '0 auto' }}>
+        <div style={{ fontSize: 11, letterSpacing: '.16em', textTransform: 'uppercase', fontWeight: 600, color: 'var(--accent)', marginBottom: 18 }}>A tese</div>
+        <h2 style={{
+          fontFamily: 'var(--font-display)', fontWeight: 300, fontSize: 'clamp(30px,4.6vw,52px)',
+          lineHeight: 1.14, letterSpacing: '-.015em', color: '#291860', margin: 0, textWrap: 'balance',
+        }}>
+          A terapia é longitudinal.<br />
+          <em style={{ fontStyle: 'italic', background: 'linear-gradient(90deg,#6a4ec8,#5c9d88)', WebkitBackgroundClip: 'text', backgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
+            Tudo que a apoia ainda é episódico.
+          </em>
+        </h2>
+        <p style={{ fontSize: 16, color: 'var(--ink-soft)', lineHeight: 1.6, maxWidth: 600, margin: '20px auto 0', fontWeight: 300 }}>
+          Toda geração de software organizou uma peça da prática. A Audere organiza a
+          única que faltava — e a única que cresce a cada sessão: a continuidade.
+        </p>
+      </div>
+
+      <div className="lp-wrap lp-reveal" style={{ marginTop: 52 }}>
+        <Geracoes />
+      </div>
+    </section>
+  )
+}
+
+const GERACOES = [
+  { era: '1ª geração', nome: 'Agenda digital', cap: 'organiza o tempo' },
+  { era: '2ª geração', nome: 'Prontuário eletrônico', cap: 'organiza o arquivo' },
+  { era: '3ª geração', nome: 'Transcrição com IA', cap: 'organiza a sessão' },
+  { era: '4ª geração', nome: 'Continuidade clínica', cap: 'organiza o processo', on: true },
+]
+function Geracoes() {
+  return (
+    <div style={{ display: 'flex', alignItems: 'stretch', justifyContent: 'center', gap: 8, flexWrap: 'wrap' }}>
+      {GERACOES.map((g, i) => (
+        <span key={g.era} style={{ display: 'contents' }}>
+          <div style={{
+            flex: '1 1 200px', maxWidth: 240, padding: '18px 18px', borderRadius: 14,
+            background: g.on ? 'linear-gradient(135deg, rgba(106,78,200,.09), rgba(90,158,138,.09))' : 'var(--card)',
+            border: `1px solid ${g.on ? 'color-mix(in srgb, var(--accent) 30%, transparent)' : 'var(--border)'}`,
+            textAlign: 'left',
+          }}>
+            <div style={{ fontSize: 10.5, letterSpacing: '.06em', textTransform: 'uppercase', color: g.on ? 'var(--accent)' : 'var(--faint)', fontWeight: 600, marginBottom: 8 }}>{g.era}</div>
+            <div style={{ fontFamily: 'var(--font-display)', fontSize: 19, fontWeight: 400, color: g.on ? '#391d96' : 'var(--ink)', lineHeight: 1.15, marginBottom: 4 }}>{g.nome}</div>
+            <div style={{ fontSize: 12, color: 'var(--muted)' }}>{g.cap}</div>
+          </div>
+          {i < GERACOES.length - 1 && <span aria-hidden style={{ display: 'flex', alignItems: 'center', color: 'var(--faint)', fontSize: 16 }}>→</span>}
+        </span>
+      ))}
+    </div>
   )
 }
 
