@@ -64,6 +64,10 @@ export function JornadaContinuidade() {
         ))}
       </div>
 
+      <div className="lp-wrap lp-reveal jt-close">
+        <p>Cada sessão aprofunda o acompanhamento.<br /><span>Recomeçar em outro lugar seria recomeçar do zero.</span></p>
+      </div>
+
       <Styles />
     </section>
   )
@@ -153,6 +157,10 @@ function Styles() {
       .jt-copy { font-size:16px; color:var(--ink-soft); line-height:1.62; max-width:560px; margin:0; font-weight:300; }
       .jt-msg { font-size:14.5px; color:var(--accent); font-weight:500; margin:12px 0 0; max-width:560px; line-height:1.5; }
       .jt-visual { margin-top:24px; }
+      .jt-close { max-width:720px; margin:16px auto 0; text-align:center; }
+      .jt-close p { font-family:var(--font-display), serif; font-weight:300; font-style:italic;
+        font-size:clamp(20px,2.4vw,28px); line-height:1.4; color:var(--ink-soft); margin:0; }
+      .jt-close span { font-style:normal; font-weight:500; color:#291860; }
 
       .jt-card { background:var(--card); border:1px solid var(--border); border-radius:16px; padding:20px 22px; box-shadow:0 8px 34px rgba(26,24,37,.05); }
       .jt-card-graph { max-width:520px; }
