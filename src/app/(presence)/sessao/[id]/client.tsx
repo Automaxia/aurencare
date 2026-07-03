@@ -83,6 +83,7 @@ export function PresenceClient(props: Props) {
   const [remoteStream, setRemoteStream] = useState<MediaStream | null>(null)
   const [pacienteInterim, setPacienteInterim] = useState('')
   const [linkCopiado, setLinkCopiado] = useState(false)
+  const [envioWa, setEnvioWa] = useState<'idle' | 'enviando' | 'ok' | 'erro'>('idle')
   const [bloqueio, setBloqueio] = useState<{ cap: number; usadas: number; plano: string } | null>(null)
   const [anteriorOpen, setAnteriorOpen] = useState(false)
   // mic local do psicólogo — só usado como FALLBACK quando o Web Speech não existe
@@ -636,7 +637,7 @@ export function PresenceClient(props: Props) {
                 }}
               />
               <button
-                className={`btn ${linkCopiado ? 'sage' : 'primary'}`}
+                className={`btn ${linkCopiado ? 'sage' : 'ghost'}`}
                 onClick={async () => {
                   try {
                     await navigator.clipboard?.writeText(chamada.urlPaciente)
@@ -649,11 +650,33 @@ export function PresenceClient(props: Props) {
                 {linkCopiado ? '✓ Copiado' : 'Copiar'}
               </button>
             </div>
+            <button
+              className={`btn ${envioWa === 'ok' ? 'sage' : 'primary'}`}
+              disabled={envioWa === 'enviando' || envioWa === 'ok'}
+              onClick={async () => {
+                setEnvioWa('enviando')
+                try {
+                  const r = await fetch(`/api/sessao/${props.sessaoId}/sala/enviar`, { method: 'POST' })
+                  setEnvioWa(r.ok ? 'ok' : 'erro')
+                } catch { setEnvioWa('erro') }
+              }}
+              style={{ width: '100%', justifyContent: 'center', marginTop: 10 }}
+            >
+              {envioWa === 'enviando' ? 'Enviando…'
+                : envioWa === 'ok' ? '✓ Link enviado no WhatsApp'
+                : envioWa === 'erro' ? 'Falhou · tentar enviar de novo'
+                : '📲 Enviar link por WhatsApp'}
+            </button>
+            {envioWa === 'erro' && (
+              <div style={{ marginTop: 6, fontSize: 11, color: 'var(--rose)', lineHeight: 1.4 }}>
+                Não consegui enviar por WhatsApp (paciente sem telefone ou WhatsApp não conectado). Copie o link e envie manualmente.
+              </div>
+            )}
             <div style={{ marginTop: 12, fontSize: 11, color: 'var(--faint)' }}>
               Sala ativa por 4 horas. Quando você fechar a chamada, pode reabri-la aqui.
             </div>
             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 18 }}>
-              <button className="btn ghost" onClick={() => { setMostrarModalSala(false); setLinkCopiado(false) }}>Fechar</button>
+              <button className="btn ghost" onClick={() => { setMostrarModalSala(false); setLinkCopiado(false); setEnvioWa('idle') }}>Fechar</button>
             </div>
           </div>
         </div>

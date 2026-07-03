@@ -192,6 +192,10 @@ Responda *CONFIRMAR* ou *CANCELAR*.`,
     (linkSala ? `\n\n📹 Entre pela sala de vídeo:\n${linkSala}` : '') +
     `\n\nAté já!`,
 
+  /** Envio imediato do link da sala (psicólogo já está na chamada). */
+  linkSalaAgora: (linkSala: string) =>
+    `📹 Sua sessão vai começar. Entre pela sala de vídeo:\n${linkSala}\n\nÉ só abrir o link no navegador — não precisa instalar nada.`,
+
   fluxo5_canceladaComReembolso: () =>
     `Sessão cancelada. O reembolso foi solicitado e deve cair em até 5 dias úteis.`,
 
