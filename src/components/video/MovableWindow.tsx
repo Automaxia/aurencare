@@ -1,6 +1,6 @@
 'use client'
 
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 
 const clamp = (v: number, lo: number, hi: number) => Math.max(lo, Math.min(v, hi))
 
@@ -52,6 +52,26 @@ export function MovableWindow({ width, height, minimized, children }: { width: n
     resz.current = null
     try { e.currentTarget.releasePointerCapture(e.pointerId) } catch { /* */ }
   }
+
+  // Ao redimensionar/maximizar/minimizar a janela do NAVEGADOR, a posição fixa
+  // pode cair fora da tela. Reclampa tamanho e posição pra sempre ficar visível.
+  useEffect(() => {
+    function reclamp() {
+      const maxW = Math.round(window.innerWidth * 0.95)
+      const maxH = Math.round(window.innerHeight * 0.92)
+      const w = clamp(size.w, 240, Math.max(240, maxW))
+      const h = clamp(size.h, 150, Math.max(150, maxH))
+      if (w !== size.w || h !== size.h) setSize({ w, h })
+      setPos(p => {
+        if (!p) return p
+        const left = clamp(p.left, 4, Math.max(4, window.innerWidth - w - 4))
+        const top = clamp(p.top, 4, Math.max(4, window.innerHeight - h - 4))
+        return (left === p.left && top === p.top) ? p : { left, top }
+      })
+    }
+    window.addEventListener('resize', reclamp)
+    return () => window.removeEventListener('resize', reclamp)
+  }, [size.w, size.h])
 
   const place: React.CSSProperties = pos
     ? { left: pos.left, top: pos.top }
