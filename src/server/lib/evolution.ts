@@ -66,6 +66,25 @@ export async function enviarWADiag(telefone: string, texto: string): Promise<{ o
   }
 }
 
+/** Lista os NOMES das instâncias que existem no servidor Evolution — pra achar
+ *  o nome certo quando dá 404 (mismatch de EVOLUTION_INSTANCE_NAME). */
+export async function listarInstanciasEvolution(): Promise<{ ok: boolean; nomes: string[]; erro?: string }> {
+  if (!integrationStatus.evolution) return { ok: false, nomes: [], erro: 'Evolution não configurado.' }
+  try {
+    const { data } = await axios.get(
+      `${env.evolutionUrl}/instance/fetchInstances`,
+      { headers: { apikey: env.evolutionKey! }, timeout: 8_000 },
+    )
+    const arr = Array.isArray(data) ? data : []
+    const nomes = arr
+      .map((it: any) => it?.name ?? it?.instance?.instanceName ?? it?.instanceName ?? it?.instance?.name)
+      .filter((n: any): n is string => typeof n === 'string')
+    return { ok: true, nomes }
+  } catch (err: any) {
+    return { ok: false, nomes: [], erro: err?.response?.status ? `HTTP ${err.response.status}` : (err instanceof Error ? err.message : 'falha') }
+  }
+}
+
 /** URL que a instância Evolution deve chamar pra entregar eventos ao app. */
 export function webhookUrlEvolution(): string {
   const base = `${env.appUrl.replace(/\/$/, '')}/api/webhooks/evolution`
