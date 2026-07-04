@@ -1,7 +1,7 @@
 import Link from 'next/link'
 import { requireRole } from '@/server/lib/auth'
 import { PageHeader } from '@/components/PageHeader'
-import { estadoConexaoEvolution, webhookUrlEvolution, lerWebhookEvolution } from '@/server/lib/evolution'
+import { estadoConexaoEvolution, webhookUrlEvolution, lerWebhookEvolution, listarInstanciasEvolution } from '@/server/lib/evolution'
 import { TesteWhatsApp } from './TesteWhatsApp'
 import { RodarLembrete } from './RodarLembrete'
 import { ConfigurarWebhook } from './ConfigurarWebhook'
@@ -12,6 +12,9 @@ export default async function WhatsAppDiagPage() {
   await requireRole('admin')
   const c = await estadoConexaoEvolution()
   const conectado = c.state === 'open'
+  // Quando dá erro (ex.: 404 de instância inexistente), lista as instâncias reais
+  // do servidor pra revelar o nome correto a usar em EVOLUTION_INSTANCE_NAME.
+  const instancias = c.erro ? await listarInstanciasEvolution() : null
   const wh = await lerWebhookEvolution().catch(() => null)
   const webhookAtual: string | null = (wh as any)?.url ?? (wh as any)?.webhook?.url ?? null
 
@@ -37,6 +40,16 @@ export default async function WhatsAppDiagPage() {
           <span style={{ fontSize: 16, fontWeight: 600, color: 'var(--ink)' }}>{status.titulo}</span>
         </div>
         <p style={{ fontSize: 13, color: 'var(--ink-soft)', lineHeight: 1.6, margin: 0 }}>{status.desc}</p>
+        {instancias && (
+          <div style={{ marginTop: 12, paddingTop: 12, borderTop: '1px solid var(--border)', fontSize: 12.5, color: 'var(--ink-soft)', lineHeight: 1.6 }}>
+            {instancias.ok
+              ? instancias.nomes.length > 0
+                ? <>Instâncias que <strong>existem</strong> neste servidor Evolution: {instancias.nomes.map((n, i) => <span key={n}>{i > 0 && ', '}<code style={{ background: 'var(--surface)', padding: '1px 6px', borderRadius: 5 }}>{n}</code></span>)}.
+                    {' '}Ajuste <code>EVOLUTION_INSTANCE_NAME</code> para bater exatamente com um destes (diferencia maiúsculas).</>
+                : <>O servidor respondeu, mas <strong>nenhuma instância</strong> existe — é preciso criá-la no Evolution antes.</>
+              : <>Não consegui listar as instâncias ({instancias.erro}). Verifique <code>EVOLUTION_API_URL</code> e <code>EVOLUTION_API_KEY</code>.</>}
+          </div>
+        )}
       </div>
 
       <div className="card" style={{ padding: 18, marginBottom: 16 }}>
