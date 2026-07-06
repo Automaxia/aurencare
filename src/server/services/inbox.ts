@@ -371,11 +371,8 @@ async function responderPagamentoFAQ(tel: string, paciente: { id: string; nome: 
 
 async function processarComandoPagamento(opts: { telefone: string; cmd: string }) {
   const { telefone, cmd } = opts
-  const { rows: pRows } = await db.query<{ id: string }>(
-    `SELECT id FROM pacientes WHERE tel_canon(telefone) = tel_canon($1) LIMIT 1`,
-    [telefone],
-  )
-  const paciente = pRows[0]
+  // Mesmo desempate por relacionamento mais ativo (WhatsApp compartilhado no beta).
+  const paciente = await buscarPacientePorTelefone(telefone)
   if (!paciente) {
     await enviarERegistrar(telefone, 'Não encontrei seu cadastro. Avisei quem te atende.')
     log.warn('wa.inbox', `${telefone} respondeu ${cmd} mas não é cadastrado`)

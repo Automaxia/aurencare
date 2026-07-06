@@ -127,12 +127,22 @@ export async function marcarConversaLida(telefone: string): Promise<void> {
     .catch(() => { /* */ })
 }
 
-/** Localiza paciente pelo telefone — qualquer psicóloga. */
+/** Localiza paciente pelo telefone — qualquer psicóloga.
+ *  WhatsApp é compartilhado no beta, então o MESMO telefone pode estar cadastrado
+ *  em 2+ contas (ex.: um tester usando o próprio número em duas). Desempata pelo
+ *  relacionamento mais ATIVO: sessão mais recente; se empatar, cadastro mais novo.
+ *  Assim a resposta cai na conta que está de fato conversando com aquele número. */
 export async function buscarPacientePorTelefone(telefone: string): Promise<{ id: string; psicologoId: string; nome: string } | null> {
   const tel = normalizar(telefone)
   const { rows } = await db.query<{ id: string; psicologo_id: string; nome: string }>(
-    `SELECT id, psicologo_id, nome FROM pacientes
-      WHERE tel_canon(telefone) = tel_canon($1) LIMIT 1`,
+    `SELECT p.id, p.psicologo_id, p.nome
+       FROM pacientes p
+       LEFT JOIN LATERAL (
+         SELECT max(s.data_hora) AS ult FROM sessoes s WHERE s.paciente_id = p.id
+       ) us ON TRUE
+      WHERE tel_canon(p.telefone) = tel_canon($1)
+      ORDER BY us.ult DESC NULLS LAST, p.created_at DESC
+      LIMIT 1`,
     [tel],
   )
   return rows[0] ? { id: rows[0].id, psicologoId: rows[0].psicologo_id, nome: rows[0].nome } : null
