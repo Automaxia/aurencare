@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { requirePsicologo } from '@/server/lib/auth'
 import { db } from '@/server/db/pool'
-import { importarSessao } from '@/server/services/sessoes'
+import { importarSessao, gateImportarSessao } from '@/server/services/sessoes'
 import { extrairTextoDeArquivo } from '@/server/lib/extrairTexto'
 import { log } from '@/server/lib/log'
 
@@ -21,6 +21,10 @@ export async function POST(req: Request, { params }: { params: { id: string } })
   // Paciente é do psicólogo logado?
   const { rows } = await db.query('SELECT 1 FROM pacientes WHERE id = $1 AND psicologo_id = $2', [params.id, user.id])
   if (rows.length === 0) return NextResponse.json({ error: 'not_found' }, { status: 404 })
+
+  // Gate de cobrança do import — pass-through no beta; liga o modelo no go-live.
+  const gate = await gateImportarSessao(user.id, params.id)
+  if (!gate.ok) return NextResponse.json({ error: 'limite', ...gate }, { status: 402 })
 
   const form = await req.formData().catch(() => null)
   if (!form) return NextResponse.json({ error: 'form_invalido' }, { status: 400 })
