@@ -15,6 +15,7 @@ import { PatientProfileForm } from './profile-form'
 import { DadosCadastroForm } from './DadosCadastroForm'
 import { ConsentimentoPendente } from './ConsentimentoPendente'
 import { ExportarProntuario } from './ExportarProntuario'
+import { ImportarSessao } from './ImportarSessao'
 import { AcoesPaciente } from './AcoesPaciente'
 import { OndeEstamos } from './OndeEstamos'
 import { MemoriaClinica } from './MemoriaClinica'
@@ -134,6 +135,7 @@ export default async function PacientePerfilPage({ params }: { params: { id: str
         subtitle={sub.join(' · ')}
         actions={
           <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+            <ImportarSessao pacienteId={p.id} />
             <ExportarProntuario pacienteId={p.id} sessoesAssinadas={sessoesAssinadas} />
             <AcoesPaciente
               pacienteId={p.id}

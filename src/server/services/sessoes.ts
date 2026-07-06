@@ -54,6 +54,8 @@ export type Sessao = {
   serieId: string | null
   /** Posição na série (1-based) e total. Só preenchido em listarSessoesEntre. */
   seriePosicao: { posicao: number; total: number } | null
+  /** Sessão de histórico importado (não dispara WhatsApp pós-sessão ao assinar). */
+  importada: boolean
 }
 
 function rowToSessao(r: any): Sessao {
@@ -80,6 +82,7 @@ function rowToSessao(r: any): Sessao {
     seriePosicao: r.serie_posicao && r.serie_total
       ? { posicao: parseInt(r.serie_posicao, 10), total: parseInt(r.serie_total, 10) }
       : null,
+    importada: r.importada === true,
   }
 }
 
@@ -681,6 +684,61 @@ export async function salvarNotaClinica(psicologoId: string, sessaoId: string, n
   return (rowCount ?? 0) > 0
 }
 
+/**
+ * Importa uma transcrição externa como sessão de HISTÓRICO. Cria a sessão já
+ * concluída (não assinada), salva a transcrição cifrada e gera um RASCUNHO de
+ * laudo. NÃO envia WhatsApp, NÃO cobra, NÃO conta cota de IA. O psicólogo revisa
+ * e assina pela tela normal — e é aí que os temas/evolução são alimentados (CFP:
+ * nada vira prontuário sem assinatura). Retorna o id da sessão criada.
+ */
+export async function importarSessao(input: {
+  psicologoId: string
+  pacienteId: string
+  dataHora: string
+  numero?: number | null
+  transcricao: string
+  gerarLaudo?: boolean
+}): Promise<{ sessaoId: string; numero: number; laudo: string | null }> {
+  // Número: usa o informado, senão o próximo do paciente.
+  let numero = input.numero ?? null
+  if (numero == null) {
+    const { rows } = await db.query<{ n: number }>(
+      `SELECT COALESCE(MAX(numero), 0) + 1 AS n FROM sessoes WHERE paciente_id = $1`,
+      [input.pacienteId],
+    )
+    numero = rows[0].n
+  }
+
+  const { rows } = await db.query<{ id: string }>(
+    `INSERT INTO sessoes
+       (psicologo_id, paciente_id, numero, data_hora, duracao_min, modalidade,
+        status, valor, pagamento_status, transcricao_texto, importada)
+     VALUES ($1,$2,$3,$4,$5,'online','concluida',0,'isento',$6,TRUE)
+     RETURNING id`,
+    [input.psicologoId, input.pacienteId, numero, input.dataHora, 50, encrypt(input.transcricao)],
+  )
+  const sessaoId = rows[0].id
+
+  // Rascunho de laudo (sem cota, sem WhatsApp). Falha de IA não quebra o import —
+  // o psicólogo escreve/ajusta manualmente na revisão.
+  let laudo: string | null = null
+  if (input.gerarLaudo !== false) {
+    try {
+      const sessao = await buscarSessao(sessaoId)
+      if (sessao) {
+        const historico = await resumosAnteriores(input.psicologoId, input.pacienteId, numero).catch(() => [])
+        const { gerarResumoSessao, iaIndisponivel } = await import('@/server/lib/anthropic')
+        const r = await gerarResumoSessao(input.transcricao, { numero, pacienteNome: sessao.pacienteNome }, historico)
+        if (!iaIndisponivel(r)) { await salvarResumoIA(sessaoId, r); laudo = r }
+      }
+    } catch (err) {
+      log.err('importarSessao', `falha ao gerar laudo sessao=${sessaoId}`, err)
+    }
+  }
+
+  return { sessaoId, numero, laudo }
+}
+
 export async function assinarSessao(sessaoId: string): Promise<void> {
   const s = await buscarSessao(sessaoId)
   if (!s) throw new Error('sessao_nao_encontrada')
@@ -688,8 +746,11 @@ export async function assinarSessao(sessaoId: string): Promise<void> {
     `UPDATE sessoes SET assinada = TRUE, assinatura_timestamp = NOW() WHERE id = $1`,
     [sessaoId],
   )
-  // Fluxo 6 — pós-sessão.
-  await enviarWA(s.pacienteTelefone, WA_TEMPLATES.fluxo6_posSessao(s.numero))
+  // Fluxo 6 — pós-sessão. Não dispara em sessão importada (histórico): o paciente
+  // não deve receber "sua sessão terminou" por uma sessão de meses atrás.
+  if (!s.importada) {
+    await enviarWA(s.pacienteTelefone, WA_TEMPLATES.fluxo6_posSessao(s.numero))
+  }
 }
 
 export async function reenviarCobranca(sessaoId: string): Promise<Sessao> {
