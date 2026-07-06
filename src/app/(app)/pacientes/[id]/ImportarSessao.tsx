@@ -29,6 +29,7 @@ export function ImportarSessao({ pacienteId }: { pacienteId: string }) {
     formato_doc_antigo: 'O .doc antigo não é suportado — salve como .docx ou cole o texto.',
     arquivo_grande: 'Arquivo muito grande (máx. 12 MB).',
     falha_extracao: 'Não consegui ler o arquivo. Tente colar o texto.',
+    limite: 'Você atingiu o limite de importações do seu plano neste ciclo.',
     internal: 'Falha ao importar agora. Tente de novo.',
   }
 

@@ -684,6 +684,28 @@ export async function salvarNotaClinica(psicologoId: string, sessaoId: string, n
   return (rowCount ?? 0) > 0
 }
 
+export type GateImportResult =
+  | { ok: true }
+  | { ok: false; motivo: 'limite'; cap: number; usadas: number; plano: string }
+
+/**
+ * Gate de IMPORTAÇÃO de sessão (backfill de histórico). HOJE é pass-through
+ * (beta liberado). Ponto ÚNICO onde o modelo de cobrança do import se pluga ao
+ * sair do beta — ver [[auren-care-assinatura]]. Modelos possíveis (decidir 1):
+ *   (a) contar na cota mensal de sessões-IA (reusa obterAssinatura/incrementarSessaoIa);
+ *   (b) add-on/crédito único de "importar histórico" (contador próprio de imports);
+ *   (c) cap de imports grátis por plano (Free N, Essencial M, Pro ilimitado);
+ *   (d) import sem laudo/temas por padrão (custo zero) → gate só quando pedir IA.
+ * Quando decidir: trocar o corpo abaixo pela checagem; a rota já trata {ok:false}.
+ */
+export async function gateImportarSessao(psicologoId: string, _pacienteId: string): Promise<GateImportResult> {
+  if (BETA_LIBERADO) return { ok: true }
+  // TODO(go-live): implementar o modelo escolhido. Esqueleto do modelo (a):
+  //   const info = await obterAssinatura(psicologoId)
+  //   if (info.usadas >= info.cap) return { ok: false, motivo: 'limite', cap: info.cap, usadas: info.usadas, plano: info.plano }
+  return { ok: true }
+}
+
 /**
  * Importa uma transcrição externa como sessão de HISTÓRICO. Cria a sessão já
  * concluída (não assinada), salva a transcrição cifrada e gera um RASCUNHO de
