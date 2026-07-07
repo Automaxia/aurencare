@@ -274,8 +274,8 @@ export default async function InicioPage() {
 
           {/* Inteligência silenciosa */}
           <IntelSection
-            pacientesEspacando={pacientes.filter(p => !p.demo && p.badge?.label === 'Espaçando').length}
-            novos={pacientes.filter(p => !p.demo && p.badge?.label === 'Nova').length}
+            espacando={pacientes.filter(p => !p.demo && p.badge?.label === 'Espaçando').map(p => ({ id: p.id, nome: p.nome }))}
+            novos={pacientes.filter(p => !p.demo && p.badge?.label === 'Nova').map(p => ({ id: p.id, nome: p.nome }))}
           />
         </div>
 

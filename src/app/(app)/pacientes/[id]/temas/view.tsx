@@ -32,8 +32,6 @@ type Props = {
   sessoes: SessaoOpt[]
 }
 
-const LIMIAR_CLINICO = 0.5
-
 export function TemasView({ pacienteId, pacienteNome, initialGrafo, padroes, sessoes }: Props) {
   const [grafo, setGrafo] = useState(initialGrafo)
   const [selecionado, setSelecionado] = useState<GrafoNode | null>(null)
@@ -42,8 +40,6 @@ export function TemasView({ pacienteId, pacienteNome, initialGrafo, padroes, ses
   const [insightLoading, setInsightLoading] = useState(false)
   const [activeCluster, setActiveCluster] = useState('all')
   const [filterSessao, setFilterSessao] = useState<string>('all')
-  // §4: o store é permissivo; a TELA filtra. Clínico = só relevância alta; Tudo = tudo.
-  const [vista, setVista] = useState<'clinico' | 'tudo'>('clinico')
   const [ocultarIsolados, setOcultarIsolados] = useState(false)
   const [recalcErro, setRecalcErro] = useState<string | null>(null)
   const [recalcInfo, setRecalcInfo] = useState<string | null>(null)
@@ -92,11 +88,10 @@ export function TemasView({ pacienteId, pacienteNome, initialGrafo, padroes, ses
     }
   }
 
-  // Filtra localmente por cluster + sessão + relevância (vista) + isolados.
+  // Filtra localmente por cluster + sessão + isolados.
   let fNodes = grafo.nodes.filter(n => {
     if (activeCluster !== 'all' && n.cluster !== activeCluster) return false
     if (filterSessao !== 'all' && !(n.sessoesIds ?? []).includes(filterSessao)) return false
-    if (vista === 'clinico' && n.relevancia != null && n.relevancia < LIMIAR_CLINICO) return false
     return true
   })
   let fSet = new Set(fNodes.map(n => n.palavra))
@@ -109,10 +104,6 @@ export function TemasView({ pacienteId, pacienteNome, initialGrafo, padroes, ses
     fEdges = fEdges.filter(e => fSet.has(e.a) && fSet.has(e.b))
   }
   const filteredGrafo: GrafoDados = { nodes: fNodes, edges: fEdges }
-
-  // Issue clínico==tudo: o grafo guardado não tem relevância (extração antiga).
-  // O filtro Clínico não tem como cortar — avisa e sugere recalcular.
-  const semRelevancia = grafo.nodes.length > 0 && grafo.nodes.every(n => n.relevancia == null)
 
   if (grafo.nodes.length === 0) {
     return (
@@ -167,10 +158,6 @@ export function TemasView({ pacienteId, pacienteNome, initialGrafo, padroes, ses
         </div>
 
         <div style={{ display: 'flex', gap: 7, alignItems: 'center', flexWrap: 'wrap' }}>
-          <div className="ftabs" title="Clínico mostra só os construtos mais relevantes; Tudo mostra o que o store guardou (sinais fracos inclusive).">
-            <button type="button" className={`ftab${vista === 'clinico' ? ' active' : ''}`} onClick={() => setVista('clinico')}>Clínico</button>
-            <button type="button" className={`ftab${vista === 'tudo' ? ' active' : ''}`} onClick={() => setVista('tudo')}>Tudo</button>
-          </div>
           <button
             type="button"
             className={`ftab${ocultarIsolados ? ' active' : ''}`}
@@ -219,11 +206,6 @@ export function TemasView({ pacienteId, pacienteNome, initialGrafo, padroes, ses
       {recalcErro && (
         <div style={{ margin: '0 0 12px', padding: '10px 14px', borderRadius: 10, background: 'var(--rose-lo)', color: 'var(--rose)', fontSize: 12.5, lineHeight: 1.5 }}>
           {recalcErro}
-        </div>
-      )}
-      {semRelevancia && vista === 'clinico' && !recalc && (
-        <div style={{ margin: '0 0 12px', padding: '10px 14px', borderRadius: 10, background: 'var(--amber-lo, rgba(176,125,64,.10))', color: 'var(--amber)', fontSize: 12.5, lineHeight: 1.5 }}>
-          Este grafo foi gerado por uma extração antiga, sem nota de relevância — por isso “Clínico” e “Tudo” mostram os mesmos temas. Clique em <strong>Recalcular</strong> para a Audere reavaliar a relevância clínica de cada tema.
         </div>
       )}
 
