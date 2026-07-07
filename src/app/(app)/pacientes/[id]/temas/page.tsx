@@ -38,7 +38,7 @@ export default async function TemasPage({ params }: { params: { id: string } }) 
 
   return (
     <div>
-      <PageHeader title="Temas Recorrentes" subtitle="Mapa de correlações" withCfp />
+      <PageHeader pilar="Conectar" title="Temas Recorrentes" subtitle="O que se conecta ao longo das sessões" withCfp />
       <PatientSelector
         current={{ id: paciente.id, nome: paciente.nome, meta: `${count} ${count === 1 ? 'sessão' : 'sessões'}` }}
         basePath="/pacientes"

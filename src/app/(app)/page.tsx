@@ -200,7 +200,7 @@ export default async function InicioPage() {
         {temBriefing && (
           <div className="card-warm" style={{ marginTop: 10, marginBottom: 14, padding: '14px 18px', borderRadius: 'var(--r)' }}>
             <div className="sec-lbl" style={{ marginBottom: 8 }}>
-              Preparo pra esta sessão · <Sigilo>{firstName(proxima.pacienteNome)}</Sigilo>
+              <span style={{ color: 'var(--accent)' }}>Preparar</span> · <Sigilo>{firstName(proxima.pacienteNome)}</Sigilo>
               {briefing!.totalSessoes > 0 && (
                 <span style={{ color: 'var(--muted)', textTransform: 'none', letterSpacing: 0 }}>
                   {' · '}{briefing!.totalSessoes} {briefing!.totalSessoes === 1 ? 'sessão registrada' : 'sessões registradas'}

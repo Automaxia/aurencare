@@ -40,7 +40,7 @@ export default async function ObjetivosPage({ params }: { params: { id: string }
 
   return (
     <div>
-      <PageHeader title="Objetivos e Progresso" subtitle="Continuidade terapêutica" withCfp />
+      <PageHeader pilar="Evoluir" title="Objetivos e Progresso" subtitle="Para onde o cuidado caminha" withCfp />
       <PatientSelector
         current={{ id: paciente.id, nome: paciente.nome, meta: `${objetivos.length} ${objetivos.length === 1 ? 'objetivo' : 'objetivos'}` }}
         basePath="/pacientes"
