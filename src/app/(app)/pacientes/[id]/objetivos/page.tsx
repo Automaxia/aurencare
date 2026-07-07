@@ -74,9 +74,8 @@ export default async function ObjetivosPage({ params }: { params: { id: string }
       {/* Objetivos — protagonista */}
       <ObjetivosView pacienteId={params.id} initial={objetivos} valoresIniciais={medicoesMap} observacoes={observacoes} sugestoes={sugestoes} gasInicial={gasMap} notasInicial={notasMap} />
 
-      {/* Marcos do processo — a jornada terapêutica */}
+      {/* Marcos do processo — a jornada terapêutica (o título vive no componente) */}
       <section style={{ marginTop: 24 }}>
-        <div className="sec-lbl" style={{ marginBottom: 10 }}>Marcos do processo</div>
         <MarcosCliente pacienteId={params.id} />
       </section>
 
