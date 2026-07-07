@@ -33,7 +33,7 @@ export default async function EvolucaoPage({ params }: { params: { id: string } 
 
   return (
     <div>
-      <PageHeader title="Evolução Registrada" subtitle="Continuidade clínica" />
+      <PageHeader pilar="Evoluir" title="Evolução Registrada" subtitle="Como o processo caminha ao longo do tempo" />
 
       <div className="disclaimer">
         <Compass size={16} style={{ flexShrink: 0, marginTop: 1 }} />

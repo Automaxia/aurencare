@@ -165,6 +165,10 @@ export function PostSessionModal(p: Props) {
           </button>
         </div>
 
+        <p style={{ fontSize: 11.5, color: 'var(--faint)', textAlign: 'center', margin: '14px 0 0', lineHeight: 1.5 }}>
+          A tecnologia cuida do contexto. <span style={{ color: 'var(--muted)' }}>O psicólogo cuida da pessoa.</span>
+        </p>
+
         <style jsx>{`
           textarea {
             width: 100%; padding: 10px 12px; border-radius: var(--field-radius);
