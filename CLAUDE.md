@@ -40,8 +40,12 @@ Auth:        NextAuth.js
 Storage:     S3-compatible (áudio temporário)
 WhatsApp:    Evolution API (Baileys)
 Pagamentos:  Pagar.me (sessões: PIX/crédito/débito · assinatura: cartão recorrente)
-IA:          Anthropic API · roteamento por tier (claude-haiku-4-5 p/ chamadas
-             ao vivo/mecânicas · claude-sonnet-4-6 p/ resumo, risco e longitudinal)
+IA:          OpenAI primário + Anthropic fallback · roteamento por tier: fast
+             (gpt-4o-mini p/ chamadas ao vivo/mecânicas/temas) · strong (gpt-4o
+             p/ resumo, risco, longitudinal, chat clínico). Fallback pro Anthropic
+             (haiku/sonnet) SÓ em erro/timeout — com alerta (fast→anthropic loga
+             ALERTA CUSTO). Custo por chamada rastreado em api_custos (natureza +
+             psicologo/paciente/sessão). Ver src/server/lib/llm.ts e precos.ts.
 Transcrição: AssemblyAI Universal-Streaming (paciente) + Web Speech (psicólogo)
 Realtime:    WebSocket (sessão ao vivo) + SSE (notificações)
 ```
