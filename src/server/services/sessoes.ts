@@ -12,6 +12,7 @@ import {
 import { formatDateTimeBR } from '@/lib/formatters'
 import { obterAssinatura } from './assinatura'
 import { incrementarSessaoIa } from './uso'
+import { lerStatusOnboarding } from './onboardingPagamento'
 import { BETA_LIBERADO } from '@/server/lib/planos'
 
 export type SessaoStatus =
@@ -184,6 +185,12 @@ export async function criarSessao(input: CriarSessaoInput): Promise<Sessao> {
   // Sessão gratuita (valor 0): pula a cobrança — já nasce confirmada, sem WhatsApp de método.
   const gratuita = (input.valor ?? 0) <= 0
 
+  // Cobrança pela plataforma (Pix/cartão via Pagar.me) só pra quem já vinculou a
+  // conta de recebimento. Sem conta, a sessão paga é agendada e confirmada — o
+  // psicólogo combina o pagamento por fora e concilia no Financeiro (fica 'pendente').
+  const onboarding = gratuita ? null : await lerStatusOnboarding(input.psicologoId)
+  const cobrarPlataforma = !gratuita && !!onboarding?.completo
+
   const { rows } = await db.query(
     `INSERT INTO sessoes (psicologo_id, paciente_id, numero, data_hora, duracao_min, modalidade, status, valor, pagamento_status, wa_pergunta_metodo_em)
      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
@@ -191,21 +198,26 @@ export async function criarSessao(input: CriarSessaoInput): Promise<Sessao> {
     [
       input.psicologoId, input.pacienteId, numero, input.dataHora,
       input.duracaoMin ?? 50, input.modalidade ?? 'online',
-      gratuita ? 'confirmada' : 'aguardando_metodo',
+      cobrarPlataforma ? 'aguardando_metodo' : 'confirmada',
       input.valor,
       gratuita ? 'isento' : 'pendente',
-      gratuita ? null : new Date().toISOString(),
+      cobrarPlataforma ? new Date().toISOString() : null,
     ],
   )
   const sessao = (await buscarSessao(rows[0].id))!
 
-  // Fluxo 2 — WhatsApp pra TODOS: com cobrança pergunta o método; sem cobrança
-  // confirma o agendamento (sem pedir pagamento).
+  // Fluxo 2 — WhatsApp pra TODOS. Três casos:
+  //  · cobra pela plataforma  → pergunta o método (Pix/cartão);
+  //  · grátis (valor 0)       → confirma sem pagamento;
+  //  · pago, sem recebimento  → confirma e informa pagamento direto com o psicólogo.
+  const online = sessao.modalidade === 'online'
   await enviarWA(
     sessao.pacienteTelefone,
-    gratuita
-      ? WA_TEMPLATES.fluxo2_agendadaSemCobranca(formatDateTimeBR(sessao.dataHora), sessao.modalidade === 'online')
-      : WA_TEMPLATES.fluxo2_perguntarMetodo(formatDateTimeBR(sessao.dataHora), sessao.valor),
+    cobrarPlataforma
+      ? WA_TEMPLATES.fluxo2_perguntarMetodo(formatDateTimeBR(sessao.dataHora), sessao.valor)
+      : gratuita
+        ? WA_TEMPLATES.fluxo2_agendadaSemCobranca(formatDateTimeBR(sessao.dataHora), online)
+        : WA_TEMPLATES.fluxo2_agendadaPagamentoDireto(formatDateTimeBR(sessao.dataHora), sessao.valor, online),
   ).catch(err => log.err('criarSessao', 'falha WA agendamento', err))
 
   return sessao
@@ -348,6 +360,10 @@ export async function criarSerie(input: CriarSerieInput): Promise<CriarSerieResu
   const datas = gerarDatasSerie(input.primeiraSessaoIso, input.frequencia, input.quantidade)
   const gratuita = (input.valor ?? 0) <= 0
 
+  // Cobrança pela plataforma só pra quem vinculou conta de recebimento (ver criarSessao).
+  const onboarding = gratuita ? null : await lerStatusOnboarding(input.psicologoId)
+  const cobrarPlataforma = !gratuita && !!onboarding?.completo
+
   // próximo número de sessão pra esse paciente
   const { rows: count } = await db.query<{ n: number }>(
     `SELECT COALESCE(MAX(numero), 0) + 1 AS n FROM sessoes WHERE paciente_id = $1`,
@@ -372,7 +388,7 @@ export async function criarSerie(input: CriarSerieInput): Promise<CriarSerieResu
         [
           input.psicologoId, input.pacienteId, proxNumero++,
           dataIso, input.duracaoMin ?? 50, input.modalidade ?? 'online',
-          gratuita ? 'confirmada' : 'aguardando_metodo',
+          cobrarPlataforma ? 'aguardando_metodo' : 'confirmada',
           input.valor, gratuita ? 'isento' : 'pendente', serieId,
         ],
       )
@@ -403,6 +419,7 @@ export async function criarSerie(input: CriarSerieInput): Promise<CriarSerieResu
           datas: datasFormatadas,
           valor: input.valor,
           gratuita,
+          pagamentoDireto: !gratuita && !cobrarPlataforma,
         }),
       ).catch(err => log.err('criarSerie', 'falha WA', err)),
       psiS[0] ? enviarEmailPacientePorId(
@@ -427,6 +444,8 @@ export async function criarSerie(input: CriarSerieInput): Promise<CriarSerieResu
 export async function gerarCobrancaPix(sessaoId: string): Promise<Sessao> {
   const s = await buscarSessao(sessaoId)
   if (!s) throw new Error('sessao_nao_encontrada')
+  const onb = await lerStatusOnboarding(s.psicologoId)
+  if (!onb.completo) throw new Error('recebimento_nao_configurado')
 
   const order = await criarOrderPix({
     sessaoId: s.id,
@@ -452,6 +471,8 @@ export async function gerarCobrancaPix(sessaoId: string): Promise<Sessao> {
 export async function gerarCobrancaCartao(sessaoId: string, metodo: 'credito' | 'debito'): Promise<Sessao> {
   const s = await buscarSessao(sessaoId)
   if (!s) throw new Error('sessao_nao_encontrada')
+  const onb = await lerStatusOnboarding(s.psicologoId)
+  if (!onb.completo) throw new Error('recebimento_nao_configurado')
 
   const order = await criarCheckoutCartao({
     sessaoId: s.id,

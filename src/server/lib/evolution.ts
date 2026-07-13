@@ -151,6 +151,18 @@ Não é necessário pagamento.` +
     (online ? `\n\n📹 Você vai receber o link da sala de vídeo aqui no WhatsApp ~15 minutos antes do horário.` : '') +
     `\n\nQualquer mudança, é só responder por aqui.`,
 
+  /**
+   * Sessão paga cujo psicólogo ainda não vinculou conta de recebimento na
+   * plataforma: confirma o agendamento e informa que o pagamento é combinado
+   * diretamente com o profissional (fora da plataforma).
+   */
+  fluxo2_agendadaPagamentoDireto: (dataHora: string, valor: number, online?: boolean) =>
+    `Sua sessão de ${dataHora} está agendada e confirmada. ✅
+
+💳 O pagamento (R$ ${valor.toFixed(2)}) será combinado diretamente com seu psicólogo(a).` +
+    (online ? `\n\n📹 Você vai receber o link da sala de vídeo aqui no WhatsApp ~15 minutos antes do horário.` : '') +
+    `\n\nQualquer mudança, é só responder por aqui.`,
+
   /** Sessão remarcada: avisa o paciente do novo horário. */
   fluxo2_remarcada: (dataHora: string) =>
     `📅 Sua sessão foi remarcada para ${dataHora}.
@@ -162,14 +174,16 @@ Qualquer dúvida, é só responder por aqui.`,
    * NÃO pede método aqui — cron dispara fluxo2_perguntarMetodo 48h antes
    * de cada sessão. Evita inundar o paciente com 4 perguntas idênticas.
    */
-  fluxo2_serieInformativa: (params: { nome: string; datas: string[]; valor: number; gratuita?: boolean }) => {
+  fluxo2_serieInformativa: (params: { nome: string; datas: string[]; valor: number; gratuita?: boolean; pagamentoDireto?: boolean }) => {
     const lista = params.datas.map((d, i) => `${i + 1}. ${d}`).join('\n')
     const cabecalho = params.gratuita
       ? `Foram agendadas ${params.datas.length} sessões pra você:`
       : `Foram agendadas ${params.datas.length} sessões pra você (R$ ${params.valor.toFixed(2)} cada):`
     const metodo = params.gratuita
       ? ''
-      : `\n\nVou te perguntar o método de pagamento (PIX, crédito ou débito) ~48h antes de cada uma.`
+      : params.pagamentoDireto
+        ? `\n\n💳 O pagamento será combinado diretamente com seu psicólogo(a).`
+        : `\n\nVou te perguntar o método de pagamento (PIX, crédito ou débito) ~48h antes de cada uma.`
     return `Olá, ${params.nome.split(' ')[0]}!
 
 ${cabecalho}

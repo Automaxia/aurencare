@@ -1,17 +1,15 @@
 import { PageHeader, EmptyState } from '@/components/PageHeader'
 import { requirePsicologo } from '@/server/lib/auth'
 import { listarPacientes } from '@/server/services/pacientes'
-import { lerStatusOnboarding } from '@/server/services/onboardingPagamento'
-import { redirect } from 'next/navigation'
 import { NewSessionForm } from './form'
 
 export const dynamic = 'force-dynamic'
 
 export default async function NovaSessaoPage() {
   const user = await requirePsicologo()
-  const onboarding = await lerStatusOnboarding(user.id)
-  if (!onboarding.completo) redirect('/onboarding/recebimentos')
-
+  // Agendar não exige conta de recebimento. Quem não vinculou agenda normalmente
+  // e combina o pagamento por fora; a cobrança pela plataforma (Pix/cartão) só é
+  // disparada pra quem completou o onboarding de recebimentos (ver criarSessao).
   const pacientes = await listarPacientes(user.id)
   const elegiveis = pacientes.filter(p => p.consentimentoAceito)
 
