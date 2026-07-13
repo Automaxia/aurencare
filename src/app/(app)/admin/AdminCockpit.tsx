@@ -6,6 +6,7 @@ import { useToast } from '@/components/feedback/Toast'
 import type { UsuarioAdmin } from '@/server/services/admin'
 import type { LoginEvento } from '@/server/services/usoPsicologo'
 import { suspenderUsuarioAction, definirRoleAction, excluirUsuarioAction, historicoLoginsAction } from './actions'
+import { formatPhone } from '@/lib/formatters'
 
 const STATUS_CHIP: Record<string, { txt: string; bg: string; fg: string }> = {
   ativo:     { txt: 'Ativo',     bg: 'rgba(90,158,138,.14)', fg: '#2a6456' },
@@ -128,7 +129,13 @@ export function AdminCockpit({ usuarios, adminId }: { usuarios: UsuarioAdmin[]; 
                       <div style={{ fontWeight: 500, color: 'var(--ink-soft)' }}>
                         {u.nome} {eu && <span style={{ fontSize: 10, color: 'var(--faint)' }}>(você)</span>}
                       </div>
-                      <div style={{ fontSize: 11, color: 'var(--muted)' }}>{u.email} · {u.crp}</div>
+                      <div style={{ fontSize: 11, color: 'var(--muted)', display: 'flex', flexWrap: 'wrap', gap: 6, alignItems: 'center' }}>
+                        <a href={`mailto:${u.email}`} style={{ color: 'inherit', textDecoration: 'none' }} title="Enviar e-mail">{u.email}</a>
+                        {u.telefone
+                          ? <><span style={{ color: 'var(--faint)' }}>·</span><a href={`tel:${u.telefone.replace(/\D/g, '')}`} style={{ color: 'inherit', textDecoration: 'none' }} title="Ligar / WhatsApp">{formatPhone(u.telefone)}</a></>
+                          : <><span style={{ color: 'var(--faint)' }}>·</span><span style={{ color: 'var(--faint)' }}>sem telefone</span></>}
+                        <span style={{ color: 'var(--faint)' }}>·</span><span>{u.crp}</span>
+                      </div>
                     </td>
                     <td style={td}>
                       <span style={{ fontSize: 11, fontWeight: 500, color: u.role === 'admin' ? 'var(--accent)' : 'var(--muted)' }}>
