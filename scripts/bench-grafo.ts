@@ -5,7 +5,7 @@
  * NUNCA produção. Cria um paciente sintético (demo=TRUE) por tamanho de histórico,
  * dispara recalcularGrafo, mede tokens/custo/latência via api_custos e limpa tudo.
  *
- *   npx tsx --env-file=.env.local scripts/bench-grafo.ts
+ *   npm run bench:grafo        (contra .env de um ambiente de TESTE/staging)
  *
  * Requer: DATABASE_URL de teste + OPENAI_API_KEY (ou ANTHROPIC) configurada.
  * Lê a atribuição de custo de api_custos (instrumentação da Tarefa 1) — por isso

@@ -4,7 +4,10 @@
  * marcador e limpa tudo ao final. Não faz chamada de IA real — exercita o
  * contrato de gravação (registrarCustoLlm / registrarCustoAssemblyEstimado).
  *
- *   npx tsx --env-file=.env.local scripts/test-custos-instrumentacao.ts
+ *   npm run test:custos
+ * (equivale a: NODE_OPTIONS='--conditions=react-server' tsx --env-file=.env.local
+ *  scripts/test-custos-instrumentacao.ts — a flag react-server neutraliza o
+ *  `server-only` importado por pool.ts/custos.ts fora do runtime do Next.)
  */
 import { randomUUID } from 'node:crypto'
 import { db } from '@/server/db/pool'
