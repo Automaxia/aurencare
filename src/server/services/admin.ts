@@ -89,6 +89,7 @@ export type UsuarioAdmin = {
   id: string
   nome: string
   email: string
+  telefone: string | null
   crp: string
   role: string
   status: string
@@ -104,7 +105,7 @@ export type UsuarioAdmin = {
 
 export async function listarUsuariosAdmin(): Promise<UsuarioAdmin[]> {
   const { rows } = await db.query<any>(`
-    SELECT p.id, p.nome, p.email, p.crp, p.role, p.status, p.plano, p.plano_status, p.created_at,
+    SELECT p.id, p.nome, p.email, p.telefone, p.crp, p.role, p.status, p.plano, p.plano_status, p.created_at,
            p.ultimo_login_em, p.login_count, p.ultimo_acesso_em,
            (SELECT count(*) FROM pacientes pa WHERE pa.psicologo_id = p.id AND pa.status = 'ativo') AS pacientes,
            (SELECT count(*) FROM sessoes s  WHERE s.psicologo_id  = p.id)                            AS sessoes
@@ -112,7 +113,7 @@ export async function listarUsuariosAdmin(): Promise<UsuarioAdmin[]> {
      ORDER BY p.ultimo_acesso_em DESC NULLS LAST, p.created_at ASC
   `)
   return rows.map((r: any) => ({
-    id: r.id, nome: r.nome, email: r.email, crp: r.crp,
+    id: r.id, nome: r.nome, email: r.email, telefone: r.telefone ?? null, crp: r.crp,
     role: r.role ?? 'psicologo', status: r.status ?? 'ativo',
     plano: r.plano ?? null, planoStatus: r.plano_status ?? null,
     pacientes: Number(r.pacientes), sessoes: Number(r.sessoes),
