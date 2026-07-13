@@ -23,6 +23,7 @@ export const env = {
   assemblyKey:         process.env.ASSEMBLYAI_API_KEY,
   resendKey:           process.env.RESEND_API_KEY,
   emailFrom:           process.env.EMAIL_FROM || 'Audere <onboarding@aurencare.ia.br>',
+  adminAlertEmail:     process.env.ADMIN_ALERT_EMAIL,   // alertas operacionais (fallback de custo, etc)
   redisUrl:            process.env.REDIS_URL,
   appUrl:              process.env.NEXTAUTH_URL || 'http://localhost:3000',
 }

@@ -56,8 +56,18 @@ const MODELS: Record<LlmProvider, Record<ModelTier, string>> = {
 /** Ordem de tentativa: primário primeiro, fallback depois. */
 const PROVIDER_ORDER: LlmProvider[] = ['openai', 'anthropic']
 
-/** Timeout por chamada: estoura rápido pra cair no fallback em vez de pendurar. */
-const REQUEST_TIMEOUT_MS = 30_000
+/**
+ * Timeout por chamada, ADAPTATIVO ao tamanho da resposta (maxTokens). Uma chamada
+ * ao vivo (ia.tom/obs-viva, ~80 tok) estoura em 5s — 30s na cara do psicólogo no
+ * meio da sessão é falha, não fallback. Já uma chamada generativa (laudo, grafo de
+ * temas, ~4000 tok) precisa de fôlego: com 5s ela daria falso-timeout e cairia pro
+ * Anthropic (8× mais caro). Piso 5s, teto 30s.
+ */
+const TIMEOUT_MIN_MS = 5_000
+const TIMEOUT_MAX_MS = 30_000
+function timeoutParaTokens(maxTokens: number): number {
+  return Math.min(TIMEOUT_MAX_MS, Math.max(TIMEOUT_MIN_MS, maxTokens * 12 + 2_000))
+}
 
 function providerConfigurado(p: LlmProvider): boolean {
   return p === 'openai' ? integrationStatus.openai : integrationStatus.anthropic
@@ -87,7 +97,7 @@ function ehErroDeCreditoAnthropic(err: any): boolean {
 type ChamadaResult = { texto: string; modelo: string; tokensEntrada: number; tokensSaida: number }
 
 async function chamarOpenAi(
-  modelo: string, system: string, messages: ChatMessage[], maxTokens: number,
+  modelo: string, system: string, messages: ChatMessage[], maxTokens: number, timeoutMs: number,
 ): Promise<ChamadaResult> {
   const c = getOpenAi()
   if (!c) throw new Error('openai não configurado')
@@ -99,7 +109,7 @@ async function chamarOpenAi(
       max_completion_tokens: maxTokens,
       messages: [{ role: 'system', content: system }, ...messages],
     },
-    { timeout: REQUEST_TIMEOUT_MS },
+    { timeout: timeoutMs },
   )
   return {
     texto: res.choices[0]?.message?.content ?? '',
@@ -110,7 +120,7 @@ async function chamarOpenAi(
 }
 
 async function chamarAnthropic(
-  modelo: string, systemPrompt: string, messages: ChatMessage[], maxTokens: number, cache: boolean, scope: string,
+  modelo: string, systemPrompt: string, messages: ChatMessage[], maxTokens: number, cache: boolean, scope: string, timeoutMs: number,
 ): Promise<ChamadaResult> {
   const c = getAnthropic()
   if (!c) throw new Error('anthropic não configurado')
@@ -120,7 +130,7 @@ async function chamarAnthropic(
     : systemPrompt
   const res = await c.messages.create(
     { model: modelo, max_tokens: maxTokens, system, messages: messages.slice(-8) },
-    { timeout: REQUEST_TIMEOUT_MS },
+    { timeout: timeoutMs },
   )
   const u: any = res.usage
   const cacheRead = u?.cache_read_input_tokens ?? 0
@@ -140,9 +150,10 @@ function chamarProvider(
   maxTokens: number, cache: boolean, scope: string,
 ): Promise<ChamadaResult> {
   const modelo = MODELS[provider][tier]
+  const timeoutMs = timeoutParaTokens(maxTokens)
   return provider === 'openai'
-    ? chamarOpenAi(modelo, system, messages, maxTokens)
-    : chamarAnthropic(modelo, system, messages, maxTokens, cache, scope)
+    ? chamarOpenAi(modelo, system, messages, maxTokens, timeoutMs)
+    : chamarAnthropic(modelo, system, messages, maxTokens, cache, scope, timeoutMs)
 }
 
 /**
@@ -174,13 +185,16 @@ export async function chat(
   let ultimoErro: unknown = null
   for (const provider of disponiveis) {
     try {
+      const t0 = Date.now()
       const r = await chamarProvider(provider, tier, systemPrompt, messages, maxTokens, cache, scope)
-      // Registra custo (tokens reais). Best-effort, não bloqueia a resposta.
+      const latenciaMs = Date.now() - t0
+      // Registra custo (tokens reais) + latência. Best-effort, não bloqueia a resposta.
       import('@/server/services/custos').then(m => m.registrarCustoLlm({
         provider, operacao: scope, modelo: r.modelo,
         tokensEntrada: r.tokensEntrada, tokensSaida: r.tokensSaida,
         psicologoId: opts.psicologoId, sessaoId: opts.sessaoId ?? null,
         pacienteId: opts.pacienteId ?? null, escopoRecalculo: opts.escopoRecalculo ?? null,
+        latenciaMs,
       })).catch(() => {})
       if (provider !== disponiveis[0]) {
         // Fallback silencioso pro Anthropic foi a origem do vazamento de custo (Haiku
@@ -188,6 +202,7 @@ export async function chat(
         // `fast` é servido pelo Anthropic — sinaliza OpenAI indisponível/sem quota.
         if (provider === 'anthropic' && tier === 'fast') {
           log.err(scope, 'ALERTA CUSTO: chamada `fast` caiu no Anthropic (fallback) — gpt-4o-mini indisponível. Verifique OPENAI_API_KEY/quota.', undefined)
+          void alertarCanal(`Fallback de custo: '${scope}' (fast) foi servido pelo Anthropic — gpt-4o-mini indisponível. Verifique OPENAI_API_KEY/quota em produção.`)
         } else {
           log.warn(scope, `respondido pelo fallback (${provider})`)
         }
@@ -205,4 +220,51 @@ export async function chat(
 
   log.err(scope, 'todos os provedores de IA falharam', ultimoErro)
   return IA_FALHA
+}
+
+// ── Alerta operacional em canal visível (não só log) ────────────────────────
+/**
+ * Envia alerta operacional pro e-mail do admin (ADMIN_ALERT_EMAIL), com throttle
+ * de 1h por mensagem via Redis — um fallback recorrente não vira enxurrada de
+ * e-mails. Best-effort: nunca lança. Sem ADMIN_ALERT_EMAIL/Resend, é no-op (só log).
+ */
+async function alertarCanal(mensagem: string): Promise<void> {
+  try {
+    if (!env.adminAlertEmail || !integrationStatus.resend) return
+    const { redis } = await import('./redis')
+    const r = await redis()
+    if (r) {
+      const chave = `alerta:${Buffer.from(mensagem).toString('base64').slice(0, 48)}`
+      const novo = await r.set(chave, '1', { NX: true, EX: 3600 })
+      if (novo !== 'OK') return // já alertado na última hora — throttle
+    }
+    const { enviarEmail } = await import('./email')
+    await enviarEmail({
+      to: env.adminAlertEmail,
+      subject: '⚠️ Audere — alerta operacional de IA',
+      html: `<p>${mensagem}</p><p style="color:#888;font-size:12px">Alerta automático do roteador de IA (throttle de 1h por mensagem).</p>`,
+    })
+  } catch { /* alerta é best-effort */ }
+}
+
+// ── Health-check da IA no boot ──────────────────────────────────────────────
+/**
+ * No boot: verifica se a OpenAI (primário do tier fast) está configurada e
+ * respondendo. Se a chave sumiu/invalidou, GRITA na inicialização — em vez de
+ * degradar 8× silenciosamente só perceptível mil chamadas depois. Best-effort.
+ */
+export async function verificarSaudeIA(): Promise<void> {
+  if (!integrationStatus.openai) {
+    log.err('ia.health', 'OPENAI_API_KEY ausente/placeholder — TODO o tier fast cairá no Anthropic (8× mais caro). Configure em produção.', undefined)
+    void alertarCanal('OPENAI_API_KEY ausente ou inválida no boot — tier fast rodando no Anthropic (8× o custo).')
+    return
+  }
+  try {
+    const t0 = Date.now()
+    await chamarOpenAi(MODELS.openai.fast, 'ok', [{ role: 'user', content: 'ok' }], 1, 8_000)
+    log.ok('ia.health', `OpenAI (gpt-4o-mini) respondeu em ${Date.now() - t0}ms — tier fast saudável`)
+  } catch (err) {
+    log.err('ia.health', 'OPENAI configurada mas NÃO respondeu no health-check de boot — verifique quota/validade da chave', err)
+    void alertarCanal('OpenAI configurada mas não respondeu no health-check de boot — verifique quota/validade da chave.')
+  }
 }

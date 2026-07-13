@@ -38,18 +38,19 @@ export async function registrarCustoLlm(input: {
   provider: ProviderLlm; operacao: string; modelo: string;
   tokensEntrada: number; tokensSaida: number;
   psicologoId: string; sessaoId?: string | null; pacienteId?: string | null;
-  escopoRecalculo?: number | null;
+  escopoRecalculo?: number | null; latenciaMs?: number | null;
 }): Promise<void> {
   try {
     if (!psicologoValido(input.psicologoId, input.operacao)) return
     const custoUsd = custoLlmUsd(input.provider, input.modelo, input.tokensEntrada, input.tokensSaida)
     await db.query(
       `INSERT INTO api_custos (provider, operacao, natureza, modelo, psicologo_id, sessao_id, paciente_id,
-                               tokens_entrada, tokens_saida, custo_usd, custo_brl, escopo_recalculo)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)`,
+                               tokens_entrada, tokens_saida, custo_usd, custo_brl, escopo_recalculo, latencia_ms)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)`,
       [input.provider, input.operacao, naturezaDeOperacao(input.operacao), input.modelo,
        input.psicologoId, input.sessaoId ?? null, input.pacienteId ?? null,
-       input.tokensEntrada, input.tokensSaida, custoUsd, usdParaBrl(custoUsd), input.escopoRecalculo ?? null],
+       input.tokensEntrada, input.tokensSaida, custoUsd, usdParaBrl(custoUsd), input.escopoRecalculo ?? null,
+       input.latenciaMs ?? null],
     )
   } catch (err) {
     log.warn('custos', 'falha ao registrar custo llm', err instanceof Error ? err.message : err)
