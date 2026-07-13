@@ -25,6 +25,14 @@ const FUNC_META: Record<string, { label: string; cor: string }> = {
   saude: { label: 'Saúde da Prática', cor: 'var(--accent)' },
   outros: { label: 'Outros', cor: 'var(--muted)' },
 }
+// Natureza do gasto (instrumentação 038): como o custo escala com o negócio.
+const NATUREZA_META: Record<string, { label: string; cor: string; hint: string }> = {
+  sessao:  { label: 'Sessão (marginal)', cor: 'var(--sage)',   hint: 'transcrição + laudo — por atendimento' },
+  ao_vivo: { label: 'Ao vivo',            cor: 'var(--accent)', hint: 'durante a sessão (tom, insights)' },
+  fundo:   { label: 'Fundo / batch',      cor: 'var(--amber)',  hint: 'temas, evolução — não escala com sessão' },
+  outros:  { label: 'Outros',             cor: 'var(--muted)',  hint: 'chat clínico, WhatsApp, demo' },
+  legado:  { label: 'Legado (sem atribuição)', cor: 'var(--faint)', hint: 'gravado antes da instrumentação' },
+}
 
 const brl = (v: number) => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
 const fmtBrl = (usd: number) => brl(usdParaBrl(usd))
@@ -34,7 +42,11 @@ export default async function EconomiaPage() {
   const [r, c] = await Promise.all([resumoCustos(), obterCockpitProduto()])
 
   const custoMes = usdParaBrl(r.mesTotalUsd)
-  const custoSessao = r.custoPorSessaoMesUsd != null ? usdParaBrl(r.custoPorSessaoMesUsd) : null
+  // Custo por sessão ATRIBUÍDO (só natureza sessao+ao_vivo) — o número real pro modelo
+  // de preço. Fallback pro antigo (total÷sessões) enquanto só há dados legados.
+  const custoSessao = r.custoSessaoAtribuidoUsd != null ? usdParaBrl(r.custoSessaoAtribuidoUsd)
+    : r.custoPorSessaoMesUsd != null ? usdParaBrl(r.custoPorSessaoMesUsd) : null
+  const custoSessaoAtribuido = r.custoSessaoAtribuidoUsd != null
   const custoPsicologo = c.ativosConta > 0 ? custoMes / c.ativosConta : null
   const custoPaciente = c.pacientesAtivos > 0 ? custoMes / c.pacientesAtivos : null
   const receitaProjetada = c.ativosConta * ARPU_BRL
@@ -50,9 +62,9 @@ export default async function EconomiaPage() {
 
   // BLOCO 6 — alertas executivos (determinístico)
   const alertas: { ok: boolean; texto: string }[] = []
-  if (custoSessao != null) alertas.push(custoSessao < 1
-    ? { ok: true, texto: 'Custo médio por sessão abaixo de R$ 1,00.' }
-    : { ok: false, texto: `Custo médio por sessão em ${brl(custoSessao)} — acima de R$ 1,00.` })
+  if (custoSessao != null) { const suf = custoSessaoAtribuido ? ' (atribuído)' : ' (legado)'; alertas.push(custoSessao < 1
+    ? { ok: true, texto: `Custo por sessão${suf} abaixo de R$ 1,00.` }
+    : { ok: false, texto: `Custo por sessão${suf} em ${brl(custoSessao)} — acima de R$ 1,00.` }) }
   if (margemIa != null) alertas.push(margemIa >= 90
     ? { ok: true, texto: `Margem operacional saudável (~${margemIa.toFixed(0)}% por assinatura).` }
     : { ok: false, texto: `Margem operacional em ~${margemIa.toFixed(0)}% — revisar custo por psicólogo.` })
@@ -76,7 +88,7 @@ export default async function EconomiaPage() {
         <Grid min={150}>
           <Metric label="Custo total (mês)" value={brl(custoMes)} big />
           <Metric label="Sessões processadas" value={r.sessoesMes} />
-          <Metric label="Custo médio / sessão" value={custoSessao != null ? brl(custoSessao) : '—'} />
+          <Metric label="Custo médio / sessão" value={custoSessao != null ? brl(custoSessao) : '—'} hint={custoSessaoAtribuido ? 'atribuído à sessão' : 'legado (total ÷ sessões)'} />
           <Metric label="Psicólogos ativos" value={c.ativosConta} />
           <Metric label="Custo médio / psicólogo" value={custoPsicologo != null ? brl(custoPsicologo) : '—'} />
         </Grid>
@@ -85,7 +97,7 @@ export default async function EconomiaPage() {
       {/* BLOCO 2 — UNIT ECONOMICS */}
       <Section title="Unit economics" hint="sustentabilidade do modelo">
         <Grid min={150}>
-          <Metric label="Custo médio / sessão" value={custoSessao != null ? brl(custoSessao) : '—'} />
+          <Metric label="Custo médio / sessão" value={custoSessao != null ? brl(custoSessao) : '—'} hint={custoSessaoAtribuido ? 'atribuído à sessão' : 'legado'} />
           <Metric label="Custo médio / paciente" value={custoPaciente != null ? brl(custoPaciente) : '—'} />
           <Metric label="Custo médio / psicólogo" value={custoPsicologo != null ? brl(custoPsicologo) : '—'} />
           <Metric label="Receita esperada / assinatura" value={brl(ARPU_BRL)} hint="referência configurável" />
@@ -101,6 +113,32 @@ export default async function EconomiaPage() {
           <Metric label="Participação da IA na receita" value={`${participacaoIa.toFixed(2)}%`} color={participacaoIa < 5 ? 'var(--sage)' : 'var(--amber)'} />
           <Metric label="Para cada R$ 100 vendidos" value={brl(participacaoIa)} hint="consumidos pela operação inteligente" />
         </Grid>
+      </Section>
+
+      {/* BLOCO 3.5 — CUSTO POR NATUREZA (instrumentação 038) */}
+      <Section title="Custo por natureza" hint="como o custo escala com o negócio">
+        <div className="card" style={{ padding: 18, display: 'grid', gap: 11 }}>
+          {semDados ? <Empty /> : r.porNaturezaMes.map(n => {
+            const meta = NATUREZA_META[n.natureza] ?? { label: n.natureza, cor: 'var(--muted)', hint: '' }
+            const w = totalMes > 0 ? Math.round((n.usd / totalMes) * 100) : 0
+            return (
+              <div key={n.natureza} style={{ display: 'grid', gridTemplateColumns: '170px 1fr 130px', alignItems: 'center', gap: 12 }}>
+                <span style={{ fontSize: 13, color: 'var(--ink-soft)' }} title={meta.hint}>{meta.label}</span>
+                <div style={{ height: 9, borderRadius: 5, background: 'var(--surface)', overflow: 'hidden' }}>
+                  <div style={{ height: '100%', width: `${w}%`, borderRadius: 5, background: meta.cor, opacity: 0.85 }} />
+                </div>
+                <span style={{ fontSize: 12.5, color: 'var(--muted)', textAlign: 'right', whiteSpace: 'nowrap', fontVariantNumeric: 'tabular-nums' }}>
+                  <strong style={{ color: 'var(--ink)' }}>{fmtBrl(n.usd)}</strong> · {w}%
+                </span>
+              </div>
+            )
+          })}
+        </div>
+        {r.fundoPctMes != null && (
+          <p style={{ fontSize: 11.5, color: 'var(--faint)', margin: '8px 2px 0', lineHeight: 1.5 }}>
+            <strong>{r.fundoPctMes.toFixed(0)}%</strong> do custo é de fundo/batch (temas, evolução) — não escala com o nº de atendimentos. A cota por sessão só protege o restante.
+          </p>
+        )}
       </Section>
 
       {/* BLOCO 4 — CUSTO POR FUNCIONALIDADE */}
@@ -198,6 +236,7 @@ export default async function EconomiaPage() {
         o consolidado total fica no console de cada provedor. <strong>Anthropic</strong> é preciso (tokens reais);
         <strong> AssemblyAI</strong> é estimado pela duração da sessão. Receita projetada usa ARPU de referência
         de {brl(ARPU_BRL)} (editável no topo de <code>page.tsx</code>). Câmbio: US$ 1 = R$ {USD_BRL.toFixed(2)} (<code>precos.ts</code>).
+        A quebra por <strong>natureza</strong> e o custo por sessão <strong>atribuído</strong> valem só para o gasto registrado após a instrumentação (migration 038); o histórico anterior aparece como <em>legado</em>.
       </div>
     </div>
   )
