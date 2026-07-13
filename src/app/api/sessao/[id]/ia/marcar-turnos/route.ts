@@ -25,8 +25,7 @@ Retorne EXCLUSIVAMENTE JSON válido (sem prosa, sem markdown):
 {"marcacoes":[{"idx":0,"mark":"insight","razao":"..."}]}`
 
 export async function POST(req: Request, { params }: { params: { id: string } }) {
-  await requirePsicologo()
-  void params
+  const user = await requirePsicologo()
   const body = await req.json().catch(() => ({}))
   const turnos = Array.isArray(body?.turnos) ? body.turnos : []
   if (turnos.length === 0) return NextResponse.json({ marcacoes: [] })
@@ -35,7 +34,7 @@ export async function POST(req: Request, { params }: { params: { id: string } })
     .map((t: any) => `[${t.idx}] ${t.who === 'psicologo' ? 'P' : 'C'}: ${t.texto}`)
     .join('\n')
 
-  const raw = await chat(SYS, [{ role: 'user', content: userMsg }], { scope: 'ia.marcar-turnos', maxTokens: 700 })
+  const raw = await chat(SYS, [{ role: 'user', content: userMsg }], { scope: 'ia.marcar-turnos', maxTokens: 700, psicologoId: user.id, sessaoId: params.id })
 
   // Parse defensivo
   let marcacoes: Array<{ idx: number; mark: string; razao: string }> = []

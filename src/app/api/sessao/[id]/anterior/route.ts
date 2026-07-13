@@ -34,7 +34,7 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
 
   let resumo = '', tarefas: string[] = [], iaOk = true
   try {
-    const raw = await chat(SYS, [{ role: 'user', content: `Sessão #${prev.numero}:\n${prev.resumo.slice(0, 8000)}` }], { scope: 'sessao.anterior', maxTokens: 500 })
+    const raw = await chat(SYS, [{ role: 'user', content: `Sessão #${prev.numero}:\n${prev.resumo.slice(0, 8000)}` }], { scope: 'sessao.anterior', maxTokens: 500, psicologoId: user.id, sessaoId: sessao.id, pacienteId: sessao.pacienteId })
     if (iaIndisponivel(raw)) iaOk = false
     else {
       const m = raw.match(/\{[\s\S]*\}/)

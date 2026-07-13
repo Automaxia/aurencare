@@ -27,13 +27,12 @@ Retorne EXCLUSIVAMENTE JSON válido (sem prosa, sem markdown):
 {"autolesao":"lo|md|hi","ideacao":"lo|md|hi","plano":"lo|md|hi","justificativa":"até 30 palavras, citando trecho se houver"}`
 
 export async function POST(req: Request, { params }: { params: { id: string } }) {
-  await requirePsicologo()
-  void params
+  const user = await requirePsicologo()
   const body = await req.json().catch(() => ({}))
   const transcricao = String(body?.transcricao ?? '').slice(0, 12_000)
   if (!transcricao) return NextResponse.json({ error: 'sem_transcricao' }, { status: 400 })
 
-  const raw = await chat(SYS, [{ role: 'user', content: transcricao }], { scope: 'ia.risco', maxTokens: 200, model: 'strong' })
+  const raw = await chat(SYS, [{ role: 'user', content: transcricao }], { scope: 'ia.risco', maxTokens: 200, model: 'strong', psicologoId: user.id, sessaoId: params.id })
 
   try {
     const json = JSON.parse(extractJson(raw))

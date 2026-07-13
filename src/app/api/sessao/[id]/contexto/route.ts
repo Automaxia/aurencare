@@ -38,7 +38,7 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
       const userMsg = ultimas
         .map(u => `Sessão #${u.numero} (${new Date(u.dataHora).toLocaleDateString('pt-BR')}):\n${u.resumo}`)
         .join('\n\n')
-      const raw = await chat(SYS_TOPICOS, [{ role: 'user', content: userMsg }], { scope: 'contexto.topicos', maxTokens: 300 })
+      const raw = await chat(SYS_TOPICOS, [{ role: 'user', content: userMsg }], { scope: 'contexto.topicos', maxTokens: 300, psicologoId: user.id, sessaoId: sessao.id, pacienteId: sessao.pacienteId })
       try {
         const m = raw.match(/\{[\s\S]*\}/)
         const json = m ? JSON.parse(m[0]) : {}

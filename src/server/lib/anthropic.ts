@@ -81,7 +81,7 @@ Does NOT: make DSM/ICD diagnostic determinations, prescribe treatment changes. A
 
 export async function gerarResumoSessao(
   transcricao: string,
-  contexto: { numero: number; pacienteNome: string },
+  contexto: { numero: number; pacienteNome: string; psicologoId: string; sessaoId: string; pacienteId: string },
   historico: { numero: number; resumo: string }[] = [],
 ): Promise<string> {
   // Laudos anteriores (cronológico) alimentam a seção "Avaliação do Progresso".
@@ -102,5 +102,8 @@ ${transcricao.slice(0, 40_000)}
 Gere o laudo estruturado da sessão #${contexto.numero} de ${contexto.pacienteNome}, em Markdown, seguindo exatamente o formato MODE: SUMMARY. Rascunho para revisão e assinatura do psicólogo.${historico.length ? '' : ' Não há laudos anteriores — trate "Avaliação do Progresso" como linha de base (sessão inicial ou primeira com registro).'}`
 
   // cache: SUMMARY_PROMPT é grande e estável → cacheável no Sonnet (min 2048 tok).
-  return chat(SUMMARY_PROMPT, [{ role: 'user', content: user }], { maxTokens: 4_000, scope: 'anthropic.resumo', model: 'strong', cache: true })
+  return chat(SUMMARY_PROMPT, [{ role: 'user', content: user }], {
+    maxTokens: 4_000, scope: 'anthropic.resumo', model: 'strong', cache: true,
+    psicologoId: contexto.psicologoId, sessaoId: contexto.sessaoId, pacienteId: contexto.pacienteId,
+  })
 }

@@ -87,7 +87,7 @@ const ARESTAS: Array<[string, string, number]> = [
 type Prosa = { resumo: string; transcricao: string }
 
 /** Gera resumo + trecho de transcrição de cada sessão via IA, com fallback. */
-async function gerarProsa(): Promise<Prosa[]> {
+async function gerarProsa(psicologoId: string): Promise<Prosa[]> {
   const sys = `Você apoia a continuidade clínica de psicólogos. Escreve em português brasileiro,
 em linguagem de OBSERVAÇÃO e FREQUÊNCIA, NUNCA diagnóstica ou interpretativa (CFP 09/2024).
 Não use "a paciente tem", "transtorno", "esquema de". Use "observa-se", "frequência crescente",
@@ -108,7 +108,7 @@ Responda SOMENTE com um array JSON válido de ${ARCO.length} objetos {"resumo","
 
   try {
     const raw = await chat(sys, [{ role: 'user', content: user }], {
-      scope: 'demo.maria', maxTokens: 2200, model: 'strong',
+      scope: 'demo.maria', maxTokens: 2200, model: 'strong', psicologoId,
     })
     const json = raw.slice(raw.indexOf('['), raw.lastIndexOf(']') + 1)
     const arr = JSON.parse(json)
@@ -194,7 +194,7 @@ export async function criarPacienteDemo(psicologoId: string): Promise<string> {
   )
   const pacienteId = pr[0].id
 
-  const prosa = await gerarProsa()
+  const prosa = await gerarProsa(psicologoId)
   const agora = Date.now()
   const semana = 7 * 24 * 60 * 60 * 1000
 

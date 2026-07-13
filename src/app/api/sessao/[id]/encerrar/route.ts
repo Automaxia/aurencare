@@ -30,13 +30,13 @@ export async function POST(req: Request, { params }: { params: { id: string } })
     // Só quando houve transcrição de fato (sessão real).
     registrarCustoAssemblyEstimado({
       segundos: (sessao.duracaoMin || 50) * 60,
-      psicologoId: sessao.psicologoId, sessaoId: sessao.id,
+      psicologoId: sessao.psicologoId, sessaoId: sessao.id, pacienteId: sessao.pacienteId,
     }).catch(() => {})
     // Laudos anteriores do paciente → "Avaliação do Progresso" compara de verdade.
     try {
       const historico = await resumosAnteriores(sessao.psicologoId, sessao.pacienteId, sessao.numero)
         .catch(() => [])
-      const resumo = await gerarResumoSessao(transcricao, { numero: sessao.numero, pacienteNome: sessao.pacienteNome }, historico)
+      const resumo = await gerarResumoSessao(transcricao, { numero: sessao.numero, pacienteNome: sessao.pacienteNome, psicologoId: sessao.psicologoId, sessaoId: sessao.id, pacienteId: sessao.pacienteId }, historico)
       // Se a IA está fora (sem crédito/erro), NÃO salva o placeholder como laudo —
       // sinaliza pro front mostrar estado claro em vez de "[Não foi possível…]".
       if (iaIndisponivel(resumo)) {

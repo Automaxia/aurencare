@@ -27,8 +27,8 @@ Sem prosa, sem markdown, sem chaves — só o array.`
 
 type TurnoIn = { texto: string; who?: 'psicologo' | 'paciente' }
 
-export async function POST(req: Request, _: { params: { id: string } }) {
-  await requirePsicologo()
+export async function POST(req: Request, { params }: { params: { id: string } }) {
+  const user = await requirePsicologo()
   const body = await req.json().catch(() => ({} as any))
 
   // Aceita lote ({ turnos: [...] }) ou turno único ({ texto, who }) por compat.
@@ -52,7 +52,7 @@ export async function POST(req: Request, _: { params: { id: string } }) {
     .map((t, i) => `${i}. (${t.who}) "${t.texto}"`)
     .join('\n')
   const raw = await chat(SYS, [{ role: 'user', content: lista }], {
-    scope: 'ia.tom', maxTokens: 80,
+    scope: 'ia.tom', maxTokens: 80, psicologoId: user.id, sessaoId: params.id,
   })
 
   // Parse robusto: extrai o primeiro array JSON da resposta.

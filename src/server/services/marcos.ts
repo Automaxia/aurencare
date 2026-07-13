@@ -3,6 +3,7 @@ import { db } from '@/server/db/pool'
 import { tryDecrypt } from '@/server/lib/crypto'
 import { chat } from '@/server/lib/anthropic'
 import { redis } from '@/server/lib/redis'
+import { psicologoDoPaciente } from './pacientes'
 
 export type Marco = {
   data: string             // ISO
@@ -59,7 +60,8 @@ export async function lerMarcos(pacienteId: string): Promise<Marco[]> {
     .map(r => `Sessão #${r.numero} (${new Date(r.data).toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' })}):\n${r.texto}`)
     .join('\n\n')
 
-  const raw = await chat(SYS, [{ role: 'user', content: userMsg }], { scope: 'marcos', maxTokens: 700 })
+  const psicologoId = (await psicologoDoPaciente(pacienteId)) ?? ''
+  const raw = await chat(SYS, [{ role: 'user', content: userMsg }], { scope: 'marcos', maxTokens: 700, psicologoId, pacienteId })
 
   let marcos: Marco[] = []
   try {

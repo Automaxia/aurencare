@@ -17,8 +17,8 @@ Critérios:
 - Em caso de ambiguidade real, mantenha continuidade com o turno anterior (provavelmente é a mesma pessoa continuando).
 - NÃO invente análise nem comente nada. Só responda a palavra.`
 
-export async function POST(req: Request, _: { params: { id: string } }) {
-  await requirePsicologo()
+export async function POST(req: Request, { params }: { params: { id: string } }) {
+  const psi = await requirePsicologo()
   const body = await req.json().catch(() => ({} as any))
   const texto = String(body?.texto ?? '').slice(0, 600)
   const contexto = Array.isArray(body?.contexto) ? body.contexto.slice(-3) : []
@@ -30,7 +30,7 @@ export async function POST(req: Request, _: { params: { id: string } }) {
     .join('\n')
 
   const user = `${ctx ? 'Contexto recente:\n' + ctx + '\n\n' : ''}Turno a classificar:\n"${texto}"`
-  const raw = (await chat(SYS, [{ role: 'user', content: user }], { scope: 'ia.falante', maxTokens: 8 })).trim().toLowerCase()
+  const raw = (await chat(SYS, [{ role: 'user', content: user }], { scope: 'ia.falante', maxTokens: 8, psicologoId: psi.id, sessaoId: params.id })).trim().toLowerCase()
 
   let who: 'psicologo' | 'paciente' | null = null
   if (raw.includes('psicolog')) who = 'psicologo'

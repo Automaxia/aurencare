@@ -2,6 +2,7 @@ import 'server-only'
 import { db } from '@/server/db/pool'
 import { chat } from '@/server/lib/anthropic'
 import { lerGrafo } from './temas'
+import { psicologoDoPaciente } from './pacientes'
 
 /**
  * Copiloto de objetivos SMART — a Audere propõe metas RASCUNHO a partir dos TEMAS
@@ -63,8 +64,9 @@ export async function copilotoObjetivos(pacienteId: string): Promise<SmartSugest
 Co-ocorrências: ${cooc}.
 Objetivos já criados (não repita): ${existentes}.`
 
+  const psicologoId = (await psicologoDoPaciente(pacienteId)) ?? ''
   const raw = await chat(SYS, [{ role: 'user', content: userMsg }], {
-    scope: 'objetivos.copiloto', maxTokens: 900, model: 'strong',
+    scope: 'objetivos.copiloto', maxTokens: 900, model: 'strong', psicologoId, pacienteId,
   })
 
   try {

@@ -60,7 +60,7 @@ export async function GET() {
     `Inadimplência neste mês: ${fin.inadimplenciaPct.toFixed(0)}%`,
   ].join('\n')
 
-  const raw = await chat(SYS, [{ role: 'user', content: dados }], { scope: 'saude.insights', maxTokens: 500 })
+  const raw = await chat(SYS, [{ role: 'user', content: dados }], { scope: 'saude.insights', maxTokens: 500, psicologoId: user.id })
 
   let insights: Array<{ tom: string; texto: string }> = []
   try {

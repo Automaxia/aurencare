@@ -4,6 +4,7 @@ import { tryDecrypt } from '@/server/lib/crypto'
 import { padroesLongitudinais, type PadroesLongitudinais } from './temas'
 import { chat } from '@/server/lib/anthropic'
 import { redis } from '@/server/lib/redis'
+import { psicologoDoPaciente } from './pacientes'
 
 /**
  * Dados agregados para Evolução Registrada (página).
@@ -79,7 +80,7 @@ export async function lerEvolucaoObservacoes(
   let temas: TemaDescritivo[] = []
   let instrumentos: Instrumento[] = []
   if (padroes.nos.length > 0) {
-    const ger = await gerarObservacoes({ pacienteNome, padroes })
+    const ger = await gerarObservacoes({ pacienteId, pacienteNome, padroes })
     temas = ger.temas
     instrumentos = ger.instrumentos
   }
@@ -172,6 +173,7 @@ Regras:
 - NUNCA emita diagnóstico nem recomendação terapêutica. Português brasileiro.`
 
 async function gerarObservacoes(opts: {
+  pacienteId: string
   pacienteNome: string
   padroes: PadroesLongitudinais
 }): Promise<{ temas: TemaDescritivo[]; instrumentos: Instrumento[] }> {
@@ -194,7 +196,8 @@ ${arestasTxt || '(nenhuma)'}
 NÚCLEOS (construto · cluster · recorrência):
 ${nosTxt || '(nenhum)'}`
 
-  const raw = await chat(SYS_OBS, [{ role: 'user', content: userMsg }], { scope: 'evolucao.obs', maxTokens: 900, model: 'strong' })
+  const psicologoId = (await psicologoDoPaciente(opts.pacienteId)) ?? ''
+  const raw = await chat(SYS_OBS, [{ role: 'user', content: userMsg }], { scope: 'evolucao.obs', maxTokens: 900, model: 'strong', psicologoId, pacienteId: opts.pacienteId })
 
   try {
     const m = raw.match(/\{[\s\S]*\}/)

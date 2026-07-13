@@ -106,7 +106,7 @@ export async function processarMensagemRecebida(msg: Inbound): Promise<void> {
     default:
       // Em estados intermediários de pagamento, se chegar algo não-comando,
       // responde genérico.
-      const fallback = await gerarMensagemSegura({ kind: 'nao_entendi', contexto: {} })
+      const fallback = await gerarMensagemSegura({ kind: 'nao_entendi', contexto: {} }, psicologo.id)
       await enviarERegistrar(tel, fallback)
       return
   }
@@ -120,7 +120,7 @@ async function iniciarConversa(tel: string, psicologo: { id: string; nome: strin
   const msg = await gerarMensagemSegura({
     kind: 'saudacao_inicial',
     contexto: { psicologoNome: psicologo.nome },
-  })
+  }, psicologo.id)
   await enviarERegistrar(tel, msg)
   await atualizarConversa(tel, { estado: 'coletando_nome' })
 }
@@ -128,13 +128,13 @@ async function iniciarConversa(tel: string, psicologo: { id: string; nome: strin
 async function receberNome(tel: string, texto: string, psicologo: { id: string; nome: string }) {
   const nome = limparNome(texto)
   if (!nome) {
-    const msg = await gerarMensagemSegura({ kind: 'pedir_nome', contexto: { psicologoNome: psicologo.nome } })
+    const msg = await gerarMensagemSegura({ kind: 'pedir_nome', contexto: { psicologoNome: psicologo.nome } }, psicologo.id)
     await enviarERegistrar(tel, msg)
     return
   }
   await atualizarConversa(tel, { contexto: { nomeColetado: nome } })
-  const ack = await gerarMensagemSegura({ kind: 'recebeu_nome', contexto: { primeiroNome: nome.split(' ')[0] } })
-  const ask = await gerarMensagemSegura({ kind: 'pedir_email', contexto: { primeiroNome: nome.split(' ')[0] } })
+  const ack = await gerarMensagemSegura({ kind: 'recebeu_nome', contexto: { primeiroNome: nome.split(' ')[0] } }, psicologo.id)
+  const ask = await gerarMensagemSegura({ kind: 'pedir_email', contexto: { primeiroNome: nome.split(' ')[0] } }, psicologo.id)
   await enviarERegistrar(tel, `${ack}\n\n${ask}`)
   await atualizarConversa(tel, { estado: 'coletando_email' })
 }
@@ -149,7 +149,7 @@ async function receberEmail(tel: string, texto: string, psicologo: { id: string;
     if (m) email = m[0].toLowerCase()
     else {
       // Não é "pular" nem email válido — pede de novo brevemente
-      const ask = await gerarMensagemSegura({ kind: 'pedir_email', contexto: { primeiroNome } })
+      const ask = await gerarMensagemSegura({ kind: 'pedir_email', contexto: { primeiroNome } }, psicologo.id)
       await enviarERegistrar(tel, ask)
       return
     }
@@ -161,7 +161,7 @@ async function receberEmail(tel: string, texto: string, psicologo: { id: string;
   const msg = await gerarMensagemSegura({
     kind: 'pedir_consentimento',
     contexto: { primeiroNome, psicologoNome: psicologo.nome },
-  })
+  }, psicologo.id)
   await enviarERegistrar(tel, msg)
 }
 
@@ -172,7 +172,7 @@ async function receberConsent(tel: string, cmd: string, psicologo: { id: string;
   const NAO = ['NÃO', 'NAO', 'N', 'NEGO', 'RECUSO']
 
   if (NAO.some(p => cmd === p || cmd.startsWith(p + ' '))) {
-    const msg = await gerarMensagemSegura({ kind: 'consent_recusado', contexto: { primeiroNome } })
+    const msg = await gerarMensagemSegura({ kind: 'consent_recusado', contexto: { primeiroNome } }, psicologo.id)
     await enviarERegistrar(tel, msg)
     await atualizarConversa(tel, { estado: 'inicio' })   // permite recomeço futuro
     return
@@ -181,7 +181,7 @@ async function receberConsent(tel: string, cmd: string, psicologo: { id: string;
     const msg = await gerarMensagemSegura({
       kind: 'pedir_consentimento',
       contexto: { primeiroNome, psicologoNome: psicologo.nome },
-    })
+    }, psicologo.id)
     await enviarERegistrar(tel, msg)
     return
   }
@@ -228,7 +228,7 @@ async function receberConsent(tel: string, cmd: string, psicologo: { id: string;
   const msg = await gerarMensagemSegura({
     kind: 'consent_aceito_onboarded',
     contexto: { primeiroNome, psicologoNome: psicologo.nome },
-  })
+  }, psicologo.id)
   await enviarERegistrar(tel, msg)
   log.ok('wa.inbox', `paciente cadastrado via WhatsApp: ${nome} (${tel})`)
 }
