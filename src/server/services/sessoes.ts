@@ -771,7 +771,7 @@ export async function importarSessao(input: {
       if (sessao) {
         const historico = await resumosAnteriores(input.psicologoId, input.pacienteId, numero).catch(() => [])
         const { gerarResumoSessao, iaIndisponivel } = await import('@/server/lib/anthropic')
-        const r = await gerarResumoSessao(input.transcricao, { numero, pacienteNome: sessao.pacienteNome }, historico)
+        const r = await gerarResumoSessao(input.transcricao, { numero, pacienteNome: sessao.pacienteNome, psicologoId: input.psicologoId, sessaoId, pacienteId: input.pacienteId }, historico)
         if (!iaIndisponivel(r)) { await salvarResumoIA(sessaoId, r); laudo = r }
       }
     } catch (err) {

@@ -16,8 +16,8 @@ Em ATÉ 30 PALAVRAS:
 
 Um único parágrafo curto. NUNCA mais que 30 palavras. NUNCA cite o paciente pelo nome. NUNCA prescreva ação.`
 
-export async function POST(req: Request, _: { params: { id: string } }) {
-  await requirePsicologo()
+export async function POST(req: Request, { params }: { params: { id: string } }) {
+  const user = await requirePsicologo()
   const body = await req.json().catch(() => ({} as any))
   const turnos = Array.isArray(body?.turnos) ? body.turnos.slice(-12) : []
 
@@ -27,6 +27,6 @@ export async function POST(req: Request, _: { params: { id: string } }) {
     .map((t: any) => `${t.who === 'psicologo' ? 'P' : 'C'}: ${String(t.texto).slice(0, 300)}`)
     .join('\n')
 
-  const text = await chat(SYS, [{ role: 'user', content: userMsg }], { scope: 'ia.obs-viva', maxTokens: 80 })
+  const text = await chat(SYS, [{ role: 'user', content: userMsg }], { scope: 'ia.obs-viva', maxTokens: 80, psicologoId: user.id, sessaoId: params.id })
   return NextResponse.json({ text })
 }

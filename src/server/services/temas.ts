@@ -1,5 +1,6 @@
 import 'server-only'
 import { db } from '@/server/db/pool'
+import { psicologoDoPaciente } from './pacientes'
 
 /**
  * Inteligência Clínica Longitudinal — extração de CONSTRUTOS (não palavras) das
@@ -201,7 +202,7 @@ type GrafoSessao = { nos: NoSnapshot[]; arestas: ArestaSnapshot[] }
  * null em falha; { nos:[], arestas:[] } quando não há falas do paciente.
  */
 async function extrairGrafoSessao(
-  opts: { sessaoId: string; transcricao: string },
+  opts: { sessaoId: string; transcricao: string; pacienteId: string; escopoRecalculo?: number },
   modo: Modo,
   conc: { texto: string | null; versao: string | null },
   model: 'fast' | 'strong' = 'fast',
@@ -220,11 +221,16 @@ async function extrairGrafoSessao(
   // maxTokens folgado + 1 retry; parser tolerante recupera objetos completos
   // mesmo se o JSON truncar. cache: no-op no Haiku (system < 4096 tok), mas
   // ativa no Sonnet do harness.
+  const psicologoId = (await psicologoDoPaciente(opts.pacienteId)) ?? ''
   let nosRaw: any[] = [], arestasRaw: any[] = [], ok = false
   for (let tentativa = 1; tentativa <= 2 && !ok; tentativa++) {
     let raw: string
     try {
-      raw = await chat(system, [{ role: 'user', content: user }], { scope: `temas.grafo.${modo}`, maxTokens: 4000, model, cache: true })
+      raw = await chat(system, [{ role: 'user', content: user }], {
+        scope: `temas.grafo.${modo}`, maxTokens: 4000, model, cache: true,
+        psicologoId, sessaoId: opts.sessaoId, pacienteId: opts.pacienteId,
+        escopoRecalculo: opts.escopoRecalculo ?? null,
+      })
     } catch (err) {
       console.warn(`[temas.grafo] IA falhou (${tentativa}/2) sessao=${opts.sessaoId}:`, err)
       continue
@@ -526,7 +532,7 @@ export async function recalcularGrafo(pacienteId: string, modo: Modo = 'clinico'
     if (!tx) continue
     comTexto++
     let g: GrafoSessao | null = null
-    try { g = await extrairGrafoSessao({ sessaoId: s.id, transcricao: tx }, modo, conc, 'fast', abordagem) }
+    try { g = await extrairGrafoSessao({ sessaoId: s.id, transcricao: tx, pacienteId, escopoRecalculo: sessoes.length }, modo, conc, 'fast', abordagem) }
     catch (err) { console.warn(`[temas.grafo] falha extração sessao=${s.id} no recálculo:`, err) }
     if (g === null) { falhas++; continue }
     if (g.nos.length > 0) novos.push({ sessaoId: s.id, grafo: g })
@@ -658,8 +664,8 @@ export async function compararModelos(pacienteId: string, limite = 4): Promise<{
   for (const s of rows) {
     const tx = tryDecrypt(s.transcricao_texto) ?? tryDecrypt(s.resumo_ia) ?? ''
     if (!tx) continue
-    const haiku = await extrairGrafoSessao({ sessaoId: s.id, transcricao: tx }, 'clinico', conc, 'fast', abordagem)
-    const sonnet = await extrairGrafoSessao({ sessaoId: s.id, transcricao: tx }, 'clinico', conc, 'strong', abordagem)
+    const haiku = await extrairGrafoSessao({ sessaoId: s.id, transcricao: tx, pacienteId, escopoRecalculo: rows.length }, 'clinico', conc, 'fast', abordagem)
+    const sonnet = await extrairGrafoSessao({ sessaoId: s.id, transcricao: tx, pacienteId, escopoRecalculo: rows.length }, 'clinico', conc, 'strong', abordagem)
     sessoes.push({ sessaoId: s.id, sessaoNum: s.numero, haiku: resumirGrafo(haiku), sonnet: resumirGrafo(sonnet) })
   }
   return { pacienteId, sessoes }

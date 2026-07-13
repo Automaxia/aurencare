@@ -64,7 +64,7 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
 
   const userMsg = `Sessão atual #${s.numero}:\n"""\n${transcricao.slice(0, 6000)}\n"""\n\nSessões anteriores:\n${historico}`
 
-  const text = await chat(SYS, [{ role: 'user', content: userMsg }], { scope: 'insight.sessao', maxTokens: 350 })
+  const text = await chat(SYS, [{ role: 'user', content: userMsg }], { scope: 'insight.sessao', maxTokens: 350, psicologoId: user.id, sessaoId: params.id, pacienteId: s.paciente_id })
 
   if (r) await r.set(cacheKey, text, { EX: 86400 })
   return NextResponse.json({ text, cached: false })

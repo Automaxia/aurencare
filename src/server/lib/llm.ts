@@ -153,7 +153,12 @@ function chamarProvider(
 export async function chat(
   systemPrompt: string,
   messages: ChatMessage[],
-  opts: { maxTokens?: number; scope?: string; model?: ModelTier; cache?: boolean } = {},
+  opts: {
+    /** Obrigatório: de quem é o gasto. Custo sem psicólogo é bloqueado (ver custos.ts). */
+    psicologoId: string
+    maxTokens?: number; scope?: string; model?: ModelTier; cache?: boolean
+    sessaoId?: string | null; pacienteId?: string | null; escopoRecalculo?: number | null
+  },
 ): Promise<string> {
   const tier = opts.model ?? 'fast'
   const maxTokens = opts.maxTokens ?? 1000
@@ -174,8 +179,19 @@ export async function chat(
       import('@/server/services/custos').then(m => m.registrarCustoLlm({
         provider, operacao: scope, modelo: r.modelo,
         tokensEntrada: r.tokensEntrada, tokensSaida: r.tokensSaida,
+        psicologoId: opts.psicologoId, sessaoId: opts.sessaoId ?? null,
+        pacienteId: opts.pacienteId ?? null, escopoRecalculo: opts.escopoRecalculo ?? null,
       })).catch(() => {})
-      if (provider !== disponiveis[0]) log.warn(scope, `respondido pelo fallback (${provider})`)
+      if (provider !== disponiveis[0]) {
+        // Fallback silencioso pro Anthropic foi a origem do vazamento de custo (Haiku
+        // custa ~8× o gpt-4o-mini no tier fast). Torna VISÍVEL: alerta alto quando um
+        // `fast` é servido pelo Anthropic — sinaliza OpenAI indisponível/sem quota.
+        if (provider === 'anthropic' && tier === 'fast') {
+          log.err(scope, 'ALERTA CUSTO: chamada `fast` caiu no Anthropic (fallback) — gpt-4o-mini indisponível. Verifique OPENAI_API_KEY/quota.', undefined)
+        } else {
+          log.warn(scope, `respondido pelo fallback (${provider})`)
+        }
+      }
       return validarTextoIA(r.texto) ? r.texto : sanitizarTextoIA(r.texto)
     } catch (err) {
       ultimoErro = err

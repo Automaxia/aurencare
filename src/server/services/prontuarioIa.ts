@@ -169,6 +169,7 @@ export async function chatProntuarioIa(input: ProntuarioIaInput): Promise<Prontu
   try {
     const resposta = await chat(SYS_PRONTUARIO_NARRATIVO, messages, {
       scope: 'prontuario.ia',
+      psicologoId: input.psicologoId, pacienteId: input.pacienteId,
       maxTokens: 1200,
       model: 'strong',
     })

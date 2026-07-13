@@ -1,26 +1,55 @@
 import 'server-only'
 import { db } from '@/server/db/pool'
 import { log } from '@/server/lib/log'
-import { custoLlmUsd, custoAssemblyUsd, type ProviderLlm } from '@/server/lib/precos'
+import { custoLlmUsd, custoAssemblyUsd, usdParaBrl, type ProviderLlm } from '@/server/lib/precos'
 
 /**
  * Registro e agregação de custo de APIs externas. As funções de registro são
  * "best-effort": nunca lançam (um custo não-registrado não pode quebrar um fluxo).
+ *
+ * Atribuição obrigatória: toda chamada precisa de `psicologoId` (de quem é o gasto).
+ * `psicologoId` é exigido em tempo de compilação (tipo) — custo órfão foi o problema
+ * que esta instrumentação corrige. Ver migration 038.
  */
+
+/** Natureza do gasto — como o custo escala. Derivada do scope técnico (operacao). */
+export type NaturezaCusto = 'sessao' | 'ao_vivo' | 'fundo' | 'outros'
+
+/** Mapa central operacao → natureza. Única fonte da verdade da classificação. */
+export function naturezaDeOperacao(operacao?: string | null): NaturezaCusto {
+  const op = operacao ?? ''
+  if (op === 'assemblyai.streaming' || op === 'anthropic.resumo') return 'sessao'
+  if (op.startsWith('ia.') || op === 'insight.sessao' || op === 'contexto.topicos' || op === 'sessao.anterior') return 'ao_vivo'
+  if (op.startsWith('temas.grafo') || op === 'temas.validar' || op === 'marcos' || op === 'evolucao.obs' || op === 'insight.temas') return 'fundo'
+  return 'outros' // chat.*, objetivos.copiloto, saude.insights, prontuario.ia, wa.voz.*, demo.*
+}
+
+/** Guard fail-loud: custo sem psicólogo é bug de instrumentação, não custo real. */
+function psicologoValido(psicologoId: string | null | undefined, operacao?: string | null): psicologoId is string {
+  if (psicologoId) return true
+  const msg = `custo órfão bloqueado: chamada de IA sem psicologo_id (operacao=${operacao ?? '?'})`
+  if (process.env.NODE_ENV !== 'production') throw new Error(msg)
+  log.err('custos', msg, undefined)
+  return false
+}
 
 /** Registra o custo de uma chamada de LLM (OpenAI ou Anthropic), com tokens reais. */
 export async function registrarCustoLlm(input: {
-  provider: ProviderLlm; operacao?: string; modelo: string;
+  provider: ProviderLlm; operacao: string; modelo: string;
   tokensEntrada: number; tokensSaida: number;
-  psicologoId?: string | null; sessaoId?: string | null;
+  psicologoId: string; sessaoId?: string | null; pacienteId?: string | null;
+  escopoRecalculo?: number | null;
 }): Promise<void> {
   try {
-    const custo = custoLlmUsd(input.provider, input.modelo, input.tokensEntrada, input.tokensSaida)
+    if (!psicologoValido(input.psicologoId, input.operacao)) return
+    const custoUsd = custoLlmUsd(input.provider, input.modelo, input.tokensEntrada, input.tokensSaida)
     await db.query(
-      `INSERT INTO api_custos (provider, operacao, modelo, psicologo_id, sessao_id, tokens_entrada, tokens_saida, custo_usd)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
-      [input.provider, input.operacao ?? null, input.modelo, input.psicologoId ?? null, input.sessaoId ?? null,
-       input.tokensEntrada, input.tokensSaida, custo],
+      `INSERT INTO api_custos (provider, operacao, natureza, modelo, psicologo_id, sessao_id, paciente_id,
+                               tokens_entrada, tokens_saida, custo_usd, custo_brl, escopo_recalculo)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)`,
+      [input.provider, input.operacao, naturezaDeOperacao(input.operacao), input.modelo,
+       input.psicologoId, input.sessaoId ?? null, input.pacienteId ?? null,
+       input.tokensEntrada, input.tokensSaida, custoUsd, usdParaBrl(custoUsd), input.escopoRecalculo ?? null],
     )
   } catch (err) {
     log.warn('custos', 'falha ao registrar custo llm', err instanceof Error ? err.message : err)
@@ -29,22 +58,25 @@ export async function registrarCustoLlm(input: {
 
 /** Compat — mantido para callers antigos; delega para registrarCustoLlm. */
 export async function registrarCustoAnthropic(input: {
-  operacao?: string; modelo: string; tokensEntrada: number; tokensSaida: number;
-  psicologoId?: string | null; sessaoId?: string | null;
+  operacao: string; modelo: string; tokensEntrada: number; tokensSaida: number;
+  psicologoId: string; sessaoId?: string | null; pacienteId?: string | null;
 }): Promise<void> {
   return registrarCustoLlm({ provider: 'anthropic', ...input })
 }
 
 export async function registrarCustoAssemblyEstimado(input: {
-  segundos: number; psicologoId?: string | null; sessaoId?: string | null;
+  segundos: number; psicologoId: string; sessaoId?: string | null; pacienteId?: string | null;
 }): Promise<void> {
   try {
     if (input.segundos <= 0) return
-    const custo = custoAssemblyUsd(input.segundos)
+    if (!psicologoValido(input.psicologoId, 'assemblyai.streaming')) return
+    const custoUsd = custoAssemblyUsd(input.segundos)
     await db.query(
-      `INSERT INTO api_custos (provider, operacao, modelo, psicologo_id, sessao_id, segundos, estimado, custo_usd)
-       VALUES ('assemblyai', 'assemblyai.streaming', 'universal-streaming', $1, $2, $3, TRUE, $4)`,
-      [input.psicologoId ?? null, input.sessaoId ?? null, Math.round(input.segundos), custo],
+      `INSERT INTO api_custos (provider, operacao, natureza, modelo, psicologo_id, sessao_id, paciente_id,
+                               segundos, estimado, custo_usd, custo_brl)
+       VALUES ('assemblyai', 'assemblyai.streaming', 'sessao', 'universal-streaming', $1, $2, $3, $4, TRUE, $5, $6)`,
+      [input.psicologoId, input.sessaoId ?? null, input.pacienteId ?? null,
+       Math.round(input.segundos), custoUsd, usdParaBrl(custoUsd)],
     )
   } catch (err) {
     log.warn('custos', 'falha ao registrar custo assemblyai', err instanceof Error ? err.message : err)

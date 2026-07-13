@@ -42,7 +42,7 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
   const arestas = grafo.edges.slice(0, 15).map(e => `${e.a}+${e.b}=${e.weight}`).join('; ')
   const user_msg = `Palavras: ${top}\nCo-ocorrências: ${arestas}`
 
-  const text = await chat(SYS, [{ role: 'user', content: user_msg }], { scope: 'insight.temas', maxTokens: 250 })
+  const text = await chat(SYS, [{ role: 'user', content: user_msg }], { scope: 'insight.temas', maxTokens: 250, psicologoId: user.id, pacienteId: params.id })
 
   if (r) await r.set(cacheKey, text, { EX: 3600 })
   return NextResponse.json({ text, cached: false })

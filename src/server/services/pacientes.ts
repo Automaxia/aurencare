@@ -7,6 +7,13 @@ import { tplPacienteBoasVindas } from '@/server/lib/emailTemplates'
 import { env } from '@/server/lib/env'
 import { log } from '@/server/lib/log'
 
+/** Resolve o psicólogo dono do paciente — para atribuir custo de IA a quem é (ver custos.ts). */
+export async function psicologoDoPaciente(pacienteId: string): Promise<string | null> {
+  const { rows } = await db.query<{ psicologo_id: string }>(
+    'SELECT psicologo_id FROM pacientes WHERE id = $1 LIMIT 1', [pacienteId])
+  return rows[0]?.psicologo_id ?? null
+}
+
 export type Paciente = {
   id: string
   nome: string

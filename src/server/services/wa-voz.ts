@@ -48,7 +48,7 @@ export type Intent =
   | { kind: 'erro_tecnico';            contexto: {} }
 
 /** Gera o texto da mensagem via Claude. */
-export async function gerarMensagem(intent: Intent): Promise<string> {
+export async function gerarMensagem(intent: Intent, psicologoId: string): Promise<string> {
   const userMsg = `INTENT: ${intent.kind}
 CONTEXTO: ${JSON.stringify(intent.contexto)}
 
@@ -56,6 +56,7 @@ Escreva a mensagem.`
 
   const texto = await chat(SYS_VOZ, [{ role: 'user', content: userMsg }], {
     scope: `wa.voz.${intent.kind}`,
+    psicologoId,
     maxTokens: 220,
   })
 
@@ -99,8 +100,8 @@ export function fallbackParaIntent(intent: Intent): string {
 /**
  * Tenta gerar com IA; cai em fallback determinístico se a resposta for placeholder.
  */
-export async function gerarMensagemSegura(intent: Intent): Promise<string> {
-  const texto = await gerarMensagem(intent)
+export async function gerarMensagemSegura(intent: Intent, psicologoId: string): Promise<string> {
+  const texto = await gerarMensagem(intent, psicologoId)
   // iaIndisponivel() é a fonte única (back+front) p/ detectar placeholder — evita
   // o paciente receber "[Não foi possível…]" no WhatsApp se o texto mudar.
   if (iaIndisponivel(texto)) return fallbackParaIntent(intent)
