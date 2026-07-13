@@ -14,8 +14,11 @@ export async function POST(req: Request, { params }: { params: { id: string } })
 
   const transcricao = typeof body?.transcricao === 'string' ? body.transcricao : ''
   const indicadores = body?.indicadores ?? null
+  // Métricas de silêncio (Tarefa 2a): { audioMs, speechMs, turnos, primeiroMs, ultimoMs }.
+  const stats = body?.transcricaoStats && typeof body.transcricaoStats.audioMs === 'number'
+    ? body.transcricaoStats : null
 
-  await encerrarSessao(params.id, { transcricao, indicadores })
+  await encerrarSessao(params.id, { transcricao, indicadores, transcricaoStats: stats })
 
   // Confirmação pós-sessão pelo paciente (proteção §10).
   // Fire-and-forget — falha aqui não pode quebrar o encerramento.
@@ -26,10 +29,12 @@ export async function POST(req: Request, { params }: { params: { id: string } })
   // Gera rascunho de resumo automaticamente (Anthropic + aiGuard).
   const sessao = await buscarSessao(params.id)
   if (sessao && transcricao.length > 40) {
-    // Custo AssemblyAI: estimado pela duração da sessão (streaming é client-side).
-    // Só quando houve transcrição de fato (sessão real).
+    // Custo AssemblyAI. Se o cliente mandou a duração REAL transmitida (stats.audioMs),
+    // usa ela (estimado=false); senão cai na estimativa pela duração agendada.
+    const segundosReais = stats && stats.audioMs > 0 ? Math.round(stats.audioMs / 1000) : null
     registrarCustoAssemblyEstimado({
-      segundos: (sessao.duracaoMin || 50) * 60,
+      segundos: segundosReais ?? (sessao.duracaoMin || 50) * 60,
+      estimado: segundosReais == null,
       psicologoId: sessao.psicologoId, sessaoId: sessao.id, pacienteId: sessao.pacienteId,
     }).catch(() => {})
     // Laudos anteriores do paciente → "Avaliação do Progresso" compara de verdade.

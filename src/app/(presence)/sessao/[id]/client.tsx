@@ -381,13 +381,18 @@ export function PresenceClient(props: Props) {
       ritmo: { psicologo: pctPsic, paciente: pctPac },
       humor, risco, notaRapida,
     }
+    // Métricas de silêncio (Tarefa 2a): pega do stream AssemblyAI que rodou
+    // (remoto na sessão online, sala no presencial). Só o que tem áudio real.
+    const transcricaoStats = [remoteSTT, salaSTT]
+      .map(h => h.getStats?.())
+      .find(s => s && s.audioMs > 0) ?? null
 
     // Pode dar timeout (nginx 60s) gerando o laudo; res.ok falso NÃO pode abrir o
     // modal vazio em silêncio — sinaliza indisponível (o modal oferece "tentar
     // carregar", já que o servidor costuma terminar e salvar o laudo após o 504).
     const res = await fetch(`/api/sessao/${props.sessaoId}/encerrar`, {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ transcricao, indicadores }),
+      body: JSON.stringify({ transcricao, indicadores, transcricaoStats }),
     }).catch(() => null)
     const json = res && res.ok ? await res.json().catch(() => ({} as any)) : {}
     setResumoIA(json.resumo ?? null)

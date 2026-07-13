@@ -67,6 +67,8 @@ export async function registrarCustoAnthropic(input: {
 
 export async function registrarCustoAssemblyEstimado(input: {
   segundos: number; psicologoId: string; sessaoId?: string | null; pacienteId?: string | null;
+  /** false quando `segundos` é a duração REAL transmitida (Tarefa 2a), não a estimativa. */
+  estimado?: boolean;
 }): Promise<void> {
   try {
     if (input.segundos <= 0) return
@@ -75,9 +77,9 @@ export async function registrarCustoAssemblyEstimado(input: {
     await db.query(
       `INSERT INTO api_custos (provider, operacao, natureza, modelo, psicologo_id, sessao_id, paciente_id,
                                segundos, estimado, custo_usd, custo_brl)
-       VALUES ('assemblyai', 'assemblyai.streaming', 'sessao', 'universal-streaming', $1, $2, $3, $4, TRUE, $5, $6)`,
+       VALUES ('assemblyai', 'assemblyai.streaming', 'sessao', 'universal-streaming', $1, $2, $3, $4, $5, $6, $7)`,
       [input.psicologoId, input.sessaoId ?? null, input.pacienteId ?? null,
-       Math.round(input.segundos), custoUsd, usdParaBrl(custoUsd)],
+       Math.round(input.segundos), input.estimado ?? true, custoUsd, usdParaBrl(custoUsd)],
     )
   } catch (err) {
     log.warn('custos', 'falha ao registrar custo assemblyai', err instanceof Error ? err.message : err)
