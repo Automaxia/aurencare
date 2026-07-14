@@ -48,6 +48,7 @@ export type Sessao = {
   /** Versões anteriores do laudo assinado, preservadas em cada retificação. */
   resumoHistorico: { texto: string; em: string }[]
   resumoIa: string | null
+  resumoCurto: string | null
   transcricao: string | null
   notaClinica: string | null
   /** Ritmo, humor, risco e nota rápida da sessão (JSONB). Salvo no encerrar. */
@@ -76,6 +77,7 @@ function rowToSessao(r: any): Sessao {
       ? r.resumo_historico.map((h: any) => ({ texto: tryDecrypt(h?.texto) ?? '', em: h?.em ?? '' }))
       : [],
     resumoIa: tryDecrypt(r.resumo_ia),
+    resumoCurto: tryDecrypt(r.resumo_curto),
     transcricao: tryDecrypt(r.transcricao_texto),
     notaClinica: tryDecrypt(r.nota_clinica),
     indicadores: r.indicadores ?? null,
@@ -672,6 +674,11 @@ export async function resumosAnteriores(
 
 export async function salvarResumoIA(sessaoId: string, resumo: string): Promise<void> {
   await db.query(`UPDATE sessoes SET resumo_ia = $2 WHERE id = $1`, [sessaoId, encrypt(resumo)])
+}
+
+/** Resumo curto automático (fast) — separado do laudo formal CFP (resumo_ia). */
+export async function salvarResumoCurto(sessaoId: string, resumo: string): Promise<void> {
+  await db.query(`UPDATE sessoes SET resumo_curto = $2 WHERE id = $1`, [sessaoId, encrypt(resumo)])
 }
 
 /**

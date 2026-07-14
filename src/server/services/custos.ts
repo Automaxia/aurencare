@@ -18,7 +18,7 @@ export type NaturezaCusto = 'sessao' | 'ao_vivo' | 'fundo' | 'outros'
 /** Mapa central operacao → natureza. Única fonte da verdade da classificação. */
 export function naturezaDeOperacao(operacao?: string | null): NaturezaCusto {
   const op = operacao ?? ''
-  if (op === 'assemblyai.streaming' || op === 'anthropic.resumo') return 'sessao'
+  if (op === 'assemblyai.streaming' || op === 'anthropic.resumo' || op === 'resumo.curto') return 'sessao'
   if (op.startsWith('ia.') || op === 'insight.sessao' || op === 'contexto.topicos' || op === 'sessao.anterior') return 'ao_vivo'
   if (op.startsWith('temas.grafo') || op === 'temas.validar' || op === 'marcos' || op === 'evolucao.obs' || op === 'insight.temas') return 'fundo'
   return 'outros' // chat.*, objetivos.copiloto, saude.insights, prontuario.ia, wa.voz.*, demo.*
