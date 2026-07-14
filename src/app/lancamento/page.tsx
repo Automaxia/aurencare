@@ -6,6 +6,7 @@ import { Nav } from './v2/nav'
 import { Hero } from './v2/hero'
 import { ProblemSection, ThesisSection } from './v2/sections-thesis'
 import { ModulesSection, ConvergenceSection } from './v2/sections-modules'
+import { PrivacySection, ManifestoSection, TrustSection, Footer } from './v2/sections-close'
 import { ListaEsperaForm } from './ListaEsperaForm'
 import { Spiral } from './v2/core'
 
@@ -18,8 +19,9 @@ export default function LancamentoPage() {
       <ThesisSection />
       <ModulesSection />
       <ConvergenceSection />
-
-      {/* Restam: Privacidade, Manifesto, Trust — próxima etapa da Fase 2 */}
+      <PrivacySection />
+      <ManifestoSection />
+      <TrustSection />
 
       {/* CTA / waitlist real (backend) */}
       <section id="acesso" className="lp-acesso">
@@ -37,9 +39,7 @@ export default function LancamentoPage() {
         </div>
       </section>
 
-      <footer style={{ padding: '40px 0', textAlign: 'center', color: 'var(--muted)', fontSize: 13, background: 'var(--page)' }}>
-        <div className="wrap">Audere · Inteligência Clínica Longitudinal · A Audere observa; a decisão clínica é sempre sua.</div>
-      </footer>
+      <Footer />
     </div>
   )
 }
