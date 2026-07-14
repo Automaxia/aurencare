@@ -631,7 +631,7 @@ export async function gateIniciarRegistroIa(psicologoId: string, sessaoId: strin
   return { ok: true }
 }
 
-export async function encerrarSessao(sessaoId: string, opts: { transcricao?: string; indicadores?: any } = {}): Promise<void> {
+export async function encerrarSessao(sessaoId: string, opts: { transcricao?: string; indicadores?: any; transcricaoStats?: any } = {}): Promise<void> {
   const patches: string[] = [`status='concluida'`]
   const params: any[] = [sessaoId]
   if (opts.transcricao) {
@@ -641,6 +641,10 @@ export async function encerrarSessao(sessaoId: string, opts: { transcricao?: str
   if (opts.indicadores) {
     patches.push(`indicadores = $${params.length + 1}`)
     params.push(JSON.stringify(opts.indicadores))
+  }
+  if (opts.transcricaoStats) {
+    patches.push(`transcricao_stats = $${params.length + 1}`)
+    params.push(JSON.stringify(opts.transcricaoStats))
   }
   await db.query(`UPDATE sessoes SET ${patches.join(', ')} WHERE id=$1`, params)
   publish({ type: 'sessao.encerrada', sessaoId })

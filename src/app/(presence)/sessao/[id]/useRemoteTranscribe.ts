@@ -37,6 +37,18 @@ const SAMPLE_RATE = 16_000
 const FRAME_SIZE = 4096
 const REFRESH_BEFORE_EXPIRY_MS = 60_000   // renova 60s antes do token expirar
 
+/** Métricas de silêncio (Tarefa 2a): duração REAL transmitida vs fala do paciente. */
+export type TranscribeStats = {
+  /** Duração real do áudio transmitido à AssemblyAI (ms) — o que é cobrado. */
+  audioMs: number
+  /** Soma da duração dos turnos de fala do paciente (ms) — via words[] da AssemblyAI. */
+  speechMs: number
+  turnos: number
+  /** Posição (ms desde o início) do 1º e último turno — separa silêncio de borda do meio. */
+  primeiroMs: number
+  ultimoMs: number
+}
+
 export function useRemoteTranscribe({ stream, enabled, onFinal, onInterim, speakerLabels, maxSpeakers }: Options) {
   const [active, setActive] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -45,6 +57,9 @@ export function useRemoteTranscribe({ stream, enabled, onFinal, onInterim, speak
   const onInterimRef = useRef(onInterim)
   useEffect(() => { onFinalRef.current = onFinal }, [onFinal])
   useEffect(() => { onInterimRef.current = onInterim }, [onInterim])
+
+  // Acumulador de métricas de silêncio; persiste entre refreshes de token na sessão.
+  const statsRef = useRef<TranscribeStats>({ audioMs: 0, speechMs: 0, turnos: 0, primeiroMs: 0, ultimoMs: 0 })
 
   useEffect(() => {
     if (!enabled || !stream || stream.getAudioTracks().length === 0) {
@@ -59,6 +74,9 @@ export function useRemoteTranscribe({ stream, enabled, onFinal, onInterim, speak
     /** WS que recebe frames AGORA. Trocada quando a nova abre. */
     let activeWs: WebSocket | null = null
     let refreshTimer: ReturnType<typeof setTimeout> | null = null
+    // Métricas de silêncio: relógio do 1º frame de áudio transmitido (denominador real).
+    let audioStartWall = 0
+    statsRef.current = { audioMs: 0, speechMs: 0, turnos: 0, primeiroMs: 0, ultimoMs: 0 }
 
     async function fetchToken(): Promise<{ token: string; expiresIn: number } | null> {
       try {
@@ -109,6 +127,17 @@ export function useRemoteTranscribe({ stream, enabled, onFinal, onInterim, speak
             const texto: string = msg.transcript ?? ''
             if (!texto.trim()) return
             if (msg.end_of_turn) {
+              // Métricas de silêncio: duração do turno via words[] (start/end em ms,
+              // relativos à WS — o span intra-turno é robusto a refresh de token).
+              const words = Array.isArray(msg.words) ? msg.words : []
+              if (words.length && audioStartWall) {
+                const dur = (words[words.length - 1].end ?? 0) - (words[0].start ?? 0)
+                if (dur > 0) statsRef.current.speechMs += dur
+                const posMs = Date.now() - audioStartWall
+                if (!statsRef.current.primeiroMs) statsRef.current.primeiroMs = posMs
+                statsRef.current.ultimoMs = posMs
+                statsRef.current.turnos += 1
+              }
               const speaker = typeof msg.speaker_label === 'string' ? msg.speaker_label : undefined
               onFinalRef.current(texto.trim(), new Date().toISOString(), speaker)
               onInterimRef.current?.('')
@@ -180,6 +209,10 @@ export function useRemoteTranscribe({ stream, enabled, onFinal, onInterim, speak
       processor.onaudioprocess = e => {
         const ws = activeWs
         if (!ws || ws.readyState !== WebSocket.OPEN) return
+        // Relógio do áudio transmitido: 1º frame marca o início; cada frame estende o fim.
+        const now = Date.now()
+        if (!audioStartWall) audioStartWall = now
+        statsRef.current.audioMs = now - audioStartWall
         const input = e.inputBuffer.getChannelData(0)
         const pcm = floatToPcm16(input)
         try { ws.send(pcm.buffer) } catch { /* */ }
@@ -201,7 +234,10 @@ export function useRemoteTranscribe({ stream, enabled, onFinal, onInterim, speak
     }
   }, [enabled, stream, speakerLabels, maxSpeakers])
 
-  return { active, error }
+  /** Snapshot das métricas de silêncio da sessão corrente (Tarefa 2a). */
+  const getStats = (): TranscribeStats => ({ ...statsRef.current })
+
+  return { active, error, getStats }
 }
 
 function floatToPcm16(input: Float32Array): Int16Array {
