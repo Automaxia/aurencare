@@ -5,6 +5,32 @@
    (clareza P1 preservada mesmo com as headlines ciclando). */
 import React, { useState, useEffect, useRef } from 'react'
 import { Hero3D } from './hero-3d'
+import { DrawSpiral } from './core'
+
+/* Intro — "audere" aparece e a espiral NASCE dele (desenha-se). Depois entrega
+   para o 3D. Respeita reduced-motion (desenha na hora). */
+function HeroIntro({ exploded }: { exploded: boolean }) {
+  const [p, setP] = useState(0)
+  useEffect(() => {
+    if (window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) { setP(1); return }
+    let raf = 0
+    const t0 = performance.now() + 650 // espera o nome aparecer, então desenha
+    const tick = (now: number) => {
+      const k = Math.max(0, (now - t0) / 1600)
+      setP(k >= 1 ? 1 : k * k * (3 - 2 * k))
+      if (k < 1) raf = requestAnimationFrame(tick)
+    }
+    raf = requestAnimationFrame(tick)
+    return () => cancelAnimationFrame(raf)
+  }, [])
+  return (
+    <div className={'hero-intro' + (exploded ? ' gone' : '')} aria-hidden="true">
+      <div className="hero-intro-spiral"><DrawSpiral size={132} p={p} sw={1.5} color="var(--accent)" tip="var(--sage)" /></div>
+      <div className="hero-intro-name serif">audere</div>
+      <div className="hero-intro-sub">inteligência clínica longitudinal</div>
+    </div>
+  )
+}
 
 type St = { num: string; name: string; scene: string; dwell: number; dark?: boolean; title: React.ReactNode; sub: string; at: { left: string; top: string } }
 
@@ -36,16 +62,18 @@ const CYCLE_D = STATES.map((st, i) => (i ? 'L' : 'M') + parseFloat(st.at.left) +
 
 export function Hero() {
   const [idx, setIdx] = useState(0)
-  const [exploded, setExploded] = useState(false)
+  const [drawn, setDrawn] = useState(false)     // espiral terminou de nascer → revela o 3D
+  const [exploded, setExploded] = useState(false) // intro sai, copy revela, fluxo começa
   const reduce = useRef(false)
   useEffect(() => { reduce.current = !!window.matchMedia?.('(prefers-reduced-motion: reduce)').matches }, [])
 
-  // Segura a espiral inicial (cena 'spiral' do engine) por ~3s antes de revelar a
-  // copy e começar o fluxo dos 6 passos. Robusto sem WebGL; reduced-motion revela já.
+  // Coreografia da intro: "audere" aparece → espiral nasce (~2,3s) → 3D assume a
+  // espiral → explode (~3,7s): intro sai, copy revela, fluxo dos 6 passos começa.
   useEffect(() => {
-    const reduceNow = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
-    const t = setTimeout(() => setExploded(true), reduceNow ? 0 : 3200)
-    return () => clearTimeout(t)
+    const r = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
+    const t1 = setTimeout(() => setDrawn(true), r ? 0 : 2300)
+    const t2 = setTimeout(() => setExploded(true), r ? 0 : 3700)
+    return () => { clearTimeout(t1); clearTimeout(t2) }
   }, [])
 
   // auto-ciclo: reprograma ao mudar o estado, com o dwell do estado atual
@@ -59,13 +87,14 @@ export function Hero() {
 
   return (
     <header id="topo" className={'h3d' + (s.dark ? ' h3d-dark' : '') + ' h3d-live' + (exploded ? ' h3d-exploded' : '')}>
-      {/* antes de "explodir", mantém a espiral inicial; depois segue o fluxo */}
-      <div className="hero-v2-3dslot" aria-hidden="true"><Hero3D sceneKey={exploded ? s.scene : 'spiral'} /></div>
-
-      <div className="h3d-intro">
-        <div className="h3d-intro-name">Audere</div>
-        <div className="h3d-intro-sub">inteligência clínica longitudinal</div>
+      {/* 3D só aparece quando a espiral "nasce" (drawn); antes segue a cena spiral,
+          depois o fluxo dos 6 passos */}
+      <div className={'hero-v2-3dslot' + (drawn ? ' d3d-in' : '')} aria-hidden="true">
+        <Hero3D sceneKey={exploded ? s.scene : 'spiral'} />
       </div>
+
+      {/* intro: "audere" aparece e a espiral nasce dele */}
+      <HeroIntro exploded={exploded} />
 
       <div className="h3d-copy">
         <div className="h3d-eyebrow">

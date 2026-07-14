@@ -178,3 +178,31 @@
   color: #f4f1fb; font-size: clamp(30px, 4.6vw, 60px); line-height: 1.16; margin-top: 6px;
 }
 .lp .maniv2-line.last em { color: #c9b8fb; }
+
+/* Intro coreografada — "audere" aparece e a espiral NASCE dele; depois entrega
+   pro 3D (que só revela quando a espiral termina). */
+.lp .hero-intro {
+  position: absolute; inset: 0; z-index: 3; pointer-events: none;
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 16px;
+  transition: opacity .8s ease, transform .8s ease;
+}
+.lp .hero-intro.gone { opacity: 0; transform: translateY(-14px); }
+.lp .hero-intro-name {
+  font-weight: 400; font-size: clamp(40px, 4.6vw, 62px); letter-spacing: -.5px;
+  color: var(--accent-deep); margin-top: 2px;
+  opacity: 0; animation: heroIntroName .9s .15s ease both;
+}
+.lp .hero-intro-sub {
+  font-size: 12.5px; letter-spacing: .18em; text-transform: uppercase; color: var(--muted);
+  opacity: 0; animation: heroIntroName .9s .4s ease both;
+}
+@keyframes heroIntroName { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+.lp.h3d-dark .hero-intro-name, .lp .h3d-dark .hero-intro-name { color: #f4f1fb; }
+
+/* 3D revela quando a espiral nasce (drawn) */
+.lp .hero-v2-3dslot { opacity: 0; transition: opacity .9s ease; }
+.lp .hero-v2-3dslot.d3d-in { opacity: 1; }
+
+@media (min-width: 900px) {
+  .lp .hero-intro { left: 34%; }   /* centraliza sobre a espiral (stage deslocado) */
+}
