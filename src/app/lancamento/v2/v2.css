@@ -214,3 +214,6 @@
 .lp .hero-intro-spiral { margin-left: clamp(-26px, -1.6vw, -14px); margin-top: -8px; }
 /* 3D revela só quando a intro sai (exploded) — evita o segundo espiral */
 .lp .h3d-exploded .hero-v2-3dslot { opacity: 1; }
+
+/* o espiral grande (3D) nasce logo após o nome (d3d-in em ~0,9s) */
+.lp .hero-v2-3dslot.d3d-in { opacity: 1; }

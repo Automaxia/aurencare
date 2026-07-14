@@ -5,34 +5,13 @@
    (clareza P1 preservada mesmo com as headlines ciclando). */
 import React, { useState, useEffect, useRef } from 'react'
 import { Hero3D } from './hero-3d'
-import { DrawSpiral } from './core'
 
-/* Intro — "audere" aparece e a espiral NASCE dele (desenha-se). Depois entrega
-   para o 3D. Respeita reduced-motion (desenha na hora). */
+/* Intro — só o nome "audere". O único espiral é o GRANDE (partículas 3D), que
+   nasce logo depois do nome. Sem espiral HTML aqui. */
 function HeroIntro({ exploded }: { exploded: boolean }) {
-  const [p, setP] = useState(0)
-  useEffect(() => {
-    if (window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) { setP(1); return }
-    let raf = 0
-    const t0 = performance.now() + 650 // espera o nome aparecer, então desenha
-    const tick = (now: number) => {
-      const k = Math.max(0, (now - t0) / 1600)
-      setP(k >= 1 ? 1 : k * k * (3 - 2 * k))
-      if (k < 1) raf = requestAnimationFrame(tick)
-    }
-    raf = requestAnimationFrame(tick)
-    return () => cancelAnimationFrame(raf)
-  }, [])
   return (
     <div className={'hero-intro' + (exploded ? ' gone' : '')} aria-hidden="true">
-      {/* lockup: a palavra "audere" e o espiral principal que NASCE do fim dela
-          (a última letra "e" flui para dentro do espiral, que se desenha) */}
-      <div className="hero-intro-lockup">
-        <span className="hero-intro-name serif">audere</span>
-        <span className="hero-intro-spiral">
-          <DrawSpiral size={168} p={p} sw={1.5} color="var(--accent)" tip="var(--sage)" />
-        </span>
-      </div>
+      <div className="hero-intro-name serif">audere</div>
       <div className="hero-intro-sub">inteligência clínica longitudinal</div>
     </div>
   )
@@ -68,17 +47,19 @@ const CYCLE_D = STATES.map((st, i) => (i ? 'L' : 'M') + parseFloat(st.at.left) +
 
 export function Hero() {
   const [idx, setIdx] = useState(0)
-  const [exploded, setExploded] = useState(false) // intro sai, copy revela, 3D+fluxo começam
+  const [born, setBorn] = useState(false)         // o espiral grande (3D) nasce após o nome
+  const [exploded, setExploded] = useState(false) // intro sai, copy revela, fluxo começa
   const reduce = useRef(false)
   useEffect(() => { reduce.current = !!window.matchMedia?.('(prefers-reduced-motion: reduce)').matches }, [])
 
-  // Intro: "audere" aparece e o espiral (único) nasce dele. Depois "explode": a
-  // intro sai, a copy revela e o 3D entra JÁ no fluxo (sem mostrar sua própria
-  // cena de espiral — senão apareceriam dois espirais).
+  // Coreografia: "audere" aparece → o ÚNICO espiral (grande, partículas 3D) nasce
+  // logo depois (~0,9s) → segura → explode (~3,6s): intro sai, copy revela, o 3D
+  // deixa a cena 'spiral' e entra no fluxo dos 6 passos.
   useEffect(() => {
     const r = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
-    const t = setTimeout(() => setExploded(true), r ? 0 : 3600)
-    return () => clearTimeout(t)
+    const t1 = setTimeout(() => setBorn(true), r ? 0 : 900)
+    const t2 = setTimeout(() => setExploded(true), r ? 0 : 3600)
+    return () => { clearTimeout(t1); clearTimeout(t2) }
   }, [])
 
   // auto-ciclo: reprograma ao mudar o estado, com o dwell do estado atual
@@ -92,13 +73,13 @@ export function Hero() {
 
   return (
     <header id="topo" className={'h3d' + (s.dark ? ' h3d-dark' : '') + ' h3d-live' + (exploded ? ' h3d-exploded' : '')}>
-      {/* 3D entra só quando a intro sai (exploded), já no fluxo — sem a cena
-          'spiral' do engine, pra não duplicar o espiral da intro */}
-      <div className="hero-v2-3dslot" aria-hidden="true">
-        <Hero3D sceneKey={s.scene} />
+      {/* o único espiral: o GRANDE das partículas 3D. Nasce após o nome (born);
+          fica na cena 'spiral' durante a intro, depois entra no fluxo */}
+      <div className={'hero-v2-3dslot' + (born ? ' d3d-in' : '')} aria-hidden="true">
+        <Hero3D sceneKey={exploded ? s.scene : 'spiral'} />
       </div>
 
-      {/* intro: "audere" aparece e o espiral (único) nasce dele */}
+      {/* intro: só o nome "audere" (o espiral é o grande, do 3D) */}
       <HeroIntro exploded={exploded} />
 
       <div className="h3d-copy">
