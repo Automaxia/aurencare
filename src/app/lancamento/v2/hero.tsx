@@ -40,11 +40,11 @@ export function Hero() {
   const reduce = useRef(false)
   useEffect(() => { reduce.current = !!window.matchMedia?.('(prefers-reduced-motion: reduce)').matches }, [])
 
-  // revela a copy/órbita (a classe .h3d-exploded que o CSS espera). Timeout robusto:
-  // funciona mesmo sem WebGL/onExplode. Movimento reduzido → revela na hora.
+  // Segura a espiral inicial (cena 'spiral' do engine) por ~3s antes de revelar a
+  // copy e começar o fluxo dos 6 passos. Robusto sem WebGL; reduced-motion revela já.
   useEffect(() => {
     const reduceNow = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
-    const t = setTimeout(() => setExploded(true), reduceNow ? 0 : 1100)
+    const t = setTimeout(() => setExploded(true), reduceNow ? 0 : 3200)
     return () => clearTimeout(t)
   }, [])
 
@@ -59,7 +59,8 @@ export function Hero() {
 
   return (
     <header id="topo" className={'h3d' + (s.dark ? ' h3d-dark' : '') + ' h3d-live' + (exploded ? ' h3d-exploded' : '')}>
-      <div className="hero-v2-3dslot" aria-hidden="true"><Hero3D sceneKey={s.scene} /></div>
+      {/* antes de "explodir", mantém a espiral inicial; depois segue o fluxo */}
+      <div className="hero-v2-3dslot" aria-hidden="true"><Hero3D sceneKey={exploded ? s.scene : 'spiral'} /></div>
 
       <div className="h3d-intro">
         <div className="h3d-intro-name">Audere</div>
