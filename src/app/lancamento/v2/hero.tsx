@@ -33,20 +33,29 @@ const scrollTo = (id: string) => document.getElementById(id)?.scrollIntoView({ b
 
 export function Hero() {
   const [idx, setIdx] = useState(0)
+  const [exploded, setExploded] = useState(false)
   const reduce = useRef(false)
   useEffect(() => { reduce.current = !!window.matchMedia?.('(prefers-reduced-motion: reduce)').matches }, [])
 
+  // revela a copy/órbita (a classe .h3d-exploded que o CSS espera). Timeout robusto:
+  // funciona mesmo sem WebGL/onExplode. Movimento reduzido → revela na hora.
+  useEffect(() => {
+    const reduceNow = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
+    const t = setTimeout(() => setExploded(true), reduceNow ? 0 : 1100)
+    return () => clearTimeout(t)
+  }, [])
+
   // auto-ciclo: reprograma ao mudar o estado, com o dwell do estado atual
   useEffect(() => {
-    if (window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) return
+    if (!exploded || window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) return
     const t = setTimeout(() => setIdx((i) => (i + 1) % STATES.length), STATES[idx].dwell)
     return () => clearTimeout(t)
-  }, [idx])
+  }, [idx, exploded])
 
   const s = STATES[idx]
 
   return (
-    <header id="topo" className={'h3d' + (s.dark ? ' h3d-dark' : '') + ' h3d-live'}>
+    <header id="topo" className={'h3d' + (s.dark ? ' h3d-dark' : '') + ' h3d-live' + (exploded ? ' h3d-exploded' : '')}>
       <div className="hero-v2-3dslot" aria-hidden="true"><Hero3D sceneKey={s.scene} /></div>
 
       <div className="h3d-intro">
@@ -68,6 +77,16 @@ export function Hero() {
         </div>
         <div className="hero-v2-reassure">Beta por convite · <strong>sem mensalidade durante o beta</strong></div>
         {!reduce.current && <div className="h3d-prog" key={'p' + idx} style={{ ['--dwell' as any]: (s.dwell / 1000) + 's' }}><span /></div>}
+      </div>
+
+      {/* órbita — os 6 passos como conceito ao redor da cena 3D (clicáveis) */}
+      <div className="h3d-orbit">
+        {STATES.map((st, i) => (
+          <button key={st.num} className={'h3d-lab' + (i === idx ? ' on' : '')}
+            style={{ left: st.at.left, top: st.at.top }} onClick={() => setIdx(i)}>
+            <span className="h3d-lab-num">{st.num}</span> {st.name.toUpperCase()}
+          </button>
+        ))}
       </div>
 
       {/* chips de navegação dos 6 estados (clicáveis) */}
