@@ -28,6 +28,14 @@ export async function POST(req: Request, { params }: { params: { id: string } })
 
   // Gera rascunho de resumo automaticamente (Anthropic + aiGuard).
   const sessao = await buscarSessao(params.id)
+  // IDEMPOTÊNCIA: se o laudo já foi gerado (ex.: retry após timeout do nginx onde o
+  // servidor terminou e salvou, ou duplo-clique em "Encerrar"), devolve o existente
+  // em vez de regerar. Evita dupla cobrança do modelo forte (~R$0,27/laudo) E do
+  // custo de transcrição — protege a margem sem mudar a experiência (o retry queria
+  // justamente o laudo salvo).
+  if (sessao?.resumoIa) {
+    return NextResponse.json({ ok: true, resumo: sessao.resumoIa })
+  }
   if (sessao && transcricao.length > 40) {
     // Custo AssemblyAI. Se o cliente mandou a duração REAL transmitida (stats.audioMs),
     // usa ela (estimado=false); senão cai na estimativa pela duração agendada.
