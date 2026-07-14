@@ -121,7 +121,7 @@ export function Eyebrow({ children, color = 'var(--accent)', style = {} }:
 }
 
 export function Display({ children, size = 56, color = 'var(--ink)', style = {}, as = 'h2' }:
-  { children: React.ReactNode; size?: number; color?: string; style?: React.CSSProperties; as?: any }) {
+  { children: React.ReactNode; size?: number | string; color?: string; style?: React.CSSProperties; as?: any }) {
   const Tag = as
   return <Tag className="serif" style={{ fontSize: size, color, ...style }}>{children}</Tag>
 }
