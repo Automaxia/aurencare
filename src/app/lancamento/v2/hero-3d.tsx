@@ -33,7 +33,9 @@ export function Hero3D({ sceneKey }: { sceneKey: string }) {
           import('./hero3d/scenes'),
         ])
         if (cancelled || !stageRef.current || !SCENES) { setFallback(true); return }
-        apiRef.current = mount(stageRef.current, SCENES, {})
+        // mobile → modo claro forçado (todas as cenas claras, cada uma com sua forma)
+        const mobile = window.matchMedia?.('(max-width: 1100px)').matches
+        apiRef.current = mount(stageRef.current, SCENES, { light: !!mobile })
         setFallback(false)
       } catch (err) {
         console.error('[hero3d] falhou — usando fallback canvas', err)
@@ -48,16 +50,12 @@ export function Hero3D({ sceneKey }: { sceneKey: string }) {
     }
   }, [])
 
-  // segue o fluxo de cenas dirigido pelo pai. No mobile (<=1100px) remapeia as
-  // cenas ESCURAS para equivalentes claras — o engine renderiza tudo em modo
-  // claro (partículas escuras em fundo claro, testado), evitando os fundos
-  // escuros que ficavam estranhos no layout empilhado.
+  // segue o fluxo de cenas dirigido pelo pai. Cada fase mantém a SUA cena; no
+  // mobile o engine já renderiza tudo claro (opts.light no mount), então não há
+  // remap — Conectar/Evoluir/Videochamada mantêm as próprias formas, distintas.
   useEffect(() => {
     if (fallback !== false || !apiRef.current?.goTo || !sceneKey) return
-    const DARK_TO_LIGHT: Record<string, string> = { temas: 'sessoes', evolucao: 'objetivos', video: 'prontuario' }
-    const mobile = window.matchMedia?.('(max-width: 1100px)').matches
-    const key = mobile ? (DARK_TO_LIGHT[sceneKey] || sceneKey) : sceneKey
-    try { apiRef.current.goTo(key) } catch {}
+    try { apiRef.current.goTo(sceneKey) } catch {}
   }, [sceneKey, fallback])
 
   return (

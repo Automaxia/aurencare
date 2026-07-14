@@ -78,6 +78,15 @@ import * as THREE from "three"
 
   function mount(container, SCN, opts = {}) {
     const ST = SCN.states, N = SCN.N;
+    // Modo claro forçado (mobile): fundo claro + blending normal + cores de
+    // partícula visíveis no claro, para TODAS as cenas (inclusive as escuras),
+    // preservando a forma de cada uma. Evita fundos escuros e partículas apagadas.
+    const forceLight = !!opts.light;
+    const LBG = "#f9f8f5";
+    const LCOL = ["#6a4ec8", "#5a9e8a", "#c4607a"];
+    const scnC = (s, i) => (forceLight ? LCOL[i] : s.c[i]);
+    const scnBg = (s) => (forceLight ? LBG : s.bg);
+    const scnBlend = (s) => (forceLight || s.mode !== "dark") ? THREE.NormalBlending : THREE.AdditiveBlending;
     const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
     const FORMS = {};
@@ -138,14 +147,14 @@ import * as THREE from "three"
       uTime: { value: 0 }, uMorph: { value: 0 }, uTurb: { value: 0 }, uStag: { value: 0.45 },
       uReveal: { value: reduced ? 2 : 0 }, uSize: { value: 2.4 }, uDpr: { value: dpr },
       uAlpha: { value: st0.alpha },
-      uC1: { value: new THREE.Color(st0.c[0]) },
-      uC2: { value: new THREE.Color(st0.c[1]) },
-      uC3: { value: new THREE.Color(st0.c[2]) },
+      uC1: { value: new THREE.Color(scnC(st0, 0)) },
+      uC2: { value: new THREE.Color(scnC(st0, 1)) },
+      uC3: { value: new THREE.Color(scnC(st0, 2)) },
     };
     const mat = new THREE.ShaderMaterial({
       vertexShader: VERT, fragmentShader: FRAG, uniforms: uni,
       transparent: true, depthWrite: false,
-      blending: st0.mode === "dark" ? THREE.AdditiveBlending : THREE.NormalBlending,
+      blending: scnBlend(st0),
     });
     const points = new THREE.Points(geo, mat);
     points.frustumCulled = false;
@@ -179,7 +188,7 @@ import * as THREE from "three"
     if (reduced) applyFade(start, 1);
 
     /* fundo/cores */
-    const bg = new THREE.Color(st0.bg);
+    const bg = new THREE.Color(scnBg(st0));
     renderer.setClearColor(bg);
     const colFrom = [new THREE.Color(), new THREE.Color(), new THREE.Color()];
     const colTo = [new THREE.Color(), new THREE.Color(), new THREE.Color()];
@@ -205,8 +214,8 @@ import * as THREE from "three"
       ["position", "shadeA", "posB", "shadeB"].forEach((n) => geo.attributes[n].needsUpdate = true);
       colFrom[0].copy(uni.uC1.value); colFrom[1].copy(uni.uC2.value); colFrom[2].copy(uni.uC3.value);
       const s = ST[key];
-      colTo[0].set(s.c[0]); colTo[1].set(s.c[1]); colTo[2].set(s.c[2]);
-      bgFrom.copy(bg); bgTo.set(s.bg);
+      colTo[0].set(scnC(s, 0)); colTo[1].set(scnC(s, 1)); colTo[2].set(scnC(s, 2));
+      bgFrom.copy(bg); bgTo.set(scnBg(s));
       alphaFrom = uni.uAlpha.value; alphaTo = s.alpha;
       uni.uTurb.value = turb;
       uni.uStag.value = stag;
@@ -383,7 +392,7 @@ import * as THREE from "three"
         applyFade(trans.key, clamp01((p - 0.5) / 0.45));
         if (!trans.swapped && p >= 0.5) {
           trans.swapped = true;
-          mat.blending = ST[trans.key].mode === "dark" ? THREE.AdditiveBlending : THREE.NormalBlending;
+          mat.blending = scnBlend(ST[trans.key]);
           mat.needsUpdate = true;
         }
         if (p >= 1) {
