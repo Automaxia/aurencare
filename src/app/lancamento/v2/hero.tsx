@@ -31,6 +31,9 @@ const STATES: St[] = [
 
 const scrollTo = (id: string) => document.getElementById(id)?.scrollIntoView({ behavior: 'smooth' })
 
+/* caminho fechado ligando os 6 passos (nas mesmas coords % dos labels) → o ciclo */
+const CYCLE_D = STATES.map((st, i) => (i ? 'L' : 'M') + parseFloat(st.at.left) + ' ' + parseFloat(st.at.top)).join(' ') + ' Z'
+
 export function Hero() {
   const [idx, setIdx] = useState(0)
   const [exploded, setExploded] = useState(false)
@@ -78,6 +81,12 @@ export function Hero() {
         <div className="hero-v2-reassure">Beta por convite · <strong>sem mensalidade durante o beta</strong></div>
         {!reduce.current && <div className="h3d-prog" key={'p' + idx} style={{ ['--dwell' as any]: (s.dwell / 1000) + 's' }}><span /></div>}
       </div>
+
+      {/* linha do ciclo — liga os 6 passos num loop fechado; o traço tracejado
+          "flui" (stroke-dashoffset) dando a sensação de ciclo contínuo */}
+      <svg className="h3d-cycle" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
+        <path d={CYCLE_D} className="h3d-cycle-path" vectorEffect="non-scaling-stroke" />
+      </svg>
 
       {/* órbita — os 6 passos como conceito ao redor da cena 3D (clicáveis) */}
       <div className="h3d-orbit">

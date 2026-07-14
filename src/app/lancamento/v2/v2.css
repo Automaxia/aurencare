@@ -104,3 +104,29 @@
     scroll-behavior: auto !important;
   }
 }
+
+/* Hero — desloca a cena 3D para a DIREITA no desktop, liberando a leitura da
+   copy à esquerda. O slot é o container que o engine e o canvas de fallback
+   medem, então deslocá-lo move os dois. Abaixo de 900px a copy empilha/usa
+   fallback e o 3D ocupa a largura toda. */
+@media (min-width: 900px) {
+  .lp .hero-v2-3dslot { left: 34%; }
+}
+
+/* Linha do ciclo do hero — loop fechado ligando os 6 passos, traço fluindo.
+   preserveAspectRatio=none: as coords % batem com os labels; non-scaling-stroke
+   mantém a espessura uniforme. Só aparece com a copy revelada (.h3d-exploded).
+   Some abaixo de 900px (sem órbita no mobile). */
+.lp .h3d-cycle {
+  position: absolute; inset: 0; width: 100%; height: 100%;
+  z-index: 2; pointer-events: none; opacity: 0; transition: opacity 1.2s .4s ease;
+}
+.lp .h3d-exploded .h3d-cycle { opacity: 1; }
+.lp .h3d-cycle-path {
+  fill: none; stroke: rgba(106,78,200,.30); stroke-width: 1.4;
+  stroke-dasharray: 4 7; stroke-linecap: round;
+  animation: h3dcycleflow 2.4s linear infinite;
+}
+.lp.h3d-dark .h3d-cycle-path, .lp .h3d-dark .h3d-cycle-path { stroke: rgba(185,166,245,.42); }
+@keyframes h3dcycleflow { to { stroke-dashoffset: -11; } }
+@media (max-width: 899px) { .lp .h3d-cycle { display: none; } }
