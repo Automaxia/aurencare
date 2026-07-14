@@ -1,4 +1,6 @@
 import type { Metadata } from 'next'
+import './landing-v2.css'   // CSS portado do design (escopado sob .lp)
+import './v2/v2.css'         // adições/curadoria P1–P6
 
 export const metadata: Metadata = {
   title: 'Audere — A primeira plataforma de Inteligência Clínica Longitudinal do Brasil',
