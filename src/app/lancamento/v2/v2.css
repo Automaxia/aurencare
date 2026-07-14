@@ -130,3 +130,16 @@
 .lp.h3d-dark .h3d-cycle-path, .lp .h3d-dark .h3d-cycle-path { stroke: rgba(185,166,245,.42); }
 @keyframes h3dcycleflow { to { stroke-dashoffset: -11; } }
 @media (max-width: 899px) { .lp .h3d-cycle { display: none; } }
+
+/* Hero — modo escuro (estado "Conectar"): escurece o HEADER inteiro. No original
+   o stage fullscreen fazia o fundo escuro; como deslocamos o 3D pra direita, sem
+   isto ficava texto claro em fundo claro (some) + retângulo escuro do stage. */
+.lp .h3d { transition: background .7s ease; }
+.lp .h3d-dark { background: var(--night); }
+
+/* Fluidez: máscara radial nas bordas do 3D → funde com a página, sem "caixa"
+   quadrada. Vale para o stage WebGL e o canvas de fallback, claro e escuro. */
+.lp .hero3d-stage, .lp .hero-ambient-canvas {
+  -webkit-mask-image: radial-gradient(78% 82% at 52% 50%, #000 52%, transparent 100%);
+          mask-image: radial-gradient(78% 82% at 52% 50%, #000 52%, transparent 100%);
+}
