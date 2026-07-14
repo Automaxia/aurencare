@@ -1,0 +1,256 @@
+/* Landing v2 — adições/curadoria (P1–P6), escopadas sob .lp.
+   Complementa o landing-v2.css portado do handoff. */
+
+/* Hero v2 — clareza acima da dobra (P1) */
+.lp .hero-v2 {
+  position: relative; overflow: hidden;
+  min-height: 92vh; display: flex; align-items: center;
+  padding: 140px 0 90px;
+  background:
+    radial-gradient(1100px 620px at 72% 8%, rgba(106,78,200,.10), transparent 60%),
+    radial-gradient(900px 520px at 12% 92%, rgba(90,158,138,.08), transparent 60%),
+    var(--page);
+}
+.lp .hero-v2-3dslot { position: absolute; inset: 0; z-index: 0; pointer-events: none; }
+.lp .hero-v2-inner { position: relative; z-index: 1; max-width: 900px; }
+.lp .hero-v2-kicker {
+  display: inline-flex; align-items: center; gap: 10px; margin-bottom: 30px;
+  font-size: 13px; font-weight: 600; letter-spacing: .14em; text-transform: uppercase;
+  color: var(--accent);
+}
+.lp .hero-v2-title {
+  font-size: clamp(40px, 6vw, 76px); line-height: 1.04; letter-spacing: -1.2px;
+  color: var(--ink); text-wrap: balance; max-width: 15ch;
+}
+.lp .hero-v2-title em { font-style: italic; color: var(--accent); }
+.lp .hero-v2-sub {
+  font-size: clamp(17px, 1.6vw, 21px); line-height: 1.62; font-weight: 300;
+  color: var(--ink-soft); margin-top: 30px; max-width: 620px;
+}
+.lp .hero-v2-sub strong { font-weight: 600; color: var(--ink); }
+.lp .hero-v2-cta { display: flex; flex-wrap: wrap; gap: 14px; margin-top: 40px; }
+.lp .hero-v2-reassure { margin-top: 22px; font-size: 13.5px; color: var(--muted); }
+.lp .hero-v2-reassure strong { color: var(--sage); font-weight: 600; }
+
+/* Botões da landing (btn-lp — evita colisão com .btn do app) */
+.lp .btn-lp {
+  display: inline-flex; align-items: center; gap: 8px;
+  font-size: 15px; font-weight: 500; padding: 14px 26px; border-radius: 40px;
+  cursor: pointer; text-decoration: none; transition: transform .16s, box-shadow .16s, background .16s, border-color .16s;
+  white-space: nowrap;
+}
+.lp .btn-lp-primary {
+  background: var(--accent); color: #fff;
+  box-shadow: 0 10px 30px -8px rgba(106,78,200,.55);
+}
+.lp .btn-lp-primary:hover { transform: translateY(-2px); box-shadow: 0 16px 40px -10px rgba(106,78,200,.62); }
+.lp .btn-lp-ghost {
+  color: var(--accent); background: transparent; border: 1px solid rgba(106,78,200,.32);
+}
+.lp .btn-lp-ghost:hover { border-color: var(--accent); background: rgba(106,78,200,.06); }
+
+@media (max-width: 640px) {
+  .lp .hero-v2 { min-height: auto; padding: 120px 0 70px; }
+  .lp .hero-v2-cta .btn-lp { width: 100%; justify-content: center; }
+}
+
+/* P5 — respeita movimento reduzido: some com camadas de ambiência 3D */
+@media (prefers-reduced-motion: reduce) {
+  .lp .hero-v2-3dslot { display: none; }
+}
+
+/* Seção de acesso/waitlist (escura) */
+.lp .lp-acesso {
+  background: var(--night); color: #f4f1fb;
+  padding: clamp(80px, 10vw, 140px) 0;
+}
+.lp .lp-acesso em { font-style: italic; }
+
+/* P3 — CTA no meio da página */
+.lp .lp-midcta {
+  display: flex; flex-direction: column; align-items: center; gap: 12px;
+  margin-top: clamp(48px, 6vw, 80px);
+}
+.lp .lp-midcta-note { font-size: 13px; color: var(--muted); }
+
+/* Hero — camada 3D (Three.js) e fallback canvas 2D */
+.lp .hero3d-stage { position: absolute; inset: 0; transition: opacity .6s ease; }
+.lp .hero3d-stage canvas { width: 100% !important; height: 100% !important; display: block; }
+.lp .hero-ambient-canvas { position: absolute; inset: 0; width: 100%; height: 100%; }
+.lp .hero-v2-3dslot { position: absolute; inset: 0; z-index: 0; pointer-events: none; overflow: hidden; }
+
+/* ── Fase 4 · Acessibilidade (P5) ─────────────────────────── */
+/* Contraste WCAG: tokens de texto acessíveis, escopados na landing.
+   --sage segue #5a9e8a para DECORAÇÃO (nós, tips); --sage-text p/ texto. */
+.lp {
+  --faint: #78748f;      /* 2.27 → 4.21:1 (AA-grande) */
+  --muted: #6b6680;      /* 4.14 → 5.15:1 (AA) */
+  --sage-text: #3d7a66;  /* texto sage: 2.95 → 4.74:1 (AA) */
+  --rose-text: #a83e5a;  /* texto rose: 3.73 → 5.65:1 (AA) */
+}
+.lp .hero-v2-reassure strong { color: var(--sage-text); }
+
+/* Foco visível para navegação por teclado */
+.lp a:focus-visible, .lp button:focus-visible, .lp input:focus-visible {
+  outline: 2px solid var(--accent); outline-offset: 3px; border-radius: 6px;
+}
+
+/* Reduced-motion — rede de segurança: corta animações/transições CSS */
+@media (prefers-reduced-motion: reduce) {
+  .lp *, .lp *::before, .lp *::after {
+    animation-duration: .001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: .001ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* Hero — desloca a cena 3D para a DIREITA no desktop, liberando a leitura da
+   copy à esquerda. O slot é o container que o engine e o canvas de fallback
+   medem, então deslocá-lo move os dois. Abaixo de 900px a copy empilha/usa
+   fallback e o 3D ocupa a largura toda. */
+@media (min-width: 1101px) {
+  .lp .hero-v2-3dslot { left: 34%; }
+}
+
+/* Linha do ciclo do hero — loop fechado ligando os 6 passos, traço fluindo.
+   preserveAspectRatio=none: as coords % batem com os labels; non-scaling-stroke
+   mantém a espessura uniforme. Só aparece com a copy revelada (.h3d-exploded).
+   Some abaixo de 900px (sem órbita no mobile). */
+.lp .h3d-cycle {
+  position: absolute; inset: 0; width: 100%; height: 100%;
+  z-index: 2; pointer-events: none; opacity: 0; transition: opacity 1.2s .4s ease;
+}
+.lp .h3d-exploded .h3d-cycle { opacity: 1; }
+.lp .h3d-cycle-path {
+  fill: none; stroke: rgba(106,78,200,.30); stroke-width: 1.4;
+  stroke-dasharray: 4 7; stroke-linecap: round;
+  animation: h3dcycleflow 2.4s linear infinite;
+}
+.lp.h3d-dark .h3d-cycle-path, .lp .h3d-dark .h3d-cycle-path { stroke: rgba(185,166,245,.42); }
+@keyframes h3dcycleflow { to { stroke-dashoffset: -11; } }
+@media (max-width: 1100px) { .lp .h3d-cycle, .lp .h3d-orbit { display: none; } }
+
+/* Hero — modo escuro (estado "Conectar"): escurece o HEADER inteiro. No original
+   o stage fullscreen fazia o fundo escuro; como deslocamos o 3D pra direita, sem
+   isto ficava texto claro em fundo claro (some) + retângulo escuro do stage. */
+.lp .h3d { transition: background .7s ease; }
+.lp .h3d-dark { background: var(--night); }
+
+/* Fluidez: máscara radial nas bordas do 3D → funde com a página, sem "caixa"
+   quadrada. Vale para o stage WebGL e o canvas de fallback, claro e escuro. */
+.lp .hero3d-stage, .lp .hero-ambient-canvas {
+  -webkit-mask-image: radial-gradient(78% 82% at 52% 50%, #000 52%, transparent 100%);
+          mask-image: radial-gradient(78% 82% at 52% 50%, #000 52%, transparent 100%);
+}
+
+/* Intro "Audere" no CENTRO da espiral: a espiral está no meio do stage (que
+   deslocamos para left:34%), então o intro acompanha o stage no desktop —
+   assim o texto cai sobre o símbolo, não à esquerda dele. */
+@media (min-width: 1101px) {
+  .lp .h3d-intro { left: 34%; padding-top: 0; }
+}
+
+/* Manifesto v2 — reveal sequencial (fácil de acompanhar), espinha da continuidade
+   à esquerda, fecho em destaque. Substitui o destaque "pulante" anterior. */
+.lp .maniv2 { max-width: 920px; margin: 0 auto; }
+.lp .maniv2-mark {
+  display: inline-flex; align-items: center; gap: 14px; margin-bottom: 52px;
+  font-size: 12.5px; letter-spacing: .16em; text-transform: uppercase; font-weight: 600;
+  color: rgba(233,228,251,.55);
+}
+.lp .maniv2-lines {
+  display: flex; flex-direction: column; gap: clamp(26px, 3vw, 40px);
+  border-left: 1px solid rgba(185,166,245,.22);
+  padding-left: clamp(22px, 3vw, 44px);
+}
+.lp .maniv2-line {
+  font-family: var(--f-display); font-weight: 300; letter-spacing: -.5px;
+  font-size: clamp(24px, 3.4vw, 44px); line-height: 1.24;
+  color: rgba(233,228,251,.5);
+  opacity: 0; transform: translateY(18px);
+  transition: opacity 1s ease, transform 1s ease, color 1s ease;
+}
+.lp .maniv2-line em { font-style: italic; color: #b9a6f5; }
+.lp .maniv2-lines.in .maniv2-line { opacity: 1; transform: none; }
+/* fecho: maior, mais claro, o clímax da leitura */
+.lp .maniv2-line.last {
+  color: #f4f1fb; font-size: clamp(30px, 4.6vw, 60px); line-height: 1.16; margin-top: 6px;
+}
+.lp .maniv2-line.last em { color: #c9b8fb; }
+
+/* Intro coreografada — "audere" aparece e a espiral NASCE dele; depois entrega
+   pro 3D (que só revela quando a espiral termina). */
+.lp .hero-intro {
+  position: absolute; inset: 0; z-index: 3; pointer-events: none;
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 16px;
+  transition: opacity .8s ease, transform .8s ease;
+}
+.lp .hero-intro.gone { opacity: 0; transform: translateY(-14px); }
+.lp .hero-intro-name {
+  font-weight: 400; font-size: clamp(40px, 4.6vw, 62px); letter-spacing: -.5px;
+  color: var(--accent-deep); margin-top: 2px;
+  opacity: 0; animation: heroIntroName .9s .15s ease both;
+}
+.lp .hero-intro-sub {
+  font-size: 12.5px; letter-spacing: .18em; text-transform: uppercase; color: var(--muted);
+  opacity: 0; animation: heroIntroName .9s .4s ease both;
+}
+@keyframes heroIntroName { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+.lp.h3d-dark .hero-intro-name, .lp .h3d-dark .hero-intro-name { color: #f4f1fb; }
+
+/* 3D revela quando a espiral nasce (drawn) */
+.lp .hero-v2-3dslot { opacity: 0; transition: opacity .9s ease; }
+.lp .hero-v2-3dslot.d3d-in { opacity: 1; }
+
+@media (min-width: 1101px) {
+  .lp .hero-intro { left: 34%; }   /* centraliza sobre a espiral (stage deslocado) */
+}
+
+/* Intro v2 — um espiral só, nascendo do fim de "audere" (última letra e). */
+.lp .hero-intro-lockup { display: inline-flex; align-items: center; }
+.lp .hero-intro-name { font-size: clamp(44px, 5.2vw, 76px); }
+/* o espiral principal se encaixa no fim da palavra (tuck na "e") e cresce dela */
+.lp .hero-intro-spiral { margin-left: clamp(-26px, -1.6vw, -14px); margin-top: -8px; }
+/* 3D revela só quando a intro sai (exploded) — evita o segundo espiral */
+.lp .h3d-exploded .hero-v2-3dslot { opacity: 1; }
+
+/* o espiral grande (3D) nasce logo após o nome (d3d-in em ~0,9s) */
+.lp .hero-v2-3dslot.d3d-in { opacity: 1; }
+
+/* Mobile/tablet (<=1100px): layout empilhado — o 3D (e a intro) ocupam a metade
+   de cima; a copy vai para a metade de baixo (regra do CSS portado). Assim as
+   cenas de cada fase aparecem no mobile, sem sobrepor o texto. */
+@media (max-width: 1100px) {
+  .lp .hero-v2-3dslot, .lp .hero-intro { top: 0; bottom: 49%; left: 0; right: 0; }
+}
+
+/* No mobile o modo dark NÃO escurece o header inteiro: só a cena 3D (topo) é
+   escura; a copy (metade de baixo) fica sobre o fundo claro, com texto escuro
+   (o CSS portado reseta as vars da copy). Sem isto, texto escuro sobre fundo
+   escuro = ilegível no mobile. */
+@media (max-width: 1100px) {
+  .lp .h3d-dark { background: var(--page); }
+}
+
+/* Mobile: a copy ganha um painel de fundo claro sólido, garantindo texto legível
+   mesmo que a cena 3D escura fique atrás. Sombra no topo funde com o painel 3D. */
+@media (max-width: 1100px) {
+  .lp .h3d-copy {
+    background: var(--page);
+    box-shadow: 0 -26px 34px -12px var(--page);
+    border-radius: 20px 20px 0 0;
+  }
+  /* garante que o slot 3D fica ATRÁS da copy */
+  .lp .hero-v2-3dslot { z-index: 0; }
+  .lp .h3d-copy { z-index: 5; }
+}
+
+/* Mobile: sem a máscara radial no 3D (deixava as cenas claras "vazadas"/
+   transparentes no topo). O 3D preenche a metade de cima sólido; a costura com
+   a copy fica na sombra do painel claro dela. */
+@media (max-width: 1100px) {
+  .lp .hero3d-stage, .lp .hero-ambient-canvas {
+    -webkit-mask-image: none; mask-image: none;
+  }
+}
