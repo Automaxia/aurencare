@@ -20,9 +20,10 @@ export function Hero3D({ sceneKey }: { sceneKey: string }) {
   const [fallback, setFallback] = useState<boolean | null>(null)
 
   useEffect(() => {
+    // 3D habilitado também no mobile (o layout empilhado do design espera as cenas
+    // de cada fase). Só cai no fallback se não houver WebGL ou movimento reduzido.
     const reduce = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
-    const small = window.matchMedia?.('(max-width: 760px)').matches
-    if (reduce || small || !webglOk()) { setFallback(true); return }
+    if (reduce || !webglOk()) { setFallback(true); return }
 
     let cancelled = false
     ;(async () => {

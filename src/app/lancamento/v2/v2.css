@@ -109,7 +109,7 @@
    copy à esquerda. O slot é o container que o engine e o canvas de fallback
    medem, então deslocá-lo move os dois. Abaixo de 900px a copy empilha/usa
    fallback e o 3D ocupa a largura toda. */
-@media (min-width: 900px) {
+@media (min-width: 1101px) {
   .lp .hero-v2-3dslot { left: 34%; }
 }
 
@@ -129,7 +129,7 @@
 }
 .lp.h3d-dark .h3d-cycle-path, .lp .h3d-dark .h3d-cycle-path { stroke: rgba(185,166,245,.42); }
 @keyframes h3dcycleflow { to { stroke-dashoffset: -11; } }
-@media (max-width: 899px) { .lp .h3d-cycle { display: none; } }
+@media (max-width: 1100px) { .lp .h3d-cycle, .lp .h3d-orbit { display: none; } }
 
 /* Hero — modo escuro (estado "Conectar"): escurece o HEADER inteiro. No original
    o stage fullscreen fazia o fundo escuro; como deslocamos o 3D pra direita, sem
@@ -147,7 +147,7 @@
 /* Intro "Audere" no CENTRO da espiral: a espiral está no meio do stage (que
    deslocamos para left:34%), então o intro acompanha o stage no desktop —
    assim o texto cai sobre o símbolo, não à esquerda dele. */
-@media (min-width: 900px) {
+@media (min-width: 1101px) {
   .lp .h3d-intro { left: 34%; padding-top: 0; }
 }
 
@@ -203,7 +203,7 @@
 .lp .hero-v2-3dslot { opacity: 0; transition: opacity .9s ease; }
 .lp .hero-v2-3dslot.d3d-in { opacity: 1; }
 
-@media (min-width: 900px) {
+@media (min-width: 1101px) {
   .lp .hero-intro { left: 34%; }   /* centraliza sobre a espiral (stage deslocado) */
 }
 
@@ -217,3 +217,18 @@
 
 /* o espiral grande (3D) nasce logo após o nome (d3d-in em ~0,9s) */
 .lp .hero-v2-3dslot.d3d-in { opacity: 1; }
+
+/* Mobile/tablet (<=1100px): layout empilhado — o 3D (e a intro) ocupam a metade
+   de cima; a copy vai para a metade de baixo (regra do CSS portado). Assim as
+   cenas de cada fase aparecem no mobile, sem sobrepor o texto. */
+@media (max-width: 1100px) {
+  .lp .hero-v2-3dslot, .lp .hero-intro { top: 0; bottom: 49%; left: 0; right: 0; }
+}
+
+/* No mobile o modo dark NÃO escurece o header inteiro: só a cena 3D (topo) é
+   escura; a copy (metade de baixo) fica sobre o fundo claro, com texto escuro
+   (o CSS portado reseta as vars da copy). Sem isto, texto escuro sobre fundo
+   escuro = ilegível no mobile. */
+@media (max-width: 1100px) {
+  .lp .h3d-dark { background: var(--page); }
+}
