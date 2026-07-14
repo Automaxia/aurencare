@@ -187,7 +187,7 @@ export function ModulesSection() {
   const kindClass = (k: string) => 'k-' + k.normalize('NFD').replace(/[^a-z]/gi, '')
   return (
     <Section id="plataforma">
-      <Eyebrow color="var(--sage)">Integrado, não espalhado</Eyebrow>
+      <Eyebrow color="var(--sage-text)">Integrado, não espalhado</Eyebrow>
       <Display size="clamp(30px,3.9vw,54px)" style={{ marginTop: 18, maxWidth: 980 }}>
         Tudo o que você precisa para cuidar do consultório. Tudo o que faltava para <em style={{ color: 'var(--accent)' }}>acompanhar o tratamento.</em>
       </Display>

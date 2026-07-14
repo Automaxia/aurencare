@@ -14,7 +14,7 @@ export function ProblemSection() {
     <Section id="problema" tint>
       <div className="prob-grid">
         <div>
-          <Eyebrow color="var(--rose)">O problema</Eyebrow>
+          <Eyebrow color="var(--rose-text)">O problema</Eyebrow>
           <Display size="clamp(32px,4.2vw,58px)" style={{ marginTop: 20, maxWidth: 760 }}>
             A terapia acontece ao longo do tempo. As ferramentas até então, <em style={{ color: 'var(--accent)' }}>analisavam somente uma sessão por vez.</em>
           </Display>
