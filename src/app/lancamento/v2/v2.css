@@ -232,3 +232,16 @@
 @media (max-width: 1100px) {
   .lp .h3d-dark { background: var(--page); }
 }
+
+/* Mobile: a copy ganha um painel de fundo claro sólido, garantindo texto legível
+   mesmo que a cena 3D escura fique atrás. Sombra no topo funde com o painel 3D. */
+@media (max-width: 1100px) {
+  .lp .h3d-copy {
+    background: var(--page);
+    box-shadow: 0 -26px 34px -12px var(--page);
+    border-radius: 20px 20px 0 0;
+  }
+  /* garante que o slot 3D fica ATRÁS da copy */
+  .lp .hero-v2-3dslot { z-index: 0; }
+  .lp .h3d-copy { z-index: 5; }
+}
