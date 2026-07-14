@@ -48,11 +48,16 @@ export function Hero3D({ sceneKey }: { sceneKey: string }) {
     }
   }, [])
 
-  // segue o fluxo de cenas dirigido pelo pai
+  // segue o fluxo de cenas dirigido pelo pai. No mobile (<=1100px) remapeia as
+  // cenas ESCURAS para equivalentes claras — o engine renderiza tudo em modo
+  // claro (partículas escuras em fundo claro, testado), evitando os fundos
+  // escuros que ficavam estranhos no layout empilhado.
   useEffect(() => {
-    if (fallback === false && apiRef.current?.goTo && sceneKey) {
-      try { apiRef.current.goTo(sceneKey) } catch {}
-    }
+    if (fallback !== false || !apiRef.current?.goTo || !sceneKey) return
+    const DARK_TO_LIGHT: Record<string, string> = { temas: 'sessoes', evolucao: 'objetivos', video: 'prontuario' }
+    const mobile = window.matchMedia?.('(max-width: 1100px)').matches
+    const key = mobile ? (DARK_TO_LIGHT[sceneKey] || sceneKey) : sceneKey
+    try { apiRef.current.goTo(key) } catch {}
   }, [sceneKey, fallback])
 
   return (
