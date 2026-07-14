@@ -5,6 +5,7 @@
 import { Nav } from './v2/nav'
 import { Hero } from './v2/hero'
 import { ProblemSection, ThesisSection } from './v2/sections-thesis'
+import { ModulesSection, ConvergenceSection } from './v2/sections-modules'
 import { ListaEsperaForm } from './ListaEsperaForm'
 import { Spiral } from './v2/core'
 
@@ -15,17 +16,10 @@ export default function LancamentoPage() {
       <Hero />
       <ProblemSection />
       <ThesisSection />
+      <ModulesSection />
+      <ConvergenceSection />
 
-      {/* Placeholder das seções restantes (Módulos, Convergência, Privacidade,
-          Manifesto, Trust) — próximas etapas da Fase 2 */}
-      <section id="plataforma" className="wrap" style={{ padding: 'clamp(60px,8vw,110px) 0', textAlign: 'center' }}>
-        <div style={{ fontSize: 13, letterSpacing: '.14em', textTransform: 'uppercase', color: 'var(--muted)', fontWeight: 600 }}>
-          Em construção
-        </div>
-        <p className="serif" style={{ fontSize: 'clamp(24px,3vw,34px)', color: 'var(--ink-soft)', marginTop: 14, maxWidth: 620, marginInline: 'auto', lineHeight: 1.25 }}>
-          Os módulos, o grafo semântico e privacidade chegam nas próximas etapas.
-        </p>
-      </section>
+      {/* Restam: Privacidade, Manifesto, Trust — próxima etapa da Fase 2 */}
 
       {/* CTA / waitlist real (backend) */}
       <section id="acesso" className="lp-acesso">
