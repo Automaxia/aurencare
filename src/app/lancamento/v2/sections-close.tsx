@@ -1,7 +1,7 @@
 'use client'
 /* Seções D — Privacidade · Manifesto (curado P2) · Confiança · Footer. */
 import React from 'react'
-import { Section, Eyebrow, Display, Spiral, Wordmark, useInView, useRaf } from './core'
+import { Section, Eyebrow, Display, Spiral, Wordmark, useInView } from './core'
 
 const PRIVACY = [
   { t: 'AES-256-GCM em repouso · TLS 1.3 em trânsito', d: 'Transcrições, resumos e notas clínicas criptografados. A chave não é acessível pelo painel, só pelo runtime do servidor.' },
@@ -52,27 +52,28 @@ export function PrivacySection() {
 }
 
 /* P2 — Manifesto enxugado: 1 setup comprimido + 2 fechos únicos (sem repetir a
-   tese já dita em Problema/Tese/Convergência). Termina na linha mais forte. */
-const MANIFESTO = [
-  'A terapia acontece ao longo do tempo — mas cada ferramenta ainda trata a sessão como um evento isolado.',
-  'A continuidade do cuidado não deveria depender só da memória de ninguém.',
-  'O paciente nunca foi uma sessão. Sempre foi uma história.',
+   tese já dita). Animação: reveal SEQUENCIAL em scroll (linhas surgem de cima
+   pra baixo e ficam), com espinha à esquerda (fio da continuidade) e fecho em
+   destaque — fácil de acompanhar, ao contrário do destaque pulante anterior. */
+const MANIFESTO: React.ReactNode[] = [
+  <>A terapia acontece ao longo do tempo — mas cada ferramenta ainda trata a sessão como um <em>evento isolado</em>.</>,
+  <>A continuidade do cuidado não deveria depender só da <em>memória de ninguém</em>.</>,
+  <>O paciente nunca foi uma sessão. <em>Sempre foi uma história.</em></>,
 ]
 
 export function ManifestoSection() {
-  const [ref, vis] = useInView()
-  const t = useRaf(vis)
-  const hi = Math.floor((t / 2.4) % MANIFESTO.length)
+  const [ref, , seen] = useInView({ rootMargin: '0px 0px -22%' })
   return (
     <Section id="manifesto" dark>
-      <div className="mani">
-        <div className="mani-mark">
-          <Spiral size={52} sw={1.6} color="#b9a6f5" tip="#7fcdb8" />
+      <div className="maniv2" ref={ref as any}>
+        <div className="maniv2-mark">
+          <Spiral size={40} sw={1.6} color="#b9a6f5" tip="#7fcdb8" />
           <span>Por que a Audere existe</span>
         </div>
-        <div className="mani-lines" ref={ref as any}>
+        <div className={'maniv2-lines' + (seen ? ' in' : '')}>
           {MANIFESTO.map((m, i) => (
-            <p key={i} className={'mani-line serif' + (i === hi ? ' on' : '')}>{m}</p>
+            <p key={i} className={'maniv2-line serif' + (i === MANIFESTO.length - 1 ? ' last' : '')}
+              style={{ transitionDelay: (0.1 + i * 0.6) + 's' }}>{m}</p>
           ))}
         </div>
       </div>

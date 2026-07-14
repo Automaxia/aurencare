@@ -150,3 +150,31 @@
 @media (min-width: 900px) {
   .lp .h3d-intro { left: 34%; padding-top: 0; }
 }
+
+/* Manifesto v2 — reveal sequencial (fácil de acompanhar), espinha da continuidade
+   à esquerda, fecho em destaque. Substitui o destaque "pulante" anterior. */
+.lp .maniv2 { max-width: 920px; margin: 0 auto; }
+.lp .maniv2-mark {
+  display: inline-flex; align-items: center; gap: 14px; margin-bottom: 52px;
+  font-size: 12.5px; letter-spacing: .16em; text-transform: uppercase; font-weight: 600;
+  color: rgba(233,228,251,.55);
+}
+.lp .maniv2-lines {
+  display: flex; flex-direction: column; gap: clamp(26px, 3vw, 40px);
+  border-left: 1px solid rgba(185,166,245,.22);
+  padding-left: clamp(22px, 3vw, 44px);
+}
+.lp .maniv2-line {
+  font-family: var(--f-display); font-weight: 300; letter-spacing: -.5px;
+  font-size: clamp(24px, 3.4vw, 44px); line-height: 1.24;
+  color: rgba(233,228,251,.5);
+  opacity: 0; transform: translateY(18px);
+  transition: opacity 1s ease, transform 1s ease, color 1s ease;
+}
+.lp .maniv2-line em { font-style: italic; color: #b9a6f5; }
+.lp .maniv2-lines.in .maniv2-line { opacity: 1; transform: none; }
+/* fecho: maior, mais claro, o clímax da leitura */
+.lp .maniv2-line.last {
+  color: #f4f1fb; font-size: clamp(30px, 4.6vw, 60px); line-height: 1.16; margin-top: 6px;
+}
+.lp .maniv2-line.last em { color: #c9b8fb; }
