@@ -21,13 +21,23 @@ const min = (ms: number) => (ms / 60000)
 const pct = (n: number, d: number) => (d > 0 ? (n / d) * 100 : 0)
 
 async function main() {
+  // Por padrão EXCLUI pacientes demo (dados sintéticos não contaminam o gate real).
+  // `npm run relatorio:silencio -- --demo` mostra SÓ os sintéticos (pra ver o pipeline).
+  const soDemo = process.argv.includes('--demo')
+  const filtroDemo = soDemo ? 'p.demo = TRUE' : 'p.demo = FALSE'
   const { rows } = await db.query<{ id: string; stats: Stats }>(
-    `SELECT id, transcricao_stats AS stats FROM sessoes
-      WHERE transcricao_stats IS NOT NULL AND (transcricao_stats->>'audioMs')::numeric > 0
-      ORDER BY data_hora DESC`)
+    `SELECT s.id, s.transcricao_stats AS stats FROM sessoes s
+       JOIN pacientes p ON p.id = s.paciente_id
+      WHERE s.transcricao_stats IS NOT NULL AND (s.transcricao_stats->>'audioMs')::numeric > 0
+        AND ${filtroDemo}
+      ORDER BY s.data_hora DESC`)
+
+  if (soDemo) console.log('⚠️  MODO --demo: dados SINTÉTICOS do paciente de demonstração. NÃO usar pra decidir cortes.')
 
   if (!rows.length) {
-    console.log('Nenhuma sessão com métricas ainda. Rode após sessões encerrarem pós-deploy da 040.')
+    console.log(soDemo
+      ? 'Nenhum paciente demo com métricas. Rode criarPacienteDemo primeiro.'
+      : 'Nenhuma sessão real com métricas ainda. Rode após sessões encerrarem pós-deploy da 040.')
     await db.end(); return
   }
 

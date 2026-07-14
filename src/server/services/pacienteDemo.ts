@@ -209,16 +209,28 @@ export async function criarPacienteDemo(psicologoId: string): Promise<string> {
       humor: { estado: a.humorEstado },
       risco: { autolesao: 'lo', ideacao: 'lo', plano: 'lo' },
     }
+    // Métricas de silêncio SINTÉTICAS (só demo) — derivadas do ritmo do paciente:
+    // quem falou mais tem mais speech e menos silêncio. A borda (pré/pós fala)
+    // varia por sessão. Marcado via pacientes.demo=TRUE; o relatório real EXCLUI demo.
+    const audioMs = 50 * 60 * 1000
+    const falaShare = Math.min(0.72, Math.max(0.28, (a.ritmoPac / 100) * 0.9))
+    const transcricaoStats = {
+      audioMs,
+      speechMs: Math.round(audioMs * falaShare * 0.75),
+      turnos: Math.max(30, Math.round(prosa[i].transcricao.split('\n').filter(Boolean).length / 2)),
+      primeiroMs: 60_000 + (i % 3) * 40_000,           // 1–3min ociosos pré-fala
+      ultimoMs: audioMs - (60_000 + (i % 2) * 45_000), // 1–1,75min ociosos pós-fala
+    }
     await db.query(
       `INSERT INTO sessoes
          (psicologo_id, paciente_id, numero, data_hora, duracao_min, modalidade,
           status, pagamento_status, pagamento_metodo, valor,
-          assinada, assinatura_timestamp, resumo_ia, transcricao_texto, indicadores)
+          assinada, assinatura_timestamp, resumo_ia, transcricao_texto, indicadores, transcricao_stats)
        VALUES ($1,$2,$3,$4,50,'online','concluida','pago','pix',220,
-               TRUE,$5,$6,$7,$8)`,
+               TRUE,$5,$6,$7,$8,$9)`,
       [psicologoId, pacienteId, i + 1, dt.toISOString(),
        dt.toISOString(), encrypt(prosa[i].resumo), encrypt(prosa[i].transcricao),
-       JSON.stringify(indicadores)],
+       JSON.stringify(indicadores), JSON.stringify(transcricaoStats)],
     )
   }
 
