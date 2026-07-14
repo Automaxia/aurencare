@@ -245,3 +245,12 @@
   .lp .hero-v2-3dslot { z-index: 0; }
   .lp .h3d-copy { z-index: 5; }
 }
+
+/* Mobile: sem a máscara radial no 3D (deixava as cenas claras "vazadas"/
+   transparentes no topo). O 3D preenche a metade de cima sólido; a costura com
+   a copy fica na sombra do painel claro dela. */
+@media (max-width: 1100px) {
+  .lp .hero3d-stage, .lp .hero-ambient-canvas {
+    -webkit-mask-image: none; mask-image: none;
+  }
+}
