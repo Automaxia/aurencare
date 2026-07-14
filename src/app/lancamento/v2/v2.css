@@ -143,3 +143,10 @@
   -webkit-mask-image: radial-gradient(78% 82% at 52% 50%, #000 52%, transparent 100%);
           mask-image: radial-gradient(78% 82% at 52% 50%, #000 52%, transparent 100%);
 }
+
+/* Intro "Audere" no CENTRO da espiral: a espiral está no meio do stage (que
+   deslocamos para left:34%), então o intro acompanha o stage no desktop —
+   assim o texto cai sobre o símbolo, não à esquerda dele. */
+@media (min-width: 900px) {
+  .lp .h3d-intro { left: 34%; padding-top: 0; }
+}
