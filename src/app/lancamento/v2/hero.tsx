@@ -5,12 +5,13 @@
    (prefers-reduced-motion / sem-WebGL / mobile). */
 import React from 'react'
 import { Spiral } from './core'
+import { Hero3D } from './hero-3d'
 
 export function Hero() {
   return (
     <header id="topo" className="hero-v2">
-      {/* slot pra camada 3D ambiente (adicionada na fase do Three.js) */}
-      <div className="hero-v2-3dslot" aria-hidden="true" />
+      {/* camada 3D (Three.js) com fallback canvas — ambiência atrás do conteúdo */}
+      <div className="hero-v2-3dslot" aria-hidden="true"><Hero3D /></div>
       <div className="wrap hero-v2-inner">
         <div className="hero-v2-kicker">
           <Spiral size={22} sw={1.8} />
