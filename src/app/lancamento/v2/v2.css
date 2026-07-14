@@ -206,3 +206,11 @@
 @media (min-width: 900px) {
   .lp .hero-intro { left: 34%; }   /* centraliza sobre a espiral (stage deslocado) */
 }
+
+/* Intro v2 — um espiral só, nascendo do fim de "audere" (última letra e). */
+.lp .hero-intro-lockup { display: inline-flex; align-items: center; }
+.lp .hero-intro-name { font-size: clamp(44px, 5.2vw, 76px); }
+/* o espiral principal se encaixa no fim da palavra (tuck na "e") e cresce dela */
+.lp .hero-intro-spiral { margin-left: clamp(-26px, -1.6vw, -14px); margin-top: -8px; }
+/* 3D revela só quando a intro sai (exploded) — evita o segundo espiral */
+.lp .h3d-exploded .hero-v2-3dslot { opacity: 1; }

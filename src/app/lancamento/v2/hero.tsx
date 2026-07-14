@@ -25,8 +25,14 @@ function HeroIntro({ exploded }: { exploded: boolean }) {
   }, [])
   return (
     <div className={'hero-intro' + (exploded ? ' gone' : '')} aria-hidden="true">
-      <div className="hero-intro-spiral"><DrawSpiral size={132} p={p} sw={1.5} color="var(--accent)" tip="var(--sage)" /></div>
-      <div className="hero-intro-name serif">audere</div>
+      {/* lockup: a palavra "audere" e o espiral principal que NASCE do fim dela
+          (a última letra "e" flui para dentro do espiral, que se desenha) */}
+      <div className="hero-intro-lockup">
+        <span className="hero-intro-name serif">audere</span>
+        <span className="hero-intro-spiral">
+          <DrawSpiral size={168} p={p} sw={1.5} color="var(--accent)" tip="var(--sage)" />
+        </span>
+      </div>
       <div className="hero-intro-sub">inteligência clínica longitudinal</div>
     </div>
   )
@@ -62,18 +68,17 @@ const CYCLE_D = STATES.map((st, i) => (i ? 'L' : 'M') + parseFloat(st.at.left) +
 
 export function Hero() {
   const [idx, setIdx] = useState(0)
-  const [drawn, setDrawn] = useState(false)     // espiral terminou de nascer → revela o 3D
-  const [exploded, setExploded] = useState(false) // intro sai, copy revela, fluxo começa
+  const [exploded, setExploded] = useState(false) // intro sai, copy revela, 3D+fluxo começam
   const reduce = useRef(false)
   useEffect(() => { reduce.current = !!window.matchMedia?.('(prefers-reduced-motion: reduce)').matches }, [])
 
-  // Coreografia da intro: "audere" aparece → espiral nasce (~2,3s) → 3D assume a
-  // espiral → explode (~3,7s): intro sai, copy revela, fluxo dos 6 passos começa.
+  // Intro: "audere" aparece e o espiral (único) nasce dele. Depois "explode": a
+  // intro sai, a copy revela e o 3D entra JÁ no fluxo (sem mostrar sua própria
+  // cena de espiral — senão apareceriam dois espirais).
   useEffect(() => {
     const r = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
-    const t1 = setTimeout(() => setDrawn(true), r ? 0 : 2300)
-    const t2 = setTimeout(() => setExploded(true), r ? 0 : 3700)
-    return () => { clearTimeout(t1); clearTimeout(t2) }
+    const t = setTimeout(() => setExploded(true), r ? 0 : 3600)
+    return () => clearTimeout(t)
   }, [])
 
   // auto-ciclo: reprograma ao mudar o estado, com o dwell do estado atual
@@ -87,13 +92,13 @@ export function Hero() {
 
   return (
     <header id="topo" className={'h3d' + (s.dark ? ' h3d-dark' : '') + ' h3d-live' + (exploded ? ' h3d-exploded' : '')}>
-      {/* 3D só aparece quando a espiral "nasce" (drawn); antes segue a cena spiral,
-          depois o fluxo dos 6 passos */}
-      <div className={'hero-v2-3dslot' + (drawn ? ' d3d-in' : '')} aria-hidden="true">
-        <Hero3D sceneKey={exploded ? s.scene : 'spiral'} />
+      {/* 3D entra só quando a intro sai (exploded), já no fluxo — sem a cena
+          'spiral' do engine, pra não duplicar o espiral da intro */}
+      <div className="hero-v2-3dslot" aria-hidden="true">
+        <Hero3D sceneKey={s.scene} />
       </div>
 
-      {/* intro: "audere" aparece e a espiral nasce dele */}
+      {/* intro: "audere" aparece e o espiral (único) nasce dele */}
       <HeroIntro exploded={exploded} />
 
       <div className="h3d-copy">
