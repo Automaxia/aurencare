@@ -1,0 +1,67 @@
+/* Landing v2 — adições/curadoria (P1–P6), escopadas sob .lp.
+   Complementa o landing-v2.css portado do handoff. */
+
+/* Hero v2 — clareza acima da dobra (P1) */
+.lp .hero-v2 {
+  position: relative; overflow: hidden;
+  min-height: 92vh; display: flex; align-items: center;
+  padding: 140px 0 90px;
+  background:
+    radial-gradient(1100px 620px at 72% 8%, rgba(106,78,200,.10), transparent 60%),
+    radial-gradient(900px 520px at 12% 92%, rgba(90,158,138,.08), transparent 60%),
+    var(--page);
+}
+.lp .hero-v2-3dslot { position: absolute; inset: 0; z-index: 0; pointer-events: none; }
+.lp .hero-v2-inner { position: relative; z-index: 1; max-width: 900px; }
+.lp .hero-v2-kicker {
+  display: inline-flex; align-items: center; gap: 10px; margin-bottom: 30px;
+  font-size: 13px; font-weight: 600; letter-spacing: .14em; text-transform: uppercase;
+  color: var(--accent);
+}
+.lp .hero-v2-title {
+  font-size: clamp(40px, 6vw, 76px); line-height: 1.04; letter-spacing: -1.2px;
+  color: var(--ink); text-wrap: balance; max-width: 15ch;
+}
+.lp .hero-v2-title em { font-style: italic; color: var(--accent); }
+.lp .hero-v2-sub {
+  font-size: clamp(17px, 1.6vw, 21px); line-height: 1.62; font-weight: 300;
+  color: var(--ink-soft); margin-top: 30px; max-width: 620px;
+}
+.lp .hero-v2-sub strong { font-weight: 600; color: var(--ink); }
+.lp .hero-v2-cta { display: flex; flex-wrap: wrap; gap: 14px; margin-top: 40px; }
+.lp .hero-v2-reassure { margin-top: 22px; font-size: 13.5px; color: var(--muted); }
+.lp .hero-v2-reassure strong { color: var(--sage); font-weight: 600; }
+
+/* Botões da landing (btn-lp — evita colisão com .btn do app) */
+.lp .btn-lp {
+  display: inline-flex; align-items: center; gap: 8px;
+  font-size: 15px; font-weight: 500; padding: 14px 26px; border-radius: 40px;
+  cursor: pointer; text-decoration: none; transition: transform .16s, box-shadow .16s, background .16s, border-color .16s;
+  white-space: nowrap;
+}
+.lp .btn-lp-primary {
+  background: var(--accent); color: #fff;
+  box-shadow: 0 10px 30px -8px rgba(106,78,200,.55);
+}
+.lp .btn-lp-primary:hover { transform: translateY(-2px); box-shadow: 0 16px 40px -10px rgba(106,78,200,.62); }
+.lp .btn-lp-ghost {
+  color: var(--accent); background: transparent; border: 1px solid rgba(106,78,200,.32);
+}
+.lp .btn-lp-ghost:hover { border-color: var(--accent); background: rgba(106,78,200,.06); }
+
+@media (max-width: 640px) {
+  .lp .hero-v2 { min-height: auto; padding: 120px 0 70px; }
+  .lp .hero-v2-cta .btn-lp { width: 100%; justify-content: center; }
+}
+
+/* P5 — respeita movimento reduzido: some com camadas de ambiência 3D */
+@media (prefers-reduced-motion: reduce) {
+  .lp .hero-v2-3dslot { display: none; }
+}
+
+/* Seção de acesso/waitlist (escura) */
+.lp .lp-acesso {
+  background: var(--night); color: #f4f1fb;
+  padding: clamp(80px, 10vw, 140px) 0;
+}
+.lp .lp-acesso em { font-style: italic; }

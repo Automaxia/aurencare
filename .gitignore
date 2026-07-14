@@ -20,3 +20,4 @@ local.yaml
 
 # settings local do Claude Code (contem tokens/PAT — nunca versionar)
 .claude/settings.local.json
+.landing-ref/
