@@ -28,11 +28,11 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
   const { rows } = await db.query<{
     id: string; numero: number; data_hora: string;
     paciente_id: string; psicologo_id: string;
-    transcricao_texto: string | null; resumo_ia: string | null;
+    transcricao_texto: string | null; resumo_ia: string | null; resumo_curto: string | null;
     indicadores: any;
   }>(
     `SELECT id, numero, data_hora, paciente_id, psicologo_id,
-            transcricao_texto, resumo_ia, indicadores
+            transcricao_texto, resumo_ia, resumo_curto, indicadores
        FROM sessoes WHERE id = $1 LIMIT 1`, [params.id],
   )
   const s = rows[0]
@@ -46,7 +46,7 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
     if (cached) return NextResponse.json({ text: cached, cached: true })
   }
 
-  const transcricao = tryDecrypt(s.transcricao_texto) ?? tryDecrypt(s.resumo_ia) ?? ''
+  const transcricao = tryDecrypt(s.transcricao_texto) ?? tryDecrypt(s.resumo_ia) ?? tryDecrypt(s.resumo_curto) ?? ''
   if (!transcricao) return NextResponse.json({ text: null })
 
   // Sessões anteriores assinadas (até 3 mais recentes).

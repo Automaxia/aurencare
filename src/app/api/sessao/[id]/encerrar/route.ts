@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { requirePsicologo } from '@/server/lib/auth'
-import { encerrarSessao, salvarResumoIA, buscarSessao, resumosAnteriores } from '@/server/services/sessoes'
-import { gerarResumoSessao, iaIndisponivel } from '@/server/lib/anthropic'
+import { encerrarSessao, salvarResumoCurto, buscarSessao } from '@/server/services/sessoes'
+import { gerarResumoCurto, iaIndisponivel } from '@/server/lib/anthropic'
 import { enviarConfirmacaoPosSessao } from '@/server/services/confirmacaoSessao'
 import { registrarCustoAssemblyEstimado } from '@/server/services/custos'
 import { log } from '@/server/lib/log'
@@ -26,15 +26,13 @@ export async function POST(req: Request, { params }: { params: { id: string } })
     log.err('encerrar', 'falha ao disparar confirmação', err),
   )
 
-  // Gera rascunho de resumo automaticamente (Anthropic + aiGuard).
+  // Resumo CURTO automático (modelo fast, barato). O laudo formal CFP (modelo forte)
+  // é gerado SOB DEMANDA em POST /api/sessao/[id]/laudo — não em toda sessão.
   const sessao = await buscarSessao(params.id)
-  // IDEMPOTÊNCIA: se o laudo já foi gerado (ex.: retry após timeout do nginx onde o
-  // servidor terminou e salvou, ou duplo-clique em "Encerrar"), devolve o existente
-  // em vez de regerar. Evita dupla cobrança do modelo forte (~R$0,27/laudo) E do
-  // custo de transcrição — protege a margem sem mudar a experiência (o retry queria
-  // justamente o laudo salvo).
-  if (sessao?.resumoIa) {
-    return NextResponse.json({ ok: true, resumo: sessao.resumoIa })
+  // IDEMPOTÊNCIA: se já há resumo curto (retry após timeout / duplo-clique), devolve
+  // o existente — evita dupla cobrança do resumo e da transcrição.
+  if (sessao?.resumoCurto) {
+    return NextResponse.json({ ok: true, resumo: sessao.resumoCurto })
   }
   if (sessao && transcricao.length > 40) {
     // Custo AssemblyAI. Se o cliente mandou a duração REAL transmitida (stats.audioMs),
@@ -45,25 +43,16 @@ export async function POST(req: Request, { params }: { params: { id: string } })
       estimado: segundosReais == null,
       psicologoId: sessao.psicologoId, sessaoId: sessao.id, pacienteId: sessao.pacienteId,
     }).catch(() => {})
-    // Laudos anteriores do paciente → "Avaliação do Progresso" compara de verdade.
     try {
-      const historico = await resumosAnteriores(sessao.psicologoId, sessao.pacienteId, sessao.numero)
-        .catch(() => [])
-      const resumo = await gerarResumoSessao(transcricao, { numero: sessao.numero, pacienteNome: sessao.pacienteNome, psicologoId: sessao.psicologoId, sessaoId: sessao.id, pacienteId: sessao.pacienteId }, historico)
-      // Se a IA está fora (sem crédito/erro), NÃO salva o placeholder como laudo —
-      // sinaliza pro front mostrar estado claro em vez de "[Não foi possível…]".
+      const resumo = await gerarResumoCurto(transcricao, { numero: sessao.numero, pacienteNome: sessao.pacienteNome, psicologoId: sessao.psicologoId, sessaoId: sessao.id, pacienteId: sessao.pacienteId })
       if (iaIndisponivel(resumo)) {
-        log.warn('encerrar', `IA indisponível ao gerar laudo sessao=${params.id} — laudo não salvo`)
+        log.warn('encerrar', `IA indisponível ao gerar resumo curto sessao=${params.id}`)
         return NextResponse.json({ ok: true, resumo: null, iaIndisponivel: true })
       }
-      await salvarResumoIA(params.id, resumo)
+      await salvarResumoCurto(params.id, resumo)
       return NextResponse.json({ ok: true, resumo })
     } catch (err) {
-      // Erro ou timeout ao gerar/salvar o laudo NÃO pode virar 500 (o cliente
-      // mostraria modal vazio sem aviso). Sinaliza indisponível; o laudo pode ter
-      // sido salvo no servidor mesmo após o 504 do nginx — o modal oferece "tentar
-      // carregar" (GET /resumo) pra buscá-lo.
-      log.err('encerrar', `falha ao gerar/salvar laudo sessao=${params.id}`, err)
+      log.err('encerrar', `falha ao gerar/salvar resumo curto sessao=${params.id}`, err)
       return NextResponse.json({ ok: true, resumo: null, iaIndisponivel: true })
     }
   }

@@ -48,6 +48,23 @@ export function PostSessionModal(p: Props) {
       setCarregandoLaudo(false)
     }
   }
+  // Laudo formal CFP sob demanda (modelo forte). O textarea começa com o resumo
+  // curto automático; este botão o substitui pelo laudo estruturado quando pedido.
+  const [gerandoLaudoFormal, setGerandoLaudoFormal] = useState(false)
+  const [laudoFormalGerado, setLaudoFormalGerado] = useState(false)
+  async function gerarLaudoFormal() {
+    if (gerandoLaudoFormal) return
+    setGerandoLaudoFormal(true); setLaudoMsg(null)
+    try {
+      const r = await fetch(`/api/sessao/${p.sessaoId}/laudo`, { method: 'POST' }).then(r => r.json()).catch(() => null)
+      if (r?.ok && r.resumo) { setResumo(r.resumo); setLaudoFormalGerado(true) }
+      else setLaudoMsg(r?.iaIndisponivel ? 'IA indisponível agora — tente em instantes.' : 'Não foi possível gerar o laudo.')
+    } catch {
+      setLaudoMsg('Falha ao gerar o laudo.')
+    } finally {
+      setGerandoLaudoFormal(false)
+    }
+  }
   const [nota, setNota] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -147,7 +164,15 @@ export function PostSessionModal(p: Props) {
           />
         )}
 
-        <Field label="Resumo (rascunho gerado · revise antes de assinar)">
+        {!laudoFormalGerado && resumo.trim() && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8, flexWrap: 'wrap' }}>
+            <span style={{ fontSize: 11.5, color: 'var(--muted)' }}>O texto abaixo é o resumo automático. Para o documento formal (CFP):</span>
+            <button className="btn ghost sm" onClick={gerarLaudoFormal} disabled={gerandoLaudoFormal} style={{ color: 'var(--accent)' }}>
+              {gerandoLaudoFormal ? 'Gerando laudo…' : '✦ Gerar laudo formal (CFP)'}
+            </button>
+          </div>
+        )}
+        <Field label={laudoFormalGerado ? 'Laudo formal (CFP) · revise antes de assinar' : 'Resumo da sessão (automático) · revise antes de assinar'}>
           <textarea value={resumo} onChange={e => setResumo(e.target.value)} rows={8} placeholder="Resumo da sessão…" />
         </Field>
 

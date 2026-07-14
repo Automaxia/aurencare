@@ -102,7 +102,7 @@ export default async function PacientePerfilPage({ params }: { params: { id: str
         WHERE paciente_id = $1 AND data_hora <= NOW()
         ORDER BY data_hora DESC LIMIT 1`, [params.id]).then(r => r.rows[0] ?? null),
     db.query<{ id: string; numero: number; data_hora: string; status: string; assinada: boolean; resumo_ia: string | null }>(
-      `SELECT id, numero, data_hora, status, assinada, resumo_ia
+      `SELECT id, numero, data_hora, status, assinada, COALESCE(resumo_ia, resumo_curto) AS resumo_ia
          FROM sessoes WHERE paciente_id = $1
          AND status IN ('concluida','no_show','cancelada','confirmada','em_curso','agendada')
         ORDER BY data_hora DESC LIMIT 12`, [params.id]).then(r => r.rows),

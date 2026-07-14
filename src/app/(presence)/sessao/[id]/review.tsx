@@ -62,8 +62,14 @@ export function SessionReview({ sessao }: { sessao: Sessao }) {
   const [notaMsg, setNotaMsg] = useState<string | null>(null)
   const [confirmarVazio, setConfirmarVazio] = useState(false)
   const [copiaStatus, setCopiaStatus] = useState<'idle' | 'ok' | 'erro'>('idle')
+  // Laudo formal CFP — gerado sob demanda (modelo forte). No encerramento só há o
+  // resumo curto automático; o laudo estruturado só é criado quando o psicólogo pede.
+  const [gerandoLaudo, setGerandoLaudo] = useState(false)
+  const [laudoErro, setLaudoErro] = useState<string | null>(null)
+  const [laudoGerado, setLaudoGerado] = useState(false)
   const assinada = sessao.assinada || assinadoAgora
   const podeAssinar = sessao.status === 'concluida' && !assinada
+  const temLaudoFormal = !!sessao.resumoIa || laudoGerado
   // Se a nota rápida ao vivo existe e difere da nota clínica salva, ela ficaria
   // escondida (a caixa pré-preenche com a clínica). Mostra read-only pra não sumir.
   const mostrarNotaRapida = notaRapida.trim().length > 0 && notaRapida !== (sessao.notaClinica ?? '')
@@ -102,6 +108,24 @@ export function SessionReview({ sessao }: { sessao: Sessao }) {
       setCopiaStatus('erro')  // contexto inseguro (http) ou permissão negada
     } finally {
       setTimeout(() => setCopiaStatus('idle'), 2000)
+    }
+  }
+
+  async function gerarLaudo() {
+    setGerandoLaudo(true); setLaudoErro(null)
+    try {
+      const res = await fetch(`/api/sessao/${sessao.id}/laudo`, { method: 'POST' })
+      const json = await res.json().catch(() => ({} as any))
+      if (res.ok && json.resumo) {
+        setResumoEdit(json.resumo)   // vira o rascunho editável pro fluxo de assinatura
+        setLaudoGerado(true)
+      } else {
+        setLaudoErro(json.iaIndisponivel ? 'IA indisponível agora — tente novamente em instantes.' : 'Não foi possível gerar o laudo.')
+      }
+    } catch {
+      setLaudoErro('Falha ao gerar o laudo.')
+    } finally {
+      setGerandoLaudo(false)
     }
   }
 
@@ -187,13 +211,35 @@ export function SessionReview({ sessao }: { sessao: Sessao }) {
             <Section title="Registrar sessão">
               <div style={{ fontSize: 12.5, color: 'var(--ink-soft)', marginBottom: 12, lineHeight: 1.5 }}>
                 Esta sessão está <strong style={{ color: 'var(--amber)' }}>pendente de registro</strong>.
-                Revise o resumo e <strong>assine</strong> para concluir — é isto que resolve a
+                Revise e <strong>assine</strong> para concluir — é isto que resolve a
                 notificação “Registrar — {sessao.pacienteNome}”.
               </div>
-              <label style={lbl}>Laudo da sessão (rascunho em Markdown · revise antes de assinar)</label>
+
+              {/* Resumo curto automático — sempre presente, leitura rápida */}
+              {sessao.resumoCurto && (
+                <div style={{ marginBottom: 14, padding: '12px 14px', background: 'var(--surface)', borderRadius: 8, border: '1px solid var(--border)' }}>
+                  <label style={lbl}>Resumo da sessão (automático)</label>
+                  <div style={{ fontSize: 13, color: 'var(--ink-soft)', lineHeight: 1.55 }}><Markdown text={sessao.resumoCurto} /></div>
+                </div>
+              )}
+
+              {/* Laudo formal CFP sob demanda (modelo forte). Opcional: preenche o
+                  rascunho abaixo. O psicólogo também pode escrever/assinar manualmente. */}
+              {!temLaudoFormal && (
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12, flexWrap: 'wrap' }}>
+                  <span style={{ fontSize: 11.5, color: 'var(--muted)' }}>Precisa do documento formal (CFP / pedido do paciente)?</span>
+                  <button className="btn ghost sm" onClick={gerarLaudo} disabled={gerandoLaudo}
+                    style={{ display: 'inline-flex', alignItems: 'center', gap: 5, color: 'var(--accent)' }}>
+                    <Sparkles size={13} /> {gerandoLaudo ? 'Gerando laudo…' : 'Gerar laudo formal (CFP)'}
+                  </button>
+                  {laudoErro && <span style={{ color: 'var(--rose)', fontSize: 12 }}>{laudoErro}</span>}
+                </div>
+              )}
+
+              <label style={lbl}>{temLaudoFormal ? 'Laudo formal (CFP · revise antes de assinar)' : 'Registro da sessão (rascunho em Markdown · ou gere o laudo formal acima)'}</label>
               <textarea
                 value={resumoEdit} onChange={e => setResumoEdit(e.target.value)} rows={18}
-                placeholder="Laudo estruturado da sessão (sem diagnóstico DSM/ICD)…"
+                placeholder="Registro da sessão (sem diagnóstico DSM/ICD)…"
                 style={{ ...ta, fontFamily: 'var(--font-mono), ui-monospace, monospace', fontSize: 12.5 }}
               />
               <div style={{ fontSize: 11.5, color: 'var(--muted)', marginTop: 8 }}>

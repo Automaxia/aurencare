@@ -107,3 +107,29 @@ Gere o laudo estruturado da sessão #${contexto.numero} de ${contexto.pacienteNo
     psicologoId: contexto.psicologoId, sessaoId: contexto.sessaoId, pacienteId: contexto.pacienteId,
   })
 }
+
+const RESUMO_CURTO_PROMPT = `Você resume sessões de psicoterapia para o registro rápido do psicólogo (não é laudo formal).
+Escreva em português (pt-BR), 3 a 5 frases, prosa corrida, factual e sóbrio. Cubra: a demanda/tema central da sessão, o arco do que foi trabalhado, e o estado do paciente ao final.
+Linguagem OBSERVACIONAL, nunca diagnóstica ou categórica ("houve relato de...", "observou-se tendência a...", nunca "o paciente catastrofiza"). Não invente o que não está na transcrição. Sem títulos, sem listas — só o parágrafo.`
+
+/**
+ * Resumo CURTO da sessão (modelo fast, barato) — gerado automaticamente no
+ * encerramento pra conveniência imediata e contexto longitudinal. NÃO é o laudo
+ * formal (CFP): esse é gerado sob demanda por `gerarResumoSessao` (modelo forte).
+ */
+export async function gerarResumoCurto(
+  transcricao: string,
+  contexto: { numero: number; pacienteNome: string; psicologoId: string; sessaoId: string; pacienteId: string },
+): Promise<string> {
+  const user = `<session numero="${contexto.numero}">
+  <transcript>
+${transcricao.slice(0, 20_000)}
+  </transcript>
+</session>
+
+Resuma a sessão #${contexto.numero} de ${contexto.pacienteNome} em 3–5 frases.`
+  return chat(RESUMO_CURTO_PROMPT, [{ role: 'user', content: user }], {
+    maxTokens: 400, scope: 'resumo.curto', model: 'fast',
+    psicologoId: contexto.psicologoId, sessaoId: contexto.sessaoId, pacienteId: contexto.pacienteId,
+  })
+}
