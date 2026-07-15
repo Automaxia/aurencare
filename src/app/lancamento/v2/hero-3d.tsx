@@ -1,11 +1,14 @@
 'use client'
-/* Hero 3D — monta o engine de partículas Three.js (portado do handoff) como
-   camada de ambiência atrás do conteúdo do hero. O PAI (Hero) dirige o fluxo de
-   cenas via `sceneKey`; aqui só chamamos engine.goTo quando ela muda. Detecta
-   WebGL + reduced-motion + mobile; sem suporte, cai no HeroAmbient (canvas 2D).
-   Qualquer erro no engine também cai no fallback — a landing nunca quebra. */
+/* Hero 3D — monta o engine de partículas Three.js (portado do handoff) e, sobre
+   ele, a camada de overlay HTML (âncoras projetadas em 3D + cards + ticker +
+   dashboard). O PAI (Hero) dirige o fluxo de cenas via `seqKey`; aqui chamamos
+   engine.goTo quando muda e alimentamos os overlays com a cena ativa.
+   Detecta WebGL + reduced-motion; sem suporte, cai no HeroAmbient (canvas 2D) —
+   a landing nunca quebra. Full-bleed: o stage e a camada de âncoras ocupam o
+   header inteiro (inset:0), então a projeção 3D→tela das âncoras fica alinhada. */
 import React, { useRef, useState, useEffect } from 'react'
 import { HeroAmbient } from './hero-ambient'
+import { H3DAnchors, TemasQuoteTicker, ObjDashboard } from './hero-anchors'
 
 function webglOk(): boolean {
   try {
@@ -14,14 +17,14 @@ function webglOk(): boolean {
   } catch { return false }
 }
 
-export function Hero3D({ sceneKey }: { sceneKey: string }) {
+export function Hero3D({ seqKey }: { seqKey: string }) {
   const stageRef = useRef<HTMLDivElement>(null)
+  const anchorsHostRef = useRef<HTMLDivElement>(null)
   const apiRef = useRef<any>(null)
   const [fallback, setFallback] = useState<boolean | null>(null)
+  const [scenes, setScenes] = useState<any>(null)
 
   useEffect(() => {
-    // 3D habilitado também no mobile (o layout empilhado do design espera as cenas
-    // de cada fase). Só cai no fallback se não houver WebGL ou movimento reduzido.
     const reduce = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
     if (reduce || !webglOk()) { setFallback(true); return }
 
@@ -33,9 +36,8 @@ export function Hero3D({ sceneKey }: { sceneKey: string }) {
           import('./hero3d/scenes'),
         ])
         if (cancelled || !stageRef.current || !SCENES) { setFallback(true); return }
-        // mobile → modo claro forçado (todas as cenas claras, cada uma com sua forma)
-        const mobile = window.matchMedia?.('(max-width: 1100px)').matches
-        apiRef.current = mount(stageRef.current, SCENES, { light: !!mobile })
+        apiRef.current = mount(stageRef.current, SCENES)
+        setScenes(SCENES)
         setFallback(false)
       } catch (err) {
         console.error('[hero3d] falhou — usando fallback canvas', err)
@@ -50,18 +52,42 @@ export function Hero3D({ sceneKey }: { sceneKey: string }) {
     }
   }, [])
 
-  // segue o fluxo de cenas dirigido pelo pai. Cada fase mantém a SUA cena; no
-  // mobile o engine já renderiza tudo claro (opts.light no mount), então não há
-  // remap — Conectar/Evoluir/Videochamada mantêm as próprias formas, distintas.
+  // liga as âncoras HTML ao engine assim que ele e o DOM das âncoras existem
   useEffect(() => {
-    if (fallback !== false || !apiRef.current?.goTo || !sceneKey) return
-    try { apiRef.current.goTo(sceneKey) } catch {}
-  }, [sceneKey, fallback])
+    if (fallback !== false || !scenes || !apiRef.current?.attachAnchors || !anchorsHostRef.current) return
+    try { apiRef.current.attachAnchors(anchorsHostRef.current) } catch {}
+  }, [fallback, scenes])
+
+  // segue o fluxo de cenas dirigido pelo pai. O engine REJEITA goTo enquanto uma
+  // transição está em curso (retorna false) — se só chamássemos uma vez, o 3D
+  // ficaria travado na cena anterior enquanto o estado React já avançou (copy e
+  // engine dessincronizados). Então tentamos de novo até o engine aceitar, sempre
+  // mirando o seqKey atual — converge dentro da duração da transição.
+  useEffect(() => {
+    if (fallback !== false || !apiRef.current?.goTo || !seqKey) return
+    let tries = 0, timer: any
+    const attempt = () => {
+      let ok = false
+      try { ok = !!apiRef.current?.goTo?.(seqKey) } catch {}
+      if (!ok && tries++ < 40) timer = setTimeout(attempt, 250)
+    }
+    attempt()
+    return () => clearTimeout(timer)
+  }, [seqKey, fallback])
+
+  const live = fallback === false
 
   return (
     <>
-      <div ref={stageRef} className="hero3d-stage" aria-hidden="true" style={{ opacity: fallback === false ? 1 : 0 }} />
+      <div ref={stageRef} className="hero3d-stage" aria-hidden="true" style={{ opacity: live ? 1 : 0 }} />
       {fallback !== false && <HeroAmbient />}
+      {live && (
+        <>
+          <div ref={anchorsHostRef}>{scenes && <H3DAnchors scenes={scenes} />}</div>
+          <TemasQuoteTicker scenes={scenes} active={live && seqKey === 'temas'} />
+          <ObjDashboard active={live && seqKey === 'objetivos'} />
+        </>
+      )}
     </>
   )
 }
