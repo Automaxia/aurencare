@@ -790,6 +790,13 @@
 .lp .footer-links a:hover{ color:#b9a6f5; }
 .lp .footer-base{ display:flex; justify-content:space-between; padding-top:28px; font-size:14px; color:rgba(233,228,251,.45); flex-wrap:wrap; gap:10px; }
 
+/* CTAs de contato do rodapé — Instagram (ícone) + email (mailto) */
+.lp .footer-social{ display:flex; flex-direction:column; gap:14px; }
+.lp .footer-social-label{ font-size:12px; text-transform:uppercase; letter-spacing:.12em; font-weight:600; color:rgba(233,228,251,.42); margin-bottom:2px; }
+.lp .footer-social a{ display:inline-flex; align-items:center; gap:10px; color:rgba(233,228,251,.72); text-decoration:none; font-size:15px; transition:color .16s, transform .16s; }
+.lp .footer-social a:hover{ color:#b9a6f5; transform:translateX(2px); }
+.lp .footer-social a svg{ flex-shrink:0; }
+
 @media (prefers-reduced-motion: reduce){
   .lp .sec > .wrap{ opacity:1 !important; transform:none !important; }
   .lp *{ animation-duration:.001s !important; }
