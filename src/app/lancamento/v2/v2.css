@@ -134,23 +134,15 @@
 }
 @media (max-width: 1100px) { .lp .h3d-scrim { display: none; } }
 
-/* Linha do ciclo do hero — loop fechado ligando os 6 passos, traço fluindo.
-   preserveAspectRatio=none: as coords % batem com os labels; non-scaling-stroke
-   mantém a espessura uniforme. Só aparece com a copy revelada (.h3d-exploded).
-   Some abaixo de 900px (sem órbita no mobile). */
-.lp .h3d-cycle {
+/* Areia da continuidade — canvas 2D cobrindo o header. Substitui a antiga "linha
+   do ciclo" (que virava um hexágono torto e poluía): quando o passo muda, a areia
+   viaja num arco de uma parada à próxima. z entre o scrim (2) e os labels (4).
+   Some no mobile (lá não há órbita — a navegação é por chips). */
+.lp .h3d-sand {
   position: absolute; inset: 0; width: 100%; height: 100%;
-  z-index: 2; pointer-events: none; opacity: 0; transition: opacity 1.2s .4s ease;
+  z-index: 3; pointer-events: none;
 }
-.lp .h3d-exploded .h3d-cycle { opacity: 1; }
-.lp .h3d-cycle-path {
-  fill: none; stroke: rgba(106,78,200,.30); stroke-width: 1.4;
-  stroke-dasharray: 4 7; stroke-linecap: round;
-  animation: h3dcycleflow 2.4s linear infinite;
-}
-.lp.h3d-dark .h3d-cycle-path, .lp .h3d-dark .h3d-cycle-path { stroke: rgba(185,166,245,.42); }
-@keyframes h3dcycleflow { to { stroke-dashoffset: -11; } }
-@media (max-width: 1100px) { .lp .h3d-cycle, .lp .h3d-orbit { display: none; } }
+@media (max-width: 1100px) { .lp .h3d-sand, .lp .h3d-orbit { display: none; } }
 
 /* Hero — modo escuro (estado "Conectar"): escurece o HEADER inteiro. No original
    o stage fullscreen fazia o fundo escuro; como deslocamos o 3D pra direita, sem
