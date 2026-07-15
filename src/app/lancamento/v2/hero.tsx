@@ -8,6 +8,7 @@
    CTA + intro persistentes (clareza P1 preservada mesmo com as headlines ciclando). */
 import React, { useState, useEffect, useRef } from 'react'
 import { Hero3D } from './hero-3d'
+import { HeroSand } from './hero-sand'
 
 /* Intro — só o nome "audere". O único espiral é o GRANDE (partículas 3D), que
    nasce logo depois do nome. Sem espiral HTML aqui. */
@@ -55,9 +56,6 @@ const KEY_SECTION: Record<string, number> = {}
 SECTIONS.forEach((sc, si) => sc.keys.forEach((k) => { KEY_SECTION[k] = si }))
 
 const scrollTo = (id: string) => document.getElementById(id)?.scrollIntoView({ behavior: 'smooth' })
-
-/* caminho fechado ligando os 6 blocos (nas mesmas coords % dos labels) → o ciclo */
-const CYCLE_D = SECTIONS.map((st, i) => (i ? 'L' : 'M') + parseFloat(st.at.left) + ' ' + parseFloat(st.at.top)).join(' ') + ' Z'
 
 export function Hero() {
   const [seqIdx, setSeqIdx] = useState(0)         // índice na sequência plana (0..6)
@@ -121,11 +119,9 @@ export function Hero() {
         {!reduce.current && <div className="h3d-prog" key={'p' + seqIdx} style={{ ['--dwell' as any]: ((DWELL[curKey] || 12000) / 1000) + 's' }}><span /></div>}
       </div>
 
-      {/* linha do ciclo — liga os 6 blocos num loop fechado; o traço tracejado
-          "flui" (stroke-dashoffset) dando a sensação de ciclo contínuo */}
-      <svg className="h3d-cycle" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
-        <path d={CYCLE_D} className="h3d-cycle-path" vectorEffect="non-scaling-stroke" />
-      </svg>
+      {/* areia da continuidade — quando o passo muda, a pill anterior se desmancha
+          e a areia viaja num arco até a próxima parada (substitui a linha do ciclo) */}
+      <HeroSand leftPct={parseFloat(s.at.left)} topPct={parseFloat(s.at.top)} dark={dark} active={exploded} />
 
       {/* órbita — os 6 blocos como conceito ao redor da cena 3D (clicáveis) */}
       <div className="h3d-orbit">
