@@ -63,7 +63,7 @@ function SessHeroGroup() {
 
   return (
     <React.Fragment>
-      <A3 state="sessoes" pos={[-0.55, -0.2, 0.35]} delay={0.3} hold={Infinity} className="h3d-sess">
+      <A3 state="sessoes" pos={[0.4, -0.2, 0.35]} delay={0.3} hold={Infinity} className="h3d-sess">
         <div className="h3d-sess-top">
           <span className="h3d-sess-live"><span className="h3d-rec" />Sessão ao vivo</span>
           <span className="h3d-sess-who">Fernanda K. · Sessão 7 · 18:42</span>
@@ -85,12 +85,12 @@ function SessHeroGroup() {
           “sumir” já apareceu nas sessões <b>4</b> e <b>7</b> — você não precisa lembrar.
         </div>
       </A3>
-      <A3 state="sessoes" pos={[1.35, 0.78, -0.1]} delay={0.5} hold={Infinity} className="h3d-sess-stat">
+      <A3 state="sessoes" pos={[1.9, 0.78, -0.1]} delay={0.5} hold={Infinity} className="h3d-sess-stat">
         <div className="h3d-sess-stat-k">ritmo de fala</div>
         <div className="h3d-sess-bar"><span style={{ width: rhythm + '%' }} /></div>
         <div className="h3d-sess-stat-v">paciente <b>{rhythm}%</b> · descoberta guiada</div>
       </A3>
-      <A3 state="sessoes" pos={[1.35, -0.08, -0.1]} delay={0.6} hold={Infinity} className="h3d-sess-stat">
+      <A3 state="sessoes" pos={[1.9, -0.08, -0.1]} delay={0.6} hold={Infinity} className="h3d-sess-stat">
         <div className="h3d-sess-stat-k">temas ao vivo</div>
         <div className="h3d-sess-chips">
           {SESS_THEMES.map((th) => {
@@ -99,7 +99,7 @@ function SessHeroGroup() {
           })}
         </div>
       </A3>
-      <A3 state="sessoes" pos={[1.35, -0.92, -0.1]} delay={0.7} hold={Infinity} className="h3d-sess-stat">
+      <A3 state="sessoes" pos={[1.9, -0.92, -0.1]} delay={0.7} hold={Infinity} className="h3d-sess-stat">
         <div className="h3d-sess-stat-k">sinal de atenção</div>
         <div className="h3d-sess-alert"><span className="h3d-sess-alert-dot" />ideação · médio</div>
       </A3>
@@ -127,7 +127,7 @@ function PrepHeroGroup() {
   const lt = t % PREP_LOOP
   const headOn = seg(lt, 0.3, 0.6, PREP_LOOP - 0.7, 0.7)
   return (
-    <A3 state="preparar" pos={[0, 0.02, 0.35]} delay={0.2} hold={Infinity} className="h3d-prep">
+    <A3 state="preparar" pos={[0.7, 0.02, 0.35]} delay={0.2} hold={Infinity} className="h3d-prep">
       <div className="h3d-prep-top" style={{ opacity: headOn, transform: `translateY(${(1 - headOn) * 6}px)` }}>
         <span className="h3d-prep-who">Marina K. · antes da sessão 8</span>
         <span className="h3d-prep-pill">contexto recuperado</span>
