@@ -77,7 +77,7 @@ export async function coletarRelatorioSessao(
     id: string; paciente_id: string; numero: number;
     data_hora: string; duracao_min: number; modalidade: string;
     status: string; assinada: boolean; assinatura_timestamp: string | null;
-    resumo_ia: string | null; nota_clinica: string | null;
+    resumo_ia: string | null; laudo: string | null; nota_clinica: string | null;
     indicadores: any;
     psi_nome: string; psi_crp: string; psi_email: string; psi_telefone: string | null;
     pac_nome: string; pac_telefone: string; pac_email: string | null;
@@ -86,7 +86,7 @@ export async function coletarRelatorioSessao(
     `SELECT s.id, s.paciente_id, s.numero,
             s.data_hora, s.duracao_min, s.modalidade,
             s.status, s.assinada, s.assinatura_timestamp,
-            s.resumo_ia, s.nota_clinica, s.indicadores,
+            s.resumo_ia, s.laudo, s.nota_clinica, s.indicadores,
             ps.nome AS psi_nome, ps.crp AS psi_crp,
             ps.email AS psi_email, ps.telefone AS psi_telefone,
             p.nome AS pac_nome, p.telefone AS pac_telefone, p.email AS pac_email,
@@ -141,7 +141,8 @@ export async function coletarRelatorioSessao(
       status: r.status,
       assinada: r.assinada,
       assinaturaEm: r.assinatura_timestamp,
-      resumo: tryDecrypt(r.resumo_ia),
+      // Documento formal prefere o LAUDO (quando gerado); senão, o registro assinado.
+      resumo: tryDecrypt(r.laudo) ?? tryDecrypt(r.resumo_ia),
       notaClinica: tryDecrypt(r.nota_clinica),
       indicadores: r.indicadores ?? null,
     },

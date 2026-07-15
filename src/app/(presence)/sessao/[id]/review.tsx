@@ -45,7 +45,9 @@ export function SessionReview({ sessao }: { sessao: Sessao }) {
   // Assinatura inline — resolve a pendência "Registrar" (sessão concluída e não
   // assinada). Antes a revisão era só leitura e não havia como resolver.
   const router = useRouter()
-  const [resumoEdit, setResumoEdit] = useState(sessao.resumoIa ?? '')
+  // Registro assinado = o RESUMO da sessão (dirige a continuidade). Pré-preenche
+  // do resumo curto automático quando ainda não há registro assinado.
+  const [resumoEdit, setResumoEdit] = useState(sessao.resumoIa ?? sessao.resumoCurto ?? '')
   // Pré-preenche com a nota clínica salva ou, na falta dela, com a "nota rápida"
   // feita ao vivo (indicadores.notaRapida) — assim as anotações da sessão não
   // se perdem e ficam editáveis aqui.
@@ -67,9 +69,11 @@ export function SessionReview({ sessao }: { sessao: Sessao }) {
   const [gerandoLaudo, setGerandoLaudo] = useState(false)
   const [laudoErro, setLaudoErro] = useState<string | null>(null)
   const [laudoGerado, setLaudoGerado] = useState(false)
+  // Laudo formal (coluna própria) — separado do registro de continuidade.
+  const [laudoTexto, setLaudoTexto] = useState<string | null>(sessao.laudo ?? null)
   const assinada = sessao.assinada || assinadoAgora
   const podeAssinar = sessao.status === 'concluida' && !assinada
-  const temLaudoFormal = !!sessao.resumoIa || laudoGerado
+  const temLaudoFormal = !!laudoTexto
   // Se a nota rápida ao vivo existe e difere da nota clínica salva, ela ficaria
   // escondida (a caixa pré-preenche com a clínica). Mostra read-only pra não sumir.
   const mostrarNotaRapida = notaRapida.trim().length > 0 && notaRapida !== (sessao.notaClinica ?? '')
@@ -116,8 +120,8 @@ export function SessionReview({ sessao }: { sessao: Sessao }) {
     try {
       const res = await fetch(`/api/sessao/${sessao.id}/laudo`, { method: 'POST' })
       const json = await res.json().catch(() => ({} as any))
-      if (res.ok && json.resumo) {
-        setResumoEdit(json.resumo)   // vira o rascunho editável pro fluxo de assinatura
+      if (res.ok && json.laudo) {
+        setLaudoTexto(json.laudo)   // documento formal à parte — NÃO toca o registro assinado
         setLaudoGerado(true)
       } else {
         setLaudoErro(json.iaIndisponivel ? 'IA indisponível agora — tente novamente em instantes.' : 'Não foi possível gerar o laudo.')
@@ -215,28 +219,11 @@ export function SessionReview({ sessao }: { sessao: Sessao }) {
                 notificação “Registrar — {sessao.pacienteNome}”.
               </div>
 
-              {/* Resumo curto automático — sempre presente, leitura rápida */}
-              {sessao.resumoCurto && (
-                <div style={{ marginBottom: 14, padding: '12px 14px', background: 'var(--surface)', borderRadius: 8, border: '1px solid var(--border)' }}>
-                  <label style={lbl}>Resumo da sessão (automático)</label>
-                  <div style={{ fontSize: 13, color: 'var(--ink-soft)', lineHeight: 1.55 }}><Markdown text={sessao.resumoCurto} /></div>
-                </div>
-              )}
-
-              {/* Laudo formal CFP sob demanda (modelo forte). Opcional: preenche o
-                  rascunho abaixo. O psicólogo também pode escrever/assinar manualmente. */}
-              {!temLaudoFormal && (
-                <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12, flexWrap: 'wrap' }}>
-                  <span style={{ fontSize: 11.5, color: 'var(--muted)' }}>Precisa do documento formal (CFP / pedido do paciente)?</span>
-                  <button className="btn ghost sm" onClick={gerarLaudo} disabled={gerandoLaudo}
-                    style={{ display: 'inline-flex', alignItems: 'center', gap: 5, color: 'var(--accent)' }}>
-                    <Sparkles size={13} /> {gerandoLaudo ? 'Gerando laudo…' : 'Gerar laudo formal (CFP)'}
-                  </button>
-                  {laudoErro && <span style={{ color: 'var(--rose)', fontSize: 12 }}>{laudoErro}</span>}
-                </div>
-              )}
-
-              <label style={lbl}>{temLaudoFormal ? 'Laudo formal (CFP · revise antes de assinar)' : 'Registro da sessão (rascunho em Markdown · ou gere o laudo formal acima)'}</label>
+              {/* O RESUMO da sessão (rascunho automático) vira o REGISTRO ASSINADO —
+                  é ele que dirige a continuidade (temas, evolução, próxima sessão).
+                  Pré-preenchido pelo resumo curto; revise e assine. O laudo formal é
+                  um documento à parte, logo abaixo (sob demanda). */}
+              <label style={lbl}>Resumo da sessão {sessao.resumoCurto ? '(rascunho automático · revise e assine)' : '(escreva e assine)'}</label>
               <textarea
                 value={resumoEdit} onChange={e => setResumoEdit(e.target.value)} rows={18}
                 placeholder="Registro da sessão (sem diagnóstico DSM/ICD)…"
@@ -310,6 +297,34 @@ export function SessionReview({ sessao }: { sessao: Sessao }) {
               )}
             </Section>
           )}
+
+          {/* Laudo formal (CFP) — documento à parte, SOB DEMANDA. Esporádico: gere
+              só quando solicitado (CFP / pedido do paciente). Não é pré-requisito da
+              assinatura nem da continuidade, e vive em coluna própria (não sobrescreve
+              o registro). Disponível antes e depois de assinar. */}
+          <Section title="Laudo formal (CFP)">
+            {laudoTexto ? (
+              <>
+                <div style={{ fontSize: 12.5, color: 'var(--ink-soft)', lineHeight: 1.6 }}><Markdown text={laudoTexto} /></div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 12 }}>
+                  <span style={{ fontSize: 11.5, color: 'var(--muted)' }}>Documento formal gerado — pronto para enviar.</span>
+                  <div style={{ flex: 1 }} />
+                  <a className="btn ghost sm" href={`/api/sessao/${sessao.id}/relatorio`} target="_blank" rel="noopener noreferrer">⬇ PDF</a>
+                </div>
+              </>
+            ) : (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+                <span style={{ fontSize: 12, color: 'var(--muted)', flex: 1, minWidth: 240 }}>
+                  Documento estruturado para CFP ou pedido do paciente. Gere só quando precisar — o resumo da sessão acima já cuida da continuidade.
+                </span>
+                <button className="btn ghost sm" onClick={gerarLaudo} disabled={gerandoLaudo}
+                  style={{ display: 'inline-flex', alignItems: 'center', gap: 5, color: 'var(--accent)' }}>
+                  <Sparkles size={13} /> {gerandoLaudo ? 'Gerando laudo…' : 'Gerar laudo formal'}
+                </button>
+                {laudoErro && <span style={{ color: 'var(--rose)', fontSize: 12, width: '100%' }}>{laudoErro}</span>}
+              </div>
+            )}
+          </Section>
 
           <Section title="Notas">
             <div style={{ fontSize: 11.5, color: 'var(--muted)', marginBottom: 8 }}>
