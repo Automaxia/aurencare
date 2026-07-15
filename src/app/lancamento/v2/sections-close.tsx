@@ -1,6 +1,7 @@
 'use client'
 /* Seções D — Privacidade · Manifesto (curado P2) · Confiança · Footer. */
 import React from 'react'
+import { Instagram, Mail } from 'lucide-react'
 import { Section, Eyebrow, Display, Spiral, Wordmark, useInView } from './core'
 
 const PRIVACY = [
@@ -120,10 +121,19 @@ export function Footer() {
           <a href="#acesso">Acesso antecipado</a>
           <a href="/login">Já tenho conta</a>
         </div>
+        <div className="footer-social">
+          <span className="footer-social-label">Fale com a Audere</span>
+          <a href="https://www.instagram.com/care_audere" target="_blank" rel="noopener noreferrer" aria-label="Instagram da Audere (@care_audere)">
+            <Instagram size={18} aria-hidden="true" /> @care_audere
+          </a>
+          <a href="mailto:contato@automaxia.com.br" aria-label="Enviar email para contato@automaxia.com.br">
+            <Mail size={18} aria-hidden="true" /> contato@automaxia.com.br
+          </a>
+        </div>
       </div>
       <div className="wrap footer-base">
-        <span>contato@automaxia.com.br</span>
-        <span>© Audere · 2026</span>
+        <span>Audere · uma plataforma Automaxia</span>
+        <span>© 2026</span>
       </div>
     </footer>
   )

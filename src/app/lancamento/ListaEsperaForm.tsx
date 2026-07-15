@@ -49,7 +49,8 @@ export function ListaEsperaForm() {
         </h3>
         <p style={{ fontSize: 13, color: 'var(--ink-soft)', lineHeight: 1.6, margin: 0 }}>
           Avisamos por email quando abrirmos seu acesso. Se tiver dúvidas,
-          escreva pra <strong>contato@automaxia.com.br</strong>.
+          escreva pra <a href="mailto:contato@automaxia.com.br" style={{ color: '#2a6456', fontWeight: 600 }}>contato@automaxia.com.br</a>{' '}
+          ou siga <a href="https://www.instagram.com/care_audere" target="_blank" rel="noopener noreferrer" style={{ color: '#2a6456', fontWeight: 600 }}>@care_audere</a>.
         </p>
       </div>
     )
