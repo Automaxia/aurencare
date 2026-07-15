@@ -47,8 +47,12 @@ export type Sessao = {
   resumoEditadoEm: string | null
   /** Versões anteriores do laudo assinado, preservadas em cada retificação. */
   resumoHistorico: { texto: string; em: string }[]
+  /** Registro assinado da sessão (resumo) — o que dirige a continuidade. */
   resumoIa: string | null
+  /** Resumo curto automático (fast) — rascunho do registro, pré-preenche a assinatura. */
   resumoCurto: string | null
+  /** Laudo formal CFP (modelo forte), gerado sob demanda — separado da continuidade. */
+  laudo: string | null
   transcricao: string | null
   notaClinica: string | null
   /** Ritmo, humor, risco e nota rápida da sessão (JSONB). Salvo no encerrar. */
@@ -78,6 +82,7 @@ function rowToSessao(r: any): Sessao {
       : [],
     resumoIa: tryDecrypt(r.resumo_ia),
     resumoCurto: tryDecrypt(r.resumo_curto),
+    laudo: tryDecrypt(r.laudo),
     transcricao: tryDecrypt(r.transcricao_texto),
     notaClinica: tryDecrypt(r.nota_clinica),
     indicadores: r.indicadores ?? null,
@@ -676,9 +681,15 @@ export async function salvarResumoIA(sessaoId: string, resumo: string): Promise<
   await db.query(`UPDATE sessoes SET resumo_ia = $2 WHERE id = $1`, [sessaoId, encrypt(resumo)])
 }
 
-/** Resumo curto automático (fast) — separado do laudo formal CFP (resumo_ia). */
+/** Resumo curto automático (fast) — rascunho do registro assinado (resumo_ia). */
 export async function salvarResumoCurto(sessaoId: string, resumo: string): Promise<void> {
   await db.query(`UPDATE sessoes SET resumo_curto = $2 WHERE id = $1`, [sessaoId, encrypt(resumo)])
+}
+
+/** Laudo formal CFP (sob demanda, modelo forte) — coluna própria, separada do
+ *  registro de continuidade (resumo_ia). Gerar/regerar o laudo NÃO toca o resumo. */
+export async function salvarLaudo(sessaoId: string, laudo: string): Promise<void> {
+  await db.query(`UPDATE sessoes SET laudo = $2 WHERE id = $1`, [sessaoId, encrypt(laudo)])
 }
 
 /**
@@ -781,8 +792,8 @@ export async function importarSessao(input: {
       const sessao = await buscarSessao(sessaoId)
       if (sessao) {
         const historico = await resumosAnteriores(input.psicologoId, input.pacienteId, numero).catch(() => [])
-        const { gerarResumoSessao, iaIndisponivel } = await import('@/server/lib/anthropic')
-        const r = await gerarResumoSessao(input.transcricao, { numero, pacienteNome: sessao.pacienteNome, psicologoId: input.psicologoId, sessaoId, pacienteId: input.pacienteId }, historico)
+        const { gerarLaudoFormal, iaIndisponivel } = await import('@/server/lib/anthropic')
+        const r = await gerarLaudoFormal(input.transcricao, { numero, pacienteNome: sessao.pacienteNome, psicologoId: input.psicologoId, sessaoId, pacienteId: input.pacienteId }, historico)
         if (!iaIndisponivel(r)) { await salvarResumoIA(sessaoId, r); laudo = r }
       }
     } catch (err) {

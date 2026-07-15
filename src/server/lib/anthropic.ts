@@ -5,7 +5,8 @@ import { chat } from './llm'
  * COMPAT: o acesso ao LLM mora agora em `llm.ts` (multi-provedor — OpenAI
  * primário, Anthropic fallback). Este módulo reexporta `chat`/tipos para não
  * quebrar imports existentes (`@/server/lib/anthropic`) e mantém o helper de
- * alto nível `gerarResumoSessao` (laudo). Prefira importar de `@/server/lib/llm`
+ * alto nível `gerarLaudoFormal` (laudo, sob demanda) e `gerarResumoCurto` (resumo
+ * da sessão, automático → continuidade). Prefira importar de `@/server/lib/llm`
  * em código novo.
  */
 export { chat }
@@ -79,7 +80,14 @@ If not specified, infer from signals (TCC: reestruturação/pensamento automáti
 
 Does NOT: make DSM/ICD diagnostic determinations, prescribe treatment changes. All output is a draft subject to review and signature by the responsible licensed clinician.`
 
-export async function gerarResumoSessao(
+/**
+ * LAUDO FORMAL (CFP) — documento estruturado e completo (modelo forte,
+ * MODE: SUMMARY). Gerado SOB DEMANDA, só quando solicitado (CFP / pedido do
+ * paciente): é esporádico e NÃO é o que dirige a continuidade. O que alimenta a
+ * continuidade é o REGISTRO ASSINADO (resumo curto → resumo_ia). Ver
+ * `gerarResumoCurto`.
+ */
+export async function gerarLaudoFormal(
   transcricao: string,
   contexto: { numero: number; pacienteNome: string; psicologoId: string; sessaoId: string; pacienteId: string },
   historico: { numero: number; resumo: string }[] = [],
@@ -114,8 +122,10 @@ Linguagem OBSERVACIONAL, nunca diagnóstica ou categórica ("houve relato de..."
 
 /**
  * Resumo CURTO da sessão (modelo fast, barato) — gerado automaticamente no
- * encerramento pra conveniência imediata e contexto longitudinal. NÃO é o laudo
- * formal (CFP): esse é gerado sob demanda por `gerarResumoSessao` (modelo forte).
+ * encerramento. É o RESUMO da sessão: barato, toda sessão, e — depois de revisado
+ * e assinado (vira resumo_ia) — é ele que dirige a continuidade (temas, evolução,
+ * "preparar próxima"). NÃO é o laudo formal (CFP): esse é gerado sob demanda por
+ * `gerarLaudoFormal` (modelo forte), esporádico.
  */
 export async function gerarResumoCurto(
   transcricao: string,
