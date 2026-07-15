@@ -105,13 +105,34 @@
   }
 }
 
-/* Hero — desloca a cena 3D para a DIREITA no desktop, liberando a leitura da
-   copy à esquerda. O slot é o container que o engine e o canvas de fallback
-   medem, então deslocá-lo move os dois. Abaixo de 900px a copy empilha/usa
-   fallback e o 3D ocupa a largura toda. */
+/* Hero — FULL-BLEED: a cena 3D ocupa o header inteiro (inset:0). Antes ela era
+   deslocada para left:34%, o que criava uma "linha divisória" entre a coluna de
+   copy (fixa, à esquerda) e a caixa da animação — com diferença de cor no modo
+   escuro. Full-bleed elimina a costura; a legibilidade da copy é garantida por um
+   scrim (gradiente à esquerda), não por recortar a animação. O slot NÃO cria
+   stacking context (z-index:auto), pra que scrim < âncoras/cards < copy fiquem na
+   ordem certa dentro do header. */
 @media (min-width: 1101px) {
-  .lp .hero-v2-3dslot { left: 34%; }
+  .lp .hero-v2-3dslot { left: 0; right: 0; z-index: auto; }
 }
+.lp .hero3d-stage { z-index: 0; }
+
+/* Scrim de leitura — gradiente da borda esquerda (cor da página) desbotando até
+   transparente ~64%, mantendo a copy legível sobre as partículas sem recortar a
+   cena. Adapta ao modo escuro. Fica ACIMA do stage e ABAIXO das âncoras/cards e
+   da copy. Some no mobile (lá a copy tem painel próprio). */
+.lp .h3d-scrim {
+  position: absolute; inset: 0; z-index: 2; pointer-events: none;
+  opacity: 0; transition: opacity 1s .2s ease, background .7s ease;
+  background: linear-gradient(100deg,
+    #f9f8f5 0%, rgba(249,248,245,.94) 20%, rgba(249,248,245,.62) 40%, rgba(249,248,245,0) 64%);
+}
+.lp .h3d-exploded .h3d-scrim { opacity: 1; }
+.lp.h3d-dark .h3d-scrim, .lp .h3d-dark .h3d-scrim {
+  background: linear-gradient(100deg,
+    #15101f 0%, rgba(21,16,31,.92) 22%, rgba(21,16,31,.58) 42%, rgba(21,16,31,0) 66%);
+}
+@media (max-width: 1100px) { .lp .h3d-scrim { display: none; } }
 
 /* Linha do ciclo do hero — loop fechado ligando os 6 passos, traço fluindo.
    preserveAspectRatio=none: as coords % batem com os labels; non-scaling-stroke
@@ -137,11 +158,13 @@
 .lp .h3d { transition: background .7s ease; }
 .lp .h3d-dark { background: var(--night); }
 
-/* Fluidez: máscara radial nas bordas do 3D → funde com a página, sem "caixa"
-   quadrada. Vale para o stage WebGL e o canvas de fallback, claro e escuro. */
-.lp .hero3d-stage, .lp .hero-ambient-canvas {
-  -webkit-mask-image: radial-gradient(78% 82% at 52% 50%, #000 52%, transparent 100%);
-          mask-image: radial-gradient(78% 82% at 52% 50%, #000 52%, transparent 100%);
+/* Full-bleed: SEM máscara radial no desktop. A máscara (78% 82%) recortava as
+   bordas da cena e cortava o grafo ("fora de quadro"); com o scrim cuidando da
+   legibilidade, a cena pode preencher o header inteiro. O fallback 2D ganha um
+   véu suave só nas bordas verticais pra não brigar com a nav/rodapé do header. */
+.lp .hero-ambient-canvas {
+  -webkit-mask-image: linear-gradient(180deg, transparent 0%, #000 12%, #000 88%, transparent 100%);
+          mask-image: linear-gradient(180deg, transparent 0%, #000 12%, #000 88%, transparent 100%);
 }
 
 /* Intro "Audere" no CENTRO da espiral: a espiral está no meio do stage (que
@@ -203,9 +226,8 @@
 .lp .hero-v2-3dslot { opacity: 0; transition: opacity .9s ease; }
 .lp .hero-v2-3dslot.d3d-in { opacity: 1; }
 
-@media (min-width: 1101px) {
-  .lp .hero-intro { left: 34%; }   /* centraliza sobre a espiral (stage deslocado) */
-}
+/* Full-bleed: a espiral está no CENTRO do header agora, então a intro centraliza
+   sobre o header inteiro (inset:0, já é o default) — sem deslocamento. */
 
 /* Intro v2 — um espiral só, nascendo do fim de "audere" (última letra e). */
 .lp .hero-intro-lockup { display: inline-flex; align-items: center; }
@@ -254,3 +276,16 @@
     -webkit-mask-image: none; mask-image: none;
   }
 }
+
+/* Mobile: a camada de âncoras/cards e os overlays (ticker/objdash) vivem DENTRO
+   do slot 3D (metade de cima). O CSS-base do handoff os confinava a bottom:49%
+   relativo ao header inteiro — mas aqui o container já é o slot, então isso os
+   desalinhava do stage. inset:0 = preenchem o slot, alinhados às partículas. */
+@media (max-width: 1100px) {
+  .lp .h3d-anchors, .lp .h3d-ticker-wrap, .lp .h3d-objdash-wrap { inset: 0; }
+}
+
+/* Mobile: a transição claro→ESCURO acontece na metade de cima (o 3D). Removemos o
+   force-light do mount, então as cenas escuras (Conectar/Evoluir/Vídeo) escurecem
+   o topo de verdade. A copy (metade de baixo) tem painel claro próprio e segue
+   legível — por isso NÃO escurecemos o header inteiro no mobile. */
