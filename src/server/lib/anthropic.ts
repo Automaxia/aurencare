@@ -116,16 +116,54 @@ Gere o laudo estruturado da sessão #${contexto.numero} de ${contexto.pacienteNo
   })
 }
 
-const RESUMO_CURTO_PROMPT = `Você resume sessões de psicoterapia para o registro rápido do psicólogo (não é laudo formal).
-Escreva em português (pt-BR), 3 a 5 frases, prosa corrida, factual e sóbrio. Cubra: a demanda/tema central da sessão, o arco do que foi trabalhado, e o estado do paciente ao final.
-Linguagem OBSERVACIONAL, nunca diagnóstica ou categórica ("houve relato de...", "observou-se tendência a...", nunca "o paciente catastrofiza"). Não invente o que não está na transcrição. Sem títulos, sem listas — só o parágrafo.`
+/**
+ * Estrutura do REGISTRO da sessão — 6 campos (spec do usuário, jul/2026).
+ * Compartilhável entre o registro de continuidade (gerarResumoCurto) e, se
+ * confirmado, o laudo formal. Princípio-guia: fidelidade ao que ocorreu NESTA
+ * sessão, adaptando à natureza do encontro; não preencher lacunas nem forçar
+ * estrutura de TCC; reportar honestamente campo sem conteúdo.
+ */
+const SESSION_NOTE_PROMPT = `Você redige o registro clínico de UMA sessão de psicoterapia, para revisão e assinatura do psicólogo responsável. Produza os 6 campos abaixo, em português (pt-BR) e em Markdown (use "## " no título de cada campo).
+
+PRINCÍPIO-GUIA (vale para todos os campos): cada campo reflete fielmente o que ocorreu NESTA sessão, adaptando-se à natureza do encontro (acompanhamento regular, sessão pontual, triagem/primeiro contato, encerramento por imprevisto). NÃO preencha lacunas por padrão nem force a estrutura típica de TCC quando o conteúdo real da sessão não a sustenta. Na ausência de conteúdo relevante para um campo, diga isso de forma breve e honesta (ex.: "Não houve indicação de tarefas específicas nesta sessão de triagem") em vez de gerar conteúdo genérico ou inferido.
+
+## 1. Resumo da sessão
+~90–130 palavras. Síntese do conteúdo clínico central: tema principal trabalhado, contexto trazido pelo paciente, conceitos ou técnicas discutidas. Amarre causa e efeito quando relevante (ex.: mudança de comportamento associada a uma intervenção específica). NÃO é cronológico — é temático.
+
+## 2. Encerramento
+~40–60 palavras. Como a sessão foi finalizada, conforme a natureza do encontro:
+- Acompanhamento regular: feedback do paciente sobre o que foi trabalhado, reações à postura do terapeuta, desconfortos ou concordâncias explicitados no fechamento.
+- Sessão pontual/orientação específica: como o objetivo pontual foi endereçado e se houve fechamento explícito daquele propósito.
+- Triagem/primeiro contato: sinais sobre a decisão de prosseguir (ou não) o tratamento, alinhamento de expectativas.
+- Encerramento abrupto (tempo/imprevisto): motivo da interrupção e qual tópico ficou em aberto.
+Reporte apenas o que de fato ocorreu — não infira feedback ou fechamento que não foi verbalizado.
+
+## 3. Intervenção do psicólogo
+~90–130 palavras. Foco EXCLUSIVO no que o terapeuta fez tecnicamente: reestruturações, validações, técnicas ou perguntas usadas, com nome técnico quando aplicável (reestruturação cognitiva, validação, psicoeducação). NÃO descreva a reação do paciente — só a ação clínica. Em sessões de triagem, a "intervenção" pode ser majoritariamente escuta ativa e levantamento de histórico, não técnica formal — reporte como tal, sem forçar linguagem de reestruturação cognitiva onde não houve.
+
+## 4. Perspectiva do paciente
+~90–130 palavras. Relato do paciente em DISCURSO INDIRETO, sem citação literal. O que ele trouxe, como descreveu seu estado, contradições ou ambivalências expressas (ex.: satisfação e medo de recaída simultâneos).
+
+## 5. Observações
+4–5 frases curtas, telegráficas, SEM conectivos. Inferências clínicas do terapeuta sobre padrões — não fatos relatados diretamente pelo paciente, mas leituras sobre progresso, risco ou mudança de padrão. É a ÚNICA seção interpretativa.
+
+## 6. Sugestões
+4–5 frases curtas, no INFINITIVO — quando aplicável. Orientações práticas ligadas ao que foi discutido. Em sessões de triagem ou primeiro contato pode não haver tarefas no sentido tradicional — nesse caso, reporte o que ficou definido quanto à continuidade (ex.: "Confirmar disponibilidade para a próxima sessão", "Refletir sobre a adequação da abordagem proposta").
+
+REGRAS DE ESTILO (todos os campos):
+- Terceira pessoa, tempo verbal passado, tom técnico-impessoal.
+- NUNCA citação literal do paciente. Não use aspas em torno de falas, expressões ou termos ditos pelo paciente — descreva sempre em discurso indireto (ex.: em vez de o paciente relatou sentir-se "um lixo", escreva: o paciente relatou sentimento de inadequação/autodepreciação).
+- Vocabulário técnico prioritariamente TCC (causalidade vs. correlação, reestruturação cognitiva, autocompaixão, esquiva, efeito rebote), mas não exclusivo — a estrutura não deve depender desse vocabulário para funcionar.
+- Sem juízo de valor moral, só clínico.
+- Não faz determinação diagnóstica (DSM/ICD). Tudo é rascunho sujeito a revisão e assinatura do psicólogo responsável.`
 
 /**
- * Resumo CURTO da sessão (modelo fast, barato) — gerado automaticamente no
- * encerramento. É o RESUMO da sessão: barato, toda sessão, e — depois de revisado
- * e assinado (vira resumo_ia) — é ele que dirige a continuidade (temas, evolução,
- * "preparar próxima"). NÃO é o laudo formal (CFP): esse é gerado sob demanda por
- * `gerarLaudoFormal` (modelo forte), esporádico.
+ * REGISTRO da sessão — 6 campos (SESSION_NOTE_PROMPT). Gerado automaticamente no
+ * encerramento com o modelo fast (barato, toda sessão). Depois de revisado e
+ * assinado (vira resumo_ia), é ele que dirige a continuidade (temas, evolução,
+ * "preparar próxima"). Mantido no tier fast pra preservar margem; o laudo formal
+ * (`gerarLaudoFormal`, modelo forte) segue sendo o documento sob demanda.
+ * (nome mantido `gerarResumoCurto` por compatibilidade dos callers.)
  */
 export async function gerarResumoCurto(
   transcricao: string,
@@ -133,13 +171,13 @@ export async function gerarResumoCurto(
 ): Promise<string> {
   const user = `<session numero="${contexto.numero}">
   <transcript>
-${transcricao.slice(0, 20_000)}
+${transcricao.slice(0, 40_000)}
   </transcript>
 </session>
 
-Resuma a sessão #${contexto.numero} de ${contexto.pacienteNome} em 3–5 frases.`
-  return chat(RESUMO_CURTO_PROMPT, [{ role: 'user', content: user }], {
-    maxTokens: 400, scope: 'resumo.curto', model: 'fast',
+Gere o registro da sessão #${contexto.numero} de ${contexto.pacienteNome}, com os 6 campos, seguindo o princípio-guia. Rascunho para revisão e assinatura do psicólogo.`
+  return chat(SESSION_NOTE_PROMPT, [{ role: 'user', content: user }], {
+    maxTokens: 1_100, scope: 'resumo.curto', model: 'fast',
     psicologoId: contexto.psicologoId, sessaoId: contexto.sessaoId, pacienteId: contexto.pacienteId,
   })
 }
