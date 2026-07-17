@@ -8,11 +8,33 @@ import { useCallback, useEffect, useRef, useState } from 'react'
  *
  * ICE servers vêm de `/api/ice` (STUN sempre; TURN quando configurado no cluster),
  * com fallback pra STUN-only caso a rota falhe. Ver `src/server/lib/turn.ts`.
+ *
+ * RECONEXÃO: quando a conexão cai (ex.: o celular do paciente vai pro background e
+ * volta) o P2P não retorna sozinho. A recuperação recria a assinatura SSE (que
+ * refaz o handshake → o caller re-oferta com `iceRestart`) — mesma coisa que
+ * fechar e reabrir a chamada, mas automática. Disparada por `visibilitychange`
+ * (voltou pra frente) e por `connectionState` failed/disconnected.
+ *
+ * DISPOSITIVOS: a câmera/microfone escolhidos são lembrados no localStorage e
+ * reusados como `deviceId: ideal` (cai no default do sistema se o lembrado sumir).
  */
 
 const STUN_FALLBACK: RTCIceServer[] = [
   { urls: ['stun:stun.l.google.com:19302', 'stun:stun1.l.google.com:19302'] },
 ]
+
+const LS_CAM = 'audere.video.camId'
+const LS_MIC = 'audere.video.micId'
+function lerDispositivoSalvo(key: string): string | null {
+  try { return typeof window !== 'undefined' ? window.localStorage.getItem(key) : null } catch { return null }
+}
+function salvarDispositivo(key: string, id: string | null) {
+  try {
+    if (typeof window === 'undefined') return
+    if (id) window.localStorage.setItem(key, id)
+    else window.localStorage.removeItem(key)
+  } catch { /* localStorage indisponível — ignora */ }
+}
 
 async function fetchIceServers(): Promise<RTCIceServer[]> {
   try {
@@ -92,11 +114,21 @@ export function useWebRTC({ token, role, caller, withVideo = true }: Options): W
   const micOnRef = useRef(true)
   const camOnRef = useRef(withVideo)
 
-  // Constraints com AEC/NS/AGC + dispositivo escolhido (deviceId exact, se houver).
-  function montarConstraints(cam: string | null, mic: string | null): MediaStreamConstraints {
+  // estado da reconexão
+  const jaConectouRef = useRef(false)          // já esteve 'connected' ao menos uma vez
+  const encerradoRef = useRef(false)           // hangup/unmount → não reconectar
+  const estadoRef = useRef<Estado>('inicializando')
+  estadoRef.current = estado
+  const reconectarRef = useRef<() => void>(() => {})   // exposto pro handler de visibilidade
+
+  // Constraints com AEC/NS/AGC + dispositivo escolhido. `modo`:
+  //  - 'exact': falha se o dispositivo não existe (escolha explícita do usuário).
+  //  - 'ideal': usa se existir, senão cai no default do sistema (init/lembrado).
+  function montarConstraints(cam: string | null, mic: string | null, modo: 'ideal' | 'exact' = 'exact'): MediaStreamConstraints {
+    const dev = (id: string) => (modo === 'exact' ? { deviceId: { exact: id } } : { deviceId: { ideal: id } })
     return {
-      audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true, ...(mic ? { deviceId: { exact: mic } } : {}) },
-      video: withVideo ? { width: { ideal: 640 }, height: { ideal: 360 }, ...(cam ? { deviceId: { exact: cam } } : {}) } : false,
+      audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true, ...(mic ? dev(mic) : {}) },
+      video: withVideo ? { width: { ideal: 640 }, height: { ideal: 360 }, ...(cam ? dev(cam) : {}) } : false,
     }
   }
 
@@ -125,17 +157,99 @@ export function useWebRTC({ token, role, caller, withVideo = true }: Options): W
     let cancelled = false
     let pc: RTCPeerConnection | null = null
     let stream: MediaStream | null = null
-    let es: EventSource | null = null
+    let reconexaoTimer: ReturnType<typeof setTimeout> | null = null
+    let ultimaReconexao = 0
+
+    const limparTimer = () => { if (reconexaoTimer) { clearTimeout(reconexaoTimer); reconexaoTimer = null } }
+
+    // Recuperação: recria a assinatura SSE. O servidor refaz o handshake (envia
+    // 'hello' pros dois lados) → o caller re-oferta com iceRestart. Fechar o ES
+    // antigo primeiro evita assinatura duplicada. Debounce de 2s: se os dois lados
+    // dispararem juntos (visibilidade + timer), evita re-ofertas duplicadas.
+    function reconectar() {
+      if (cancelled || encerradoRef.current) return
+      const agora = Date.now()
+      if (agora - ultimaReconexao < 2000) return
+      ultimaReconexao = agora
+      try { esRef.current?.close() } catch { /* */ }
+      esRef.current = montarES()
+    }
+    reconectarRef.current = reconectar
+
+    // Agenda uma reconexão se em `delay` a conexão ainda não voltou. 'disconnected'
+    // costuma ser transitório (o ICE às vezes se recupera sozinho) → espera mais;
+    // 'failed' é terminal → reage rápido.
+    function agendarReconexao(delay: number) {
+      limparTimer()
+      reconexaoTimer = setTimeout(() => {
+        if (cancelled || encerradoRef.current) return
+        if (pcRef.current?.connectionState === 'connected') return
+        reconectar()
+      }, delay)
+    }
+
+    async function handleSignal(ev: MessageEvent) {
+      const p = pcRef.current
+      if (!p) return
+      try {
+        const data = JSON.parse(ev.data)
+        if (data.from === role) return // ignora as próprias mensagens
+
+        if (data.type === 'hello') {
+          setOutroPresente(true)
+          if (caller) {
+            setEstado('conectando')
+            // reconexão (já conectou antes) → iceRestart; primeira vez → offer normal
+            const offer = await p.createOffer(jaConectouRef.current ? { iceRestart: true } : undefined)
+            await p.setLocalDescription(offer)
+            sendSignal({ type: 'offer', sdp: offer.sdp ?? '' })
+          }
+        } else if (data.type === 'bye') {
+          setOutroPresente(false)
+          setOutroCompartilhando(false)
+        } else if (data.type === 'screen') {
+          setOutroCompartilhando(!!data.on)
+        } else if (data.type === 'offer' && !caller) {
+          setEstado('conectando')
+          await p.setRemoteDescription({ type: 'offer', sdp: data.sdp })
+          remoteSetRef.current = true
+          for (const c of pendingICE.current) { try { await p.addIceCandidate(c) } catch { /* */ } }
+          pendingICE.current = []
+          const ans = await p.createAnswer()
+          await p.setLocalDescription(ans)
+          sendSignal({ type: 'answer', sdp: ans.sdp ?? '' })
+        } else if (data.type === 'answer' && caller) {
+          await p.setRemoteDescription({ type: 'answer', sdp: data.sdp })
+          remoteSetRef.current = true
+          for (const c of pendingICE.current) { try { await p.addIceCandidate(c) } catch { /* */ } }
+          pendingICE.current = []
+        } else if (data.type === 'candidate') {
+          const cand = data.candidate as RTCIceCandidateInit
+          if (remoteSetRef.current) { try { await p.addIceCandidate(cand) } catch { /* */ } }
+          else pendingICE.current.push(cand)
+        }
+      } catch (e) {
+        console.warn('signaling msg erro', e)
+      }
+    }
+
+    function montarES(): EventSource {
+      const es = new EventSource(`/api/sala/${token}/eventos?role=${role}`)
+      es.onmessage = handleSignal
+      es.onerror = () => { /* EventSource re-tenta sozinho; só logaríamos */ }
+      return es
+    }
 
     async function init() {
       try {
         // 1. Captura mic+cam locais. AEC/NS/AGC explícitos (senão o mic do paciente
         // capta a voz do psicólogo pelo alto-falante). RESILIENTE: se a câmera
-        // falhar (ex.: câmera virtual morta), cai pra só-áudio em vez de derrubar
-        // a chamada inteira — antes um getUserMedia que jogava deixava o psicólogo
-        // sem entrar na sala (o paciente ficava sozinho).
+        // falhar, cai pra só-áudio em vez de derrubar a chamada. Usa a câmera/mic
+        // LEMBRADOS (deviceId ideal) — se sumiram, cai no default do sistema.
+        const camSalvo = lerDispositivoSalvo(LS_CAM)
+        const micSalvo = lerDispositivoSalvo(LS_MIC)
         try {
-          stream = await navigator.mediaDevices.getUserMedia(montarConstraints(null, null))
+          stream = await navigator.mediaDevices.getUserMedia(montarConstraints(camSalvo, micSalvo, 'ideal'))
         } catch (camErr) {
           if (!withVideo) throw camErr
           stream = await navigator.mediaDevices.getUserMedia({
@@ -158,16 +272,11 @@ export function useWebRTC({ token, role, caller, withVideo = true }: Options): W
         pc = new RTCPeerConnection({ iceServers })
         pcRef.current = pc
 
-        // Adiciona tracks locais
         for (const t of stream.getTracks()) pc.addTrack(t, stream)
 
-        // Recebe remote tracks.
-        // Importante: emitimos uma NOVA referência de MediaStream a cada track
-        // que chega. Sem isso, o áudio do paciente entrava no mesmo objeto e a
-        // referência não mudava — então a transcrição do paciente (que faz
-        // createMediaStreamSource e depende de [stream]) nunca religava quando o
-        // áudio chegava depois do início da gravação. Resultado: só o psicólogo
-        // era transcrito.
+        // Recebe remote tracks. Emitimos uma NOVA referência de MediaStream a cada
+        // track que chega — sem isso, a transcrição do paciente (createMediaStreamSource
+        // que depende de [stream]) não religava quando o áudio chegava depois.
         const remote = new MediaStream()
         setRemoteStream(remote)
         pc.ontrack = (ev) => {
@@ -179,80 +288,25 @@ export function useWebRTC({ token, role, caller, withVideo = true }: Options): W
           if (changed) setRemoteStream(new MediaStream(remote.getTracks()))
         }
 
-        // ICE → manda pelo signaling
         pc.onicecandidate = (ev) => {
-          if (ev.candidate) {
-            sendSignal({ type: 'candidate', candidate: ev.candidate.toJSON() })
-          }
+          if (ev.candidate) sendSignal({ type: 'candidate', candidate: ev.candidate.toJSON() })
         }
 
         pc.onconnectionstatechange = () => {
-          if (!pc) return
-          const s = pc.connectionState
-          if (s === 'connected') setEstado('conectado')
-          else if (s === 'disconnected' || s === 'failed') setEstado('erro')
+          const s = pcRef.current?.connectionState
+          if (s === 'connected') { jaConectouRef.current = true; limparTimer(); setEstado('conectado') }
+          else if (s === 'failed') { setEstado('conectando'); agendarReconexao(400) }
+          else if (s === 'disconnected') { setEstado('conectando'); agendarReconexao(3500) }
           else if (s === 'closed') setEstado('encerrado')
+        }
+        // ICE 'failed' às vezes chega antes do connectionState — reforça a reação.
+        pc.oniceconnectionstatechange = () => {
+          if (pcRef.current?.iceConnectionState === 'failed') agendarReconexao(400)
         }
 
         // 3. SSE de signaling
-        es = new EventSource(`/api/sala/${token}/eventos?role=${role}`)
-        esRef.current = es
+        esRef.current = montarES()
         setEstado('aguardando_peer')
-
-        es.onmessage = async (ev) => {
-          try {
-            const data = JSON.parse(ev.data)
-            // Ignora as próprias mensagens (não devem chegar mas defensivo)
-            if (data.from === role) return
-
-            if (data.type === 'hello') {
-              setOutroPresente(true)
-              if (caller && pc) {
-                setEstado('conectando')
-                const offer = await pc.createOffer()
-                await pc.setLocalDescription(offer)
-                sendSignal({ type: 'offer', sdp: offer.sdp ?? '' })
-              }
-            } else if (data.type === 'bye') {
-              setOutroPresente(false)
-              setOutroCompartilhando(false)
-            } else if (data.type === 'screen') {
-              setOutroCompartilhando(!!data.on)
-            } else if (data.type === 'offer' && !caller && pc) {
-              setEstado('conectando')
-              await pc.setRemoteDescription({ type: 'offer', sdp: data.sdp })
-              remoteSetRef.current = true
-              // drena ICE pendentes
-              for (const c of pendingICE.current) {
-                try { await pc.addIceCandidate(c) } catch { /* */ }
-              }
-              pendingICE.current = []
-              const ans = await pc.createAnswer()
-              await pc.setLocalDescription(ans)
-              sendSignal({ type: 'answer', sdp: ans.sdp ?? '' })
-            } else if (data.type === 'answer' && caller && pc) {
-              await pc.setRemoteDescription({ type: 'answer', sdp: data.sdp })
-              remoteSetRef.current = true
-              for (const c of pendingICE.current) {
-                try { await pc.addIceCandidate(c) } catch { /* */ }
-              }
-              pendingICE.current = []
-            } else if (data.type === 'candidate' && pc) {
-              const cand = data.candidate as RTCIceCandidateInit
-              if (remoteSetRef.current) {
-                try { await pc.addIceCandidate(cand) } catch { /* */ }
-              } else {
-                pendingICE.current.push(cand)
-              }
-            }
-          } catch (e) {
-            console.warn('signaling msg erro', e)
-          }
-        }
-
-        es.onerror = () => {
-          // re-tenta automaticamente; só logamos
-        }
       } catch (e: any) {
         setErr(e?.message ?? 'falha ao iniciar chamada')
         setEstado('erro')
@@ -263,14 +317,30 @@ export function useWebRTC({ token, role, caller, withVideo = true }: Options): W
 
     return () => {
       cancelled = true
+      encerradoRef.current = true
+      limparTimer()
       try { navigator.mediaDevices.removeEventListener?.('devicechange', listarDispositivos) } catch { /* */ }
-      try { es?.close() } catch { /* */ }
+      try { esRef.current?.close() } catch { /* */ }
       try { pc?.close() } catch { /* */ }
       ;(streamRef.current ?? stream)?.getTracks().forEach(t => t.stop())
       setEstado('encerrado')
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [token, role, caller, withVideo])
+
+  // Reconexão ao voltar do background (o caso do celular): quando a aba volta a
+  // ficar visível e a chamada JÁ tinha conectado mas não está mais 'conectado',
+  // recria o signaling → renegocia. Cobre o SSE que ficou congelado no background.
+  useEffect(() => {
+    const onVis = () => {
+      if (typeof document === 'undefined' || document.visibilityState !== 'visible') return
+      if (encerradoRef.current || !jaConectouRef.current) return
+      if (estadoRef.current === 'conectado') return
+      reconectarRef.current()
+    }
+    document.addEventListener('visibilitychange', onVis)
+    return () => document.removeEventListener('visibilitychange', onVis)
+  }, [])
 
   // Troca a fonte (câmera/microfone) sem renegociar: re-captura com o deviceId
   // escolhido e faz replaceTrack no sender. Resolve o caso da "câmera virtual".
@@ -301,8 +371,9 @@ export function useWebRTC({ token, role, caller, withVideo = true }: Options): W
 
   const sinalizarTela = useCallback((on: boolean) => { sendSignal({ type: 'screen', on }) }, [sendSignal])
 
-  const trocarCamera = useCallback((deviceId: string) => { recapturar(deviceId, micId) }, [recapturar, micId])
-  const trocarMicrofone = useCallback((deviceId: string) => { recapturar(camId, deviceId) }, [recapturar, camId])
+  // Ao escolher explicitamente, LEMBRA a escolha (localStorage) pra próxima sessão.
+  const trocarCamera = useCallback((deviceId: string) => { salvarDispositivo(LS_CAM, deviceId); recapturar(deviceId, micId) }, [recapturar, micId])
+  const trocarMicrofone = useCallback((deviceId: string) => { salvarDispositivo(LS_MIC, deviceId); recapturar(camId, deviceId) }, [recapturar, camId])
 
   const setMicOn = useCallback((on: boolean) => {
     setMicOnState(on); micOnRef.current = on
@@ -323,6 +394,7 @@ export function useWebRTC({ token, role, caller, withVideo = true }: Options): W
   }, [])
 
   const encerrar = useCallback(() => {
+    encerradoRef.current = true
     try { sendSignal({ type: 'bye' }) } catch { /* */ }
     try { esRef.current?.close() } catch { /* */ }
     try { pcRef.current?.close() } catch { /* */ }
