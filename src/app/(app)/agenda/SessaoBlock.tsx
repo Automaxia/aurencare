@@ -35,6 +35,7 @@ export function SessaoBlock({ sessao, className, style, children }: {
   const [hora, setHora] = useState(ini.hora)
   const [duracao, setDuracao] = useState<number>(sessao.duracaoMin ?? 50)
   const [modalidade, setModalidade] = useState<string>(sessao.modalidade ?? 'online')
+  const [escopo, setEscopo] = useState<'uma' | 'seguintes'>('uma')
   const [salvando, setSalvando] = useState(false)
   const [erro, setErro] = useState<string | null>(null)
   const [confirmando, setConfirmando] = useState(false)
@@ -50,6 +51,7 @@ export function SessaoBlock({ sessao, className, style, children }: {
   function abrir() {
     const p = partesLocais(sessao.dataHora)
     setData(p.data); setHora(p.hora); setDuracao(sessao.duracaoMin ?? 50); setModalidade(sessao.modalidade ?? 'online')
+    setEscopo('uma')
     setErro(null); setConfirmando(false); setErroExcluir(null); setAberto(true)
   }
 
@@ -58,7 +60,7 @@ export function SessaoBlock({ sessao, className, style, children }: {
     const iso = horarioBrasiliaParaISO(data, hora)
     if (!iso) { setErro('Data/hora inválida.'); return }
     setSalvando(true)
-    const r = await reagendarSessaoAction(sessao.id, { dataHora: iso, duracaoMin: duracao, modalidade })
+    const r = await reagendarSessaoAction(sessao.id, { dataHora: iso, duracaoMin: duracao, modalidade }, sessao.seriePosicao ? escopo : 'uma')
     setSalvando(false)
     if (!r.ok) { setErro(r.error ?? 'Não foi possível salvar.'); return }
     setAberto(false); router.refresh()
@@ -128,6 +130,34 @@ export function SessaoBlock({ sessao, className, style, children }: {
                 </select>
               </label>
             </div>
+
+            {/* Escopo — só faz sentido em sessão de série */}
+            {sessao.seriePosicao && (
+              <div style={{ marginBottom: 12 }}>
+                <div className="sec-lbl" style={{ marginBottom: 6 }}>Aplicar a</div>
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <button type="button" onClick={() => setEscopo('uma')} style={{
+                    flex: 1, padding: '9px 10px', borderRadius: 8, fontSize: 12.5, cursor: 'pointer',
+                    border: '1px solid ' + (escopo === 'uma' ? 'var(--accent)' : 'var(--border)'),
+                    background: escopo === 'uma' ? 'var(--accent-lo)' : 'transparent',
+                    color: escopo === 'uma' ? 'var(--accent)' : 'var(--ink-soft)',
+                    fontWeight: escopo === 'uma' ? 600 : 400,
+                  }}>Só esta sessão</button>
+                  <button type="button" onClick={() => setEscopo('seguintes')} style={{
+                    flex: 1, padding: '9px 10px', borderRadius: 8, fontSize: 12.5, cursor: 'pointer',
+                    border: '1px solid ' + (escopo === 'seguintes' ? 'var(--accent)' : 'var(--border)'),
+                    background: escopo === 'seguintes' ? 'var(--accent-lo)' : 'transparent',
+                    color: escopo === 'seguintes' ? 'var(--accent)' : 'var(--ink-soft)',
+                    fontWeight: escopo === 'seguintes' ? 600 : 400,
+                  }}>Esta e as seguintes</button>
+                </div>
+                {escopo === 'seguintes' && (
+                  <p style={{ fontSize: 11.5, color: 'var(--muted)', margin: '8px 0 0', lineHeight: 1.45 }}>
+                    As próximas sessões desta série acompanham o novo dia/horário, no mesmo intervalo. Sessões já realizadas não mudam. O paciente recebe um aviso único no WhatsApp.
+                  </p>
+                )}
+              </div>
+            )}
 
             {erro && <div style={{ color: 'var(--rose)', fontSize: 12, marginBottom: 8 }}>{erro}</div>}
 
