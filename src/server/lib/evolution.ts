@@ -169,6 +169,13 @@ Não é necessário pagamento.` +
 
 Qualquer dúvida, é só responder por aqui.`,
 
+  /** Série remarcada em lote ("esta e as seguintes"): um único aviso-resumo,
+   * pra não inundar o paciente com uma mensagem por sessão. */
+  fluxo2_remarcadaSerie: (count: number, slot: string) =>
+    `📅 Suas próximas ${count} sessões foram remarcadas para ${slot}.
+
+Qualquer dúvida, é só responder por aqui.`,
+
   /**
    * Confirmação informativa de série recorrente (ex: 4 sessões toda sexta 15h).
    * NÃO pede método aqui — cron dispara fluxo2_perguntarMetodo 48h antes

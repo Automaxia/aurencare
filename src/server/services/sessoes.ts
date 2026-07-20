@@ -9,7 +9,7 @@ import { enviarEmailPacientePorSessao, enviarEmailPacientePorId } from '@/server
 import {
   tplSessaoConfirmada, tplSessaoCancelada, tplSerieAgendada,
 } from '@/server/lib/emailTemplates'
-import { formatDateTimeBR } from '@/lib/formatters'
+import { formatDateTimeBR, formatDateBR, formatTimeBR, TZ } from '@/lib/formatters'
 import { obterAssinatura } from './assinatura'
 import { incrementarSessaoIa } from './uso'
 import { lerStatusOnboarding } from './onboardingPagamento'
@@ -231,40 +231,83 @@ export async function criarSessao(input: CriarSessaoInput): Promise<Sessao> {
 }
 
 /** Reagenda a sessão (data/hora, duração, modalidade). Verifica posse. */
+/**
+ * Remarca uma sessão. `escopo`:
+ *  - 'uma' (default): só esta sessão.
+ *  - 'seguintes': ESTA e todas as SEGUINTES da mesma série (futuras, não
+ *    concluídas/canceladas/em curso). Aplica o MESMO delta de data/hora a todas
+ *    → preserva a cadência (semanal continua semanal) e joga a série pro novo
+ *    dia/horário. Duração/modalidade do patch também se aplicam ao escopo.
+ * Avisa o paciente por WhatsApp quando a data muda: um resumo único no lote,
+ * a mensagem normal quando é só uma.
+ */
 export async function reagendarSessao(
   psicologoId: string, sessaoId: string,
   patch: { dataHora?: string; duracaoMin?: number; modalidade?: string },
-): Promise<boolean> {
-  // Detecta se a data/hora realmente mudou (pra avisar o paciente só quando muda).
-  let mudouData = false
-  if (patch.dataHora !== undefined) {
-    const { rows } = await db.query<{ data_hora: string }>(
-      `SELECT data_hora FROM sessoes WHERE id = $1 AND psicologo_id = $2`, [sessaoId, psicologoId],
+  escopo: 'uma' | 'seguintes' = 'uma',
+): Promise<{ ok: boolean; afetadas: number }> {
+  const { rows: alvoRows } = await db.query<{ data_hora: string; serie_id: string | null }>(
+    `SELECT data_hora, serie_id FROM sessoes WHERE id = $1 AND psicologo_id = $2`, [sessaoId, psicologoId],
+  )
+  const alvo = alvoRows[0]
+  if (!alvo) return { ok: false, afetadas: 0 }
+
+  const dataOriginal = alvo.data_hora
+  const mudouData = patch.dataHora !== undefined &&
+    new Date(dataOriginal).getTime() !== new Date(patch.dataHora).getTime()
+  const deltaMs = patch.dataHora !== undefined
+    ? new Date(patch.dataHora).getTime() - new Date(dataOriginal).getTime()
+    : 0
+  const emSerie = escopo === 'seguintes' && !!alvo.serie_id
+
+  let afetadas = 0
+  if (emSerie) {
+    // "Esta e as seguintes" — delta-shift na série (a partir desta), só futuras.
+    const sets: string[] = []
+    const vals: any[] = [alvo.serie_id, psicologoId, dataOriginal]
+    if (patch.dataHora !== undefined) { sets.push(`data_hora = data_hora + ($${vals.length + 1} * interval '1 millisecond')`); vals.push(deltaMs) }
+    if (patch.duracaoMin !== undefined) { sets.push(`duracao_min = $${vals.length + 1}`); vals.push(patch.duracaoMin) }
+    if (patch.modalidade !== undefined) { sets.push(`modalidade = $${vals.length + 1}`); vals.push(patch.modalidade) }
+    if (sets.length === 0) return { ok: false, afetadas: 0 }
+    const { rowCount } = await db.query(
+      `UPDATE sessoes SET ${sets.join(', ')}
+        WHERE serie_id = $1 AND psicologo_id = $2 AND data_hora >= $3
+          AND status NOT IN ('concluida', 'cancelada', 'em_curso')`, vals,
     )
-    if (rows[0]) mudouData = new Date(rows[0].data_hora).getTime() !== new Date(patch.dataHora).getTime()
+    afetadas = rowCount ?? 0
+  } else {
+    const fields: string[] = []
+    const vals: any[] = [sessaoId, psicologoId]
+    const set = (col: string, v: any) => { fields.push(`${col} = $${vals.length + 1}`); vals.push(v) }
+    if (patch.dataHora !== undefined)   set('data_hora', patch.dataHora)
+    if (patch.duracaoMin !== undefined) set('duracao_min', patch.duracaoMin)
+    if (patch.modalidade !== undefined) set('modalidade', patch.modalidade)
+    if (fields.length === 0) return { ok: false, afetadas: 0 }
+    const { rowCount } = await db.query(
+      `UPDATE sessoes SET ${fields.join(', ')} WHERE id = $1 AND psicologo_id = $2`, vals,
+    )
+    afetadas = rowCount ?? 0
   }
 
-  const fields: string[] = []
-  const vals: any[] = [sessaoId, psicologoId]
-  const set = (col: string, v: any) => { fields.push(`${col} = $${vals.length + 1}`); vals.push(v) }
-  if (patch.dataHora !== undefined)   set('data_hora', patch.dataHora)
-  if (patch.duracaoMin !== undefined) set('duracao_min', patch.duracaoMin)
-  if (patch.modalidade !== undefined) set('modalidade', patch.modalidade)
-  if (fields.length === 0) return false
-  const { rowCount } = await db.query(
-    `UPDATE sessoes SET ${fields.join(', ')} WHERE id = $1 AND psicologo_id = $2`, vals,
-  )
-  const ok = (rowCount ?? 0) > 0
+  const ok = afetadas > 0
 
-  // Avisa o paciente do novo horário por WhatsApp (best-effort, só se mudou a data/hora).
+  // Avisa o paciente por WhatsApp (best-effort, só se a data mudou).
   if (ok && mudouData) {
-    const sessao = await buscarSessao(sessaoId)
+    const sessao = await buscarSessao(sessaoId) // já com a nova data_hora (esta é a 1ª do lote)
     if (sessao?.pacienteTelefone) {
-      await enviarWA(sessao.pacienteTelefone, WA_TEMPLATES.fluxo2_remarcada(formatDateTimeBR(sessao.dataHora)))
-        .catch(err => log.err('reagendarSessao', 'falha WA remarcada', err))
+      if (emSerie && afetadas > 1) {
+        const nova = sessao.dataHora
+        const diaSemana = new Date(nova).toLocaleDateString('pt-BR', { weekday: 'long', timeZone: TZ })
+        const slot = `${diaSemana} às ${formatTimeBR(nova)}, a partir de ${formatDateBR(nova)}`
+        await enviarWA(sessao.pacienteTelefone, WA_TEMPLATES.fluxo2_remarcadaSerie(afetadas, slot))
+          .catch(err => log.err('reagendarSessao', 'falha WA remarcada série', err))
+      } else {
+        await enviarWA(sessao.pacienteTelefone, WA_TEMPLATES.fluxo2_remarcada(formatDateTimeBR(sessao.dataHora)))
+          .catch(err => log.err('reagendarSessao', 'falha WA remarcada', err))
+      }
     }
   }
-  return ok
+  return { ok, afetadas }
 }
 
 export type ExcluirSessaoResult =
