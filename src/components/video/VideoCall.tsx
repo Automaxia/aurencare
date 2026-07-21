@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
-import { Mic, MicOff, Video, VideoOff, PhoneOff, Maximize2, Minimize2, Aperture, ScreenShare, ScreenShareOff, Settings, Target, PenLine, SmilePlus } from 'lucide-react'
+import { Mic, MicOff, Video, VideoOff, PhoneOff, Maximize2, Minimize2, Aperture, ScreenShare, ScreenShareOff, Settings, Target, PenLine, SmilePlus, Network } from 'lucide-react'
 import { useWebRTC, type WebRTCState } from '@/lib/useWebRTC'
 import { useBackgroundBlur } from '@/lib/useBackgroundBlur'
 import { useFaceFraming } from '@/lib/useFaceFraming'
@@ -140,6 +140,12 @@ export function VideoCall({ token, role, caller, compact, fill, onEncerrar, onRe
     if (!pacienteId) return
     const r = await fetch(`/api/pacientes/${pacienteId}/objetivos-palco`).then(res => res.json()).catch(() => null)
     const p: PalcoState = { widget: 'objetivos', data: { objetivos: r?.objetivos ?? [] } }
+    setPalco(p); ctrl.enviarApp(p)
+  }
+  async function mostrarGrafo() {
+    if (!pacienteId) return
+    const grafo = await fetch(`/api/pacientes/${pacienteId}/temas`).then(res => res.json()).catch(() => null)
+    const p: PalcoState = { widget: 'grafo', data: { grafo: grafo ?? { nodes: [], edges: [] } } }
     setPalco(p); ctrl.enviarApp(p)
   }
   function mostrarQuadro() {
@@ -311,8 +317,8 @@ export function VideoCall({ token, role, caller, compact, fill, onEncerrar, onRe
         }}
       />
 
-      {/* Palco compartilhado (web-only) — objetivos (read-only) e humor (interativo) */}
-      {desktop && (palco?.widget === 'objetivos' || palco?.widget === 'humor') && (
+      {/* Palco compartilhado (web-only) — objetivos/grafo (read-only) e humor (interativo) */}
+      {desktop && (palco?.widget === 'objetivos' || palco?.widget === 'grafo' || palco?.widget === 'humor') && (
         <PalcoCompartilhado
           palco={palco}
           role={role}
@@ -340,6 +346,13 @@ export function VideoCall({ token, role, caller, compact, fill, onEncerrar, onRe
             title="Mostrar os objetivos do paciente na chamada"
           >
             <Target size={14} /> Objetivos
+          </button>
+          <button
+            className={`vc-tray-btn${palco?.widget === 'grafo' ? ' on' : ''}`}
+            onClick={() => (palco?.widget === 'grafo' ? pararPalco() : mostrarGrafo())}
+            title="Mostrar o grafo de temas ao paciente"
+          >
+            <Network size={14} /> Grafo
           </button>
           <button
             className={`vc-tray-btn${palco?.widget === 'quadro' ? ' on' : ''}`}

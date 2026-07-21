@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef } from 'react'
 import type { GrafoDados, GrafoNode } from '@/server/services/temas'
-import { CLUSTER_COLORS } from './view'
+import { CLUSTER_COLORS } from './colors'
 
 /**
  * Canvas force-directed conforme §8.

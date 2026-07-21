@@ -1784,6 +1784,10 @@ a.pip:hover .pip-d { transform: scale(1.25); transition: transform .15s ease; }
 .vc-palco-objs { display: grid; gap: 20px; }
 .vc-palco-obj-nome { font-size: 13.5px; font-weight: 500; color: var(--ink-soft); margin-bottom: 8px; }
 
+/* Grafo de temas no palco — card mais largo + área com altura pro canvas */
+.vc-palco-card--grafo { width: min(880px, 94%); }
+.vc-palco-grafo { position: relative; height: min(460px, 60vh); margin-top: 6px; }
+
 /* Checagem de humor no palco (interativa) */
 .palco-humor { text-align: center; padding: 4px 4px 2px; }
 .palco-humor-label { font-size: 20px; font-weight: 500; color: var(--ink); margin: 10px 0 18px; min-height: 26px; }
