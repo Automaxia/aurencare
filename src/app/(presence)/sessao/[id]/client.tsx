@@ -696,6 +696,7 @@ export function PresenceClient(props: Props) {
             caller
             compact
             pacienteId={props.pacienteId}
+            onHumorPaciente={(v) => setHumor(h => ({ ...h, estado: v }))}
             onEncerrar={() => { setChamada(null); setRemoteStream(null); setVideoMinimizado(false) }}
             onMinimizedChange={setVideoMinimizado}
             onRemoteStream={setRemoteStream}
