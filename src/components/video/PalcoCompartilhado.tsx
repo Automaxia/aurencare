@@ -3,7 +3,7 @@
    próprio site pro paciente (sem screen share). Renderiza read-only nos DOIS
    lados a partir do payload empurrado pelo canal app do WebRTC. Web-only (o pai,
    VideoCall, só monta no desktop). Fase 1: escala de objetivos. */
-import { useState } from 'react'
+import React, { useState, useRef } from 'react'
 import { BulletChart } from '@/app/(app)/pacientes/[id]/objetivos/BulletChart'
 import { GrafoCanvas } from '@/app/(app)/pacientes/[id]/temas/GrafoCanvas'
 import { ChecagemHumor } from './ChecagemHumor'
@@ -31,10 +31,41 @@ export function PalcoCompartilhado({ palco, onFechar, role, humorResposta, onRes
   humorResposta?: number | null
   onResponderHumor?: (valor: number) => void
 }) {
+  // Janela arrastável: a alça (topo do card) reposiciona o card dentro do quadro.
+  const [pos, setPos] = useState<{ left: number; top: number } | null>(null)
+  const drag = useRef<{ sx: number; sy: number; bl: number; bt: number } | null>(null)
+  function onDown(e: React.PointerEvent<HTMLDivElement>) {
+    const card = e.currentTarget.parentElement as HTMLElement | null
+    const parent = card?.parentElement as HTMLElement | null
+    if (!card || !parent) return
+    const r = card.getBoundingClientRect(), p = parent.getBoundingClientRect()
+    drag.current = { sx: e.clientX, sy: e.clientY, bl: r.left - p.left, bt: r.top - p.top }
+    setPos({ left: r.left - p.left, top: r.top - p.top })
+    try { e.currentTarget.setPointerCapture(e.pointerId) } catch { /* */ }
+  }
+  function onMove(e: React.PointerEvent<HTMLDivElement>) {
+    const d = drag.current; if (!d) return
+    const card = e.currentTarget.parentElement as HTMLElement | null
+    const parent = card?.parentElement as HTMLElement | null
+    if (!card || !parent) return
+    const p = parent.getBoundingClientRect()
+    const left = Math.max(4, Math.min(d.bl + (e.clientX - d.sx), p.width - card.offsetWidth - 4))
+    const top = Math.max(4, Math.min(d.bt + (e.clientY - d.sy), p.height - card.offsetHeight - 4))
+    setPos({ left, top })
+  }
+  function onUp(e: React.PointerEvent<HTMLDivElement>) {
+    drag.current = null
+    try { e.currentTarget.releasePointerCapture(e.pointerId) } catch { /* */ }
+  }
+
   if (!palco) return null
   return (
     <div className="vc-palco" role="region" aria-label="Conteúdo compartilhado">
-      <div className={'vc-palco-card' + (palco.widget === 'grafo' ? ' vc-palco-card--grafo' : '')}>
+      <div
+        className={'vc-palco-card' + (palco.widget === 'grafo' ? ' vc-palco-card--grafo' : '')}
+        style={pos ? { position: 'absolute', left: pos.left, top: pos.top, margin: 0 } : undefined}
+      >
+        <div className="vc-palco-drag" onPointerDown={onDown} onPointerMove={onMove} onPointerUp={onUp} title="Arraste para mover">⠿⠿</div>
         {onFechar && (
           <button className="vc-palco-close" onClick={onFechar} title="Encerrar apresentação" aria-label="Encerrar apresentação">✕</button>
         )}
