@@ -79,6 +79,45 @@ export function calcularProgresso(
   return Math.max(0, Math.min(100, Math.round(pct)))
 }
 
+/** Objetivo em formato compacto pro "palco compartilhado" da videochamada —
+ * exatamente o que o BulletChart precisa + o título. `atual` = última medição. */
+export type ObjetivoPalco = {
+  titulo: string
+  tipo: MetricaTipo
+  unidade: string | null
+  baseline: number | null
+  alvo: number | null
+  direcao: MetricaDirecao
+  atual: number | null
+}
+
+/** Objetivos ATIVOS do paciente (com o valor atual) pra apresentar ao paciente
+ * na chamada. Confere posse (psicólogo dono). Limite defensivo. */
+export async function objetivosParaPalco(psicologoId: string, pacienteId: string): Promise<ObjetivoPalco[]> {
+  const { rows } = await db.query<any>(
+    `SELECT o.titulo, o.metrica_tipo, o.metrica_unidade, o.metrica_baseline, o.metrica_alvo, o.metrica_direcao,
+            m.valor AS atual
+       FROM objetivos o
+       JOIN pacientes p ON p.id = o.paciente_id
+       LEFT JOIN LATERAL (
+         SELECT valor FROM objetivo_medicoes WHERE objetivo_id = o.id ORDER BY medido_em DESC, created_at DESC LIMIT 1
+       ) m ON true
+      WHERE o.paciente_id = $1 AND p.psicologo_id = $2 AND o.status = 'ativo'
+      ORDER BY o.created_at ASC
+      LIMIT 12`,
+    [pacienteId, psicologoId],
+  )
+  return rows.map(r => ({
+    titulo: r.titulo,
+    tipo: (r.metrica_tipo ?? 'absoluta') as MetricaTipo,
+    unidade: r.metrica_unidade,
+    baseline: r.metrica_baseline != null ? parseFloat(r.metrica_baseline) : null,
+    alvo: r.metrica_alvo != null ? parseFloat(r.metrica_alvo) : null,
+    direcao: (r.metrica_direcao ?? 'aumentar') as MetricaDirecao,
+    atual: r.atual != null ? parseFloat(r.atual) : null,
+  }))
+}
+
 export async function listarObjetivos(pacienteId: string): Promise<Objetivo[]> {
   const { rows } = await db.query(
     `SELECT * FROM objetivos WHERE paciente_id = $1 ORDER BY status='concluido', created_at DESC`,

@@ -695,6 +695,7 @@ export function PresenceClient(props: Props) {
             role="psicologo"
             caller
             compact
+            pacienteId={props.pacienteId}
             onEncerrar={() => { setChamada(null); setRemoteStream(null); setVideoMinimizado(false) }}
             onMinimizedChange={setVideoMinimizado}
             onRemoteStream={setRemoteStream}

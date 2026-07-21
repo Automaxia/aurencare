@@ -1764,6 +1764,38 @@ a.pip:hover .pip-d { transform: scale(1.25); transition: transform .15s ease; }
 .vc-ctrl.danger { background: var(--rose); }
 .vc-ctrl.danger:hover { background: #b04565; }
 
+/* ── Palco compartilhado (web-only): psicólogo mostra widgets do site ao paciente ── */
+.vc-palco {
+  position: absolute; inset: 0; z-index: 6; display: grid; place-items: center;
+  padding: 20px; background: rgba(14,12,24,.55); backdrop-filter: blur(2px);
+}
+.vc-palco-card {
+  position: relative; width: min(680px, 92%); max-height: 84%; overflow-y: auto;
+  background: var(--card); border-radius: 16px; padding: 22px 24px;
+  box-shadow: 0 20px 60px -12px rgba(10,6,20,.5);
+}
+.vc-palco-close {
+  position: absolute; top: 8px; right: 12px; border: none; background: transparent;
+  color: var(--muted); font-size: 16px; cursor: pointer; line-height: 1; padding: 4px;
+}
+.vc-palco-close:hover { color: var(--ink); }
+.vc-palco-titulo { font-size: 18px; font-weight: 500; color: var(--ink); margin-bottom: 16px; }
+.vc-palco-vazio { font-size: 13px; color: var(--muted); }
+.vc-palco-objs { display: grid; gap: 20px; }
+.vc-palco-obj-nome { font-size: 13.5px; font-weight: 500; color: var(--ink-soft); margin-bottom: 8px; }
+
+/* Bandeja de compartilhamento — só o psicólogo, no desktop */
+.vc-tray { position: absolute; left: 12px; bottom: 64px; z-index: 7; display: flex; gap: 6px; flex-wrap: wrap; }
+.vc-tray-btn {
+  display: inline-flex; align-items: center; gap: 6px; font-size: 12px; padding: 7px 12px;
+  border-radius: 999px; cursor: pointer; color: #f2eefc;
+  border: 1px solid rgba(255,255,255,.18); background: rgba(20,16,38,.6); backdrop-filter: blur(4px);
+  transition: background .15s;
+}
+.vc-tray-btn:hover { background: rgba(20,16,38,.82); }
+.vc-tray-btn.on { background: var(--accent); border-color: transparent; }
+.vc-compact .vc-tray { bottom: 52px; }
+
 /* Compact (embutido em painel menor) */
 .vc-compact { border-radius: var(--rsm); }
 .vc-compact .vc-local { width: 184px; height: 108px; bottom: 60px; right: 10px; }

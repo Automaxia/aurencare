@@ -16,6 +16,7 @@ export type SignalMessage =
   | { type: 'answer';     from: SignalRole; sdp: string; ts: number }
   | { type: 'candidate';  from: SignalRole; candidate: RTCIceCandidateInit; ts: number }
   | { type: 'screen';     from: SignalRole; on: boolean; ts: number }
+  | { type: 'app';        from: SignalRole; payload: any; ts: number }  // canal app genérico (palco compartilhado)
   | { type: 'ping';       ts: number }
 
 type Subscriber = {
