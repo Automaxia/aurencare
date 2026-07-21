@@ -4,6 +4,7 @@
    lados a partir do payload empurrado pelo canal app do WebRTC. Web-only (o pai,
    VideoCall, só monta no desktop). Fase 1: escala de objetivos. */
 import { BulletChart } from '@/app/(app)/pacientes/[id]/objetivos/BulletChart'
+import { ChecagemHumor } from './ChecagemHumor'
 
 export type PalcoObjetivo = {
   titulo: string
@@ -17,9 +18,16 @@ export type PalcoObjetivo = {
 export type PalcoState =
   | { widget: 'objetivos'; data: { objetivos: PalcoObjetivo[] } }
   | { widget: 'quadro' }
+  | { widget: 'humor' }
   | null
 
-export function PalcoCompartilhado({ palco, onFechar }: { palco: PalcoState; onFechar?: () => void }) {
+export function PalcoCompartilhado({ palco, onFechar, role, humorResposta, onResponderHumor }: {
+  palco: PalcoState
+  onFechar?: () => void
+  role?: 'psicologo' | 'paciente'
+  humorResposta?: number | null
+  onResponderHumor?: (valor: number) => void
+}) {
   if (!palco) return null
   return (
     <div className="vc-palco" role="region" aria-label="Conteúdo compartilhado">
@@ -28,6 +36,9 @@ export function PalcoCompartilhado({ palco, onFechar }: { palco: PalcoState; onF
           <button className="vc-palco-close" onClick={onFechar} title="Encerrar apresentação" aria-label="Encerrar apresentação">✕</button>
         )}
         {palco.widget === 'objetivos' && <PalcoObjetivos objetivos={palco.data.objetivos} />}
+        {palco.widget === 'humor' && (
+          <ChecagemHumor role={role ?? 'paciente'} resposta={humorResposta ?? null} onResponder={onResponderHumor} />
+        )}
       </div>
     </div>
   )

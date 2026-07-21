@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
-import { Mic, MicOff, Video, VideoOff, PhoneOff, Maximize2, Minimize2, Aperture, ScreenShare, ScreenShareOff, Settings, Target, PenLine } from 'lucide-react'
+import { Mic, MicOff, Video, VideoOff, PhoneOff, Maximize2, Minimize2, Aperture, ScreenShare, ScreenShareOff, Settings, Target, PenLine, SmilePlus } from 'lucide-react'
 import { useWebRTC, type WebRTCState } from '@/lib/useWebRTC'
 import { useBackgroundBlur } from '@/lib/useBackgroundBlur'
 import { useFaceFraming } from '@/lib/useFaceFraming'
@@ -27,18 +27,23 @@ type Props = {
   /** Lado do psicólogo: id do paciente, pra buscar o que compartilhar no palco.
    * Ausente = sem bandeja de compartilhamento (lado do paciente). */
   pacienteId?: string
+  /** Lado do psicólogo: o paciente respondeu a checagem de humor (−5..+5). */
+  onHumorPaciente?: (valor: number) => void
 }
 
-export function VideoCall({ token, role, caller, compact, fill, onEncerrar, onRemoteStream, onMinimizedChange, pacienteId }: Props) {
+export function VideoCall({ token, role, caller, compact, fill, onEncerrar, onRemoteStream, onMinimizedChange, pacienteId, onHumorPaciente }: Props) {
   // Palco compartilhado — o psicólogo mostra um widget do site pro paciente.
   const [palco, setPalco] = useState<PalcoState>(null)
   const [quadroScene, setQuadroScene] = useState<any[] | null>(null)  // cena do quadro (viewer)
+  const [humorResposta, setHumorResposta] = useState<number | null>(null) // resposta do humor
   const palcoRef = useRef<PalcoState>(null); palcoRef.current = palco
   const latestSceneRef = useRef<any[] | null>(null)                   // última cena enviada (editor), p/ re-sync
+  const onHumorRef = useRef(onHumorPaciente); onHumorRef.current = onHumorPaciente
   const ctrl = useWebRTC({ token, role, caller, onApp: (p) => {
     if (!p) return
-    if ('widget' in p) setPalco(p.widget ? p : null)          // ativa/desativa o palco
+    if ('widget' in p) { setPalco(p.widget ? p : null); if (p.widget === 'humor') setHumorResposta(null) }
     if ('quadroScene' in p) setQuadroScene(p.quadroScene)     // atualização de cena do quadro
+    if ('humorResposta' in p) { setHumorResposta(p.humorResposta); onHumorRef.current?.(p.humorResposta) } // paciente respondeu → psicólogo
   } })
   // Web-only: bandeja e palco só no desktop (widgets não cabem no mobile).
   const [desktop, setDesktop] = useState(false)
@@ -145,8 +150,15 @@ export function VideoCall({ token, role, caller, compact, fill, onEncerrar, onRe
     latestSceneRef.current = elements
     ctrl.enviarApp({ quadroScene: elements })
   }
+  function mostrarHumor() {
+    const p: PalcoState = { widget: 'humor' }
+    setPalco(p); setHumorResposta(null); ctrl.enviarApp({ widget: 'humor' })
+  }
+  function responderHumor(valor: number) {           // lado do paciente
+    setHumorResposta(valor); ctrl.enviarApp({ humorResposta: valor })
+  }
   function pararPalco() {
-    setPalco(null); setQuadroScene(null); latestSceneRef.current = null
+    setPalco(null); setQuadroScene(null); setHumorResposta(null); latestSceneRef.current = null
     ctrl.enviarApp({ widget: null })
   }
 
@@ -299,9 +311,15 @@ export function VideoCall({ token, role, caller, compact, fill, onEncerrar, onRe
         }}
       />
 
-      {/* Palco compartilhado (web-only) — renderiza nos dois lados */}
-      {desktop && palco?.widget === 'objetivos' && (
-        <PalcoCompartilhado palco={palco} onFechar={role === 'psicologo' ? pararPalco : undefined} />
+      {/* Palco compartilhado (web-only) — objetivos (read-only) e humor (interativo) */}
+      {desktop && (palco?.widget === 'objetivos' || palco?.widget === 'humor') && (
+        <PalcoCompartilhado
+          palco={palco}
+          role={role}
+          humorResposta={humorResposta}
+          onResponderHumor={responderHumor}
+          onFechar={role === 'psicologo' ? pararPalco : undefined}
+        />
       )}
       {/* Quadro branco — overlay fullscreen (via portal), editor no psicólogo */}
       {desktop && palco?.widget === 'quadro' && (
@@ -329,6 +347,13 @@ export function VideoCall({ token, role, caller, compact, fill, onEncerrar, onRe
             title="Abrir o quadro branco com o paciente"
           >
             <PenLine size={14} /> Quadro
+          </button>
+          <button
+            className={`vc-tray-btn${palco?.widget === 'humor' ? ' on' : ''}`}
+            onClick={() => (palco?.widget === 'humor' ? pararPalco() : mostrarHumor())}
+            title="Pedir a checagem de humor ao paciente"
+          >
+            <SmilePlus size={14} /> Humor
           </button>
         </div>
       )}
