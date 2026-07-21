@@ -7,12 +7,7 @@ import { GrafoCanvas } from './GrafoCanvas'
 import { TemasChat } from './TemasChat'
 import { CfpBadge } from '@/components/brand/CfpBadge'
 
-export const CLUSTER_COLORS: Record<string, string> = {
-  emocional:   '#6a4ec8',
-  relacional:  '#c4607a',
-  situacional: '#5a9e8a',
-  cognitivo:   '#b07d40',
-}
+import { CLUSTER_COLORS } from './colors'
 
 const CLUSTERS: { key: string; label: string }[] = [
   { key: 'all',         label: 'Todos' },
