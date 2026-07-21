@@ -1,10 +1,11 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
-import { Mic, MicOff, Video, VideoOff, PhoneOff, Maximize2, Minimize2, Aperture, ScreenShare, ScreenShareOff, Settings } from 'lucide-react'
+import { Mic, MicOff, Video, VideoOff, PhoneOff, Maximize2, Minimize2, Aperture, ScreenShare, ScreenShareOff, Settings, Target } from 'lucide-react'
 import { useWebRTC, type WebRTCState } from '@/lib/useWebRTC'
 import { useBackgroundBlur } from '@/lib/useBackgroundBlur'
 import { useFaceFraming } from '@/lib/useFaceFraming'
+import { PalcoCompartilhado, type PalcoState } from './PalcoCompartilhado'
 
 type Props = {
   token: string
@@ -22,10 +23,19 @@ type Props = {
   /** Notifica quando minimiza/restaura — pra o container (MovableWindow) sumir
    * e não deixar uma caixa vazia no lugar. */
   onMinimizedChange?: (minimized: boolean) => void
+  /** Lado do psicólogo: id do paciente, pra buscar o que compartilhar no palco.
+   * Ausente = sem bandeja de compartilhamento (lado do paciente). */
+  pacienteId?: string
 }
 
-export function VideoCall({ token, role, caller, compact, fill, onEncerrar, onRemoteStream, onMinimizedChange }: Props) {
-  const ctrl = useWebRTC({ token, role, caller })
+export function VideoCall({ token, role, caller, compact, fill, onEncerrar, onRemoteStream, onMinimizedChange, pacienteId }: Props) {
+  // Palco compartilhado — o psicólogo mostra um widget do site pro paciente.
+  const [palco, setPalco] = useState<PalcoState>(null)
+  const palcoRef = useRef<PalcoState>(null); palcoRef.current = palco
+  const ctrl = useWebRTC({ token, role, caller, onApp: (p) => setPalco(p?.widget ? p : null) })
+  // Web-only: bandeja e palco só no desktop (widgets não cabem no mobile).
+  const [desktop, setDesktop] = useState(false)
+  useEffect(() => { setDesktop(window.matchMedia?.('(min-width: 1101px)').matches ?? false) }, [])
   const localRef = useRef<HTMLVideoElement>(null)
   const remoteRef = useRef<HTMLVideoElement>(null)
   const [showDev, setShowDev] = useState(false)
@@ -111,6 +121,26 @@ export function VideoCall({ token, role, caller, compact, fill, onEncerrar, onRe
 
   // Avisa o container (MovableWindow) pra ele sumir quando minimizado.
   useEffect(() => { onMinimizedChange?.(minimized) }, [minimized, onMinimizedChange])
+
+  // ── Palco compartilhado ────────────────────────────────────────────────
+  const podePalco = role === 'psicologo' && desktop && !!pacienteId
+  async function mostrarObjetivos() {
+    if (!pacienteId) return
+    const r = await fetch(`/api/pacientes/${pacienteId}/objetivos-palco`).then(res => res.json()).catch(() => null)
+    const p: PalcoState = { widget: 'objetivos', data: { objetivos: r?.objetivos ?? [] } }
+    setPalco(p); ctrl.enviarApp(p)
+  }
+  function pararPalco() { setPalco(null); ctrl.enviarApp({ widget: null }) }
+
+  // Re-sincroniza o palco quando o outro peer (re)entra — cobre a reconexão do
+  // celular do paciente (o palco volta junto, sem o psicólogo reabrir nada).
+  const outroPrev = useRef(false)
+  useEffect(() => {
+    if (ctrl.outroPresente && !outroPrev.current && role === 'psicologo' && palcoRef.current) {
+      ctrl.enviarApp(palcoRef.current)
+    }
+    outroPrev.current = ctrl.outroPresente
+  }, [ctrl.outroPresente, role, ctrl])
 
   async function toggleFullscreen() {
     const el = shellRef.current
@@ -247,6 +277,24 @@ export function VideoCall({ token, role, caller, compact, fill, onEncerrar, onRe
           ...(pos ? { left: pos.left, top: pos.top, right: 'auto', bottom: 'auto' } : null),
         }}
       />
+
+      {/* Palco compartilhado (web-only) — renderiza nos dois lados */}
+      {desktop && palco && (
+        <PalcoCompartilhado palco={palco} onFechar={role === 'psicologo' ? pararPalco : undefined} />
+      )}
+
+      {/* Bandeja de compartilhamento — só o psicólogo, no desktop */}
+      {podePalco && (
+        <div className="vc-tray">
+          <button
+            className={`vc-tray-btn${palco?.widget === 'objetivos' ? ' on' : ''}`}
+            onClick={() => (palco?.widget === 'objetivos' ? pararPalco() : mostrarObjetivos())}
+            title="Mostrar os objetivos do paciente na chamada"
+          >
+            <Target size={14} /> Objetivos
+          </button>
+        </div>
+      )}
 
       <ControlsCall ctrl={ctrl} onEncerrar={onEncerrar} sharing={!!screenStream} onToggleScreen={toggleScreen} podeCompartilhar={podeCompartilhar} />
     </div>

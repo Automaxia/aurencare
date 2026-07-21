@@ -58,6 +58,8 @@ type Options = {
   caller: boolean
   /** Solicitar vídeo + áudio. Default true. */
   withVideo?: boolean
+  /** Recebe mensagens do canal app (palco compartilhado). Genérico e reusável. */
+  onApp?: (payload: any) => void
 }
 
 export type WebRTCState = {
@@ -89,9 +91,11 @@ export type WebRTCState = {
   outroCompartilhando: boolean
   /** Avisa o outro peer que começou/parou de compartilhar a tela. */
   sinalizarTela: (on: boolean) => void
+  /** Envia uma mensagem pelo canal app (palco compartilhado) ao outro peer. */
+  enviarApp: (payload: any) => void
 }
 
-export function useWebRTC({ token, role, caller, withVideo = true }: Options): WebRTCState {
+export function useWebRTC({ token, role, caller, withVideo = true, onApp }: Options): WebRTCState {
   const [estado, setEstado] = useState<Estado>('inicializando')
   const [localStream, setLocalStream] = useState<MediaStream | null>(null)
   const [remoteStream, setRemoteStream] = useState<MediaStream | null>(null)
@@ -120,6 +124,8 @@ export function useWebRTC({ token, role, caller, withVideo = true }: Options): W
   const estadoRef = useRef<Estado>('inicializando')
   estadoRef.current = estado
   const reconectarRef = useRef<() => void>(() => {})   // exposto pro handler de visibilidade
+  const onAppRef = useRef(onApp)
+  onAppRef.current = onApp
 
   // Constraints com AEC/NS/AGC + dispositivo escolhido. `modo`:
   //  - 'exact': falha se o dispositivo não existe (escolha explícita do usuário).
@@ -209,6 +215,8 @@ export function useWebRTC({ token, role, caller, withVideo = true }: Options): W
           setOutroCompartilhando(false)
         } else if (data.type === 'screen') {
           setOutroCompartilhando(!!data.on)
+        } else if (data.type === 'app') {
+          onAppRef.current?.(data.payload)
         } else if (data.type === 'offer' && !caller) {
           setEstado('conectando')
           await p.setRemoteDescription({ type: 'offer', sdp: data.sdp })
@@ -370,6 +378,7 @@ export function useWebRTC({ token, role, caller, withVideo = true }: Options): W
   }, [])
 
   const sinalizarTela = useCallback((on: boolean) => { sendSignal({ type: 'screen', on }) }, [sendSignal])
+  const enviarApp = useCallback((payload: any) => { sendSignal({ type: 'app', payload }) }, [sendSignal])
 
   // Ao escolher explicitamente, LEMBRA a escolha (localStorage) pra próxima sessão.
   const trocarCamera = useCallback((deviceId: string) => { salvarDispositivo(LS_CAM, deviceId); recapturar(deviceId, micId) }, [recapturar, micId])
@@ -402,5 +411,5 @@ export function useWebRTC({ token, role, caller, withVideo = true }: Options): W
     setEstado('encerrado')
   }, [sendSignal])
 
-  return { estado, localStream, remoteStream, outroPresente, err, micOn, setMicOn, camOn, setCamOn, replaceVideoTrack, encerrar, cameras, microfones, camId, micId, trocarCamera, trocarMicrofone, semVideo, outroCompartilhando, sinalizarTela }
+  return { estado, localStream, remoteStream, outroPresente, err, micOn, setMicOn, camOn, setCamOn, replaceVideoTrack, encerrar, cameras, microfones, camId, micId, trocarCamera, trocarMicrofone, semVideo, outroCompartilhando, sinalizarTela, enviarApp }
 }
