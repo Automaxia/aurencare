@@ -16,6 +16,7 @@ export type PalcoObjetivo = {
 }
 export type PalcoState =
   | { widget: 'objetivos'; data: { objetivos: PalcoObjetivo[] } }
+  | { widget: 'quadro' }
   | null
 
 export function PalcoCompartilhado({ palco, onFechar }: { palco: PalcoState; onFechar?: () => void }) {

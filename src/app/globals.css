@@ -1796,6 +1796,22 @@ a.pip:hover .pip-d { transform: scale(1.25); transition: transform .15s ease; }
 .vc-tray-btn.on { background: var(--accent); border-color: transparent; }
 .vc-compact .vc-tray { bottom: 52px; }
 
+/* Quadro branco — overlay fullscreen (portal pro body) */
+.vc-quadro-overlay { position: fixed; inset: 0; z-index: 200; display: flex; flex-direction: column; background: var(--page); }
+.vc-quadro-header {
+  display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  padding: 10px 16px; border-bottom: 1px solid var(--border); background: var(--card); flex-shrink: 0;
+}
+.vc-quadro-titulo { font-size: 14px; font-weight: 500; color: var(--ink); }
+.vc-quadro-fechar {
+  font-size: 12.5px; padding: 7px 14px; border-radius: 999px; cursor: pointer;
+  border: 1px solid var(--border); background: transparent; color: var(--rose);
+}
+.vc-quadro-fechar:hover { background: rgba(196,96,122,.08); }
+.vc-quadro-canvas { flex: 1; min-height: 0; position: relative; }
+.vc-quadro-canvas > div { height: 100%; }
+.vc-quadro-loading { display: grid; place-items: center; height: 100%; color: var(--muted); font-size: 13px; }
+
 /* Compact (embutido em painel menor) */
 .vc-compact { border-radius: var(--rsm); }
 .vc-compact .vc-local { width: 184px; height: 108px; bottom: 60px; right: 10px; }

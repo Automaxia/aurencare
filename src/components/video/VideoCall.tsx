@@ -1,11 +1,12 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
-import { Mic, MicOff, Video, VideoOff, PhoneOff, Maximize2, Minimize2, Aperture, ScreenShare, ScreenShareOff, Settings, Target } from 'lucide-react'
+import { Mic, MicOff, Video, VideoOff, PhoneOff, Maximize2, Minimize2, Aperture, ScreenShare, ScreenShareOff, Settings, Target, PenLine } from 'lucide-react'
 import { useWebRTC, type WebRTCState } from '@/lib/useWebRTC'
 import { useBackgroundBlur } from '@/lib/useBackgroundBlur'
 import { useFaceFraming } from '@/lib/useFaceFraming'
 import { PalcoCompartilhado, type PalcoState } from './PalcoCompartilhado'
+import { QuadroOverlay } from './QuadroOverlay'
 
 type Props = {
   token: string
@@ -31,8 +32,14 @@ type Props = {
 export function VideoCall({ token, role, caller, compact, fill, onEncerrar, onRemoteStream, onMinimizedChange, pacienteId }: Props) {
   // Palco compartilhado — o psicólogo mostra um widget do site pro paciente.
   const [palco, setPalco] = useState<PalcoState>(null)
+  const [quadroScene, setQuadroScene] = useState<any[] | null>(null)  // cena do quadro (viewer)
   const palcoRef = useRef<PalcoState>(null); palcoRef.current = palco
-  const ctrl = useWebRTC({ token, role, caller, onApp: (p) => setPalco(p?.widget ? p : null) })
+  const latestSceneRef = useRef<any[] | null>(null)                   // última cena enviada (editor), p/ re-sync
+  const ctrl = useWebRTC({ token, role, caller, onApp: (p) => {
+    if (!p) return
+    if ('widget' in p) setPalco(p.widget ? p : null)          // ativa/desativa o palco
+    if ('quadroScene' in p) setQuadroScene(p.quadroScene)     // atualização de cena do quadro
+  } })
   // Web-only: bandeja e palco só no desktop (widgets não cabem no mobile).
   const [desktop, setDesktop] = useState(false)
   useEffect(() => { setDesktop(window.matchMedia?.('(min-width: 1101px)').matches ?? false) }, [])
@@ -130,7 +137,18 @@ export function VideoCall({ token, role, caller, compact, fill, onEncerrar, onRe
     const p: PalcoState = { widget: 'objetivos', data: { objetivos: r?.objetivos ?? [] } }
     setPalco(p); ctrl.enviarApp(p)
   }
-  function pararPalco() { setPalco(null); ctrl.enviarApp({ widget: null }) }
+  function mostrarQuadro() {
+    const p: PalcoState = { widget: 'quadro' }
+    setPalco(p); ctrl.enviarApp({ widget: 'quadro' })
+  }
+  function enviarScene(elements: any[]) {
+    latestSceneRef.current = elements
+    ctrl.enviarApp({ quadroScene: elements })
+  }
+  function pararPalco() {
+    setPalco(null); setQuadroScene(null); latestSceneRef.current = null
+    ctrl.enviarApp({ widget: null })
+  }
 
   // Re-sincroniza o palco quando o outro peer (re)entra — cobre a reconexão do
   // celular do paciente (o palco volta junto, sem o psicólogo reabrir nada).
@@ -138,6 +156,9 @@ export function VideoCall({ token, role, caller, compact, fill, onEncerrar, onRe
   useEffect(() => {
     if (ctrl.outroPresente && !outroPrev.current && role === 'psicologo' && palcoRef.current) {
       ctrl.enviarApp(palcoRef.current)
+      if (palcoRef.current.widget === 'quadro' && latestSceneRef.current) {
+        ctrl.enviarApp({ quadroScene: latestSceneRef.current })
+      }
     }
     outroPrev.current = ctrl.outroPresente
   }, [ctrl.outroPresente, role, ctrl])
@@ -279,8 +300,17 @@ export function VideoCall({ token, role, caller, compact, fill, onEncerrar, onRe
       />
 
       {/* Palco compartilhado (web-only) — renderiza nos dois lados */}
-      {desktop && palco && (
+      {desktop && palco?.widget === 'objetivos' && (
         <PalcoCompartilhado palco={palco} onFechar={role === 'psicologo' ? pararPalco : undefined} />
+      )}
+      {/* Quadro branco — overlay fullscreen (via portal), editor no psicólogo */}
+      {desktop && palco?.widget === 'quadro' && (
+        <QuadroOverlay
+          editor={role === 'psicologo'}
+          scene={quadroScene}
+          onScene={enviarScene}
+          onFechar={role === 'psicologo' ? pararPalco : undefined}
+        />
       )}
 
       {/* Bandeja de compartilhamento — só o psicólogo, no desktop */}
@@ -292,6 +322,13 @@ export function VideoCall({ token, role, caller, compact, fill, onEncerrar, onRe
             title="Mostrar os objetivos do paciente na chamada"
           >
             <Target size={14} /> Objetivos
+          </button>
+          <button
+            className={`vc-tray-btn${palco?.widget === 'quadro' ? ' on' : ''}`}
+            onClick={() => (palco?.widget === 'quadro' ? pararPalco() : mostrarQuadro())}
+            title="Abrir o quadro branco com o paciente"
+          >
+            <PenLine size={14} /> Quadro
           </button>
         </div>
       )}
