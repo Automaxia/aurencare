@@ -1765,15 +1765,36 @@ a.pip:hover .pip-d { transform: scale(1.25); transition: transform .15s ease; }
 .vc-ctrl.danger:hover { background: #b04565; }
 
 /* ── Palco compartilhado (web-only): psicólogo mostra widgets do site ao paciente ── */
+/* Janela flutuante e ARRASTÁVEL — não cobre o vídeo (sem scrim); o card pega os
+   cliques, o resto deixa passar. */
 .vc-palco {
   position: absolute; inset: 0; z-index: 6; display: grid; place-items: center;
-  padding: 20px; background: rgba(14,12,24,.55); backdrop-filter: blur(2px);
+  padding: 20px; pointer-events: none;
 }
 .vc-palco-card {
   position: relative; width: min(680px, 92%); max-height: 84%; overflow-y: auto;
-  background: var(--card); border-radius: 16px; padding: 22px 24px;
-  box-shadow: 0 20px 60px -12px rgba(10,6,20,.5);
+  background: var(--card); border-radius: 16px; padding: 30px 24px 22px;
+  box-shadow: 0 20px 60px -12px rgba(10,6,20,.55);
+  pointer-events: auto;
 }
+/* alça de arraste no topo do card */
+.vc-palco-drag {
+  position: absolute; top: 0; left: 0; right: 0; height: 24px;
+  display: flex; align-items: center; justify-content: center;
+  cursor: grab; touch-action: none; color: var(--faint); font-size: 12px; letter-spacing: 2px;
+}
+.vc-palco-drag:active { cursor: grabbing; }
+.vc-palco-card--grafo .vc-palco-drag { color: rgba(242,238,252,.4); }
+
+/* Grafo: fundo ESCURO (os rótulos dos nós são brancos) — igual à página de temas */
+.vc-palco-card--grafo {
+  width: min(880px, 94%);
+  background: radial-gradient(ellipse at 32% 42%, #1e1830 0%, #141022 55%, #0e0c18 100%);
+}
+.vc-palco-card--grafo .vc-palco-titulo { color: #f2eefc; }
+.vc-palco-card--grafo .vc-palco-vazio { color: rgba(242,238,252,.6); }
+.vc-palco-card--grafo .vc-palco-close { color: rgba(242,238,252,.55); }
+.vc-palco-card--grafo .vc-palco-close:hover { color: #f2eefc; }
 .vc-palco-close {
   position: absolute; top: 8px; right: 12px; border: none; background: transparent;
   color: var(--muted); font-size: 16px; cursor: pointer; line-height: 1; padding: 4px;
@@ -1784,8 +1805,7 @@ a.pip:hover .pip-d { transform: scale(1.25); transition: transform .15s ease; }
 .vc-palco-objs { display: grid; gap: 20px; }
 .vc-palco-obj-nome { font-size: 13.5px; font-weight: 500; color: var(--ink-soft); margin-bottom: 8px; }
 
-/* Grafo de temas no palco — card mais largo + área com altura pro canvas */
-.vc-palco-card--grafo { width: min(880px, 94%); }
+/* Grafo de temas no palco — área com altura pro canvas (card/fundo: ver abaixo) */
 .vc-palco-grafo { position: relative; height: min(460px, 60vh); margin-top: 6px; }
 
 /* Checagem de humor no palco (interativa) */
