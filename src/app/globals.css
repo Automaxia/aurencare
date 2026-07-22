@@ -1775,7 +1775,16 @@ a.pip:hover .pip-d { transform: scale(1.25); transition: transform .15s ease; }
   position: relative; width: min(680px, 92%); max-height: 84%; overflow-y: auto;
   background: var(--card); border-radius: 16px; padding: 30px 24px 22px;
   box-shadow: 0 20px 60px -12px rgba(10,6,20,.55);
-  pointer-events: auto;
+  pointer-events: auto; display: flex; flex-direction: column;
+}
+/* alça de redimensionar (canto inferior-direito) */
+.vc-palco-resize {
+  position: absolute; right: 3px; bottom: 3px; width: 16px; height: 16px; z-index: 2;
+  cursor: nwse-resize; touch-action: none; opacity: .65;
+  background: linear-gradient(135deg, transparent 55%, var(--faint) 55%, var(--faint) 64%, transparent 64%, transparent 76%, var(--faint) 76%, var(--faint) 85%, transparent 85%);
+}
+.vc-palco-card--grafo .vc-palco-resize {
+  background: linear-gradient(135deg, transparent 55%, rgba(242,238,252,.55) 55%, rgba(242,238,252,.55) 64%, transparent 64%, transparent 76%, rgba(242,238,252,.55) 76%, rgba(242,238,252,.55) 85%, transparent 85%);
 }
 /* alça de arraste no topo do card */
 .vc-palco-drag {
@@ -1805,8 +1814,9 @@ a.pip:hover .pip-d { transform: scale(1.25); transition: transform .15s ease; }
 .vc-palco-objs { display: grid; gap: 20px; }
 .vc-palco-obj-nome { font-size: 13.5px; font-weight: 500; color: var(--ink-soft); margin-bottom: 8px; }
 
-/* Grafo de temas no palco — área com altura pro canvas (card/fundo: ver abaixo) */
-.vc-palco-grafo { position: relative; height: min(460px, 60vh); margin-top: 6px; }
+/* Grafo de temas no palco — área do canvas: flex:1 (cresce ao redimensionar o
+   card), com um piso confortável. GrafoCanvas re-mede via ResizeObserver. */
+.vc-palco-grafo { position: relative; flex: 1; min-height: 440px; margin-top: 6px; }
 
 /* Checagem de humor no palco (interativa) */
 .palco-humor { text-align: center; padding: 4px 4px 2px; }

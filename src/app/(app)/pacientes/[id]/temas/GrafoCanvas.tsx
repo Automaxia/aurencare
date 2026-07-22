@@ -68,6 +68,10 @@ export function GrafoCanvas({ grafo, selecionado, onSelect }: Props) {
     }
     resize()
     window.addEventListener('resize', resize)
+    // também re-mede quando o CONTAINER muda de tamanho (ex.: card do palco
+    // sendo redimensionado), não só a janela.
+    const ro = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(resize) : null
+    ro?.observe(wrap)
 
     const maxWeight = Math.max(1, ...edgeIndex.map(e => e.w))
 
@@ -214,6 +218,7 @@ export function GrafoCanvas({ grafo, selecionado, onSelect }: Props) {
     return () => {
       if (rafRef.current) cancelAnimationFrame(rafRef.current)
       window.removeEventListener('resize', resize)
+      ro?.disconnect()
     }
   }, [nodes, edgeIndex, neighbors, onSelect, selecionado])
 
