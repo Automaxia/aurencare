@@ -58,12 +58,37 @@ export function PalcoCompartilhado({ palco, onFechar, role, humorResposta, onRes
     try { e.currentTarget.releasePointerCapture(e.pointerId) } catch { /* */ }
   }
 
+  // Redimensionar: alça no canto inferior-direito.
+  const [size, setSize] = useState<{ w: number; h: number } | null>(null)
+  const resz = useRef<{ sx: number; sy: number; bw: number; bh: number } | null>(null)
+  function onReszDown(e: React.PointerEvent<HTMLDivElement>) {
+    const card = e.currentTarget.parentElement as HTMLElement | null
+    if (!card) return
+    const r = card.getBoundingClientRect()
+    resz.current = { sx: e.clientX, sy: e.clientY, bw: r.width, bh: r.height }
+    setSize({ w: r.width, h: r.height })
+    try { e.currentTarget.setPointerCapture(e.pointerId) } catch { /* */ }
+  }
+  function onReszMove(e: React.PointerEvent<HTMLDivElement>) {
+    const d = resz.current; if (!d) return
+    const w = Math.max(300, Math.min(d.bw + (e.clientX - d.sx), window.innerWidth - 32))
+    const h = Math.max(240, Math.min(d.bh + (e.clientY - d.sy), window.innerHeight - 32))
+    setSize({ w, h })
+  }
+  function onReszUp(e: React.PointerEvent<HTMLDivElement>) {
+    resz.current = null
+    try { e.currentTarget.releasePointerCapture(e.pointerId) } catch { /* */ }
+  }
+
   if (!palco) return null
   return (
     <div className="vc-palco" role="region" aria-label="Conteúdo compartilhado">
       <div
         className={'vc-palco-card' + (palco.widget === 'grafo' ? ' vc-palco-card--grafo' : '')}
-        style={pos ? { position: 'absolute', left: pos.left, top: pos.top, margin: 0 } : undefined}
+        style={{
+          ...(pos ? { position: 'absolute' as const, left: pos.left, top: pos.top, margin: 0 } : {}),
+          ...(size ? { width: size.w, height: size.h, maxHeight: 'none' as const } : {}),
+        }}
       >
         <div className="vc-palco-drag" onPointerDown={onDown} onPointerMove={onMove} onPointerUp={onUp} title="Arraste para mover">⠿⠿</div>
         {onFechar && (
@@ -74,6 +99,7 @@ export function PalcoCompartilhado({ palco, onFechar, role, humorResposta, onRes
         {palco.widget === 'humor' && (
           <ChecagemHumor role={role ?? 'paciente'} resposta={humorResposta ?? null} onResponder={onResponderHumor} />
         )}
+        <div className="vc-palco-resize" onPointerDown={onReszDown} onPointerMove={onReszMove} onPointerUp={onReszUp} title="Arraste para redimensionar" />
       </div>
     </div>
   )
