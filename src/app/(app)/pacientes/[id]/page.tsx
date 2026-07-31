@@ -126,7 +126,7 @@ export default async function PacientePerfilPage({ params }: { params: { id: str
           background: 'rgba(122,117,144,.10)', border: '1px solid var(--border)', fontSize: 12, color: 'var(--muted)',
         }}>
           <Archive size={14} style={{ flexShrink: 0 }} />
-          Paciente arquivado. Reative em <strong>⋯ → Reativar</strong> pra voltar a aparecer nas listas.
+          Paciente arquivado. Reative em <strong>Gerenciar → Reativar</strong> pra voltar a aparecer nas listas.
         </div>
       )}
 

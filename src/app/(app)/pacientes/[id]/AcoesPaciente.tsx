@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { Pencil, Archive, RotateCw } from 'lucide-react'
+import { Pencil, Archive, RotateCw, Settings2, ChevronDown, Trash2 } from 'lucide-react'
 import {
   atualizarPacienteAction, arquivarPacienteAction,
   reativarPacienteAction, excluirPacienteAction,
@@ -21,7 +21,7 @@ type Props = {
 
 type Modal = null | 'editar' | 'arquivar' | 'reativar' | 'excluir'
 
-/** Botão "⋯" com menu de ações + modais correspondentes. */
+/** Botão "Gerenciar" com menu de ações (editar/arquivar/excluir) + modais correspondentes. */
 export function AcoesPaciente({ pacienteId, inicial, totalSessoes }: Props) {
   const [aberto, setAberto] = useState(false)
   const [modal, setModal] = useState<Modal>(null)
@@ -44,31 +44,71 @@ export function AcoesPaciente({ pacienteId, inicial, totalSessoes }: Props) {
     <>
       <div style={{ position: 'relative' }}>
         <button
-          type="button" className="btn ghost"
+          type="button" className="btn"
           onClick={() => setAberto(a => !a)}
-          title="Ações do paciente"
+          title="Gerenciar paciente — editar dados, arquivar ou excluir"
           aria-haspopup="menu" aria-expanded={aberto}
-          style={{ padding: '6px 12px' }}
+          style={{
+            display: 'inline-flex', alignItems: 'center', gap: 6,
+            fontWeight: 500,
+            color: arquivado ? 'var(--amber)' : 'var(--accent)',
+            borderColor: aberto
+              ? 'var(--accent)'
+              : arquivado ? 'rgba(176,125,64,.42)' : 'rgba(106,78,200,.30)',
+            background: aberto
+              ? 'var(--accent-lo)'
+              : arquivado ? 'rgba(176,125,64,.10)' : 'var(--card)',
+            transition: 'background .12s var(--ease), border-color .12s var(--ease)',
+          }}
         >
-          ⋯
+          <Settings2 size={14} />
+          Gerenciar
+          <ChevronDown
+            size={13}
+            style={{
+              opacity: .65,
+              transform: aberto ? 'rotate(180deg)' : 'none',
+              transition: 'transform .15s var(--ease)',
+            }}
+          />
         </button>
         {aberto && (
           <>
             <div onClick={() => setAberto(false)} style={{ position: 'fixed', inset: 0, zIndex: 70 }} />
-            <div ref={menuRef} role="menu" aria-label="Ações do paciente" style={{
-              position: 'absolute', right: 0, top: '100%', marginTop: 4, zIndex: 71,
-              minWidth: 200, background: 'white', borderRadius: 10,
-              border: '1px solid var(--border)',
-              boxShadow: '0 8px 24px rgba(26,24,37,.10)',
+            <div ref={menuRef} role="menu" aria-label="Gerenciar paciente" style={{
+              position: 'absolute', right: 0, top: '100%', marginTop: 6, zIndex: 71,
+              minWidth: 268, background: 'white', borderRadius: 12,
+              border: '1px solid var(--border-md, var(--border))',
+              boxShadow: '0 14px 34px rgba(26,24,37,.16)',
               overflow: 'hidden',
             }}>
-              <ItemMenu icone={<Pencil size={14} />} label="Editar dados" onClick={() => abrir('editar')} />
+              <div style={{
+                padding: '10px 14px 8px', fontSize: 10, letterSpacing: '.08em',
+                textTransform: 'uppercase', color: 'var(--faint)',
+              }}>
+                Gerenciar paciente
+              </div>
+              <ItemMenu
+                icone={<Pencil size={15} />} label="Editar dados"
+                descricao="Nome, telefone e email"
+                onClick={() => abrir('editar')}
+              />
               {!arquivado
-                ? <ItemMenu icone={<Archive size={14} />} label="Arquivar" onClick={() => abrir('arquivar')} />
-                : <ItemMenu icone={<RotateCw size={14} />} label="Reativar" onClick={() => abrir('reativar')} />
+                ? <ItemMenu
+                    icone={<Archive size={15} />} label="Arquivar"
+                    descricao="Some das listas · histórico preservado"
+                    onClick={() => abrir('arquivar')}
+                  />
+                : <ItemMenu
+                    icone={<RotateCw size={15} />} label="Reativar"
+                    descricao="Volta a aparecer nas listas e atalhos"
+                    onClick={() => abrir('reativar')}
+                    destaque
+                  />
               }
               <ItemMenu
-                icone="×" label="Excluir definitivamente"
+                icone={<Trash2 size={15} />} label="Excluir definitivamente"
+                descricao="Só sem sessões registradas · não pode ser desfeito"
                 onClick={() => abrir('excluir')}
                 vermelho
               />
@@ -102,26 +142,37 @@ export function AcoesPaciente({ pacienteId, inicial, totalSessoes }: Props) {
   )
 }
 
-function ItemMenu({ icone, label, onClick, vermelho }: {
-  icone: React.ReactNode; label: string; onClick: () => void; vermelho?: boolean
+function ItemMenu({ icone, label, descricao, onClick, vermelho, destaque }: {
+  icone: React.ReactNode; label: string; descricao?: string
+  onClick: () => void; vermelho?: boolean; destaque?: boolean
 }) {
+  const cor = vermelho ? 'var(--rose)' : destaque ? 'var(--accent)' : 'var(--ink-soft)'
   return (
     <button
       type="button" role="menuitem" onClick={onClick}
       style={{
         width: '100%', textAlign: 'left',
-        padding: '10px 14px', background: 'transparent', border: 'none',
+        padding: '11px 14px', background: 'transparent', border: 'none',
         cursor: 'pointer', fontFamily: 'inherit', fontSize: 13,
-        color: vermelho ? 'var(--rose)' : 'var(--ink-soft)',
-        display: 'flex', alignItems: 'center', gap: 10,
+        color: cor,
+        display: 'flex', alignItems: 'flex-start', gap: 10,
         transition: 'background .15s var(--ease)',
         borderTop: '1px solid var(--border)',
       }}
-      onMouseEnter={e => (e.currentTarget.style.background = 'var(--surface)')}
+      onMouseEnter={e => (e.currentTarget.style.background = vermelho ? 'rgba(196,96,122,.07)' : 'var(--surface)')}
       onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
     >
-      <span style={{ width: 16, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', color: vermelho ? 'var(--rose)' : 'var(--muted)' }}>{icone}</span>
-      {label}
+      <span style={{
+        width: 16, marginTop: 1, flexShrink: 0,
+        display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+        color: vermelho ? 'var(--rose)' : destaque ? 'var(--accent)' : 'var(--muted)',
+      }}>{icone}</span>
+      <span style={{ display: 'grid', gap: 2 }}>
+        <span style={{ fontWeight: 500 }}>{label}</span>
+        {descricao && (
+          <span style={{ fontSize: 11, color: 'var(--muted)', lineHeight: 1.4 }}>{descricao}</span>
+        )}
+      </span>
     </button>
   )
 }
