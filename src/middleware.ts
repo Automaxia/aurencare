@@ -11,10 +11,11 @@ export const config = {
    * (landing pública) · /onboard/* + /api/onboard/* (aceite do paciente, anônimo)
    * · /sala/* · /api/auth/* · /api/webhooks/* · /api/health · /api/ice (ICE
    * servers do WebRTC — paciente é anônimo) · /confirmar/* · /landing/* (imagens
-   * públicas da landing) · /api/cron/recalcular-temas (manutenção, auto-protegida
-   * por CRON_SECRET) · assets internos.
+   * públicas da landing) · /api/cron/recalcular-temas e
+   * /api/cron/destravar-sessoes (manutenção, auto-protegidas por CRON_SECRET)
+   * · assets internos.
    */
   matcher: [
-    '/((?!login|cadastro|recuperar-senha|redefinir-senha|lancamento|landing|confirmar|onboard|sala|api/auth|api/onboard|api/webhooks|api/cron/recalcular-temas|api/cron/temas-validar|api/sala|api/wa|api/health|api/ice|_next/static|_next/image|favicon.ico|icon.svg).*)',
+    '/((?!login|cadastro|recuperar-senha|redefinir-senha|lancamento|landing|confirmar|onboard|sala|api/auth|api/onboard|api/webhooks|api/cron/recalcular-temas|api/cron/temas-validar|api/cron/destravar-sessoes|api/sala|api/wa|api/health|api/ice|_next/static|_next/image|favicon.ico|icon.svg).*)',
   ],
 }
