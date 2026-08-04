@@ -64,6 +64,10 @@ export function PresenceClient(props: Props) {
   const [recording, setRecording] = useState(false)
   const [iniciandoRegistro, setIniciandoRegistro] = useState(false)
   const [encerrando, setEncerrando] = useState(false)
+  // "Encerrar sem registrar": confirmação em dois passos + erro do servidor.
+  const [confirmandoInterromper, setConfirmandoInterromper] = useState(false)
+  const [interrompendo, setInterrompendo] = useState(false)
+  const [erroInterromper, setErroInterromper] = useState<string | null>(null)
   const [showPostModal, setShowPostModal] = useState(false)
   const [resumoIA, setResumoIA] = useState<string | null>(null)
   const [resumoIndisponivel, setResumoIndisponivel] = useState(false)
@@ -371,6 +375,30 @@ export function PresenceClient(props: Props) {
     setRecording(true)
   }
 
+  /**
+   * Encerra SEM registrar: a sessão começou mas não aconteceu (precisou parar no
+   * meio, paciente passou mal, problema técnico). Descarta a transcrição parcial
+   * — nada é enviado ao servidor —, não gera resumo, não avisa o paciente, e a
+   * sessão volta pra agenda podendo ser remarcada. A cota de IA é estornada.
+   */
+  async function interromper() {
+    if (interrompendo) return
+    setErroInterromper(null)
+    setInterrompendo(true)
+    setRecording(false)   // corta a transcrição na hora, antes do round-trip
+    const r = await fetch(`/api/sessao/${props.sessaoId}/interromper`, { method: 'POST' })
+      .catch(() => null)
+    if (!r || !r.ok) {
+      const j = r ? await r.json().catch(() => ({} as any)) : {}
+      setErroInterromper(j?.erro ?? 'Não foi possível interromper. Tente de novo.')
+      setInterrompendo(false)
+      setConfirmandoInterromper(false)
+      return
+    }
+    // Sai do Modo Presença — não há pós-sessão pra mostrar.
+    window.location.href = `/pacientes/${props.pacienteId}`
+  }
+
   async function encerrar() {
     if (encerrando) return
     setEncerrando(true)
@@ -553,12 +581,44 @@ export function PresenceClient(props: Props) {
               <ArrowLeftRight size={14} /> Trocar P↔C
             </button>
           )}
-          <button className="btn primary" onClick={encerrar} disabled={encerrando}>
+          {/* Saída sem registro — só faz sentido depois de iniciada. Dois passos:
+              descartar é irreversível (a transcrição parcial não é salva). */}
+          {sessaoIniciada && (
+            confirmandoInterromper ? (
+              <>
+                <span style={{ fontSize: 12, color: 'var(--ink-soft)' }}>Descartar esta sessão?</span>
+                <button className="btn ghost" onClick={() => setConfirmandoInterromper(false)} disabled={interrompendo}>
+                  Não
+                </button>
+                <button
+                  className="btn primary" onClick={interromper} disabled={interrompendo}
+                  style={{ background: 'var(--rose)' }}
+                >
+                  {interrompendo ? 'Descartando…' : 'Sim, descartar'}
+                </button>
+              </>
+            ) : (
+              <button
+                className="btn ghost" onClick={() => { setErroInterromper(null); setConfirmandoInterromper(true) }}
+                disabled={encerrando}
+                title="A sessão não aconteceu: descarta o que foi transcrito, não gera registro nem avisa o paciente, e volta pra agenda"
+              >
+                Encerrar sem registrar
+              </button>
+            )
+          )}
+          <button className="btn primary" onClick={encerrar} disabled={encerrando || interrompendo}>
             {encerrando ? 'Encerrando · gerando laudo…' : 'Encerrar'}
           </button>
           <a className="btn ghost" href={`/pacientes/${props.pacienteId}`}>← Voltar ao paciente</a>
         </div>
       </div>
+
+      {erroInterromper && (
+        <div style={{ background: 'var(--rose-lo)', color: 'var(--rose)', padding: '10px 16px', fontSize: 12 }}>
+          {erroInterromper}
+        </div>
+      )}
 
       {bloqueio && (
         <div style={{ background: 'var(--rose-lo)', color: 'var(--rose)', padding: '10px 16px', fontSize: 12, display: 'flex', alignItems: 'center', gap: 12, justifyContent: 'space-between' }}>
