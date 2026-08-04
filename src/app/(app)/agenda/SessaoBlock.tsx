@@ -28,6 +28,18 @@ function partesLocais(iso: string): { data: string; hora: string } {
   }
 }
 
+/**
+ * `indicadores` é sempre gravado no encerrar (ritmo/humor/risco/notaRapida com
+ * defaults), então "existe" não quer dizer "tem conteúdo". Só conta o que a
+ * psicóloga digitou/marcou de propósito: nota rápida ou risco acima de baixo.
+ */
+function anotacaoViva(ind: any): boolean {
+  if (!ind || typeof ind !== 'object') return false
+  if (typeof ind.notaRapida === 'string' && ind.notaRapida.trim()) return true
+  const r = ind.risco
+  return !!r && ['autolesao', 'ideacao', 'plano'].some(k => r[k] && r[k] !== 'lo')
+}
+
 export function SessaoBlock({ sessao, className, style, children }: {
   sessao: any; className?: string; style?: React.CSSProperties; children: React.ReactNode
 }) {
@@ -59,11 +71,17 @@ export function SessaoBlock({ sessao, className, style, children }: {
   const podeCancelar = !finalizada && !emCurso && sessao.status !== 'cancelada'
   const podeNoShow = !finalizada && !emCurso && sessao.status !== 'cancelada' && (passada || ehNoShow)
 
-  // Só sessões que ainda não aconteceram E sem cobrança ativa/paga podem ser
-  // excluídas (prontuário não se apaga; cobrança ativa não pode ser orfanizada).
-  // O servidor revalida tudo isso de novo.
+  // Só sessão VAZIA (sem assinatura e sem nenhum texto clínico) e sem cobrança
+  // ativa/paga pode ser excluída — inclusive a concluída que não registrou nada.
+  // Espelha `sessaoVazia`/`excluirSessao`; o servidor revalida tudo de novo.
+  const vazia = !sessao.assinada && !sessao.transcricao && !sessao.notaClinica
+    && !sessao.resumoIa && !sessao.resumoCurto && !sessao.laudo
   const semCobrancaAtiva = sessao.pagamentoStatus !== 'pago' && !(sessao.pagarmeOrderId && sessao.pagamentoStatus === 'pendente')
-  const podeExcluir = !sessao.assinada && sessao.status !== 'concluida' && sessao.status !== 'em_curso' && semCobrancaAtiva
+  const podeExcluir = vazia && !emCurso && semCobrancaAtiva
+  // A sessão pode estar sem texto nenhum e ainda assim ter anotação feita ao
+  // vivo (nota rápida ou risco acima de baixo). Some junto no DELETE, então a
+  // confirmação diz isso em vez de apagar em silêncio.
+  const temAnotacaoViva = anotacaoViva(sessao.indicadores)
 
   function abrir() {
     const p = partesLocais(sessao.dataHora)
@@ -296,13 +314,25 @@ export function SessaoBlock({ sessao, className, style, children }: {
             {podeExcluir && (
               <div style={{ marginTop: 16, paddingTop: 12, borderTop: '1px solid var(--border)' }}>
                 {!confirmando ? (
-                  <button onClick={() => { setErroExcluir(null); setConfirmando(true) }} disabled={salvando}
-                    className="btn ghost" style={{ color: 'var(--rose)', fontSize: 12.5, padding: '5px 10px', display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-                    <Trash2 size={14} /> Excluir sessão
-                  </button>
+                  <>
+                    {sessao.status === 'concluida' && (
+                      <p style={{ fontSize: 11.5, color: 'var(--muted)', margin: '0 0 8px', lineHeight: 1.45 }}>
+                        Esta sessão foi encerrada sem registrar nada. Excluir tira ela da pendência
+                        de registro do paciente e dos indicadores da prática.
+                      </p>
+                    )}
+                    <button onClick={() => { setErroExcluir(null); setConfirmando(true) }} disabled={salvando}
+                      className="btn ghost" style={{ color: 'var(--rose)', fontSize: 12.5, padding: '5px 10px', display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                      <Trash2 size={14} /> Excluir sessão
+                    </button>
+                  </>
                 ) : (
                   <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
-                    <span style={{ fontSize: 12.5, color: 'var(--ink-soft)' }}>Excluir de vez? Não dá pra desfazer.</span>
+                    <span style={{ fontSize: 12.5, color: 'var(--ink-soft)' }}>
+                      {temAnotacaoViva
+                        ? 'Não há registro clínico, mas há anotação feita ao vivo (nota rápida ou risco) — ela some junto. Excluir de vez?'
+                        : 'Excluir de vez? Não dá pra desfazer.'}
+                    </span>
                     <div style={{ display: 'flex', gap: 8, marginLeft: 'auto' }}>
                       <button onClick={() => setConfirmando(false)} disabled={excluindo} className="btn ghost" style={{ fontSize: 12.5 }}>Não</button>
                       <button onClick={excluir} disabled={excluindo} className="btn primary" style={{ background: 'var(--rose)', fontSize: 12.5 }}>

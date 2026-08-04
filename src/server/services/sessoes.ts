@@ -312,33 +312,64 @@ export async function reagendarSessao(
 
 export type ExcluirSessaoResult =
   | { ok: true }
-  | { ok: false; motivo: 'nao_encontrada' | 'realizada' | 'paga' | 'cobranca' }
+  | { ok: false; motivo: 'nao_encontrada' | 'em_curso' | 'registro' | 'paga' | 'cobranca' }
 
 /**
- * Exclui (hard delete) uma sessão que ainda não aconteceu — pra limpar
- * agendamentos criados por engano. Diferente de `cancelarSessao` (soft-delete
- * com reembolso + aviso), some de vez da agenda.
+ * Uma sessão está "vazia" quando não sobrou nada de prontuário nela: sem
+ * assinatura e sem nenhum dos textos clínicos. É a MESMA definição que
+ * `interromperSessao` usa como guarda `tem_registro` (+ o laudo formal).
+ *
+ * `indicadores` de propósito NÃO entra aqui: o encerrar sempre grava o objeto
+ * (ritmo/humor/risco/notaRapida com defaults), então exigir que ele seja nulo
+ * tornaria toda sessão concluída ineligível. O que a psicóloga tenha de fato
+ * preenchido ali é avisado na confirmação da UI antes de excluir.
+ */
+export function sessaoVazia(s: Sessao): boolean {
+  return !s.assinada && !s.transcricao && !s.notaClinica && !s.resumoIa && !s.resumoCurto && !s.laudo
+}
+
+/**
+ * Exclui (hard delete) uma sessão VAZIA — pra limpar agendamento criado por
+ * engano e também a sessão que foi encerrada sem nada ter sido registrado
+ * (clicou "Encerrar" numa sessão que não aconteceu, microfone falhou). Essa
+ * segunda ficava presa: `concluida` sem conteúdo não podia ser excluída, nem
+ * cancelada, nem marcada como sem comparecimento — e ainda puxava o badge
+ * "Registrar" do paciente e entrava nos indicadores do financeiro.
+ *
+ * Diferente de `cancelarSessao` (soft-delete com reembolso + aviso), some de vez.
  *
  * Guardas:
- *  - 'realizada': sessão em curso/concluída, assinada ou com registro clínico
- *    (transcrição/nota/resumo). Prontuário não se apaga — bloqueia.
+ *  - 'em_curso': destrave/encerre antes — enquanto roda, a transcrição ainda
+ *    pode chegar e o DELETE correria com o encerrar.
+ *  - 'registro': assinada ou com qualquer texto clínico. Prontuário não se apaga.
  *  - 'paga': dinheiro retido do paciente. Bloqueia; o caminho certo é cancelar
  *    (reembolsa + avisa), não sumir com a sessão silenciosamente.
  *
- * Dependentes (salas_video, palavras_chave.ultima_sessao_id, objetivo_smart.sessao_id)
- * têm ON DELETE cascade/set null, então o DELETE é limpo.
+ * Dependentes (salas_video, sessao_grafo, palavras_chave.ultima_sessao_id,
+ * objetivo_smart.sessao_id) têm ON DELETE cascade/set null, então o DELETE é
+ * limpo. `api_custos.sessao_id` não tem FK de propósito — o histórico de custo
+ * sobrevive à exclusão.
  */
 export async function excluirSessao(psicologoId: string, sessaoId: string): Promise<ExcluirSessaoResult> {
   const s = await buscarSessao(sessaoId)
   if (!s || s.psicologoId !== psicologoId) return { ok: false, motivo: 'nao_encontrada' }
-  if (s.assinada || s.status === 'concluida' || s.status === 'em_curso' || s.transcricao || s.notaClinica || s.resumoIa)
-    return { ok: false, motivo: 'realizada' }
+  if (s.status === 'em_curso') return { ok: false, motivo: 'em_curso' }
+  if (!sessaoVazia(s)) return { ok: false, motivo: 'registro' }
   if (s.pagamentoStatus === 'pago') return { ok: false, motivo: 'paga' }
   // Cobrança ativa (PIX/checkout gerado, ainda pendente): deletar a linha
   // orfaniza a cobrança — se o paciente pagar depois, o webhook não acha a
   // sessão e o dinheiro entra sem reembolso. Bloqueia; o certo é cancelar.
   if (s.pagarmeOrderId && s.pagamentoStatus === 'pendente') return { ok: false, motivo: 'cobranca' }
-  await db.query('DELETE FROM sessoes WHERE id = $1 AND psicologo_id = $2', [sessaoId, psicologoId])
+
+  // O DELETE devolve `ia_contabilizada` da linha que ele mesmo removeu: se a
+  // sessão chegou a abrir o registro com IA (e não gerou nada), a cota do mês
+  // volta. RETURNING amarra leitura e remoção na mesma ida — duplo clique não
+  // estorna duas vezes, porque só a primeira chamada acha a linha.
+  const { rows } = await db.query<{ ia_contabilizada: boolean | null }>(
+    `DELETE FROM sessoes WHERE id = $1 AND psicologo_id = $2 RETURNING ia_contabilizada`,
+    [sessaoId, psicologoId],
+  )
+  if (rows[0]?.ia_contabilizada) await decrementarSessaoIa(psicologoId)
   return { ok: true }
 }
 

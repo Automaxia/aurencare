@@ -26,10 +26,16 @@ export async function reagendarSessaoAction(
 export async function excluirSessaoAction(sessaoId: string): Promise<{ ok: boolean; error?: string }> {
   const user = await requirePsicologo()
   const r = await excluirSessao(user.id, sessaoId)
-  if (r.ok) { revalidatePath('/agenda'); revalidatePath('/'); return { ok: true } }
+  // Excluir uma concluída vazia também tira o badge "Registrar" do paciente e a
+  // sessão da contagem do financeiro — por isso revalida além da agenda.
+  if (r.ok) {
+    revalidarAgenda(); revalidatePath('/pacientes'); revalidatePath('/financeiro')
+    return { ok: true }
+  }
   const msg = {
     nao_encontrada: 'Sessão não encontrada.',
-    realizada: 'Esta sessão já aconteceu (ou tem registro clínico) e não pode ser excluída.',
+    em_curso: 'A sessão está em curso. Destrave (ou encerre) antes de excluir.',
+    registro: 'Esta sessão tem registro clínico (transcrição, nota, resumo ou assinatura) e não pode ser excluída.',
     paga: 'Sessão paga: não dá pra excluir aqui. Cancele/reembolse o paciente antes.',
     cobranca: 'Há uma cobrança ativa nesta sessão. Cancele a cobrança antes de excluir.',
   }[r.motivo]
