@@ -2,12 +2,13 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { Trash2 } from 'lucide-react'
 import {
-  reagendarSessaoAction, excluirSessaoAction,
+  reagendarSessaoAction,
   cancelarSessaoAction, marcarNoShowAction, destravarSessaoAction,
 } from './actions'
 import { horarioBrasiliaParaISO, TZ } from '@/lib/formatters'
+import { podeExcluirSessao, sessaoVazia, temAnotacaoViva } from '@/lib/sessaoExclusao'
+import { ExcluirSessao } from '@/components/ExcluirSessao'
 
 const STATUS_LABEL: Record<string, string> = {
   agendada: 'Agendada', aguardando_metodo: 'Aguardando método de pagamento',
@@ -28,18 +29,6 @@ function partesLocais(iso: string): { data: string; hora: string } {
   }
 }
 
-/**
- * `indicadores` é sempre gravado no encerrar (ritmo/humor/risco/notaRapida com
- * defaults), então "existe" não quer dizer "tem conteúdo". Só conta o que a
- * psicóloga digitou/marcou de propósito: nota rápida ou risco acima de baixo.
- */
-function anotacaoViva(ind: any): boolean {
-  if (!ind || typeof ind !== 'object') return false
-  if (typeof ind.notaRapida === 'string' && ind.notaRapida.trim()) return true
-  const r = ind.risco
-  return !!r && ['autolesao', 'ideacao', 'plano'].some(k => r[k] && r[k] !== 'lo')
-}
-
 export function SessaoBlock({ sessao, className, style, children }: {
   sessao: any; className?: string; style?: React.CSSProperties; children: React.ReactNode
 }) {
@@ -53,9 +42,6 @@ export function SessaoBlock({ sessao, className, style, children }: {
   const [escopo, setEscopo] = useState<'uma' | 'seguintes'>('uma')
   const [salvando, setSalvando] = useState(false)
   const [erro, setErro] = useState<string | null>(null)
-  const [confirmando, setConfirmando] = useState(false)
-  const [excluindo, setExcluindo] = useState(false)
-  const [erroExcluir, setErroExcluir] = useState<string | null>(null)
   // Cancelar / sem comparecimento / destravar. `confirmandoAcao` guarda qual das
   // ações irreversíveis está esperando o "tem certeza".
   const [confirmandoAcao, setConfirmandoAcao] = useState<'cancelar' | 'destravar' | null>(null)
@@ -71,23 +57,20 @@ export function SessaoBlock({ sessao, className, style, children }: {
   const podeCancelar = !finalizada && !emCurso && sessao.status !== 'cancelada'
   const podeNoShow = !finalizada && !emCurso && sessao.status !== 'cancelada' && (passada || ehNoShow)
 
-  // Só sessão VAZIA (sem assinatura e sem nenhum texto clínico) e sem cobrança
-  // ativa/paga pode ser excluída — inclusive a concluída que não registrou nada.
-  // Espelha `sessaoVazia`/`excluirSessao`; o servidor revalida tudo de novo.
-  const vazia = !sessao.assinada && !sessao.transcricao && !sessao.notaClinica
-    && !sessao.resumoIa && !sessao.resumoCurto && !sessao.laudo
-  const semCobrancaAtiva = sessao.pagamentoStatus !== 'pago' && !(sessao.pagarmeOrderId && sessao.pagamentoStatus === 'pendente')
-  const podeExcluir = vazia && !emCurso && semCobrancaAtiva
-  // A sessão pode estar sem texto nenhum e ainda assim ter anotação feita ao
-  // vivo (nota rápida ou risco acima de baixo). Some junto no DELETE, então a
-  // confirmação diz isso em vez de apagar em silêncio.
-  const temAnotacaoViva = anotacaoViva(sessao.indicadores)
+  // A agenda tem a sessão inteira em mãos, então dá pra decidir aqui mesmo —
+  // a regra vem de `@/lib/sessaoExclusao` e o servidor revalida tudo de novo.
+  const podeExcluir = podeExcluirSessao({
+    status: sessao.status,
+    temRegistro: !sessaoVazia(sessao),
+    pagamentoStatus: sessao.pagamentoStatus,
+    temCobrancaAberta: !!sessao.pagarmeOrderId && sessao.pagamentoStatus === 'pendente',
+  })
 
   function abrir() {
     const p = partesLocais(sessao.dataHora)
     setData(p.data); setHora(p.hora); setDuracao(sessao.duracaoMin ?? 50); setModalidade(sessao.modalidade ?? 'online')
     setEscopo('uma')
-    setErro(null); setConfirmando(false); setErroExcluir(null)
+    setErro(null)
     setConfirmandoAcao(null); setErroAcao(null); setOkAcao(null)
     setAberto(true)
   }
@@ -130,14 +113,6 @@ export function SessaoBlock({ sessao, className, style, children }: {
     if (!r.ok) { setErroAcao(r.error ?? 'Não foi possível destravar.'); return }
     setOkAcao('Sessão destravada — voltou pra agenda e pode ser remarcada.')
     router.refresh()
-  }
-
-  async function excluir() {
-    setErroExcluir(null); setExcluindo(true)
-    const r = await excluirSessaoAction(sessao.id)
-    setExcluindo(false)
-    if (!r.ok) { setErroExcluir(r.error ?? 'Não foi possível excluir.'); setConfirmando(false); return }
-    setAberto(false); router.refresh()
   }
 
   const dtLabel = new Date(sessao.dataHora).toLocaleString('pt-BR', { weekday: 'short', day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit', timeZone: TZ })
@@ -313,35 +288,13 @@ export function SessaoBlock({ sessao, className, style, children }: {
 
             {podeExcluir && (
               <div style={{ marginTop: 16, paddingTop: 12, borderTop: '1px solid var(--border)' }}>
-                {!confirmando ? (
-                  <>
-                    {sessao.status === 'concluida' && (
-                      <p style={{ fontSize: 11.5, color: 'var(--muted)', margin: '0 0 8px', lineHeight: 1.45 }}>
-                        Esta sessão foi encerrada sem registrar nada. Excluir tira ela da pendência
-                        de registro do paciente e dos indicadores da prática.
-                      </p>
-                    )}
-                    <button onClick={() => { setErroExcluir(null); setConfirmando(true) }} disabled={salvando}
-                      className="btn ghost" style={{ color: 'var(--rose)', fontSize: 12.5, padding: '5px 10px', display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-                      <Trash2 size={14} /> Excluir sessão
-                    </button>
-                  </>
-                ) : (
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
-                    <span style={{ fontSize: 12.5, color: 'var(--ink-soft)' }}>
-                      {temAnotacaoViva
-                        ? 'Não há registro clínico, mas há anotação feita ao vivo (nota rápida ou risco) — ela some junto. Excluir de vez?'
-                        : 'Excluir de vez? Não dá pra desfazer.'}
-                    </span>
-                    <div style={{ display: 'flex', gap: 8, marginLeft: 'auto' }}>
-                      <button onClick={() => setConfirmando(false)} disabled={excluindo} className="btn ghost" style={{ fontSize: 12.5 }}>Não</button>
-                      <button onClick={excluir} disabled={excluindo} className="btn primary" style={{ background: 'var(--rose)', fontSize: 12.5 }}>
-                        {excluindo ? 'Excluindo…' : 'Sim, excluir'}
-                      </button>
-                    </div>
-                  </div>
-                )}
-                {erroExcluir && <div style={{ color: 'var(--rose)', fontSize: 12, marginTop: 8 }}>{erroExcluir}</div>}
+                <ExcluirSessao
+                  sessaoId={sessao.id}
+                  status={sessao.status}
+                  temAnotacaoViva={temAnotacaoViva(sessao.indicadores)}
+                  variante="bloco"
+                  aoExcluir={() => setAberto(false)}
+                />
               </div>
             )}
           </div>

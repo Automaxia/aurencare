@@ -3,6 +3,7 @@ import { requirePsicologo } from '@/server/lib/auth'
 import { lerSaude } from '@/server/services/financeiro'
 import { db } from '@/server/db/pool'
 import { formatBRL } from '@/lib/formatters'
+import { podeExcluirSessao, temAnotacaoViva, sqlTemRegistro, sqlTemCobrancaAberta } from '@/lib/sessaoExclusao'
 import { SaudeInsights } from './insights'
 import { SessoesTable, type SessaoRow } from './sessoes-table'
 
@@ -13,8 +14,13 @@ export default async function SaudePage() {
   const s = await lerSaude(user.id)
 
   // Sessões dos últimos 90 dias pra tabela filtrável
+  // `tem_registro` vem do banco em vez dos blobs: checar se a transcrição é nula
+  // não justifica trazer 90 dias de transcrição cifrada pra cá.
   const { rows: sessoes } = await db.query<any>(
     `SELECT s.id, s.numero, s.data_hora, s.status, s.modalidade, s.duracao_min, s.valor, s.assinada,
+            s.pagamento_status, s.indicadores,
+            ${sqlTemRegistro('s')} AS tem_registro,
+            ${sqlTemCobrancaAberta('s')} AS tem_cobranca_aberta,
             p.nome AS paciente_nome
        FROM sessoes s JOIN pacientes p ON p.id = s.paciente_id
       WHERE s.psicologo_id = $1 AND s.data_hora >= NOW() - INTERVAL '90 days'
@@ -25,6 +31,11 @@ export default async function SaudePage() {
     id: r.id, numero: r.numero, dataHora: r.data_hora,
     pacienteNome: r.paciente_nome, status: r.status, modalidade: r.modalidade,
     duracaoMin: r.duracao_min, valor: parseFloat(r.valor ?? 0), assinada: r.assinada,
+    podeExcluir: podeExcluirSessao({
+      status: r.status, temRegistro: r.tem_registro,
+      pagamentoStatus: r.pagamento_status, temCobrancaAberta: r.tem_cobranca_aberta,
+    }),
+    temAnotacaoViva: temAnotacaoViva(r.indicadores),
   }))
 
   const pendente = await db.query<{ v: number }>(

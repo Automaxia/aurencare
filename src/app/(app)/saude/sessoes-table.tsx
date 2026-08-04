@@ -3,6 +3,7 @@
 import Link from 'next/link'
 import { useMemo, useState } from 'react'
 import { formatDateTimeBR } from '@/lib/formatters'
+import { ExcluirSessao } from '@/components/ExcluirSessao'
 
 export type SessaoRow = {
   id: string
@@ -14,6 +15,9 @@ export type SessaoRow = {
   duracaoMin: number
   valor: number
   assinada: boolean
+  /** Sessão vazia e sem cobrança presa — calculado no servidor. */
+  podeExcluir: boolean
+  temAnotacaoViva: boolean
 }
 
 const STATUS_FILTROS = [
@@ -107,6 +111,7 @@ export function SessoesTable({ sessoes }: { sessoes: SessaoRow[] }) {
             <thead>
               <tr style={{ background: 'var(--surface)', textAlign: 'left' }}>
                 <Th>Data</Th><Th>#</Th><Th>Paciente</Th><Th>Modalidade</Th><Th>Status</Th>
+                <th style={{ width: 1 }}><span className="sr-only">Ações</span></th>
               </tr>
             </thead>
             <tbody>
@@ -124,6 +129,11 @@ export function SessoesTable({ sessoes }: { sessoes: SessaoRow[] }) {
                     </span>
                     {s.status === 'concluida' && !s.assinada && (
                       <span className="tag t-warn" style={{ marginLeft: 6, fontSize: 10 }}>registrar</span>
+                    )}
+                  </Td>
+                  <Td>
+                    {s.podeExcluir && (
+                      <ExcluirSessao sessaoId={s.id} status={s.status} temAnotacaoViva={s.temAnotacaoViva} />
                     )}
                   </Td>
                 </tr>

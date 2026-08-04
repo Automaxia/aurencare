@@ -11,6 +11,8 @@ import { listarObjetivos } from '@/server/services/objetivos'
 import { gerarMemoriaClinica } from '@/server/services/memoriaClinica'
 import { tryDecrypt } from '@/server/lib/crypto'
 import { formatPhone, formatDateBR } from '@/lib/formatters'
+import { podeExcluirSessao, temAnotacaoViva, sqlTemRegistro, sqlTemCobrancaAberta } from '@/lib/sessaoExclusao'
+import { ExcluirSessao } from '@/components/ExcluirSessao'
 import { PatientProfileForm } from './profile-form'
 import { DadosCadastroForm } from './DadosCadastroForm'
 import { ConsentimentoPendente } from './ConsentimentoPendente'
@@ -101,8 +103,15 @@ export default async function PacientePerfilPage({ params }: { params: { id: str
       `SELECT id, numero, data_hora FROM sessoes
         WHERE paciente_id = $1 AND data_hora <= NOW()
         ORDER BY data_hora DESC LIMIT 1`, [params.id]).then(r => r.rows[0] ?? null),
-    db.query<{ id: string; numero: number; data_hora: string; status: string; assinada: boolean; resumo_ia: string | null }>(
-      `SELECT id, numero, data_hora, status, assinada, COALESCE(resumo_ia, resumo_curto) AS resumo_ia
+    db.query<{
+      id: string; numero: number; data_hora: string; status: string; assinada: boolean
+      resumo_ia: string | null; pagamento_status: string; indicadores: any
+      tem_registro: boolean; tem_cobranca_aberta: boolean
+    }>(
+      `SELECT id, numero, data_hora, status, assinada, pagamento_status, indicadores,
+              COALESCE(resumo_ia, resumo_curto) AS resumo_ia,
+              ${sqlTemRegistro()} AS tem_registro,
+              ${sqlTemCobrancaAberta()} AS tem_cobranca_aberta
          FROM sessoes WHERE paciente_id = $1
          AND status IN ('concluida','no_show','cancelada','confirmada','em_curso','agendada')
         ORDER BY data_hora DESC LIMIT 12`, [params.id]).then(r => r.rows),
@@ -177,6 +186,10 @@ export default async function PacientePerfilPage({ params }: { params: { id: str
             <ol style={{ margin: 0, padding: 0, listStyle: 'none', display: 'grid', gap: 8 }}>
               {historicoSessoes.map(s => {
                 const resumo = tryDecrypt(s.resumo_ia)
+                const podeExcluir = podeExcluirSessao({
+                  status: s.status, temRegistro: s.tem_registro,
+                  pagamentoStatus: s.pagamento_status, temCobrancaAberta: s.tem_cobranca_aberta,
+                })
                 return (
                   <li key={s.id}>
                     <Link href={`/sessao/${s.id}`} className="card" style={{ display: 'block' }}>
@@ -193,6 +206,13 @@ export default async function PacientePerfilPage({ params }: { params: { id: str
                         </p>
                       )}
                     </Link>
+                    {/* Fora do <Link>: botão dentro de âncora não é markup válido
+                        e o clique viraria navegação pra sessão. */}
+                    {podeExcluir && (
+                      <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 4 }}>
+                        <ExcluirSessao sessaoId={s.id} status={s.status} temAnotacaoViva={temAnotacaoViva(s.indicadores)} />
+                      </div>
+                    )}
                   </li>
                 )
               })}

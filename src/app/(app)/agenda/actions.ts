@@ -23,14 +23,19 @@ export async function reagendarSessaoAction(
   return { ok: r.ok, afetadas: r.afetadas, error: r.ok ? undefined : 'Não foi possível salvar.' }
 }
 
-export async function excluirSessaoAction(sessaoId: string): Promise<{ ok: boolean; error?: string }> {
+export async function excluirSessaoAction(
+  sessaoId: string,
+): Promise<{ ok: boolean; renumeradas?: number; error?: string }> {
   const user = await requirePsicologo()
   const r = await excluirSessao(user.id, sessaoId)
   // Excluir uma concluída vazia também tira o badge "Registrar" do paciente e a
-  // sessão da contagem do financeiro — por isso revalida além da agenda.
+  // sessão da contagem do financeiro — por isso revalida além da agenda. A
+  // renumeração muda o "#N" exibido, então o histórico do paciente também entra.
   if (r.ok) {
-    revalidarAgenda(); revalidatePath('/pacientes'); revalidatePath('/financeiro')
-    return { ok: true }
+    revalidarAgenda()
+    revalidatePath('/pacientes'); revalidatePath('/pacientes/[id]', 'page')
+    revalidatePath('/financeiro')
+    return { ok: true, renumeradas: r.renumeradas }
   }
   const msg = {
     nao_encontrada: 'Sessão não encontrada.',

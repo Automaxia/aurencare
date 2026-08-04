@@ -10,6 +10,7 @@ import {
   tplSessaoConfirmada, tplSessaoCancelada, tplSerieAgendada,
 } from '@/server/lib/emailTemplates'
 import { formatDateTimeBR, formatDateBR, formatTimeBR, TZ } from '@/lib/formatters'
+import { sessaoVazia, sqlTemRegistro, sqlTemCobrancaAberta } from '@/lib/sessaoExclusao'
 import { obterAssinatura } from './assinatura'
 import { incrementarSessaoIa, decrementarSessaoIa } from './uso'
 import { lerStatusOnboarding } from './onboardingPagamento'
@@ -311,22 +312,8 @@ export async function reagendarSessao(
 }
 
 export type ExcluirSessaoResult =
-  | { ok: true }
+  | { ok: true; renumeradas: number }
   | { ok: false; motivo: 'nao_encontrada' | 'em_curso' | 'registro' | 'paga' | 'cobranca' }
-
-/**
- * Uma sessão está "vazia" quando não sobrou nada de prontuário nela: sem
- * assinatura e sem nenhum dos textos clínicos. É a MESMA definição que
- * `interromperSessao` usa como guarda `tem_registro` (+ o laudo formal).
- *
- * `indicadores` de propósito NÃO entra aqui: o encerrar sempre grava o objeto
- * (ritmo/humor/risco/notaRapida com defaults), então exigir que ele seja nulo
- * tornaria toda sessão concluída ineligível. O que a psicóloga tenha de fato
- * preenchido ali é avisado na confirmação da UI antes de excluir.
- */
-export function sessaoVazia(s: Sessao): boolean {
-  return !s.assinada && !s.transcricao && !s.notaClinica && !s.resumoIa && !s.resumoCurto && !s.laudo
-}
 
 /**
  * Exclui (hard delete) uma sessão VAZIA — pra limpar agendamento criado por
@@ -349,8 +336,13 @@ export function sessaoVazia(s: Sessao): boolean {
  * objetivo_smart.sessao_id) têm ON DELETE cascade/set null, então o DELETE é
  * limpo. `api_custos.sessao_id` não tem FK de propósito — o histórico de custo
  * sobrevive à exclusão.
+ *
+ * Fecha o buraco na numeração quando é seguro — ver `renumerarApos`.
  */
 export async function excluirSessao(psicologoId: string, sessaoId: string): Promise<ExcluirSessaoResult> {
+  // Esta leitura serve pra DIZER o que impede a exclusão (mensagem específica).
+  // Quem de fato autoriza é o WHERE do DELETE lá embaixo — entre ler e apagar,
+  // a sessão pode ser assinada ou paga por outra requisição.
   const s = await buscarSessao(sessaoId)
   if (!s || s.psicologoId !== psicologoId) return { ok: false, motivo: 'nao_encontrada' }
   if (s.status === 'em_curso') return { ok: false, motivo: 'em_curso' }
@@ -361,16 +353,86 @@ export async function excluirSessao(psicologoId: string, sessaoId: string): Prom
   // sessão e o dinheiro entra sem reembolso. Bloqueia; o certo é cancelar.
   if (s.pagarmeOrderId && s.pagamentoStatus === 'pendente') return { ok: false, motivo: 'cobranca' }
 
-  // O DELETE devolve `ia_contabilizada` da linha que ele mesmo removeu: se a
-  // sessão chegou a abrir o registro com IA (e não gerou nada), a cota do mês
-  // volta. RETURNING amarra leitura e remoção na mesma ida — duplo clique não
-  // estorna duas vezes, porque só a primeira chamada acha a linha.
-  const { rows } = await db.query<{ ia_contabilizada: boolean | null }>(
-    `DELETE FROM sessoes WHERE id = $1 AND psicologo_id = $2 RETURNING ia_contabilizada`,
-    [sessaoId, psicologoId],
+  // DELETE + renumeração na MESMA transação: um buraco temporário na sequência
+  // (ou um shift sem o delete) nunca fica visível pra outra requisição.
+  const cliente = await db.connect()
+  let contabilizada = false
+  let renumeradas = 0
+  try {
+    await cliente.query('BEGIN')
+
+    // As guardas repetidas no WHERE são o que torna a exclusão atômica: a linha
+    // só sai se AINDA estiver vazia e sem dinheiro preso no instante do DELETE.
+    // RETURNING amarra leitura e remoção na mesma ida, então duplo clique não
+    // estorna cota duas vezes — só a primeira chamada acha a linha.
+    const { rows } = await cliente.query<{ ia_contabilizada: boolean | null; paciente_id: string; numero: number }>(
+      `DELETE FROM sessoes
+        WHERE id = $1 AND psicologo_id = $2
+          AND status <> 'em_curso'
+          AND NOT ${sqlTemRegistro()}
+          AND pagamento_status <> 'pago'
+          AND NOT ${sqlTemCobrancaAberta()}
+       RETURNING ia_contabilizada, paciente_id, numero`,
+      [sessaoId, psicologoId],
+    )
+    // Chegou aqui com as guardas passando na leitura e mesmo assim não apagou:
+    // outra requisição mexeu na sessão no meio. 'registro' é o palpite honesto.
+    if (!rows[0]) { await cliente.query('ROLLBACK'); return { ok: false, motivo: 'registro' } }
+    contabilizada = rows[0].ia_contabilizada === true
+    renumeradas = await renumerarApos(cliente, rows[0].paciente_id, rows[0].numero)
+
+    await cliente.query('COMMIT')
+  } catch (err) {
+    await cliente.query('ROLLBACK').catch(() => {})
+    log.err('excluirSessao', `transação falhou (sessão ${sessaoId})`, err)
+    throw err
+  } finally {
+    cliente.release()
+  }
+
+  // Se a sessão chegou a abrir o registro com IA (e não gerou nada), a cota do
+  // mês volta. Fora da transação: mexe em outra tabela e não pode desfazer o
+  // DELETE se falhar.
+  if (contabilizada) await decrementarSessaoIa(psicologoId)
+  return { ok: true, renumeradas }
+}
+
+/**
+ * Fecha o buraco deixado por uma exclusão: as sessões seguintes do paciente
+ * descem 1 no `numero`. Devolve quantas desceram (0 = não mexeu).
+ *
+ * Só renumera quando NENHUMA das seguintes tem documento gerado ou assinatura.
+ * Motivo: o número da sessão é injetado no prompt do laudo e do resumo ("Gere o
+ * registro da sessão #N", ver `anthropic.ts`), então ele fica escrito DENTRO do
+ * texto assinado. Renumerar a linha não reescreve o documento — a sessão passaria
+ * a se exibir como #4 com um laudo assinado dizendo #5. Entre um buraco na
+ * sequência e um prontuário que se contradiz, o buraco é o mal menor.
+ *
+ * Na prática o caso comum renumera: excluir a última não deixa buraco nenhum
+ * (o próximo `numero` é MAX+1, que volta a ser o mesmo), e excluir uma futura no
+ * meio de uma série mexe só em sessões que ainda não têm registro.
+ *
+ * Não há UNIQUE em (paciente_id, numero), então o shift num UPDATE só não
+ * esbarra em conflito transitório.
+ */
+async function renumerarApos(
+  cliente: { query: typeof db.query }, pacienteId: string, numero: number,
+): Promise<number> {
+  // FOR UPDATE trava as linhas que vão descer até o fim da transação.
+  const { rows: seguintes } = await cliente.query<{ tem_documento: boolean }>(
+    `SELECT (assinada OR resumo_ia IS NOT NULL OR resumo_curto IS NOT NULL OR laudo IS NOT NULL)
+              AS tem_documento
+       FROM sessoes WHERE paciente_id = $1 AND numero > $2
+       FOR UPDATE`,
+    [pacienteId, numero],
   )
-  if (rows[0]?.ia_contabilizada) await decrementarSessaoIa(psicologoId)
-  return { ok: true }
+  if (seguintes.length === 0 || seguintes.some(r => r.tem_documento)) return 0
+
+  const { rowCount } = await cliente.query(
+    `UPDATE sessoes SET numero = numero - 1 WHERE paciente_id = $1 AND numero > $2`,
+    [pacienteId, numero],
+  )
+  return rowCount ?? 0
 }
 
 // ── Séries recorrentes ────────────────────────────────────────────────────
