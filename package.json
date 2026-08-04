@@ -11,6 +11,7 @@
     "migrate": "tsx --env-file=.env.local src/server/db/migrate.ts",
     "seed": "tsx --env-file=.env.local src/server/db/seed.ts",
     "test:custos": "NODE_OPTIONS='--conditions=react-server' tsx --env-file=.env.local scripts/test-custos-instrumentacao.ts",
+    "test:excluir": "NODE_OPTIONS='--conditions=react-server' tsx scripts/test-excluir-sessao.ts",
     "bench:grafo": "NODE_OPTIONS='--conditions=react-server' tsx --env-file=.env.local scripts/bench-grafo.ts",
     "relatorio:silencio": "NODE_OPTIONS='--conditions=react-server' tsx --env-file=.env.local scripts/relatorio-silencio.ts"
   },
