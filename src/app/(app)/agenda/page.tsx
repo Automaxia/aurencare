@@ -1,7 +1,8 @@
 import Link from 'next/link'
 import { PageHeader, EmptyState } from '@/components/PageHeader'
 import { requirePsicologo } from '@/server/lib/auth'
-import { listarSessoesEntre } from '@/server/services/sessoes'
+import { listarSessoesEntre, type Sessao } from '@/server/services/sessoes'
+import { podeExcluirSessao, sessaoVazia, temAnotacaoViva } from '@/lib/sessaoExclusao'
 import { formatTimeBR, formatDateBR } from '@/lib/formatters'
 import { ViewToggle } from './view-toggle'
 import { SessaoBlock } from './SessaoBlock'
@@ -49,13 +50,41 @@ function pagamentoTag(s: { pagamentoStatus: string; pagamentoMetodo: string | nu
   return null
 }
 
+/**
+ * Recorta a sessão pro que o bloco da agenda realmente usa.
+ *
+ * `SessaoBlock` é client component: TODA prop passada pra ele vai serializada no
+ * payload RSC e chega ao navegador. `listarSessoesEntre` devolve a sessão inteira
+ * com transcrição, laudo, resumo e nota já DECIFRADOS — mandar o objeto cru
+ * despejava o prontuário de cada sessão da semana no HTML da agenda, sem que
+ * nenhuma linha da tela precisasse disso.
+ *
+ * As duas decisões que dependiam desses campos viram booleano aqui no servidor.
+ */
+function paraBloco(s: Sessao) {
+  return {
+    id: s.id, numero: s.numero, dataHora: s.dataHora, duracaoMin: s.duracaoMin,
+    modalidade: s.modalidade, status: s.status, assinada: s.assinada,
+    pacienteNome: s.pacienteNome, valor: s.valor, seriePosicao: s.seriePosicao,
+    pagamentoStatus: s.pagamentoStatus, pagamentoMetodo: s.pagamentoMetodo,
+    podeExcluir: podeExcluirSessao({
+      status: s.status,
+      temRegistro: !sessaoVazia(s),
+      pagamentoStatus: s.pagamentoStatus,
+      temCobrancaAberta: !!s.pagarmeOrderId && s.pagamentoStatus === 'pendente',
+    }),
+    temAnotacaoViva: temAnotacaoViva(s.indicadores),
+  }
+}
+
 export default async function AgendaPage({ searchParams }: { searchParams: { view?: View; data?: string } }) {
   const user = await requirePsicologo()
   const view: View = (searchParams?.view ?? 'semana') as View
   const ancora = searchParams?.data ? new Date(searchParams.data) : new Date()
 
   const { inicio, fim } = rangeFor(view, ancora)
-  const sessoes = await listarSessoesEntre(user.id, inicio.toISOString(), fim.toISOString())
+  const sessoes = (await listarSessoesEntre(user.id, inicio.toISOString(), fim.toISOString()))
+    .map(paraBloco)
 
   return (
     <div>

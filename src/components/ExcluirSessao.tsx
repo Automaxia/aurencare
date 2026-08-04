@@ -71,7 +71,8 @@ export function ExcluirSessao({
 
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
-      <span style={{ fontSize: 12, color: 'var(--ink-soft)', lineHeight: 1.4 }}>
+      {/* maxWidth pra confirmação dentro de célula de tabela não esticar a coluna. */}
+      <span style={{ fontSize: 12, color: 'var(--ink-soft)', lineHeight: 1.4, maxWidth: 280 }}>
         {temAnotacaoViva
           ? 'Não há registro clínico, mas há anotação feita ao vivo (nota rápida ou risco) — ela some junto. Excluir de vez?'
           : 'Excluir de vez? Não dá pra desfazer.'}

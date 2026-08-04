@@ -7,7 +7,6 @@ import {
   cancelarSessaoAction, marcarNoShowAction, destravarSessaoAction,
 } from './actions'
 import { horarioBrasiliaParaISO, TZ } from '@/lib/formatters'
-import { podeExcluirSessao, sessaoVazia, temAnotacaoViva } from '@/lib/sessaoExclusao'
 import { ExcluirSessao } from '@/components/ExcluirSessao'
 
 const STATUS_LABEL: Record<string, string> = {
@@ -57,14 +56,9 @@ export function SessaoBlock({ sessao, className, style, children }: {
   const podeCancelar = !finalizada && !emCurso && sessao.status !== 'cancelada'
   const podeNoShow = !finalizada && !emCurso && sessao.status !== 'cancelada' && (passada || ehNoShow)
 
-  // A agenda tem a sessão inteira em mãos, então dá pra decidir aqui mesmo —
-  // a regra vem de `@/lib/sessaoExclusao` e o servidor revalida tudo de novo.
-  const podeExcluir = podeExcluirSessao({
-    status: sessao.status,
-    temRegistro: !sessaoVazia(sessao),
-    pagamentoStatus: sessao.pagamentoStatus,
-    temCobrancaAberta: !!sessao.pagarmeOrderId && sessao.pagamentoStatus === 'pendente',
-  })
+  // Vêm prontos de `paraBloco` (server): decidir aqui exigiria mandar transcrição
+  // e laudo pro navegador só pra checar se são nulos.
+  const podeExcluir: boolean = sessao.podeExcluir === true
 
   function abrir() {
     const p = partesLocais(sessao.dataHora)
@@ -291,7 +285,7 @@ export function SessaoBlock({ sessao, className, style, children }: {
                 <ExcluirSessao
                   sessaoId={sessao.id}
                   status={sessao.status}
-                  temAnotacaoViva={temAnotacaoViva(sessao.indicadores)}
+                  temAnotacaoViva={sessao.temAnotacaoViva === true}
                   variante="bloco"
                   aoExcluir={() => setAberto(false)}
                 />

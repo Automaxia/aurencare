@@ -54,10 +54,15 @@ export function podeExcluirSessao(g: GuardasExclusao): boolean {
  *
  * `alias` prefixa as colunas quando a query tem JOIN (ex.: `sqlTemRegistro('s')`).
  * Não interpola entrada de usuário — só nome de tabela escrito no código.
+ *
+ * COALESCE não é decoração: `assinada` e `pagamento_status` são nullable no
+ * schema (DEFAULT, sem NOT NULL). Sem ele uma linha com NULL faria a expressão
+ * inteira virar NULL, e o `NOT (…)` do DELETE nunca casaria — a sessão ficaria
+ * impossível de excluir, com mensagem de erro errada.
  */
 export function sqlTemRegistro(alias = ''): string {
   const c = alias ? `${alias}.` : ''
-  return `(${c}assinada
+  return `(COALESCE(${c}assinada, FALSE)
     OR ${c}transcricao_texto IS NOT NULL
     OR ${c}nota_clinica      IS NOT NULL
     OR ${c}resumo_ia         IS NOT NULL
@@ -67,7 +72,7 @@ export function sqlTemRegistro(alias = ''): string {
 
 export function sqlTemCobrancaAberta(alias = ''): string {
   const c = alias ? `${alias}.` : ''
-  return `(${c}pagarme_order_id IS NOT NULL AND ${c}pagamento_status = 'pendente')`
+  return `(${c}pagarme_order_id IS NOT NULL AND COALESCE(${c}pagamento_status, '') = 'pendente')`
 }
 
 /**

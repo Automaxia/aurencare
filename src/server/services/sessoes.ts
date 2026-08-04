@@ -368,9 +368,9 @@ export async function excluirSessao(psicologoId: string, sessaoId: string): Prom
     const { rows } = await cliente.query<{ ia_contabilizada: boolean | null; paciente_id: string; numero: number }>(
       `DELETE FROM sessoes
         WHERE id = $1 AND psicologo_id = $2
-          AND status <> 'em_curso'
+          AND COALESCE(status, '') <> 'em_curso'
           AND NOT ${sqlTemRegistro()}
-          AND pagamento_status <> 'pago'
+          AND COALESCE(pagamento_status, '') <> 'pago'
           AND NOT ${sqlTemCobrancaAberta()}
        RETURNING ia_contabilizada, paciente_id, numero`,
       [sessaoId, psicologoId],
@@ -420,7 +420,8 @@ async function renumerarApos(
 ): Promise<number> {
   // FOR UPDATE trava as linhas que vão descer até o fim da transação.
   const { rows: seguintes } = await cliente.query<{ tem_documento: boolean }>(
-    `SELECT (assinada OR resumo_ia IS NOT NULL OR resumo_curto IS NOT NULL OR laudo IS NOT NULL)
+    `SELECT (COALESCE(assinada, FALSE) OR resumo_ia IS NOT NULL
+             OR resumo_curto IS NOT NULL OR laudo IS NOT NULL)
               AS tem_documento
        FROM sessoes WHERE paciente_id = $1 AND numero > $2
        FOR UPDATE`,
