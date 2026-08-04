@@ -6,6 +6,7 @@ import { enviarEmailPacientePorSessao } from './emailPaciente'
 import { tplLembrete24h, tplLembrete15min } from './emailTemplates'
 import { criarOuObterSala } from '@/server/services/salaVideo'
 import { liberarSilenciosos } from '@/server/services/confirmacaoSessao'
+import { interromperSessao } from '@/server/services/sessoes'
 import { env } from './env'
 import { log } from './log'
 import { formatDateTimeBR } from '@/lib/formatters'
@@ -32,8 +33,66 @@ export function startCron() {
   cron.schedule('*/5 * * * *', () => { void liberarSilenciosos() }, { timezone: 'America/Sao_Paulo' })
   // A cada 30 min (7–21h) — pergunta método de pagamento das séries (Fluxo 2, ~48h antes)
   cron.schedule('*/30 7-21 * * *', () => { void perguntarMetodoPendentes() }, { timezone: 'America/Sao_Paulo' })
+  // A cada 15 min — destrava sessões esquecidas em 'em_curso' (aba fechada/queda)
+  cron.schedule('*/15 * * * *', () => { void destravarSessoesEmCurso() }, { timezone: 'America/Sao_Paulo' })
 
-  log.ok('cron', 'agendamentos registrados (24h@18h · 2h@30min · 15min@5min · liberar@5min · perguntar-metodo@30min)')
+  log.ok('cron', 'agendamentos registrados (24h@18h · 2h@30min · 15min@5min · liberar@5min · perguntar-metodo@30min · destravar@15min)')
+}
+
+/** Horas em 'em_curso' após as quais a sessão é considerada abandonada. */
+const HORAS_ATE_DESTRAVAR = 6
+
+/**
+ * Cron: sessão que ficou presa em 'em_curso'. `iniciarSessao` marca o status,
+ * mas só `encerrarSessao` o tirava de lá — se a aba fecha, cai a conexão ou o
+ * pod reinicia no meio, a sessão fica "● ao vivo" na agenda e com o pill
+ * pulsando na topbar pra sempre, sem botão nenhum que a resolva.
+ *
+ * Duas saídas, conforme o que existir de registro:
+ *  - COM registro clínico (transcrição/nota/resumo/assinatura): vira 'concluida'.
+ *    Houve sessão e há prontuário — concluir é o que é verdade; apagar, não.
+ *  - SEM registro: `interromperSessao` devolve pra fila (remarcável), estorna a
+ *    cota de IA e não dispara nada ao paciente.
+ *
+ * Janela de 6h: mais longo que qualquer sessão real (50min) com folga pra
+ * intervalo/pausa, então não corta ninguém em atendimento.
+ */
+export async function destravarSessoesEmCurso(): Promise<{ concluidas: number; interrompidas: number }> {
+  const { rows } = await db.query<{ id: string; psicologo_id: string; tem_registro: boolean }>(
+    `SELECT id, psicologo_id,
+            (assinada
+             OR transcricao_texto IS NOT NULL
+             OR nota_clinica     IS NOT NULL
+             OR resumo_ia        IS NOT NULL
+             OR resumo_curto     IS NOT NULL) AS tem_registro
+       FROM sessoes
+      WHERE status = 'em_curso'
+        AND COALESCE(iniciada_em, data_hora) < NOW() - make_interval(hours => $1::int)
+      ORDER BY COALESCE(iniciada_em, data_hora) ASC
+      LIMIT 100`,
+    [HORAS_ATE_DESTRAVAR],
+  )
+
+  let concluidas = 0, interrompidas = 0
+  for (const r of rows) {
+    try {
+      if (r.tem_registro) {
+        // Não passa por encerrarSessao: aquele caminho gera resumo e dispara
+        // WhatsApp pós-sessão. Aqui é só corrigir o status pendurado.
+        await db.query(`UPDATE sessoes SET status = 'concluida' WHERE id = $1 AND status = 'em_curso'`, [r.id])
+        concluidas++
+      } else {
+        const res = await interromperSessao(r.psicologo_id, r.id, 'cron')
+        if (res.ok) interrompidas++
+      }
+    } catch (err) {
+      log.err('cron.destravar', `falha sessao=${r.id}`, err)
+    }
+  }
+  if (concluidas || interrompidas) {
+    log.ok('cron.destravar', `${concluidas} concluída(s) · ${interrompidas} interrompida(s)`)
+  }
+  return { concluidas, interrompidas }
 }
 
 /**

@@ -11,7 +11,7 @@ import {
 } from '@/server/lib/emailTemplates'
 import { formatDateTimeBR, formatDateBR, formatTimeBR, TZ } from '@/lib/formatters'
 import { obterAssinatura } from './assinatura'
-import { incrementarSessaoIa } from './uso'
+import { incrementarSessaoIa, decrementarSessaoIa } from './uso'
 import { lerStatusOnboarding } from './onboardingPagamento'
 import { BETA_LIBERADO } from '@/server/lib/planos'
 
@@ -635,9 +635,64 @@ export async function cancelarSessao(sessaoId: string): Promise<{ reembolsada: b
   return { reembolsada }
 }
 
+export type CancelarPeloPsicologoResult =
+  | { ok: true; reembolsada: boolean }
+  | { ok: false; motivo: 'nao_encontrada' | 'realizada' | 'em_curso' | 'ja_cancelada' }
+
+/**
+ * Cancelamento a partir do painel. `cancelarSessao` (Fluxo 5) nasceu pro webhook
+ * do WhatsApp, onde quem cancela é o PACIENTE e a posse já vem resolvida; aqui
+ * quem cancela é a psicóloga, então precisa de checagem de dono + guardas.
+ * Reembolso e avisos continuam sendo responsabilidade do Fluxo 5.
+ */
+export async function cancelarSessaoDoPsicologo(
+  psicologoId: string, sessaoId: string,
+): Promise<CancelarPeloPsicologoResult> {
+  const s = await buscarSessao(sessaoId)
+  if (!s || s.psicologoId !== psicologoId) return { ok: false, motivo: 'nao_encontrada' }
+  if (s.status === 'cancelada') return { ok: false, motivo: 'ja_cancelada' }
+  // Sessão que virou prontuário não se cancela — ela aconteceu.
+  if (s.assinada || s.status === 'concluida') return { ok: false, motivo: 'realizada' }
+  // Em curso: interromper primeiro (libera a cota e devolve pra fila), aí cancela.
+  if (s.status === 'em_curso') return { ok: false, motivo: 'em_curso' }
+
+  const { reembolsada } = await cancelarSessao(sessaoId)
+  return { ok: true, reembolsada }
+}
+
+export type NoShowResult = { ok: true; status: SessaoStatus } | { ok: false; motivo: 'nao_encontrada' | 'realizada' | 'em_curso' }
+
+/**
+ * Marca / desmarca "sem comparecimento". O status existia no schema desde o
+ * início e alimenta KPIs (taxa de absenteísmo, badge "Atenção" do paciente),
+ * mas nada na interface o escrevia — só o lia. Sem reembolso e sem WhatsApp:
+ * é anotação de agenda, não um evento pro paciente.
+ *
+ * Desmarcar devolve a sessão ao estado de espera fiel ao pagamento — marcar
+ * errado não pode virar outro beco sem saída.
+ */
+export async function marcarNoShow(
+  psicologoId: string, sessaoId: string, marcar: boolean,
+): Promise<NoShowResult> {
+  const s = await buscarSessao(sessaoId)
+  if (!s || s.psicologoId !== psicologoId) return { ok: false, motivo: 'nao_encontrada' }
+  if (s.assinada || s.status === 'concluida') return { ok: false, motivo: 'realizada' }
+  if (s.status === 'em_curso') return { ok: false, motivo: 'em_curso' }
+
+  const destino: SessaoStatus = marcar ? 'no_show' : statusAntesDeIniciar(s)
+  await db.query(`UPDATE sessoes SET status = $3 WHERE id = $1 AND psicologo_id = $2`,
+    [sessaoId, psicologoId, destino])
+  return { ok: true, status: destino }
+}
+
 // ── Iniciar / Encerrar / Assinar ──────────────────────────────────────────
 export async function iniciarSessao(sessaoId: string): Promise<void> {
-  await db.query(`UPDATE sessoes SET status='em_curso' WHERE id=$1`, [sessaoId])
+  // iniciada_em ancora a varredura de sessões travadas (cron). Só grava na
+  // PRIMEIRA entrada em curso — retomar a mesma sessão não reinicia o relógio.
+  await db.query(
+    `UPDATE sessoes SET status='em_curso', iniciada_em = COALESCE(iniciada_em, NOW()) WHERE id=$1`,
+    [sessaoId],
+  )
   publish({ type: 'sessao.iniciada', sessaoId })
 }
 
@@ -698,6 +753,80 @@ export async function encerrarSessao(sessaoId: string, opts: { transcricao?: str
   }
   await db.query(`UPDATE sessoes SET ${patches.join(', ')} WHERE id=$1`, params)
   publish({ type: 'sessao.encerrada', sessaoId })
+}
+
+export type InterromperSessaoResult =
+  | { ok: true; status: SessaoStatus }
+  | { ok: false; motivo: 'nao_encontrada' | 'nao_iniciada' | 'tem_registro' }
+
+/**
+ * Pra onde a sessão volta ao ser interrompida. Ela não "aconteceu", então
+ * precisa voltar pro estado de espera FIEL ao que já foi pago/cobrado — senão
+ * uma sessão paga voltaria como 'agendada' e sumiria da fila de confirmadas.
+ */
+function statusAntesDeIniciar(s: Sessao): SessaoStatus {
+  if (s.pagamentoStatus === 'pago') return 'confirmada'
+  if (s.pagarmeOrderId && s.pagamentoStatus === 'pendente') return 'aguardando_pagamento'
+  return 'agendada'
+}
+
+/**
+ * Interrompe uma sessão em curso SEM virar registro clínico: a sessão começou
+ * mas não aconteceu (psicóloga precisou parar no meio, paciente passou mal, a
+ * aba caiu). Diferente de `encerrarSessao`, que conclui e vira prontuário.
+ *
+ * O que NÃO acontece aqui, de propósito:
+ *  - a transcrição parcial não é gravada (o cliente simplesmente não a envia);
+ *  - nenhum resumo/laudo é gerado;
+ *  - nenhum WhatsApp pós-sessão é disparado ao paciente.
+ *
+ * O que acontece:
+ *  - a sessão volta pra fila (confirmada/aguardando_pagamento/agendada) e pode
+ *    ser remarcada normalmente — o pagamento fica intacto;
+ *  - a cota de sessão-IA do mês é ESTORNADA (não se cobra cota do que não virou
+ *    registro), de forma idempotente: só quem faz a transição TRUE→FALSE estorna.
+ *
+ * Guarda `tem_registro`: se já existe transcrição/nota/resumo/assinatura, isto é
+ * prontuário e não se apaga — o caminho é encerrar normalmente.
+ */
+export async function interromperSessao(
+  psicologoId: string, sessaoId: string, origem: 'psicologo' | 'cron' = 'psicologo',
+): Promise<InterromperSessaoResult> {
+  const s = await buscarSessao(sessaoId)
+  if (!s || s.psicologoId !== psicologoId) return { ok: false, motivo: 'nao_encontrada' }
+  if (s.status !== 'em_curso') return { ok: false, motivo: 'nao_iniciada' }
+  if (s.assinada || s.transcricao || s.notaClinica || s.resumoIa || s.resumoCurto)
+    return { ok: false, motivo: 'tem_registro' }
+
+  const destino = statusAntesDeIniciar(s)
+
+  // CTE numa ida só: `antes` lê (e trava) o valor ANTIGO de ia_contabilizada —
+  // RETURNING devolveria o novo — e `upd` aplica a mudança. Sem isso, duplo
+  // clique estornaria a cota duas vezes.
+  const { rows } = await db.query<{ contabilizada: boolean | null; n: string | number }>(
+    `WITH antes AS (
+       SELECT ia_contabilizada FROM sessoes
+        WHERE id = $1 AND psicologo_id = $2 AND status = 'em_curso'
+        FOR UPDATE
+     ), upd AS (
+       UPDATE sessoes
+          SET status = $3, ia_contabilizada = FALSE,
+              interrompida_em = NOW(), interrompida_origem = $4
+        WHERE id = $1 AND psicologo_id = $2 AND status = 'em_curso'
+        RETURNING 1
+     )
+     SELECT (SELECT ia_contabilizada FROM antes) AS contabilizada,
+            (SELECT count(*) FROM upd) AS n`,
+    [sessaoId, psicologoId, destino, origem],
+  )
+  // n = 0 → outra requisição chegou primeiro; nada a fazer (idempotente).
+  // count() chega como string (bigint) do node-pg; Number() não depende disso.
+  if (!rows[0] || Number(rows[0].n) === 0) return { ok: false, motivo: 'nao_iniciada' }
+  if (rows[0].contabilizada) await decrementarSessaoIa(psicologoId)
+
+  publish({ type: 'sessao.encerrada', sessaoId })
+  log.info('sessao.interromper', `sessão ${sessaoId} interrompida (${origem}) → ${destino}`)
+  return { ok: true, status: destino }
 }
 
 /**

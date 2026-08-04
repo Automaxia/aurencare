@@ -538,8 +538,18 @@ POST   /api/sessoes
 PUT    /api/sessoes/[id]
 POST   /api/sessoes/[id]/iniciar
 POST   /api/sessoes/[id]/encerrar
+POST   /api/sessao/[id]/interromper    # "encerrar sem registrar": a sessão começou mas
+                                       # não aconteceu. Descarta a transcrição parcial,
+                                       # não gera resumo, não avisa o paciente, devolve
+                                       # pra agenda e ESTORNA a cota de sessão-IA.
 POST   /api/sessoes/[id]/assinar
 POST   /api/sessoes/[id]/reenviar-cobranca
+
+# Cron (auth: Bearer CRON_SECRET ou ?key=)
+GET    /api/cron/destravar-sessoes     # sessões presas em 'em_curso' há +6h (aba fechada,
+                                       # queda, restart do pod). Com registro → concluída;
+                                       # sem registro → interrompida. Também roda a cada
+                                       # 15min in-process (src/server/lib/cron.ts).
 
 # Dashboard
 GET    /api/dashboard

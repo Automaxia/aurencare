@@ -3,7 +3,10 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { Trash2 } from 'lucide-react'
-import { reagendarSessaoAction, excluirSessaoAction } from './actions'
+import {
+  reagendarSessaoAction, excluirSessaoAction,
+  cancelarSessaoAction, marcarNoShowAction, destravarSessaoAction,
+} from './actions'
 import { horarioBrasiliaParaISO, TZ } from '@/lib/formatters'
 
 const STATUS_LABEL: Record<string, string> = {
@@ -41,6 +44,20 @@ export function SessaoBlock({ sessao, className, style, children }: {
   const [confirmando, setConfirmando] = useState(false)
   const [excluindo, setExcluindo] = useState(false)
   const [erroExcluir, setErroExcluir] = useState<string | null>(null)
+  // Cancelar / sem comparecimento / destravar. `confirmandoAcao` guarda qual das
+  // ações irreversíveis está esperando o "tem certeza".
+  const [confirmandoAcao, setConfirmandoAcao] = useState<'cancelar' | 'destravar' | null>(null)
+  const [processando, setProcessando] = useState(false)
+  const [erroAcao, setErroAcao] = useState<string | null>(null)
+  const [okAcao, setOkAcao] = useState<string | null>(null)
+
+  const emCurso = sessao.status === 'em_curso'
+  const finalizada = sessao.assinada || sessao.status === 'concluida'
+  const ehNoShow = sessao.status === 'no_show'
+  const passada = new Date(sessao.dataHora).getTime() < Date.now()
+  // Cancelar/no-show só fazem sentido enquanto a sessão não virou prontuário.
+  const podeCancelar = !finalizada && !emCurso && sessao.status !== 'cancelada'
+  const podeNoShow = !finalizada && !emCurso && sessao.status !== 'cancelada' && (passada || ehNoShow)
 
   // Só sessões que ainda não aconteceram E sem cobrança ativa/paga podem ser
   // excluídas (prontuário não se apaga; cobrança ativa não pode ser orfanizada).
@@ -52,7 +69,9 @@ export function SessaoBlock({ sessao, className, style, children }: {
     const p = partesLocais(sessao.dataHora)
     setData(p.data); setHora(p.hora); setDuracao(sessao.duracaoMin ?? 50); setModalidade(sessao.modalidade ?? 'online')
     setEscopo('uma')
-    setErro(null); setConfirmando(false); setErroExcluir(null); setAberto(true)
+    setErro(null); setConfirmando(false); setErroExcluir(null)
+    setConfirmandoAcao(null); setErroAcao(null); setOkAcao(null)
+    setAberto(true)
   }
 
   async function salvar() {
@@ -64,6 +83,35 @@ export function SessaoBlock({ sessao, className, style, children }: {
     setSalvando(false)
     if (!r.ok) { setErro(r.error ?? 'Não foi possível salvar.'); return }
     setAberto(false); router.refresh()
+  }
+
+  async function cancelar() {
+    setErroAcao(null); setProcessando(true)
+    const r = await cancelarSessaoAction(sessao.id)
+    setProcessando(false); setConfirmandoAcao(null)
+    if (!r.ok) { setErroAcao(r.error ?? 'Não foi possível cancelar.'); return }
+    setOkAcao(r.reembolsada
+      ? 'Sessão cancelada e reembolso solicitado. O paciente foi avisado.'
+      : 'Sessão cancelada. O paciente foi avisado (sem reembolso — menos de 24h ou sem pagamento).')
+    router.refresh()
+  }
+
+  async function alternarNoShow() {
+    setErroAcao(null); setProcessando(true)
+    const r = await marcarNoShowAction(sessao.id, !ehNoShow)
+    setProcessando(false)
+    if (!r.ok) { setErroAcao(r.error ?? 'Não foi possível marcar.'); return }
+    setOkAcao(ehNoShow ? 'Marcação removida.' : 'Marcada como sem comparecimento.')
+    router.refresh()
+  }
+
+  async function destravar() {
+    setErroAcao(null); setProcessando(true)
+    const r = await destravarSessaoAction(sessao.id)
+    setProcessando(false); setConfirmandoAcao(null)
+    if (!r.ok) { setErroAcao(r.error ?? 'Não foi possível destravar.'); return }
+    setOkAcao('Sessão destravada — voltou pra agenda e pode ser remarcada.')
+    router.refresh()
   }
 
   async function excluir() {
@@ -170,6 +218,80 @@ export function SessaoBlock({ sessao, className, style, children }: {
                 <button onClick={salvar} disabled={salvando} className="btn primary">{salvando ? 'Salvando…' : 'Salvar'}</button>
               </div>
             </div>
+
+            {/* Sessão travada em "em andamento": aba fechada ou queda no meio.
+                O cron resolve em 6h; aqui ela resolve na hora. */}
+            {emCurso && (
+              <div style={{ marginTop: 16, paddingTop: 12, borderTop: '1px solid var(--border)' }}>
+                <div className="sec-lbl" style={{ marginBottom: 6 }}>Sessão em andamento</div>
+                {confirmandoAcao !== 'destravar' ? (
+                  <>
+                    <p style={{ fontSize: 11.5, color: 'var(--muted)', margin: '0 0 8px', lineHeight: 1.45 }}>
+                      Se esta sessão não está mesmo acontecendo, destrave: ela volta pra agenda,
+                      pode ser remarcada e a cota de IA é estornada. Nada é enviado ao paciente.
+                    </p>
+                    <button onClick={() => { setErroAcao(null); setConfirmandoAcao('destravar') }} disabled={processando}
+                      className="btn ghost" style={{ fontSize: 12.5 }}>
+                      Destravar sessão
+                    </button>
+                  </>
+                ) : (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+                    <span style={{ fontSize: 12.5, color: 'var(--ink-soft)' }}>
+                      Destravar? O que tiver sido transcrito é descartado.
+                    </span>
+                    <div style={{ display: 'flex', gap: 8, marginLeft: 'auto' }}>
+                      <button onClick={() => setConfirmandoAcao(null)} disabled={processando} className="btn ghost" style={{ fontSize: 12.5 }}>Não</button>
+                      <button onClick={destravar} disabled={processando} className="btn primary" style={{ fontSize: 12.5 }}>
+                        {processando ? 'Destravando…' : 'Sim, destravar'}
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {(podeCancelar || podeNoShow) && (
+              <div style={{ marginTop: 16, paddingTop: 12, borderTop: '1px solid var(--border)' }}>
+                <div className="sec-lbl" style={{ marginBottom: 8 }}>A sessão não vai acontecer</div>
+                {confirmandoAcao !== 'cancelar' ? (
+                  <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                    {podeCancelar && (
+                      <button onClick={() => { setErroAcao(null); setConfirmandoAcao('cancelar') }} disabled={processando}
+                        className="btn ghost" style={{ fontSize: 12.5, color: 'var(--rose)' }}>
+                        Cancelar sessão
+                      </button>
+                    )}
+                    {podeNoShow && (
+                      <button onClick={alternarNoShow} disabled={processando}
+                        className="btn ghost" style={{ fontSize: 12.5 }}>
+                        {processando ? 'Salvando…' : ehNoShow ? 'Desfazer sem comparecimento' : 'Sem comparecimento'}
+                      </button>
+                    )}
+                  </div>
+                ) : (
+                  <div style={{ display: 'grid', gap: 8 }}>
+                    <span style={{ fontSize: 12.5, color: 'var(--ink-soft)', lineHeight: 1.45 }}>
+                      Cancelar avisa o paciente no WhatsApp e no email.
+                      {sessao.pagamentoStatus === 'pago' && ' Se faltam mais de 24h, o valor é reembolsado.'}
+                    </span>
+                    <div style={{ display: 'flex', gap: 8, marginLeft: 'auto' }}>
+                      <button onClick={() => setConfirmandoAcao(null)} disabled={processando} className="btn ghost" style={{ fontSize: 12.5 }}>Voltar</button>
+                      <button onClick={cancelar} disabled={processando} className="btn primary" style={{ background: 'var(--rose)', fontSize: 12.5 }}>
+                        {processando ? 'Cancelando…' : 'Sim, cancelar'}
+                      </button>
+                    </div>
+                  </div>
+                )}
+                <p style={{ fontSize: 11.5, color: 'var(--muted)', margin: '8px 0 0', lineHeight: 1.45 }}>
+                  <strong>Cancelar</strong> desmarca e avisa o paciente. <strong>Sem comparecimento</strong> é só
+                  anotação de agenda — entra nos indicadores, sem mensagem nenhuma.
+                </p>
+              </div>
+            )}
+
+            {erroAcao && <div style={{ color: 'var(--rose)', fontSize: 12, marginTop: 8 }}>{erroAcao}</div>}
+            {okAcao && <div style={{ color: 'var(--sage)', fontSize: 12, marginTop: 8 }}>{okAcao}</div>}
 
             {podeExcluir && (
               <div style={{ marginTop: 16, paddingTop: 12, borderTop: '1px solid var(--border)' }}>

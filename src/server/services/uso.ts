@@ -44,3 +44,26 @@ export async function incrementarSessaoIa(
   )
   return rows[0]?.sessoes_ia ?? 1
 }
+
+/**
+ * Estorna 1 sessão-IA do mês — usado quando a sessão é INTERROMPIDA (não virou
+ * registro clínico): a psicóloga não deve pagar cota por uma sessão que não
+ * aconteceu. Só quem já fez a transição `ia_contabilizada TRUE→FALSE` chama
+ * aqui, então não há estorno duplo.
+ *
+ * GREATEST(...,0) trava o contador em zero: se a sessão foi contabilizada num
+ * mês e interrompida no seguinte, o estorno cai na competência atual (não
+ * guardamos a de origem) e no pior caso vira no-op — nunca um saldo negativo.
+ */
+export async function decrementarSessaoIa(
+  psicologoId: string, competencia = competenciaAtual(),
+): Promise<number> {
+  const { rows } = await db.query<{ sessoes_ia: number }>(
+    `UPDATE uso_mensal
+        SET sessoes_ia = GREATEST(sessoes_ia - 1, 0), updated_at = NOW()
+      WHERE psicologo_id = $1 AND competencia = $2
+      RETURNING sessoes_ia`,
+    [psicologoId, competencia],
+  )
+  return rows[0]?.sessoes_ia ?? 0
+}
