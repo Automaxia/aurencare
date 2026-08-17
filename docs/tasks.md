@@ -40,24 +40,37 @@ Legenda prioridade: **P0** crítico (segurança/risco) · **P1** importante · *
   gravada por sessão e refletida no Financeiro e na visão contábil.
 - ✅ Landing `/lancamento` (redesign v2, hero 3D) + lista de espera.
 
-## Pendências — configuração para ligar a cobrança
+## Pendências — Pagar.me
 
 > Todas são **configuração**, não código. Comandos em [INFRA.md](./INFRA.md).
 
-- ⏳ **P0** `PAGARME_WEBHOOK_SECRET` real no cluster. Hoje é `change-me`: o webhook
-  é fail-closed em produção e responde **503** — ou seja, **nenhuma sessão seria
-  confirmada** (viola P4). Cadastrar também a URL no painel Pagar.me:
+> 🧪 **Decisão: seguimos em SANDBOX (`sk_test_`/`pk_test_`) durante o beta.**
+> Nenhuma cobrança é real, então o fluxo inteiro pode ser exercitado sem risco.
+> A troca para `live` é um passo deliberado do go-live, não uma pendência
+> esquecida. **Enquanto isso, todo valor abaixo deve ser o do ambiente sandbox.**
+
+### Agora (para exercitar o fluxo em sandbox)
+- ⏳ **P0** `PAGARME_WEBHOOK_SECRET` **do painel sandbox** no cluster. Hoje é
+  `change-me`: como produção roda com `NODE_ENV=production`, o webhook é
+  fail-closed e responde **503** — **nenhuma sessão é confirmada** (viola P4),
+  mesmo em sandbox. Cadastrar também a URL no painel:
   `https://app.audere.ia.br/api/webhooks/pagarme`.
-- ⏳ **P0** `PAGARME_RECIPIENT_PLATAFORMA` — recipient da conta da Audere, destino
-  da comissão. Sem ele a cobrança sai **sem split** (valor inteiro na conta-mãe).
-- ⏳ **P1** Chaves `live`: `PAGARME_API_KEY` (`sk_live`) no secret e
-  `NEXT_PUBLIC_PAGARME_PUBLIC_KEY` (`pk_live`) **no build da imagem** (build-time).
-- ⏳ **P1** Validar o split em **sandbox**, sobretudo em `payment_method:
-  'checkout'` (cartão). A montagem das fatias tem teste (`npm run test:split`);
-  a aceitação pela API, não.
+- ⏳ **P0** `PAGARME_RECIPIENT_PLATAFORMA` — recipient **da conta sandbox** da
+  Audere, destino da comissão. Sem ele a cobrança sai **sem split** (valor
+  inteiro na conta-mãe).
+- ⏳ **P1** Validar o split em sandbox, sobretudo em `payment_method: 'checkout'`
+  (cartão). A montagem das fatias tem teste (`npm run test:split`); a aceitação
+  pela API, não.
 - ⏳ **P1** `ASSEMBLYAI_API_KEY` no cluster — sem ela não há transcrição do paciente.
-- ⏳ **P2** Trocar `BETA_LIBERADO` para `false` em `planos.ts` quando tudo acima
-  estiver pronto.
+
+### No go-live (trocar de sandbox para produção)
+- 🔮 `PAGARME_API_KEY` → `sk_live` no secret.
+- 🔮 `NEXT_PUBLIC_PAGARME_PUBLIC_KEY` → `pk_live` **no build da imagem**
+  (é build-time; pôr só no secret de runtime **não** funciona).
+- 🔮 Recriar no ambiente live: webhook (URL + secret) e recipient da plataforma.
+  Os recipients dos psicólogos também são por ambiente — o onboarding precisa
+  ser refeito, ou migrado, para as contas já cadastradas em sandbox.
+- 🔮 Trocar `BETA_LIBERADO` para `false` em `planos.ts` + redeploy.
 
 ## Pendências — segurança
 
