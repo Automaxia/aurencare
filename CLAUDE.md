@@ -630,37 +630,51 @@ Modal abre automaticamente ao encerrar. Contém:
 > Fase 1 + parte da Fase 2. Detalhe e backlog em [`docs/tasks.md`](./docs/tasks.md).
 
 ### ✅ Implementado e em produção
-- Auth (login/logout) + cadastro público de psicólogo
+- Auth (login/logout) + cadastro público + **recuperação de senha**
+- **Papéis e área `/admin`** — `role` em `psicologos` + `requireRole('admin')`;
+  gestão de psicólogos, custos de IA, leads e diagnóstico do WhatsApp
 - Dashboard com agenda do dia e KPIs
-- Pacientes: cadastro (dispara **WhatsApp + email**), lista com filtros, perfil, arquivar
-- Agenda (dia/semana/mês) + nova sessão (avulsa e série)
-- Evolution API: **7 fluxos** (inclui confirmação pós-sessão)
-- Pagar.me: PIX + crédito (6x) + débito + webhook
+- Pacientes: cadastro (dispara **WhatsApp + email**), filtros, perfil, arquivar,
+  **importação de sessões anteriores** (texto/PDF/DOCX) como histórico
+- Agenda (dia/semana/mês), sessão avulsa e série, remarcar "esta e as seguintes"
+- Evolution API: **7 fluxos** + **inbox conversacional** + transcrição de áudio
+- Pagar.me: PIX + crédito (6x) + débito + webhook + **split** + Subscriptions
 - Resend: email transacional (domínio verificado)
-- Modo Presença: transcrição **dual** (psicólogo Web Speech + paciente AssemblyAI),
-  9 widgets, marcação, **vídeo WebRTC P2P**, isolamento de falante, **análise paciente-only**
-- Pós-sessão: resumo IA + assinatura + sugestões
-- **Temas Recorrentes (grafo)** e **Evolução longitudinal** com chat de IA  ← era Fase 2
+- Modo Presença: transcrição **dual** (Web Speech + AssemblyAI), 9 widgets,
+  marcação, **vídeo WebRTC** (reconexão automática, **TURN ativo**), isolamento
+  de falante, **análise paciente-only**
+- **Palco compartilhado** — objetivos, **quadro branco** (Excalidraw), checagem
+  de humor interativa e grafo de temas, em cards móveis/redimensionáveis
+- Pós-sessão: resumo IA + assinatura + sugestões · **laudo híbrido** (resumo
+  curto automático + laudo formal CFP sob demanda, idempotente)
+- **Sessão interrompida** (estorna cota), exclusão de sessão vazia, cron que
+  destrava sessões presas em `em_curso`
+- **Temas Recorrentes** — grafo de **construtos** com store por-sessão versionado,
+  recorrência contada, **recálculo incremental** — e Evolução longitudinal
+- **Objetivos e progresso** — marcos, escala GAS, notas, copiloto
 - Financeiro + NF + exportação contábil/tributária; Saúde da Prática (KPIs)
+- **Planos / assinatura** — Free (3 sessões-IA/mês) · Essencial R$ 69,90 (30) ·
+  Pro R$ 159,90 (80) + **comissão de 2,5% por sessão**. Medidor = sessões com
+  IA/mês. Gate de cota no Modo Presença, validado **no servidor**.
+  Config em `src/server/lib/planos.ts`
+- **Instrumentação de custo de IA** — `api_custos` com atribuição por
+  psicólogo/paciente/sessão/natureza + latência; painel `/admin/custos`
+- Landing `/lancamento` (hero 3D) + lista de espera
 - CFP badge + AES-256 + consentimento + aiGuard
 
-### 🧩 Implementado em código (branch `dev`, aguardando deploy)
-- **Planos / assinatura (freemium pago)** — Free (3 sessões-IA/mês) · Essencial
-  R$ 69,90 (30) · Pro R$ 159,90 (80). Medidor = **sessões com IA/mês** (não nº de
-  pacientes); gate de cota no Modo Presença; Pagar.me **Subscriptions** (cartão
-  recorrente, tokenização v5 no front); UI `/planos`. Sem excedente (preço fixo).
-  Config em `src/server/lib/planos.ts`. ⏳ runtime: migration 018, chaves
-  `pk_`/`sk_` Pagar.me, `PAGARME_WEBHOOK_SECRET`.
-- **Otimização de custo de IA** — roteamento Haiku 4.5 / Sonnet 4.6 + batching do
-  `tom-turno` (~R$ 1,27/sessão-IA; a transcrição AssemblyAI é o piso).
-- **Rebrand Auren → Audere** — camada user-facing renomeada; infra técnica ainda
-  `aurencare` (domínio/banco/k8s/imagem).
+### ⏳ Pronto em código, aguardando configuração
+- **Cobrança** — funciona, mas segue em **sandbox** (`sk_test_`/`pk_test_`)
+  durante o beta (`BETA_LIBERADO = true`). Falta o secret do webhook e o
+  `PAGARME_RECIPIENT_PLATAFORMA`; sem eles nenhuma sessão confirma e o split não
+  acontece. Detalhe em [`docs/INFRA.md`](./docs/INFRA.md).
+- **Transcrição do paciente** — falta `ASSEMBLYAI_API_KEY` no cluster.
 
 ### 🔮 Futuro / fora de escopo
 - Modo supervisor (Fase 3)
 - App mobile
 - Agendamento inbound pelo paciente via WhatsApp
-- Itens de hardening (validação de assinatura de webhooks, TURN, etc.) — ver `docs/tasks.md`
+- Clínica/equipe — gancho `organizacao_id` já existe no schema (migration 022)
+- Rename de infra `aurencare` → `audere` (domínio/banco/k8s/imagem)
 
 ---
 

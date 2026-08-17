@@ -1,7 +1,19 @@
 # Identidade, Usuários e Papéis — proposta + plano de implementação
 
-> **Status:** proposta com plano detalhado · decisão de "quando" em aberto
-> **Data:** junho 2026
+> ⚠️ **Status (ago/2026): a necessidade apareceu e foi resolvida por um caminho
+> mais barato do que o proposto aqui.** Este documento descreve a separação
+> `usuarios` × perfis, que **NÃO** foi implementada — e continua sendo o plano
+> caso um dia exista conta que não é psicólogo (suporte, clínica, equipe).
+>
+> **O que existe hoje em produção** (migration 022, ver §1):
+> `psicologos.role` (`psicologo` | `admin`) + `organizacao_id` (gancho, sempre
+> NULL) e o guard `requireRole('admin')` — sem tabela nova e sem tocar no
+> contrato `session.user.id === psicologos.id`. Área `/admin` no ar com gestão
+> de psicólogos, custos de IA, leads e diagnóstico do WhatsApp.
+>
+> Leia daqui para baixo como **plano futuro**, não como descrição do sistema.
+>
+> **Data original:** junho 2026
 > **Objetivo:** separar autenticação (conta) dos perfis de domínio
 > (`psicologos`/`pacientes`) para suportar um papel de **administrador** que não
 > é psicólogo nem paciente — com o menor risco possível no auth de produção.
@@ -19,12 +31,31 @@ Autenticação **achatada** na tabela `psicologos`: a mesma linha guarda conta
 psicologos
   id, nome, crp,
   email, senha_hash,          ← conta / login (NextAuth credentials)
+  role,                       ← 'psicologo' (default) | 'admin'   (migration 022)
+  organizacao_id,             ← gancho org-ready; hoje sempre NULL (migration 022)
   telefone, valor_sessao, pgm_* (recebimento), plano_* (assinatura), ...
 ```
 
 - **Quem autentica:** só o psicólogo.
 - **Paciente:** não loga (só WhatsApp) → registro de dados, não "usuário".
-- **Admin / backoffice:** não existe.
+- **Admin / backoffice:** **existe**, como `psicologos.role = 'admin'`.
+
+### O atalho que foi tomado (e por quê)
+
+Em vez de criar `usuarios`, a migration 022 adicionou `role` à própria
+`psicologos` e o guard `requireRole('admin')` (`src/server/lib/auth.ts`), usado
+por `/admin`, `/admin/custos`, `/admin/leads`, `/admin/whatsapp` e
+`services/admin.ts`.
+
+**Vantagem:** risco quase zero — o contrato `session.user.id === psicologos.id`
+ficou intacto, e nenhum dos ~40 consumidores de `requirePsicologo()` mudou.
+
+**Limite conhecido:** o admin ainda é *uma linha de psicólogo* com `role`
+diferente — carrega colunas que não fazem sentido para ele (`crp`,
+`valor_sessao`, `pgm_*`, `plano_*`) e ocupa um CRP no índice único. Enquanto o
+admin for uma ou duas pessoas da própria equipe, é um custo aceitável. Quando
+surgir conta de suporte, ou clínica com vários usuários sob uma organização, o
+plano abaixo passa a valer.
 
 ### Como o auth está fiado hoje (pontos que a refatoração toca)
 | Peça | Arquivo | Papel atual |

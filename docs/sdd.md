@@ -132,9 +132,11 @@ Camada única: todo texto/classificação de IA passa por `chat()`.
 - **SSE** `/api/eventos` (painel) e `/api/sala/[token]/eventos` (signaling de vídeo):
   cada conexão limpa heartbeat + subscription no `cancel()`/`abort` para evitar
   vazamento e `ERR_INVALID_STATE`.
-- **ICE** `/api/ice` entrega STUN + TURN. O TURN suporta credencial **efêmera**
+- **ICE** `/api/ice` entrega STUN + TURN. O TURN usa credencial **efêmera**
   (coturn `use-auth-secret`, HMAC com TTL) — obrigatório porque o paciente é
   anônimo e o bundle é público, então senha fixa nunca é exposta.
+  Em produção o coturn roda no cluster (`k8s/coturn.yaml`, hostNetwork) atrás de
+  `turn.audere.ia.br`. **Dev local não tem TURN** — cai em STUN-only.
 
 ### 4.6 Cron
 Seis jobs in-process (`src/server/lib/cron.ts`, timezone America/Sao_Paulo):
@@ -169,7 +171,7 @@ sessões em curso (15min). Recálculo de grafo **não** é cron — é sob deman
 | Evolution v2 | WhatsApp | payload `{ number, text }`; instância compartilhada |
 | Pagar.me | cobrança, split, assinatura, recipient | API v5 via axios; sem SDK |
 | Resend | email | domínio verificado (`automaxia.com.br`) |
-| WebRTC | vídeo P2P | STUN público + TURN opcional (`lib/turn.ts`) |
+| WebRTC | vídeo P2P | STUN público + **TURN ativo** (coturn no cluster, `lib/turn.ts`) |
 
 ## 7. Infraestrutura e deploy
 

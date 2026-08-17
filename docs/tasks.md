@@ -23,6 +23,10 @@ Legenda prioridade: **P0** crítico (segurança/risco) · **P1** importante · *
   humor interativa e grafo de temas, em cards móveis/redimensionáveis.
 - ✅ **Vídeo** — reconexão automática, memória de câmera/mic, `/api/ice` com
   STUN + TURN (credencial efêmera HMAC).
+- ✅ **TURN em produção** — coturn no cluster (`k8s/coturn.yaml`, hostNetwork),
+  DNS `turn.audere.ia.br`, firewall `3478 udp/tcp` + relay `49160-49200/udp`,
+  **validado end-to-end** (Allocate real com credencial efêmera do `/api/ice`).
+  Opcional pendente: `turns:` em TLS/5349 para redes que só liberam 443.
 - ✅ **Laudo híbrido** — resumo curto automático (`fast`) + laudo formal CFP sob
   demanda (`strong`), idempotente.
 - ✅ **Sessão interrompida** + exclusão de sessão vazia + cron `destravar-sessoes`.
@@ -87,11 +91,11 @@ Legenda prioridade: **P0** crítico (segurança/risco) · **P1** importante · *
 
 ## Pendências — operação/robustez
 
-- ⏳ **P1** Subir o **coturn** e definir `TURN_URLS` + `TURN_STATIC_AUTH_SECRET`.
-  O código já está pronto (`lib/turn.ts`, `/api/ice`); hoje só há STUN, então
-  chamadas caem atrás de NAT restritivo/4G.
 - ⏳ **P1** Migrar cron in-process (`node-cron`) para **CronJob do k8s** ou fila
   (evita lembrete duplicado se houver mais de um pod).
+- ⏳ **P2** Espelhar `TURN_*` no `.env.local` (o dev local roda **só com STUN**;
+  em produção o TURN está ativo). Não bloqueia nada — só reduz a fidelidade do
+  teste de vídeo local.
 - ⏳ **P1** **Recalcular Temas** dos pacientes com grafo antigo. Com o incremental,
   usar `?forcar=1` — sem isso os snapshots válidos são reaproveitados.
 - ⏳ **P2** Deduplicação real de webhook (hoje a única guarda é o early-return de

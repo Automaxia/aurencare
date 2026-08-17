@@ -1,10 +1,15 @@
 # INFRA.md — Pendências de infraestrutura · Audere
 
+> **Fonte única.** O `INFRA.md` da raiz virou um ponteiro para este arquivo —
+> as duas cópias haviam divergido (a da raiz tinha o TURN concluído, esta tinha
+> o login com Google; nenhuma era superconjunto da outra).
+>
 > App: monolito Next.js, **1 pod** `aurencare-web` · namespace `aurencare` · secret
 > `aurencare-secrets`. **Deploy automático no push para `main`** (GitHub Actions:
 > build → migrate → rollout). As migrations rodam sozinhas na esteira.
 >
-> Marque `[x]` conforme concluir.
+> Marque `[x]` conforme concluir. Contexto técnico em [sdd.md](./sdd.md); backlog
+> completo em [tasks.md](./tasks.md).
 
 ---
 
@@ -24,37 +29,81 @@ Sem isso, áudio do paciente e o fallback de fala do psicólogo no tablet não f
 Destrava: transcrição do paciente, fallback do tablet, multilíngue (PT/EN) e
 qualidade do PT (antes ia no modelo inglês default).
 
-## 🟠 2. Confiabilidade do vídeo — servidor TURN (#11)
-Chamadas caem atrás de NAT/4G porque hoje só há **STUN** (sem TURN).
+## 🔴 2. Agora — destravar a confirmação de pagamento
 
-- [ ] Subir um **coturn** (TURN/STUN) — pod/Service no cluster ou serviço gerenciado.
-- [ ] Disponibilizar credenciais TURN como env/secret pro app.
-- [ ] Passar pro dev (URL TURN + usuário/senha) → plugar no `useWebRTC` (código).
+O webhook da Pagar.me é **fail-closed em produção**: sem `PAGARME_WEBHOOK_SECRET`
+ele responde **503** e **nenhuma sessão é confirmada** (viola a premissa P4). O
+gate é `NODE_ENV=production`, **não** o tipo da chave — vale igual em sandbox.
 
-## 🟡 3. Cobrança (quando sair do beta — NÃO urgente)
-Hoje `BETA_LIBERADO=true` (acesso liberado, sem cobrança). Para ligar:
+- [ ] Gerar o secret no painel Pagar.me (**ambiente sandbox**, ver §3) e definir:
+  ```bash
+  kubectl patch secret aurencare-secrets -n aurencare --type merge \
+    -p '{"stringData":{"PAGARME_WEBHOOK_SECRET":"<secret>"}}'
+  ```
+- [ ] Cadastrar o webhook no painel → `https://app.audere.ia.br/api/webhooks/pagarme`
+      (eventos: `order.paid`, `order.canceled`, `charge.payment_failed`,
+      `subscription.charged/canceled`, `invoice.paid`).
+- [ ] **`PAGARME_RECIPIENT_PLATAFORMA`** — recipient da conta da Audere (sandbox),
+      destino da comissão de 2,5% no split. Sem ele a cobrança sai **sem split**
+      e o valor inteiro fica na conta-mãe, em vez de ir para o psicólogo.
+- [ ] **`CRON_SECRET`** — sem ele, `/api/cron/recalcular-temas` fica fora do
+      middleware de auth e aceita **qualquer** chamada; um POST anônimo dispara o
+      recálculo de todos os pacientes (a operação de IA mais cara do sistema).
 
-- [ ] `PAGARME_API_KEY` (sk_live) e `PAGARME_WEBHOOK_SECRET` no secret.
-- [ ] `NEXT_PUBLIC_PAGARME_PUBLIC_KEY` (pk_live) — ⚠️ **é build-time**: tem que entrar
-      no **build da imagem** (`--build-arg` no `build-push.sh` ou env do job de build),
-      **não** só no secret de runtime.
-- [ ] Cadastrar o webhook no painel Pagar.me → `https://app.audere.ia.br/api/webhooks/pagarme`
-      (eventos: subscription.charged/canceled, invoice.paid, charge.payment_failed).
-- [ ] No código: trocar `BETA_LIBERADO` para `false` em `src/server/lib/planos.ts` + redeploy.
+## 🟢 3. Confiabilidade do vídeo — servidor TURN (#11) — ✅ ATIVO
+Chamadas atrás de NAT/4G agora têm relay TURN (antes só STUN).
 
-## 🔒 4. Segurança / hardening
+- [x] **Código** — app lê TURN do cluster: `src/server/lib/turn.ts` (credenciais
+      **efêmeras** HMAC, modo coturn `use-auth-secret`), rota pública `/api/ice`
+      (liberada no middleware), `useWebRTC` busca de lá (fallback STUN-only).
+- [x] **coturn no cluster** — `k8s/coturn.yaml` aplicado, pod Running no nó
+      `84.247.138.18` (hostNetwork). Secret `coturn-auth` + `aurencare-secrets`
+      com `TURN_STATIC_AUTH_SECRET`/`TURN_URLS`/`TURN_TTL`.
+- [x] **DNS** — `turn.audere.ia.br` → `84.247.138.18` (resolve no 8.8.8.8/1.1.1.1).
+- [x] **Firewall** — `3478/udp` e `3478/tcp` abertos + relay `49160-49200/udp`.
+- [x] **Validado end-to-end** (jun/2026) — TURN Allocate real com credencial
+      efêmera do `/api/ice`: `realm=audere.ia.br`, relay alocado em `:49165`.
+      Auth HMAC OK, relay OK.
+- [ ] *(Opcional)* `turns:` (TLS:5349) — só após montar cert válido em
+      `/etc/coturn/certs` e descomentar `cert`/`pkey` no ConfigMap do `coturn.yaml`.
+      Útil em redes que bloqueiam tudo menos 443/TLS; `3478 udp/tcp` cobre o resto.
+- [ ] *(Opcional)* Espelhar `TURN_*` no `.env.local` — dev local roda STUN-only.
+
+## 🟡 4. Cobrança — **seguimos em SANDBOX durante o beta**
+
+Hoje: `BETA_LIBERADO=true` (acesso liberado, sem cobrança) e chaves
+`sk_test_`/`pk_test_`. Nenhuma cobrança é real — dá para exercitar o fluxo
+inteiro sem risco. **A troca para `live` é um passo deliberado do go-live.**
+
+Quando for ligar de verdade:
+
+- [ ] `PAGARME_API_KEY` → `sk_live` no secret.
+- [ ] `NEXT_PUBLIC_PAGARME_PUBLIC_KEY` → `pk_live` — ⚠️ **é build-time**: tem que
+      entrar no **build da imagem** (`--build-arg` no `build-push.sh` ou env do
+      job de build), **não** só no secret de runtime.
+- [ ] Recriar no ambiente live: webhook (URL + secret) e recipient da plataforma.
+- [ ] ⚠️ **Recipients são por ambiente**: os psicólogos que fizerem o onboarding
+      de recebimento em sandbox terão de refazê-lo (ou ser migrados) no live.
+      Pesar isso antes de abrir o beta para muita gente com KYC completo.
+- [ ] No código: trocar `BETA_LIBERADO` para `false` em `src/server/lib/planos.ts`
+      + redeploy.
+
+## 🔒 5. Segurança / hardening
 - [ ] Confirmar que `ENCRYPTION_KEY` e `NEXTAUTH_SECRET` são valores **reais e
       definitivos** (trocar `ENCRYPTION_KEY` depois torna dados clínicos ilegíveis).
-- [ ] `EVOLUTION_WEBHOOK_TOKEN` e `PAGARME_WEBHOOK_SECRET` definidos → ativam a
-      validação de assinatura dos webhooks (hoje degradam sem validar).
+- [ ] `EVOLUTION_WEBHOOK_TOKEN` definido → ativa a validação do webhook da
+      Evolution (hoje degrada sem validar).
 - [ ] Rotacionar credenciais já expostas no histórico: AssemblyAI (agora), Resend,
-      e decidir sobre a Evolution API key.
+      e decidir sobre a Evolution API key (rotacionar = recriar instância → QR).
+- [ ] **ZDR + DPA com a OpenAI** — ela é o provedor primário de IA, então dado
+      clínico trafega para lá na maioria das chamadas. A promessa "zero data
+      training" exibida na UI depende desse contrato.
 
-## ⚙️ 5. Operação
-- [ ] Migrar o cron in-process (node-cron) para **CronJob do k8s** + definir
-      `CRON_SECRET` (evita lembrete duplicado se subir mais de 1 pod).
+## ⚙️ 6. Operação
+- [ ] Migrar o cron in-process (node-cron) para **CronJob do k8s** (evita lembrete
+      duplicado se subir mais de 1 pod). O `CRON_SECRET` já está na §2.
 
-## 🔵 6. Login com Google (adiado — precisa de credenciais OAuth)
+## 🔵 7. Login com Google (adiado — precisa de credenciais OAuth)
 Recuperação de senha já está no ar. O login/cadastro com Google fica pra ligar
 quando houver as credenciais (o dev faz o código; estas etapas são suas):
 
@@ -67,7 +116,8 @@ quando houver as credenciais (o dev faz o código; estas etapas são suas):
     -p '{"stringData":{"GOOGLE_CLIENT_ID":"<id>","GOOGLE_CLIENT_SECRET":"<secret>"}}'
   ```
 - [ ] Confirmar `NEXTAUTH_URL=https://app.audere.ia.br` (o callback do Google usa essa base).
-- [ ] Decisão já tomada: contas de mesmo email são **vinculadas** (Google = outra forma de entrar na conta existente).
+- [ ] Decisão já tomada: contas de mesmo email são **vinculadas** (Google = outra
+      forma de entrar na conta existente).
 
 ---
 
@@ -76,7 +126,12 @@ quando houver as credenciais (o dev faz o código; estas etapas são suas):
   ```bash
   kubectl logs deploy/aurencare-web -n aurencare --tail=200 | grep confirmacao.action
   ```
+- [ ] **Fallback de custo de IA:** se aparecer, a OpenAI está fora e o tier `fast`
+      está rodando ~8× mais caro no Anthropic
+  ```bash
+  kubectl logs deploy/aurencare-web -n aurencare --tail=500 | grep "ALERTA CUSTO"
+  ```
 
 ---
 
-*Atualizado: jun/2026. Itens de código associados ficam com o time de dev.*
+*Atualizado: ago/2026. Itens de código associados ficam com o time de dev.*

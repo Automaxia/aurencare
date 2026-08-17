@@ -211,8 +211,8 @@ Pagar.me (PIX/crédito/débito + webhook + split + subscriptions), Resend,
 instrumentação de custo de IA, landing `/lancamento`.
 
 ### Pronto em código, aguardando configuração
-Cobrança (planos e split — faltam chaves `live` e o recipient da plataforma) e
-TURN (código pronto; falta subir o coturn). Ver [tasks.md](./tasks.md).
+Cobrança: planos e split funcionam, mas seguem em **sandbox** durante o beta —
+falta o recipient da plataforma e o secret do webhook. Ver [tasks.md](./tasks.md).
 
 ### Fora de escopo / futuro
 Modo supervisor (Fase 3), app mobile, agendamento inbound pelo paciente via
