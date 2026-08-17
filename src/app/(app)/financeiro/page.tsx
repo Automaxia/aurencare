@@ -92,7 +92,7 @@ export default async function FinanceiroPage({ searchParams }: { searchParams: S
       {/* Linha 1 — visão geral */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 12, marginBottom: 16 }}>
         <Kpi label={`Recebido (${labelPeriodoCurto(periodo)})`} value={formatBRL(f.totaisMes.recebido)} color="sage" />
-        <Kpi label="Líquido estimado"     value={formatBRL(f.liquidoEstimado)} hint="Bruto − taxas Pagar.me" />
+        <Kpi label="Líquido estimado"     value={formatBRL(f.liquidoEstimado)} hint={f.comissaoPlataforma > 0 ? 'Bruto − taxas Pagar.me − comissão' : 'Bruto − taxas Pagar.me'} />
         <Kpi label="Previsão de recebimento" value={formatBRL(f.aReceber30d)} hint="Próximos 30 dias" />
         <Kpi label="Pendente"             value={formatBRL(f.totaisMes.pendente)} color="amber" />
       </div>

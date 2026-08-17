@@ -2,6 +2,7 @@ import 'server-only'
 import axios from 'axios'
 import { env, integrationStatus } from './env'
 import { log } from './log'
+import { comissaoSessaoCentavos } from './planos'
 
 /**
  * Cliente Pagar.me v5. §10 (pagamentos).
@@ -20,6 +21,75 @@ export type OrderCreated = {
   qrCodeUrl?: string      // URL da imagem do QR
   checkoutUrl?: string    // para cartão
   expiresAt: string
+  /** Fatia da plataforma (centavos) aplicada no split; 0 quando não houve split. */
+  comissaoCentavos: number
+}
+
+type SplitRule = {
+  amount: number
+  type: 'flat'
+  recipient_id: string
+  options: { charge_processing_fee: boolean; charge_remainder_fee: boolean; liable: boolean }
+}
+
+/**
+ * Monta o split da sessão: o psicólogo recebe o valor MENOS a comissão da
+ * plataforma (2,5%, `COMISSAO_SESSAO_PCT`) e MENOS a taxa da Pagar.me — tudo
+ * descontado na própria liquidação, para o dinheiro já cair líquido na conta
+ * dele, sem transferência ou acerto posterior.
+ *
+ * Por que `flat` e não `percentage`: 2,5% não é inteiro, e a fatia em centavos
+ * é exata, auditável e casa com o que o Financeiro exibe. As duas fatias somam
+ * exatamente o valor da order (o resto vai pro psicólogo), como a API exige.
+ *
+ * `charge_processing_fee`/`liable` ficam SÓ na fatia do psicólogo: a taxa do
+ * adquirente e o risco de chargeback são do serviço prestado, não da comissão.
+ *
+ * Degrada em silêncio seguro: sem `PAGARME_RECIPIENT_PLATAFORMA` ou sem
+ * recipient do psicólogo, devolve `null` → a order sai SEM split (valor inteiro
+ * na conta-mãe, comportamento anterior) com aviso no log.
+ */
+export function montarSplitSessao(
+  valorCentavos: number,
+  recipientPsicologo: string | null | undefined,
+  escopo: string,
+): { split: SplitRule[]; comissaoCentavos: number } | null {
+  const plataforma = env.pagarmeRecipientPlataforma
+  if (!recipientPsicologo) {
+    log.warn('pagarme', `${escopo}: psicólogo sem pagarme_recipient_id — cobrança SEM split (valor fica na conta-mãe)`)
+    return null
+  }
+  if (!plataforma) {
+    log.warn('pagarme', `${escopo}: PAGARME_RECIPIENT_PLATAFORMA não configurado — cobrança SEM split (valor fica na conta-mãe)`)
+    return null
+  }
+
+  const comissaoCentavos = comissaoSessaoCentavos(valorCentavos)
+  const psicologoCentavos = valorCentavos - comissaoCentavos
+  if (psicologoCentavos <= 0) {
+    log.warn('pagarme', `${escopo}: valor ${valorCentavos} baixo demais para split — cobrança SEM split`)
+    return null
+  }
+
+  return {
+    comissaoCentavos,
+    split: [
+      {
+        amount: psicologoCentavos,
+        type: 'flat',
+        recipient_id: recipientPsicologo,
+        // Absorve a taxa da Pagar.me e o arredondamento; responde por chargeback.
+        options: { charge_processing_fee: true, charge_remainder_fee: true, liable: true },
+      },
+      {
+        amount: comissaoCentavos,
+        type: 'flat',
+        recipient_id: plataforma,
+        // Comissão limpa: não paga taxa de processamento nem assume chargeback.
+        options: { charge_processing_fee: false, charge_remainder_fee: false, liable: false },
+      },
+    ],
+  }
 }
 
 /**
@@ -31,6 +101,8 @@ export async function criarOrderPix(opts: {
   pacienteNome: string
   pacienteEmail?: string | null
   pacienteTelefone: string
+  /** Recipient do psicólogo (onboarding de recebimento) — destino do split. */
+  recipientPsicologo?: string | null
 }): Promise<OrderCreated> {
   const expiresAt = new Date(Date.now() + 30 * 60 * 1000).toISOString()
 
@@ -42,8 +114,11 @@ export async function criarOrderPix(opts: {
       qrCode: '00020126...mock-br-code...',
       qrCodeUrl: `${env.appUrl}/mock/qr/${mockId}.png`,
       expiresAt,
+      comissaoCentavos: comissaoSessaoCentavos(opts.valorCentavos),
     }
   }
+
+  const s = montarSplitSessao(opts.valorCentavos, opts.recipientPsicologo, `pix sessao=${opts.sessaoId.slice(0, 8)}`)
 
   try {
     const { data } = await axios.post(`${BASE}/orders`, {
@@ -56,6 +131,7 @@ export async function criarOrderPix(opts: {
       payments: [{
         payment_method: 'pix',
         pix: { expires_in: 30 * 60 },
+        ...(s ? { split: s.split } : {}),
       }],
     }, { auth: auth(), timeout: 15_000 })
 
@@ -65,6 +141,7 @@ export async function criarOrderPix(opts: {
       qrCode: payment?.qr_code,
       qrCodeUrl: payment?.qr_code_url,
       expiresAt,
+      comissaoCentavos: s?.comissaoCentavos ?? 0,
     }
   } catch (err) {
     log.err('pagarme', 'falha ao criar PIX', err instanceof Error ? err.message : err)
@@ -82,6 +159,8 @@ export async function criarCheckoutCartao(opts: {
   parcelas?: number
   pacienteNome: string
   pacienteEmail?: string | null
+  /** Recipient do psicólogo (onboarding de recebimento) — destino do split. */
+  recipientPsicologo?: string | null
 }): Promise<OrderCreated> {
   const expiresAt = new Date(Date.now() + 2 * 60 * 60 * 1000).toISOString()
 
@@ -92,8 +171,11 @@ export async function criarCheckoutCartao(opts: {
       orderId: mockId,
       checkoutUrl: `${env.appUrl}/mock/checkout/${mockId}`,
       expiresAt,
+      comissaoCentavos: comissaoSessaoCentavos(opts.valorCentavos),
     }
   }
+
+  const s = montarSplitSessao(opts.valorCentavos, opts.recipientPsicologo, `${opts.metodo} sessao=${opts.sessaoId.slice(0, 8)}`)
 
   try {
     const { data } = await axios.post(`${BASE}/orders`, {
@@ -111,6 +193,7 @@ export async function criarCheckoutCartao(opts: {
             : undefined,
           success_url: `${env.appUrl}/pagamento-ok`,
         },
+        ...(s ? { split: s.split } : {}),
       }],
     }, { auth: auth(), timeout: 15_000 })
 
@@ -118,6 +201,7 @@ export async function criarCheckoutCartao(opts: {
       orderId: data.id,
       checkoutUrl: data.checkouts?.[0]?.payment_url,
       expiresAt,
+      comissaoCentavos: s?.comissaoCentavos ?? 0,
     }
   } catch (err) {
     log.err('pagarme', `falha ao criar checkout ${opts.metodo}`, err instanceof Error ? err.message : err)

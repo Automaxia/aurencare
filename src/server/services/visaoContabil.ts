@@ -25,7 +25,8 @@ export type ResumoMes = {
   rotulo: string             // "Maio 2026"
   recebidoBruto: number
   taxasEstimadas: number
-  liquidoEstimado: number    // após taxas Pagar.me
+  comissaoPlataforma: number // comissão da Audere no split (real, não estimada)
+  liquidoEstimado: number    // após taxas Pagar.me E comissão da plataforma
   recebidoPorMetodo: { pix: number; credito: number; debito: number }
   cobrancasCount: number     // pagas no mês
   cobrancasNfPendente: number
@@ -148,9 +149,10 @@ async function resumirMes(psicologoId: string, ano: number, mesIdx0: number): Pr
 
   const { rows } = await db.query<{
     valor: any; pagamento_status: string; pagamento_metodo: string | null;
-    pagamento_parcelas: number; nf_status: string | null;
+    pagamento_parcelas: number; nf_status: string | null; comissao_centavos: number | null;
   }>(
-    `SELECT valor, pagamento_status, pagamento_metodo, pagamento_parcelas, nf_status
+    `SELECT valor, pagamento_status, pagamento_metodo, pagamento_parcelas, nf_status,
+            comissao_centavos
        FROM sessoes
       WHERE psicologo_id = $1
         AND data_hora BETWEEN $2 AND $3`,
@@ -166,12 +168,18 @@ async function resumirMes(psicologoId: string, ano: number, mesIdx0: number): Pr
     return a + valor * taxaPagarMe(r.pagamento_metodo, parcelas)
   }, 0)
 
+  // Comissão da plataforma (split) — sai na liquidação, então reduz o LÍQUIDO.
+  // Não reduz o bruto: para ISS/imposto a receita do psicólogo continua sendo o
+  // valor cheio da sessão; a comissão é despesa, não abatimento de receita.
+  const comissaoPlataforma = pagas.reduce((a, r) => a + (r.comissao_centavos ?? 0) / 100, 0)
+
   return {
     ano, mes: mesIdx0 + 1,
     rotulo: inicio.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' }),
     recebidoBruto: round2(recebidoBruto),
     taxasEstimadas: round2(taxasEstimadas),
-    liquidoEstimado: round2(recebidoBruto - taxasEstimadas),
+    comissaoPlataforma: round2(comissaoPlataforma),
+    liquidoEstimado: round2(recebidoBruto - taxasEstimadas - comissaoPlataforma),
     recebidoPorMetodo: {
       pix:     round2(pagas.filter(r => r.pagamento_metodo === 'pix').reduce((a, r) => a + parseFloat(r.valor ?? 0), 0)),
       credito: round2(pagas.filter(r => r.pagamento_metodo === 'credito').reduce((a, r) => a + parseFloat(r.valor ?? 0), 0)),

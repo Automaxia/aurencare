@@ -3,7 +3,7 @@
 import { revalidatePath } from 'next/cache'
 import { requirePsicologo } from '@/server/lib/auth'
 import { assinar, cancelar } from '@/server/services/assinatura'
-import type { PlanoPago, Ciclo } from '@/server/lib/planos'
+import { BETA_LIBERADO, type PlanoPago, type Ciclo } from '@/server/lib/planos'
 
 export type AssinarInput = {
   plano: PlanoPago
@@ -16,6 +16,13 @@ export type AssinarResult = { ok: true } | { ok: false; error: string }
 
 export async function assinarAction(input: AssinarInput): Promise<AssinarResult> {
   const user = await requirePsicologo()
+
+  // Gate de beta no SERVIDOR. O form já esconde os botões quando BETA_LIBERADO,
+  // mas server action é endpoint: sem esta checagem, uma chamada direta criaria
+  // assinatura recorrente e cobraria o cartão durante o beta.
+  if (BETA_LIBERADO) {
+    return { ok: false, error: 'Assinaturas ainda não estão liberadas — o acesso é gratuito durante o beta.' }
+  }
 
   if (input.plano !== 'essencial' && input.plano !== 'pro') {
     return { ok: false, error: 'Plano inválido.' }

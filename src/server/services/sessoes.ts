@@ -597,15 +597,18 @@ export async function gerarCobrancaPix(sessaoId: string): Promise<Sessao> {
     pacienteNome: s.pacienteNome,
     pacienteEmail: s.pacienteEmail,
     pacienteTelefone: s.pacienteTelefone,
+    // Split: o líquido cai direto na conta do psicólogo; a comissão da
+    // plataforma e a taxa da Pagar.me saem na própria liquidação.
+    recipientPsicologo: onb.recipientId,
   })
 
   await db.query(
     `UPDATE sessoes
         SET status='aguardando_pagamento', pagamento_metodo='pix', pagamento_parcelas=1,
             pagarme_order_id=$2, pagarme_qrcode=$3, pagarme_qrcode_url=$4,
-            wa_metodo_escolhido=TRUE
+            comissao_centavos=$5, wa_metodo_escolhido=TRUE
       WHERE id=$1`,
-    [s.id, order.orderId, order.qrCode ?? null, order.qrCodeUrl ?? null],
+    [s.id, order.orderId, order.qrCode ?? null, order.qrCodeUrl ?? null, order.comissaoCentavos || null],
   )
 
   await enviarWA(s.pacienteTelefone, WA_TEMPLATES.fluxo2_pix(order.qrCodeUrl ?? order.qrCode ?? '', s.valor))
@@ -624,15 +627,18 @@ export async function gerarCobrancaCartao(sessaoId: string, metodo: 'credito' | 
     metodo,
     pacienteNome: s.pacienteNome,
     pacienteEmail: s.pacienteEmail,
+    // Split: o líquido cai direto na conta do psicólogo; a comissão da
+    // plataforma e a taxa da Pagar.me saem na própria liquidação.
+    recipientPsicologo: onb.recipientId,
   })
 
   await db.query(
     `UPDATE sessoes
         SET status='aguardando_pagamento', pagamento_metodo=$2,
             pagarme_order_id=$3, pagarme_checkout_url=$4,
-            wa_metodo_escolhido=TRUE
+            comissao_centavos=$5, wa_metodo_escolhido=TRUE
       WHERE id=$1`,
-    [s.id, metodo, order.orderId, order.checkoutUrl ?? null],
+    [s.id, metodo, order.orderId, order.checkoutUrl ?? null, order.comissaoCentavos || null],
   )
 
   await enviarWA(s.pacienteTelefone, WA_TEMPLATES.fluxo2_checkout(order.checkoutUrl ?? '', metodo, s.valor))

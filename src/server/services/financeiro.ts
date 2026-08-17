@@ -36,6 +36,12 @@ export type Cobranca = {
   pagarmeCheckoutUrl: string | null
   /** Taxa estimada da Pagar.me (centavos). 0 se ainda não pago. */
   taxaEstimada: number
+  /**
+   * Comissão da plataforma nesta cobrança (R$), do split. Diferente da taxa:
+   * este valor é REAL (gravado no ato da cobrança), não estimado. 0 quando a
+   * cobrança é anterior ao split ou saiu sem ele.
+   */
+  comissaoPlataforma: number
   /** ETA de liquidação na conta da psicóloga (ISO). Null se ainda não pago. */
   caiEm: string | null
   /** Status da confirmação pós-sessão (Fluxo 7). */
@@ -62,7 +68,9 @@ export type Financeiro = {
   recebidoPorMetodo: { pix: number; credito: number; debito: number }
   /** Taxas Pagar.me estimadas no período. */
   taxasEstimadas: number
-  /** Recebido líquido estimado (bruto - taxas) — chega na conta. */
+  /** Comissão da plataforma no período (real, do split). */
+  comissaoPlataforma: number
+  /** Recebido líquido estimado (bruto - taxas - comissão) — chega na conta. */
   liquidoEstimado: number
   /** Total pago mas ainda em janela de liquidação (cai nos próximos N dias). */
   aReceber30d: number
@@ -106,7 +114,7 @@ export async function lerFinanceiro(
   const { rows } = await db.query<any>(
     `SELECT s.id, s.data_hora, s.valor, s.pagamento_status, s.pagamento_metodo,
             s.pagamento_parcelas, s.pagarme_order_id, s.pagarme_checkout_url,
-            s.pago_em,
+            s.pago_em, s.comissao_centavos,
             s.confirmacao_resposta, s.confirmacao_janela_expira_em,
             s.confirmacao_enviada_em,
             s.nf_status, s.nf_numero, s.nf_emitida_em,
@@ -136,6 +144,8 @@ export async function lerFinanceiro(
       pagarmeOrderId: r.pagarme_order_id,
       pagarmeCheckoutUrl: r.pagarme_checkout_url,
       taxaEstimada: pago ? Math.round(valor * taxaDe(metodo, parcelas) * 100) / 100 : 0,
+      // Real (do split), não estimada. NULL = cobrança anterior ao split.
+      comissaoPlataforma: pago && r.comissao_centavos ? Number(r.comissao_centavos) / 100 : 0,
       caiEm: pago ? prevLiquidacao(baseLiquidacao, metodo) : null,
       confirmacao: classificarConfirmacao(r, agora),
       nfStatus: classificarNf(r, pago),
@@ -155,13 +165,16 @@ export async function lerFinanceiro(
     debito:  pagas.filter(c => c.pagamentoMetodo === 'debito').reduce((a, b) => a + b.valor, 0),
   }
 
-  const taxasEstimadas  = pagas.reduce((a, b) => a + b.taxaEstimada, 0)
-  const liquidoEstimado = recebido - taxasEstimadas
+  const taxasEstimadas     = pagas.reduce((a, b) => a + b.taxaEstimada, 0)
+  const comissaoPlataforma = pagas.reduce((a, b) => a + b.comissaoPlataforma, 0)
+  // Líquido = o que sobra depois da taxa do adquirente E da comissão da
+  // plataforma — ambas saem no split, então o psicólogo já recebe descontado.
+  const liquidoEstimado = recebido - taxasEstimadas - comissaoPlataforma
 
   // A receber: cobranças pagas com caiEm no futuro
   const aReceber30d = pagas
     .filter(c => c.caiEm && new Date(c.caiEm) > agora)
-    .reduce((a, b) => a + (b.valor - b.taxaEstimada), 0)
+    .reduce((a, b) => a + (b.valor - b.taxaEstimada - b.comissaoPlataforma), 0)
 
   const quebraMetodo: QuebraMetodo[] = (['pix', 'credito', 'debito'] as const).map(m => {
     const cobs = pagas.filter(c => c.pagamentoMetodo === m)
@@ -183,6 +196,7 @@ export async function lerFinanceiro(
     totaisMes: { recebido, pendente, reembolsado },
     recebidoPorMetodo,
     taxasEstimadas,
+    comissaoPlataforma,
     liquidoEstimado,
     aReceber30d,
     quebraMetodo,

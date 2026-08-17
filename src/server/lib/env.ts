@@ -20,6 +20,10 @@ export const env = {
   evolutionWebhookTok: process.env.EVOLUTION_WEBHOOK_TOKEN,
   pagarmeKey:          process.env.PAGARME_API_KEY,
   pagarmeWebhookSec:   process.env.PAGARME_WEBHOOK_SECRET,
+  // Recipient da conta da PLATAFORMA — destino da comissão por sessão no split.
+  // Sem ele não há como dividir: a cobrança sai sem split e o valor inteiro cai
+  // na conta-mãe (ver `montarSplitSessao` em pagarme.ts).
+  pagarmeRecipientPlataforma: process.env.PAGARME_RECIPIENT_PLATAFORMA,
   assemblyKey:         process.env.ASSEMBLYAI_API_KEY,
   resendKey:           process.env.RESEND_API_KEY,
   emailFrom:           process.env.EMAIL_FROM || 'Audere <onboarding@aurencare.ia.br>',
