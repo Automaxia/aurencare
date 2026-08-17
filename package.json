@@ -10,10 +10,12 @@
     "lint": "next lint",
     "migrate": "tsx --env-file=.env.local src/server/db/migrate.ts",
     "seed": "tsx --env-file=.env.local src/server/db/seed.ts",
-    "test:custos": "NODE_OPTIONS='--conditions=react-server' tsx --env-file=.env.local scripts/test-custos-instrumentacao.ts",
-    "test:excluir": "NODE_OPTIONS='--conditions=react-server' tsx scripts/test-excluir-sessao.ts",
-    "bench:grafo": "NODE_OPTIONS='--conditions=react-server' tsx --env-file=.env.local scripts/bench-grafo.ts",
-    "relatorio:silencio": "NODE_OPTIONS='--conditions=react-server' tsx --env-file=.env.local scripts/relatorio-silencio.ts"
+    "test:custos": "node --conditions=react-server --import tsx --env-file=.env.local --env-file-if-exists=.env.development.local scripts/test-custos-instrumentacao.ts",
+    "test:excluir": "node --conditions=react-server --import tsx --env-file=.env.local --env-file-if-exists=.env.development.local scripts/test-excluir-sessao.ts",
+    "bench:grafo": "node --conditions=react-server --import tsx --env-file=.env.local --env-file-if-exists=.env.development.local scripts/bench-grafo.ts",
+    "test:grafo-incremental": "node --conditions=react-server --import tsx --env-file=.env.local --env-file-if-exists=.env.development.local scripts/test-grafo-incremental.ts",
+    "test:split": "node --conditions=react-server --import tsx --env-file=.env.local --env-file-if-exists=.env.development.local scripts/test-split-pagarme.ts",
+    "relatorio:silencio": "node --conditions=react-server --import tsx --env-file=.env.local --env-file-if-exists=.env.development.local scripts/relatorio-silencio.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "0.32.1",

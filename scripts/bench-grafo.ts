@@ -52,12 +52,35 @@ async function criarPacienteSintetico(psicologoId: string, n: number): Promise<s
   return pacienteId
 }
 
-async function medir(pacienteId: string) {
+/**
+ * O registro de custo em `llm.ts` é fire-and-forget (`import().then(...)` NÃO
+ * aguardado, pra não atrasar a resposta ao psicólogo). Quando `recalcularGrafo`
+ * retorna, as últimas linhas de `api_custos` ainda podem estar em voo — somar
+ * na hora subestima tokens/custo, e pior quanto maior o n. Espera a contagem
+ * atingir o esperado E parar de crescer antes de medir.
+ */
+async function aguardarCustosGravados(pacienteId: string, esperadas: number): Promise<void> {
+  const LIMITE_MS = 20_000
+  const t0 = Date.now()
+  let anterior = -1
+  while (Date.now() - t0 < LIMITE_MS) {
+    const { rows } = await db.query<{ n: string }>(
+      `SELECT COUNT(*) n FROM api_custos WHERE paciente_id=$1 AND operacao LIKE 'temas.grafo%'`, [pacienteId])
+    const n = Number(rows[0].n)
+    if (n >= esperadas && n === anterior) return // chegou tudo e estabilizou
+    anterior = n
+    await new Promise(r => setTimeout(r, 400))
+  }
+  console.warn(`[bench] custos não estabilizaram em ${LIMITE_MS}ms (esperadas ${esperadas}, vistas ${anterior}) — número pode estar subestimado`)
+}
+
+async function medir(pacienteId: string, sessoesEsperadas: number) {
   // zera o rastro de custo desse paciente antes de medir
   await db.query(`DELETE FROM api_custos WHERE paciente_id=$1`, [pacienteId])
   const t0 = Date.now()
   const r = await recalcularGrafo(pacienteId, 'clinico')
   const latenciaMs = Date.now() - t0
+  await aguardarCustosGravados(pacienteId, sessoesEsperadas)
   const { rows } = await db.query<{ tin: string; tout: string; brl: string; chamadas: string }>(
     `SELECT COALESCE(SUM(tokens_entrada),0) tin, COALESCE(SUM(tokens_saida),0) tout,
             COALESCE(SUM(custo_brl),0) brl, COUNT(*) chamadas
@@ -74,7 +97,7 @@ async function main() {
   for (const n of TAMANHOS) {
     const pid = await criarPacienteSintetico(psi.id, n)
     try {
-      const m = await medir(pid)
+      const m = await medir(pid, n)
       linhas.push({ n, ...m, brlPorSessao: +(m.brl / n).toFixed(4) })
       console.log(`n=${n}: ${m.chamadas} chamadas · ${m.tin}+${m.tout} tok · R$ ${m.brl.toFixed(4)} · ${m.latenciaMs}ms`)
     } finally {
