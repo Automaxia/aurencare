@@ -12,12 +12,37 @@ export type OnboardingStatus = {
 
 export type TipoChavePix = 'cpf' | 'cnpj' | 'email' | 'celular' | 'aleatoria'
 
+/** Endereço do recebedor — obrigatório na Pagar.me para PF e PJ. */
+export type EnderecoOnboarding = {
+  cep: string
+  logradouro: string
+  numero: string
+  complemento?: string | null
+  bairro: string
+  cidade: string
+  uf: string
+}
+
+/** Sócio administrador — obrigatório para PJ (`managing_partners`). */
+export type SocioOnboarding = {
+  nome: string
+  cpf: string
+  dataNascimento: string
+  email: string
+  telefone: string
+  rendaMensalCentavos: number
+}
+
 export type OnboardingInput = {
   tipoPessoa: 'PF' | 'PJ'
   documento: string
   razaoSocial: string
   dataNascimento: string
   rendaCentavos: number
+  /** Obrigatório nos dois tipos. */
+  endereco: EnderecoOnboarding
+  /** Obrigatório quando PJ. */
+  socio?: SocioOnboarding | null
   banco: {
     codigo: string
     agencia: string
@@ -40,6 +65,8 @@ export type CampoErro =
   | 'bancoCodigo' | 'bancoAgencia' | 'bancoConta' | 'bancoContaDv' | 'bancoTipo'
   | 'titularNome' | 'titularDocumento'
   | 'chavePixTipo' | 'chavePixValor'
+  | 'endCep' | 'endLogradouro' | 'endNumero' | 'endBairro' | 'endCidade' | 'endUf'
+  | 'socioNome' | 'socioCpf' | 'socioNascimento' | 'socioEmail' | 'socioTelefone'
 
 export type SalvarResult =
   | { ok: true; recipientId: string }
@@ -196,6 +223,17 @@ export async function salvarOnboarding(psicologoId: string, input: OnboardingInp
   const docNum = input.documento.replace(/\D/g, '')
   const titularDocNum = input.banco.titularDocumento.replace(/\D/g, '')
 
+  const enderecoLimpo = {
+    cep: input.endereco.cep.replace(/\D/g, ''),
+    logradouro: input.endereco.logradouro.trim(),
+    numero: input.endereco.numero.trim(),
+    complemento: input.endereco.complemento?.trim() || null,
+    bairro: input.endereco.bairro.trim(),
+    cidade: input.endereco.cidade.trim(),
+    uf: input.endereco.uf.trim().toUpperCase(),
+  }
+  const socioCpfNum = input.socio ? input.socio.cpf.replace(/\D/g, '') : null
+
   const recipientInput: RecipientInput = {
     tipoPessoa: input.tipoPessoa,
     documento: docNum,
@@ -204,6 +242,20 @@ export async function salvarOnboarding(psicologoId: string, input: OnboardingInp
     telefone: psi.telefone,
     dataNascimento: input.dataNascimento,
     rendaCentavos: input.rendaCentavos,
+    endereco: enderecoLimpo,
+    // O sócio herda o endereço da empresa — a Pagar.me exige um endereço por
+    // sócio, mas pedir dois no formulário seria atrito sem ganho prático.
+    socio: input.socio
+      ? {
+          nome: input.socio.nome.trim(),
+          cpf: socioCpfNum!,
+          dataNascimento: input.socio.dataNascimento,
+          email: input.socio.email.trim(),
+          telefone: input.socio.telefone.replace(/\D/g, ''),
+          rendaMensalCentavos: input.socio.rendaMensalCentavos,
+          endereco: enderecoLimpo,
+        }
+      : null,
     banco: {
       codigo: input.banco.codigo,
       agencia: input.banco.agencia.replace(/\D/g, ''),
@@ -247,6 +299,19 @@ export async function salvarOnboarding(psicologoId: string, input: OnboardingInp
          pgm_titular_documento = $15,
          pgm_chave_pix_tipo = $16,
          pgm_chave_pix_valor = $17,
+         pgm_end_cep = $18,
+         pgm_end_logradouro = $19,
+         pgm_end_numero = $20,
+         pgm_end_complemento = $21,
+         pgm_end_bairro = $22,
+         pgm_end_cidade = $23,
+         pgm_end_uf = $24,
+         pgm_socio_nome = $25,
+         pgm_socio_cpf = $26,
+         pgm_socio_nascimento = $27,
+         pgm_socio_email = $28,
+         pgm_socio_telefone = $29,
+         pgm_socio_renda_centavos = $30,
          pgm_onboarding_em = NOW()
        WHERE id = $1`,
       [
@@ -256,6 +321,14 @@ export async function salvarOnboarding(psicologoId: string, input: OnboardingInp
         input.banco.conta.replace(/\D/g, ''), input.banco.contaDv.replace(/\D/g, ''),
         input.banco.tipo, input.banco.titularNome.trim(), encrypt(titularDocNum),
         chavePixTipo, chavePixValor,
+        enderecoLimpo.cep, enderecoLimpo.logradouro, enderecoLimpo.numero, enderecoLimpo.complemento,
+        enderecoLimpo.bairro, enderecoLimpo.cidade, enderecoLimpo.uf,
+        input.socio?.nome.trim() ?? null,
+        socioCpfNum ? encrypt(socioCpfNum) : null,
+        input.socio?.dataNascimento ?? null,
+        input.socio?.email.trim() ?? null,
+        input.socio?.telefone.replace(/\D/g, '') ?? null,
+        input.socio?.rendaMensalCentavos ?? null,
       ],
     )
     log.ok('onboardingPagamento', `concluído psicologo=${psicologoId} recipient=${recipientId}`)
@@ -293,6 +366,42 @@ function validar(input: OnboardingInput): { error: string; campo: CampoErro } | 
 
   if (!Number.isFinite(input.rendaCentavos) || input.rendaCentavos < 100_000)
     return { error: 'Informe uma renda/faturamento estimado (mínimo R$ 1.000).', campo: 'rendaCentavos' }
+
+  // Endereço — exigido pela Pagar.me nos dois tipos (address / main_address).
+  const end = input.endereco
+  if (!end) return { error: 'Informe o endereço.', campo: 'endCep' }
+  if (end.cep.replace(/\D/g, '').length !== 8)
+    return { error: 'CEP deve ter 8 dígitos.', campo: 'endCep' }
+  if (end.logradouro.trim().length < 3)
+    return { error: 'Informe o logradouro.', campo: 'endLogradouro' }
+  if (!end.numero.trim())
+    return { error: 'Informe o número (use S/N se não houver).', campo: 'endNumero' }
+  if (end.bairro.trim().length < 2)
+    return { error: 'Informe o bairro.', campo: 'endBairro' }
+  if (end.cidade.trim().length < 2)
+    return { error: 'Informe a cidade.', campo: 'endCidade' }
+  if (!/^[A-Za-z]{2}$/.test(end.uf.trim()))
+    return { error: 'UF deve ter 2 letras (ex.: DF).', campo: 'endUf' }
+
+  // Sócio administrador — a Pagar.me exige ao menos um para PJ.
+  if (input.tipoPessoa === 'PJ') {
+    const s = input.socio
+    if (!s) return { error: 'Informe o sócio administrador da empresa.', campo: 'socioNome' }
+    if (s.nome.trim().split(/\s+/).length < 2)
+      return { error: 'Informe o nome completo do sócio.', campo: 'socioNome' }
+    const scpf = s.cpf.replace(/\D/g, '')
+    if (scpf.length !== 11 || !cpfCnpjValido(scpf))
+      return { error: 'CPF do sócio inválido.', campo: 'socioCpf' }
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(s.dataNascimento))
+      return { error: 'Data de nascimento do sócio inválida.', campo: 'socioNascimento' }
+    const anosSocio = (Date.now() - +new Date(s.dataNascimento + 'T00:00:00Z')) / (365.25 * 86_400_000)
+    if (!(anosSocio >= 18))
+      return { error: 'O sócio precisa ter ao menos 18 anos.', campo: 'socioNascimento' }
+    if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(s.email.trim()))
+      return { error: 'Email do sócio inválido.', campo: 'socioEmail' }
+    if (s.telefone.replace(/\D/g, '').length < 10)
+      return { error: 'Telefone do sócio inválido (com DDD).', campo: 'socioTelefone' }
+  }
 
   if (!input.banco.codigo || !/^\d{2,4}$/.test(input.banco.codigo))
     return { error: 'Escolha o banco.', campo: 'bancoCodigo' }

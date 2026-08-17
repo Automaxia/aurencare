@@ -16,6 +16,32 @@
  */
 import { criarRecipient, type RecipientInput } from '@/server/lib/pagarmeRecipient'
 
+/** Endereço da sede, do cartão CNPJ. Serve também ao sócio (a API exige um por sócio). */
+const ENDERECO = {
+  cep: '72110060',
+  logradouro: 'ST SETOR A NORTE QNA 6 LT 10',
+  numero: 'S/N',
+  complemento: 'Sala 10',
+  bairro: 'Taguatinga',
+  cidade: 'Brasilia',
+  uf: 'DF',
+}
+
+/**
+ * Sócio administrador — a Pagar.me exige ao menos um `managing_partner` para
+ * PJ. CPF e data de nascimento não estão no cartão CNPJ: passe por env.
+ *   SOCIO_NOME="Nome Completo" SOCIO_CPF=... SOCIO_NASCIMENTO=1985-01-15
+ */
+const SOCIO = {
+  nome: process.env.SOCIO_NOME ?? '',
+  cpf: (process.env.SOCIO_CPF ?? '').replace(/\D/g, ''),
+  dataNascimento: process.env.SOCIO_NASCIMENTO ?? '',
+  email: process.env.SOCIO_EMAIL ?? 'wesleyromualdo@gmail.com',
+  telefone: process.env.SOCIO_TELEFONE ?? '6199423445',
+  rendaMensalCentavos: Number(process.env.SOCIO_RENDA_CENTAVOS ?? 1_500_000),
+  endereco: ENDERECO,
+}
+
 /** Dados da empresa (CNPJ DF, 38.154.192/0001-63). */
 const AUTOMAXIA: RecipientInput = {
   tipoPessoa: 'PJ',
@@ -28,6 +54,8 @@ const AUTOMAXIA: RecipientInput = {
   // R$ 30.000/mês → R$ 360.000/ano, teto do porte ME declarado no cartão CNPJ.
   // É campo de KYC declaratório; ajuste se o valor real for outro.
   rendaCentavos: 3_000_000,
+  endereco: ENDERECO,
+  socio: SOCIO,
   banco: {
     codigo: '237',                     // Bradesco
     agencia: '1469',
@@ -50,6 +78,12 @@ async function main() {
 
   if (ambiente === 'desconhecido') {
     console.error('PAGARME_API_KEY ausente ou em formato inesperado — abortando.')
+    process.exit(1)
+  }
+  if (!SOCIO.nome || SOCIO.cpf.length !== 11 || !/^\d{4}-\d{2}-\d{2}$/.test(SOCIO.dataNascimento)) {
+    console.error('Dados do sócio administrador faltando — a Pagar.me exige ao menos um managing_partner para PJ.')
+    console.error('Rode com:')
+    console.error('  SOCIO_NOME="Nome Completo" SOCIO_CPF=00000000000 SOCIO_NASCIMENTO=1985-01-15 npm run pagarme:recipient-plataforma')
     process.exit(1)
   }
   if (ambiente === 'PRODUÇÃO' && !process.argv.includes('--sim')) {

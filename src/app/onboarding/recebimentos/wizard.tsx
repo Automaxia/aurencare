@@ -53,6 +53,24 @@ export function Wizard({ nomePsicologa }: Props) {
   const [dataNascimento, setDataNascimento] = useState('')
   const [rendaReais, setRendaReais] = useState('')
 
+  // Endereço — a Pagar.me recusa o recebedor sem ele (PF e PJ).
+  const [endCep, setEndCep] = useState('')
+  const [endLogradouro, setEndLogradouro] = useState('')
+  const [endNumero, setEndNumero] = useState('')
+  const [endComplemento, setEndComplemento] = useState('')
+  const [endBairro, setEndBairro] = useState('')
+  const [endCidade, setEndCidade] = useState('')
+  const [endUf, setEndUf] = useState('')
+  const [buscandoCep, setBuscandoCep] = useState(false)
+
+  // Sócio administrador — obrigatório só para PJ (managing_partners).
+  const [socioNome, setSocioNome] = useState('')
+  const [socioCpf, setSocioCpf] = useState('')
+  const [socioNascimento, setSocioNascimento] = useState('')
+  const [socioEmail, setSocioEmail] = useState('')
+  const [socioTelefone, setSocioTelefone] = useState('')
+  const [socioRendaReais, setSocioRendaReais] = useState('')
+
   // Passo 2
   const [bancoCodigo, setBancoCodigo] = useState('')
   const [bancoAgencia, setBancoAgencia] = useState('')
@@ -102,7 +120,40 @@ export function Wizard({ nomePsicologa }: Props) {
     if (!Number.isFinite(renda) || renda < 1000) {
       setErro('Informe um valor estimado (mínimo R$ 1.000).'); setErroCampo('rendaCentavos'); return false
     }
+    // Endereço
+    if (endCep.replace(/\D/g, '').length !== 8) { setErro('CEP deve ter 8 dígitos.'); setErroCampo('endCep'); return false }
+    if (endLogradouro.trim().length < 3) { setErro('Informe o logradouro.'); setErroCampo('endLogradouro'); return false }
+    if (!endNumero.trim()) { setErro('Informe o número (use S/N se não houver).'); setErroCampo('endNumero'); return false }
+    if (endBairro.trim().length < 2) { setErro('Informe o bairro.'); setErroCampo('endBairro'); return false }
+    if (endCidade.trim().length < 2) { setErro('Informe a cidade.'); setErroCampo('endCidade'); return false }
+    if (!/^[A-Za-z]{2}$/.test(endUf.trim())) { setErro('UF deve ter 2 letras.'); setErroCampo('endUf'); return false }
+    // Sócio (só PJ)
+    if (tipoPessoa === 'PJ') {
+      if (socioNome.trim().split(/\s+/).length < 2) { setErro('Informe o nome completo do sócio.'); setErroCampo('socioNome'); return false }
+      if (socioCpf.replace(/\D/g, '').length !== 11) { setErro('CPF do sócio deve ter 11 dígitos.'); setErroCampo('socioCpf'); return false }
+      if (!socioNascimento) { setErro('Informe a data de nascimento do sócio.'); setErroCampo('socioNascimento'); return false }
+      if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(socioEmail.trim())) { setErro('Email do sócio inválido.'); setErroCampo('socioEmail'); return false }
+      if (socioTelefone.replace(/\D/g, '').length < 10) { setErro('Telefone do sócio inválido (com DDD).'); setErroCampo('socioTelefone'); return false }
+    }
     return true
+  }
+
+  /** Preenche o endereço pelo CEP (ViaCEP) — poupa digitação e erro de bairro/UF. */
+  async function buscarCep(cepRaw: string) {
+    const cep = cepRaw.replace(/\D/g, '')
+    if (cep.length !== 8) return
+    setBuscandoCep(true)
+    try {
+      const r = await fetch(`https://viacep.com.br/ws/${cep}/json/`)
+      const j = await r.json()
+      if (!j?.erro) {
+        if (j.logradouro) setEndLogradouro(j.logradouro)
+        if (j.bairro) setEndBairro(j.bairro)
+        if (j.localidade) setEndCidade(j.localidade)
+        if (j.uf) setEndUf(j.uf)
+      }
+    } catch { /* offline ou CEP fora da base: usuário preenche à mão */ }
+    finally { setBuscandoCep(false) }
   }
 
   function validarPasso2(): boolean {
@@ -139,6 +190,28 @@ export function Wizard({ nomePsicologa }: Props) {
       razaoSocial: razaoSocial.trim(),
       dataNascimento,
       rendaCentavos: Math.round(parseFloat(rendaReais.replace(',', '.')) * 100),
+      endereco: {
+        cep: endCep.replace(/\D/g, ''),
+        logradouro: endLogradouro.trim(),
+        numero: endNumero.trim(),
+        complemento: endComplemento.trim() || null,
+        bairro: endBairro.trim(),
+        cidade: endCidade.trim(),
+        uf: endUf.trim().toUpperCase(),
+      },
+      socio: tipoPessoa === 'PJ'
+        ? {
+            nome: socioNome.trim(),
+            cpf: socioCpf.replace(/\D/g, ''),
+            dataNascimento: socioNascimento,
+            email: socioEmail.trim(),
+            telefone: socioTelefone.replace(/\D/g, ''),
+            // Sem campo próprio: a renda do sócio segue o faturamento informado.
+            rendaMensalCentavos: Math.round(
+              parseFloat((socioRendaReais || rendaReais).replace(',', '.')) * 100,
+            ),
+          }
+        : null,
       banco: {
         codigo: bancoCodigo,
         agencia: bancoAgencia.replace(/\D/g, ''),
@@ -227,6 +300,112 @@ export function Wizard({ nomePsicologa }: Props) {
                 />
               </Field>
             </div>
+
+            {/* Endereço — a Pagar.me exige para registrar o recebedor. */}
+            <div style={{ borderTop: '1px solid var(--border)', paddingTop: 14, marginTop: 2 }}>
+              <div style={{ fontSize: 13, color: 'var(--muted)', marginBottom: 10 }}>
+                {tipoPessoa === 'PF' ? 'Endereço residencial' : 'Endereço da sede'}
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '160px 1fr', gap: 12 }}>
+                <Field label="CEP" error={erroCampo === 'endCep' ? erro : undefined}>
+                  <input
+                    inputMode="numeric" required value={formatCep(endCep)}
+                    onChange={e => {
+                      const v = e.target.value.replace(/\D/g, '').slice(0, 8)
+                      setEndCep(v)
+                      if (v.length === 8) void buscarCep(v)
+                    }}
+                    placeholder="00000-000"
+                  />
+                </Field>
+                <Field
+                  label="Logradouro"
+                  hint={buscandoCep ? 'buscando pelo CEP…' : undefined}
+                  error={erroCampo === 'endLogradouro' ? erro : undefined}
+                >
+                  <input required value={endLogradouro} onChange={e => setEndLogradouro(e.target.value)} placeholder="Rua, avenida, quadra…" />
+                </Field>
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '120px 1fr', gap: 12, marginTop: 12 }}>
+                <Field label="Número" error={erroCampo === 'endNumero' ? erro : undefined}>
+                  <input required value={endNumero} onChange={e => setEndNumero(e.target.value)} placeholder="123 ou S/N" />
+                </Field>
+                <Field label="Complemento" hint="opcional">
+                  <input value={endComplemento} onChange={e => setEndComplemento(e.target.value)} placeholder="Sala, apto…" />
+                </Field>
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 90px', gap: 12, marginTop: 12 }}>
+                <Field label="Bairro" error={erroCampo === 'endBairro' ? erro : undefined}>
+                  <input required value={endBairro} onChange={e => setEndBairro(e.target.value)} />
+                </Field>
+                <Field label="Cidade" error={erroCampo === 'endCidade' ? erro : undefined}>
+                  <input required value={endCidade} onChange={e => setEndCidade(e.target.value)} />
+                </Field>
+                <Field label="UF" error={erroCampo === 'endUf' ? erro : undefined}>
+                  <input
+                    required value={endUf} maxLength={2}
+                    onChange={e => setEndUf(e.target.value.replace(/[^A-Za-z]/g, '').toUpperCase())}
+                    placeholder="DF"
+                  />
+                </Field>
+              </div>
+            </div>
+
+            {/* Sócio administrador — a Pagar.me exige ao menos um para PJ. */}
+            {tipoPessoa === 'PJ' && (
+              <div style={{ borderTop: '1px solid var(--border)', paddingTop: 14 }}>
+                <div style={{ fontSize: 13, color: 'var(--muted)', marginBottom: 4 }}>Sócio administrador</div>
+                <div style={{ fontSize: 12, color: 'var(--faint)', marginBottom: 10 }}>
+                  Exigido pela análise cadastral da empresa. Usa o mesmo endereço da sede.
+                </div>
+
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 200px', gap: 12 }}>
+                  <Field label="Nome completo" error={erroCampo === 'socioNome' ? erro : undefined}>
+                    <input required value={socioNome} onChange={e => setSocioNome(e.target.value)} />
+                  </Field>
+                  <Field label="CPF" error={erroCampo === 'socioCpf' ? erro : undefined}>
+                    <input
+                      inputMode="numeric" required value={formatDoc(socioCpf, 'PF')}
+                      onChange={e => setSocioCpf(e.target.value.replace(/\D/g, '').slice(0, 11))}
+                      placeholder="000.000.000-00"
+                    />
+                  </Field>
+                </div>
+
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginTop: 12 }}>
+                  <Field label="Data de nascimento" error={erroCampo === 'socioNascimento' ? erro : undefined}>
+                    <input
+                      type="date" required value={socioNascimento}
+                      onChange={e => setSocioNascimento(e.target.value)}
+                      style={{ minHeight: 46, fontSize: 16 }}
+                    />
+                  </Field>
+                  <Field label="Telefone (com DDD)" error={erroCampo === 'socioTelefone' ? erro : undefined}>
+                    <input
+                      inputMode="numeric" required value={socioTelefone}
+                      onChange={e => setSocioTelefone(e.target.value.replace(/\D/g, '').slice(0, 11))}
+                      placeholder="61999998888"
+                    />
+                  </Field>
+                </div>
+
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 200px', gap: 12, marginTop: 12 }}>
+                  <Field label="Email" error={erroCampo === 'socioEmail' ? erro : undefined}>
+                    <input type="email" required value={socioEmail} onChange={e => setSocioEmail(e.target.value)} />
+                  </Field>
+                  <Field label="Renda mensal (R$)" hint="opcional">
+                    <input
+                      type="text" inputMode="decimal" value={socioRendaReais}
+                      onChange={e => setSocioRendaReais(e.target.value.replace(/[^\d,.]/g, ''))}
+                      placeholder={rendaReais || '6000'}
+                    />
+                  </Field>
+                </div>
+              </div>
+            )}
 
             {erro && !erroCampo && <ErrorBanner>{erro}</ErrorBanner>}
 
@@ -497,6 +676,11 @@ function ErrorBanner({ children }: { children: React.ReactNode }) {
       {children}
     </div>
   )
+}
+
+function formatCep(raw: string): string {
+  const d = raw.replace(/\D/g, '')
+  return d.length <= 5 ? d : `${d.slice(0, 5)}-${d.slice(5, 8)}`
 }
 
 function formatDoc(raw: string, tipo: 'PF' | 'PJ'): string {
