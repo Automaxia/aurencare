@@ -27,6 +27,12 @@ export type Sessao = {
   pacienteNome: string
   pacienteTelefone: string
   pacienteEmail: string | null
+  /**
+   * CPF do paciente (só dígitos), de `pacientes.dados_cadastro.cpf`.
+   * **Obrigatório para PIX** — a Pagar.me recusa a charge sem `customer.document`
+   * e devolve a order sem QR code. Null quando não foi preenchido no cadastro.
+   */
+  pacienteCpf: string | null
   /** 'ativo' | 'inativo' (arquivado). Usado pra não contar pendência de arquivado. */
   pacienteStatus: string | null
   numero: number
@@ -69,6 +75,7 @@ function rowToSessao(r: any): Sessao {
   return {
     id: r.id, psicologoId: r.psicologo_id, pacienteId: r.paciente_id,
     pacienteNome: r.paciente_nome, pacienteTelefone: r.paciente_telefone, pacienteEmail: r.paciente_email,
+    pacienteCpf: r.paciente_cpf ? String(r.paciente_cpf).replace(/\D/g, '') || null : null,
     pacienteStatus: r.paciente_status ?? null,
     numero: r.numero, dataHora: r.data_hora, duracaoMin: r.duracao_min, modalidade: r.modalidade,
     status: r.status, pagamentoStatus: r.pagamento_status, pagamentoMetodo: r.pagamento_metodo,
@@ -100,6 +107,7 @@ const SELECT_SESSAO_BASE = `
          p.nome AS paciente_nome,
          p.telefone AS paciente_telefone,
          p.email AS paciente_email,
+         p.dados_cadastro->>'cpf' AS paciente_cpf,
          p.status AS paciente_status
     FROM sessoes s
     JOIN pacientes p ON p.id = s.paciente_id
@@ -590,6 +598,10 @@ export async function gerarCobrancaPix(sessaoId: string): Promise<Sessao> {
   if (!s) throw new Error('sessao_nao_encontrada')
   const onb = await lerStatusOnboarding(s.psicologoId)
   if (!onb.completo) throw new Error('recebimento_nao_configurado')
+  // A Pagar.me exige CPF do pagador no PIX. Sem ele a order até é criada, mas a
+  // charge é reprovada e volta SEM qr_code — o paciente receberia um link vazio.
+  // Falhar aqui, com erro nomeado, é melhor que cobrar e não gerar o QR.
+  if (!s.pacienteCpf) throw new Error('cpf_paciente_ausente')
 
   const order = await criarOrderPix({
     sessaoId: s.id,
@@ -597,6 +609,7 @@ export async function gerarCobrancaPix(sessaoId: string): Promise<Sessao> {
     pacienteNome: s.pacienteNome,
     pacienteEmail: s.pacienteEmail,
     pacienteTelefone: s.pacienteTelefone,
+    pacienteDocumento: s.pacienteCpf,
     // Split: o líquido cai direto na conta do psicólogo; a comissão da
     // plataforma e a taxa da Pagar.me saem na própria liquidação.
     recipientPsicologo: onb.recipientId,

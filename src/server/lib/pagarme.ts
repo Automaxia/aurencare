@@ -101,6 +101,12 @@ export async function criarOrderPix(opts: {
   pacienteNome: string
   pacienteEmail?: string | null
   pacienteTelefone: string
+  /**
+   * CPF do paciente (só dígitos). **Obrigatório**: sem `customer.document` a
+   * Pagar.me aceita a order mas reprova a charge ("The customer Document is
+   * required"), devolvendo-a sem `qr_code` — o paciente receberia um link vazio.
+   */
+  pacienteDocumento: string
   /** Recipient do psicólogo (onboarding de recebimento) — destino do split. */
   recipientPsicologo?: string | null
 }): Promise<OrderCreated> {
@@ -126,6 +132,9 @@ export async function criarOrderPix(opts: {
       customer: {
         name: opts.pacienteNome,
         email: opts.pacienteEmail ?? `${opts.sessaoId}@noemail.aurencare`,
+        document: opts.pacienteDocumento.replace(/\D/g, ''),
+        document_type: 'CPF',
+        type: 'individual',
         phones: { mobile_phone: { country_code: '55', number: opts.pacienteTelefone.replace(/\D/g, '').slice(-9), area_code: opts.pacienteTelefone.replace(/\D/g, '').slice(-11, -9) } },
       },
       payments: [{

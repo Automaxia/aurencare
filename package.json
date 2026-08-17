@@ -15,6 +15,7 @@
     "bench:grafo": "node --conditions=react-server --import tsx --env-file=.env.local --env-file-if-exists=.env.development.local scripts/bench-grafo.ts",
     "test:grafo-incremental": "node --conditions=react-server --import tsx --env-file=.env.local --env-file-if-exists=.env.development.local scripts/test-grafo-incremental.ts",
     "test:split": "node --conditions=react-server --import tsx --env-file=.env.local --env-file-if-exists=.env.development.local scripts/test-split-pagarme.ts",
+    "pagarme:recipient-plataforma": "node --conditions=react-server --import tsx --env-file=.env.local --env-file-if-exists=.env.development.local scripts/criar-recipient-plataforma.ts",
     "relatorio:silencio": "node --conditions=react-server --import tsx --env-file=.env.local --env-file-if-exists=.env.development.local scripts/relatorio-silencio.ts"
   },
   "dependencies": {

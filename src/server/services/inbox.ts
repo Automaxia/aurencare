@@ -399,8 +399,17 @@ async function processarComandoPagamento(opts: { telefone: string; cmd: string }
       else if (cmd === 'CREDITO' || cmd === 'CRÉDITO')      await gerarCobrancaCartao(sessao.id, 'credito')
       else                                                  await gerarCobrancaCartao(sessao.id, 'debito')
     } catch (err) {
-      log.err('wa.inbox', 'falha ao gerar cobrança', err)
-      await enviarERegistrar(telefone, 'Tivemos um problema ao gerar a cobrança. Avisei quem te atende.')
+      const motivo = err instanceof Error ? err.message : ''
+      if (motivo === 'cpf_paciente_ausente') {
+        // A Pagar.me exige CPF do pagador no PIX (sem ele a charge é reprovada e
+        // volta sem QR). Cartão não exige — então oferecemos a saída imediata em
+        // vez de deixar o paciente esperando o cadastro ser completado.
+        log.err('wa.inbox', `PIX bloqueado: paciente ${paciente.id} sem CPF no cadastro (a Pagar.me exige CPF do pagador). Preencher em /pacientes/${paciente.id}.`, undefined)
+        await enviarERegistrar(telefone, 'Para gerar o PIX preciso de um dado que ainda falta no seu cadastro. Já avisei quem te atende. Se preferir seguir agora, responda CREDITO ou DEBITO.')
+      } else {
+        log.err('wa.inbox', 'falha ao gerar cobrança', err)
+        await enviarERegistrar(telefone, 'Tivemos um problema ao gerar a cobrança. Avisei quem te atende.')
+      }
     }
     return
   }
