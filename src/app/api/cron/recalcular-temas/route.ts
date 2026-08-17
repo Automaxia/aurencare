@@ -33,9 +33,12 @@ export async function POST(req: Request) {
     const sp = new URL(req.url).searchParams
     const modo = sp.get('modo') === 'amplo' ? 'amplo' : 'clinico'
     const soComObjetivos = sp.get('objetivos') === '1'
-    const r = await recalcularGrafosTodos(modo, soComObjetivos)
-    log.info('cron.recalcular-temas', `recalculados ${r.pacientes} paciente(s) [modo=${modo}${soComObjetivos ? ', só c/ objetivos' : ''}]`)
-    return NextResponse.json({ ok: true, modo, soComObjetivos, ...r })
+    // Incremental por padrão: só reextrai sessão cujo snapshot ficou inválido
+    // (prompt/abordagem ou conceitualização mudou). `?forcar=1` reextrai tudo.
+    const forcar = sp.get('forcar') === '1'
+    const r = await recalcularGrafosTodos(modo, soComObjetivos, { forcar })
+    log.info('cron.recalcular-temas', `${r.pacientes} paciente(s) [modo=${modo}${soComObjetivos ? ', só c/ objetivos' : ''}${forcar ? ', FORÇADO' : ''}] — ${r.reextraidas} sessão(ões) reextraída(s), ${r.reaproveitadas} reaproveitada(s)`)
+    return NextResponse.json({ ok: true, modo, soComObjetivos, forcar, ...r })
   } catch (err) {
     log.err('cron.recalcular-temas', 'falha', err)
     return NextResponse.json({ error: 'internal' }, { status: 500 })

@@ -505,13 +505,35 @@ export async function padroesLongitudinais(pacienteId: string): Promise<PadroesL
   return { totalSessoes, nos, arestas }
 }
 
+export type ResultadoRecalculo = {
+  sessoes: number; nodes: number; abortado?: boolean
+  reextraidas: number; reaproveitadas: number; falhas: number
+}
+
 /**
- * Recalcula tudo a partir das sessões assinadas (idempotente). NÃO-DESTRUTIVO:
- * extrai TUDO em memória primeiro e só troca o store se houver resultado. Se a
- * IA estiver indisponível (ex.: sem crédito) e nada extrair, ABORTA e preserva
- * o grafo existente — em vez de apagar e deixar vazio.
+ * Recalcula o grafo a partir das sessões assinadas (idempotente).
+ *
+ * INCREMENTAL: o store por-sessão é versionado (`versao_prompt` +
+ * `versao_conceitualizacao`), e essas duas são exatamente as variáveis que
+ * mudam o resultado da extração. Logo, sessão já extraída com o MESMO prompt e
+ * a MESMA conceitualização é REAPROVEITADA — reextrair custaria uma chamada de
+ * IA para produzir o mesmo snapshot. Antes disso, recalcular um paciente de 40
+ * sessões custava 40 chamadas mesmo sem nada ter mudado; agora custa 0.
+ * Quando o prompt/abordagem ou a conceitualização mudam, tudo é reextraído —
+ * que é o correto, porque aí o resultado muda de verdade.
+ *
+ * `forcar` ignora o reaproveitamento (escape hatch: prompt editado sem bump da
+ * string de versão, ou depuração da extração).
+ *
+ * NÃO-DESTRUTIVO: o store nunca é apagado em bloco. Snapshot de sessão cuja
+ * extração FALHOU é preservado (dado velho > nenhum dado); só saem os órfãos
+ * (sessão excluída/desassinada) e os que a IA devolveu vazios.
  */
-export async function recalcularGrafo(pacienteId: string, modo: Modo = 'clinico'): Promise<{ sessoes: number; nodes: number; abortado?: boolean }> {
+export async function recalcularGrafo(
+  pacienteId: string,
+  modo: Modo = 'clinico',
+  opts: { forcar?: boolean } = {},
+): Promise<ResultadoRecalculo> {
   const { tryDecrypt } = await import('@/server/lib/crypto')
   const { redis } = await import('@/server/lib/redis')
 
@@ -524,37 +546,73 @@ export async function recalcularGrafo(pacienteId: string, modo: Modo = 'clinico'
   )
   const [conc, abordagem] = await Promise.all([lerConceitualizacao(pacienteId), lerAbordagem(pacienteId)])
 
-  // 1) Extrai em MEMÓRIA, sem tocar no que já existe.
+  const usaConc = modo === 'clinico' && !!conc.texto
+  const versaoPromptAtual = `extracao-v3-${modo}-${abordagem}`
+  const versaoConcAtual = usaConc ? conc.versao : null
+
+  // Snapshots existentes → decide o que dá pra reaproveitar.
+  const { rows: snaps } = await db.query<{ sessao_id: string; versao_prompt: string | null; versao_conceitualizacao: string | null }>(
+    `SELECT sessao_id, versao_prompt, versao_conceitualizacao FROM sessao_grafo WHERE paciente_id = $1`,
+    [pacienteId],
+  )
+  const snapPorSessao = new Map(snaps.map(s => [s.sessao_id, s]))
+  const aindaVale = (sessaoId: string): boolean => {
+    if (opts.forcar) return false
+    const s = snapPorSessao.get(sessaoId)
+    return !!s
+      && s.versao_prompt === versaoPromptAtual
+      && (s.versao_conceitualizacao ?? null) === versaoConcAtual
+  }
+
+  // 1) Extrai em MEMÓRIA só o que mudou, sem tocar no que já existe.
   const novos: Array<{ sessaoId: string; grafo: GrafoSessao }> = []
-  let comTexto = 0, falhas = 0
+  const vazias: string[] = []
+  let comTexto = 0, falhas = 0, reaproveitadas = 0
   for (const s of sessoes) {
     const tx = tryDecrypt(s.transcricao_texto) ?? tryDecrypt(s.resumo_ia) ?? ''
     if (!tx) continue
     comTexto++
+    if (aindaVale(s.id)) { reaproveitadas++; continue }
     let g: GrafoSessao | null = null
     try { g = await extrairGrafoSessao({ sessaoId: s.id, transcricao: tx, pacienteId, escopoRecalculo: sessoes.length }, modo, conc, 'fast', abordagem) }
     catch (err) { console.warn(`[temas.grafo] falha extração sessao=${s.id} no recálculo:`, err) }
-    if (g === null) { falhas++; continue }
+    if (g === null) { falhas++; continue } // preserva o snapshot anterior desta sessão
     if (g.nos.length > 0) novos.push({ sessaoId: s.id, grafo: g })
+    else vazias.push(s.id)
   }
 
   const contar = async () => (await db.query<{ n: number }>(`SELECT count(*)::int AS n FROM palavras_chave WHERE paciente_id = $1`, [pacienteId])).rows[0].n
 
-  // 2) Trava de segurança: só aborta+preserva quando NÃO extraiu nada novo E houve
-  //    falha real de extração (IA indisponível). Se a IA respondeu vazio em todas as
-  //    sessões (paciente sem temas extraíveis), `falhas === 0` → segue e grava grafo
-  //    vazio honestamente, em vez de mascarar como "indisponível".
-  if (comTexto > 0 && novos.length === 0 && falhas > 0) {
+  // 2) Trava de segurança: nada extraído, nada reaproveitado E houve falha real
+  //    (IA indisponível) → não mexe em nada. Se a IA respondeu vazio em todas as
+  //    sessões (`falhas === 0`), segue e grava o grafo vazio honestamente, em vez
+  //    de mascarar como "indisponível".
+  if (comTexto > 0 && novos.length === 0 && reaproveitadas === 0 && falhas > 0) {
     console.warn(`[temas.grafo] recálculo abortado paciente=${pacienteId}: extração indisponível (${falhas}/${comTexto} falharam) — grafo preservado`)
-    return { sessoes: sessoes.length, nodes: await contar(), abortado: true }
+    return { sessoes: sessoes.length, nodes: await contar(), abortado: true, reextraidas: 0, reaproveitadas: 0, falhas }
   }
 
-  // 3) Troca atômica do store por-sessão.
-  const usaConc = modo === 'clinico' && !!conc.texto
+  // 3) Aplica o DELTA (não a troca em bloco): remove órfãos e vazios, UPSERT do resto.
+  const idsAssinadas = sessoes.map(s => s.id)
   const client = await db.connect()
   try {
     await client.query('BEGIN')
-    await client.query(`DELETE FROM sessao_grafo WHERE paciente_id = $1`, [pacienteId])
+    // Órfão = snapshot de sessão que saiu do conjunto assinado (excluída/desassinada).
+    // Antes isso era resolvido de graça pelo DELETE-tudo; no incremental é explícito.
+    if (idsAssinadas.length > 0) {
+      await client.query(
+        `DELETE FROM sessao_grafo WHERE paciente_id = $1 AND NOT (sessao_id = ANY($2::uuid[]))`,
+        [pacienteId, idsAssinadas],
+      )
+    } else {
+      await client.query(`DELETE FROM sessao_grafo WHERE paciente_id = $1`, [pacienteId])
+    }
+    if (vazias.length > 0) {
+      await client.query(
+        `DELETE FROM sessao_grafo WHERE paciente_id = $1 AND sessao_id = ANY($2::uuid[])`,
+        [pacienteId, vazias],
+      )
+    }
     for (const { sessaoId, grafo } of novos) {
       await client.query(
         `INSERT INTO sessao_grafo (paciente_id, sessao_id, sessao_num, versao_prompt, versao_conceitualizacao, nos, arestas, criado_em)
@@ -563,7 +621,7 @@ export async function recalcularGrafo(pacienteId: string, modo: Modo = 'clinico'
            sessao_num = EXCLUDED.sessao_num, versao_prompt = EXCLUDED.versao_prompt,
            versao_conceitualizacao = EXCLUDED.versao_conceitualizacao,
            nos = EXCLUDED.nos, arestas = EXCLUDED.arestas, criado_em = NOW()`,
-        [pacienteId, sessaoId, `extracao-v3-${modo}-${abordagem}`, usaConc ? conc.versao : null, JSON.stringify(grafo.nos), JSON.stringify(grafo.arestas)],
+        [pacienteId, sessaoId, versaoPromptAtual, versaoConcAtual, JSON.stringify(grafo.nos), JSON.stringify(grafo.arestas)],
       )
     }
     await client.query('COMMIT')
@@ -577,14 +635,17 @@ export async function recalcularGrafo(pacienteId: string, modo: Modo = 'clinico'
   const rcache = await redis()
   if (rcache) await rcache.del(`temas-insight:${pacienteId}`)
 
-  return { sessoes: sessoes.length, nodes: await contar() }
+  if (reaproveitadas > 0) {
+    console.info(`[temas.grafo] paciente=${pacienteId}: ${reaproveitadas} sessão(ões) reaproveitada(s) do store, ${novos.length} reextraída(s) — ${reaproveitadas} chamada(s) de IA economizada(s)`)
+  }
+  return { sessoes: sessoes.length, nodes: await contar(), reextraidas: novos.length, reaproveitadas, falhas }
 }
 
 // ── Recálculo em BACKGROUND (evita o 504 do nginx aos 60s) ─────────────────
 // O recálculo extrai via IA sessão a sessão e passa fácil de 60s. Em vez de a
 // rota esperar (e o nginx matar a conexão), disparamos em segundo plano e o
 // cliente faz polling do status. Estado in-process — basta porque é 1 réplica.
-type RecalcResultado = { ok: boolean; abortado?: boolean; nodes?: number; erro?: boolean; em: number }
+type RecalcResultado = { ok: boolean; abortado?: boolean; nodes?: number; erro?: boolean; em: number; reextraidas?: number; reaproveitadas?: number }
 const recalcsAtivos = new Map<string, number>()            // pacienteId → início (ms)
 const recalcsResultado = new Map<string, RecalcResultado>() // último resultado por paciente
 
@@ -592,14 +653,14 @@ export function statusRecalculo(pacienteId: string): { processing: boolean; resu
   return { processing: recalcsAtivos.has(pacienteId), resultado: recalcsResultado.get(pacienteId) ?? null }
 }
 
-export function iniciarRecalculoBackground(pacienteId: string, modo: Modo = 'clinico'): { processing: boolean; jaRodando: boolean } {
+export function iniciarRecalculoBackground(pacienteId: string, modo: Modo = 'clinico', opts: { forcar?: boolean } = {}): { processing: boolean; jaRodando: boolean } {
   if (recalcsAtivos.has(pacienteId)) return { processing: true, jaRodando: true }
   recalcsAtivos.set(pacienteId, Date.now())
   recalcsResultado.delete(pacienteId)
   // Floating promise proposital: a rota retorna na hora; o pod (long-lived) segue
   // processando. Recálculo é idempotente — se o pod reiniciar, basta refazer.
-  recalcularGrafo(pacienteId, modo)
-    .then(r => recalcsResultado.set(pacienteId, { ok: true, abortado: r.abortado, nodes: r.nodes, em: Date.now() }))
+  recalcularGrafo(pacienteId, modo, opts)
+    .then(r => recalcsResultado.set(pacienteId, { ok: true, abortado: r.abortado, nodes: r.nodes, em: Date.now(), reextraidas: r.reextraidas, reaproveitadas: r.reaproveitadas }))
     .catch(err => {
       console.error(`[temas.grafo] recálculo background falhou paciente=${pacienteId}:`, err)
       recalcsResultado.set(pacienteId, { ok: false, erro: true, em: Date.now() })
@@ -613,8 +674,10 @@ export function iniciarRecalculoBackground(pacienteId: string, modo: Modo = 'cli
  * uma sessão assinada — popula o store por-sessão (sessao_grafo) e deriva o
  * agregado. Idempotente e reexecutável. Sequencial pra não saturar a IA.
  */
-export async function recalcularGrafosTodos(modo: Modo = 'clinico', soComObjetivos = false): Promise<{
+export async function recalcularGrafosTodos(modo: Modo = 'clinico', soComObjetivos = false, opts: { forcar?: boolean } = {}): Promise<{
   pacientes: number
+  reextraidas: number
+  reaproveitadas: number
   resultados: Array<{ pacienteId: string; sessoes: number; nodes: number }>
 }> {
   const { rows } = await db.query<{ paciente_id: string }>(
@@ -625,11 +688,14 @@ export async function recalcularGrafosTodos(modo: Modo = 'clinico', soComObjetiv
       : `SELECT DISTINCT paciente_id FROM sessoes WHERE assinada = TRUE`,
   )
   const resultados: Array<{ pacienteId: string; sessoes: number; nodes: number }> = []
+  let reextraidas = 0, reaproveitadas = 0
   for (const { paciente_id } of rows) {
-    const r = await recalcularGrafo(paciente_id, modo)
-    resultados.push({ pacienteId: paciente_id, ...r })
+    const r = await recalcularGrafo(paciente_id, modo, opts)
+    reextraidas += r.reextraidas
+    reaproveitadas += r.reaproveitadas
+    resultados.push({ pacienteId: paciente_id, sessoes: r.sessoes, nodes: r.nodes })
   }
-  return { pacientes: rows.length, resultados }
+  return { pacientes: rows.length, reextraidas, reaproveitadas, resultados }
 }
 
 // ── Harness de validação Haiku × Sonnet (§12) ─────────────────────────────
