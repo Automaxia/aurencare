@@ -145,6 +145,14 @@ export async function criarOrderPix(opts: {
     }, { auth: auth(), timeout: 15_000 })
 
     const payment = data.charges?.[0]?.last_transaction
+    // A order pode voltar 200 com a CHARGE reprovada (meio não habilitado, dado
+    // do pagador recusado…). Aí não há `qr_code` — e seguir em frente mandaria um
+    // WhatsApp com link vazio pro paciente. Falha explicitamente.
+    if (!payment?.qr_code && !payment?.qr_code_url) {
+      const motivo = payment?.gateway_response?.errors?.[0]?.message ?? data.charges?.[0]?.status ?? 'sem qr_code'
+      log.err('pagarme', `PIX sem QR code (order ${data.id}) — charge reprovada: ${motivo}`, undefined)
+      throw new Error('pagarme_pix_failed')
+    }
     return {
       orderId: data.id,
       qrCode: payment?.qr_code,
