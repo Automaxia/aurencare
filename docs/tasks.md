@@ -62,10 +62,27 @@ Legenda prioridade: **P0** crítico (segurança/risco) · **P1** importante · *
 - ⏳ **P0** `PAGARME_RECIPIENT_PLATAFORMA` — recipient **da conta sandbox** da
   Audere, destino da comissão. Sem ele a cobrança sai **sem split** (valor
   inteiro na conta-mãe).
+- ⏳ **P0** **`PAGARME_API_KEY` no cluster é o PLACEHOLDER `sk_test_...`** (11
+  chars) → `integrationStatus.pagarme = false` → **produção roda em modo mock**:
+  toda cobrança gera link `/mock/qr/…`, rota que não existe (404 pro paciente).
+  Trocar pela chave de teste real assim que o deploy das correções subir.
+- ✅ `ASSEMBLYAI_API_KEY` **definida no cluster** (verificado ago/2026).
 - ⏳ **P1** Validar o split em sandbox, sobretudo em `payment_method: 'checkout'`
   (cartão). A montagem das fatias tem teste (`npm run test:split`); a aceitação
-  pela API, não.
-- ⏳ **P1** `ASSEMBLYAI_API_KEY` no cluster — sem ela não há transcrição do paciente.
+  pela API, não — depende da habilitação de recebedores.
+
+### Bloqueios do lado da Pagar.me (não são código)
+- ⏳ **P0** **PIX sem ambiente configurado no sandbox** — a charge é reprovada com
+  `action_forbidden | Sem ambiente configurado para este tipo de transação`.
+  Testado com duas chaves `sk_test_` diferentes, mesmo resultado. A configuração
+  do painel (PIX ativo, modelo PSP) parece ter sido salva no ambiente de
+  **Produção**; precisa ser refeita no ambiente de **Teste**.
+- ⏳ **P0** **Recebedores/split não liberados na conta** —
+  `action_forbidden | This company is not allowed to create a recipient`.
+  Não é self-service: exige chamado à Pagar.me pedindo modelo marketplace com
+  split por transação. Bloqueia o onboarding de recebimento e a comissão de 2,5%.
+- ✅ **Cartão (crédito/débito) funciona** no sandbox — checkout testado, gera
+  `payment_url` normalmente.
 
 ### No go-live (trocar de sandbox para produção)
 - 🔮 `PAGARME_API_KEY` → `sk_live` no secret.
@@ -78,12 +95,12 @@ Legenda prioridade: **P0** crítico (segurança/risco) · **P1** importante · *
 
 ## Pendências — segurança
 
-- ⏳ **P0** Confirmar que `ENCRYPTION_KEY` e `NEXTAUTH_SECRET` são valores **reais
-  e definitivos** (trocar `ENCRYPTION_KEY` torna dados clínicos ilegíveis).
-- ⏳ **P0** `CRON_SECRET` no cluster. Sem ele, `/api/cron/recalcular-temas` está
-  fora do middleware de auth e **aceita qualquer chamada** — um POST anônimo
-  dispara o recálculo de todos os pacientes (a operação mais cara do sistema).
-- ⏳ **P0** `EVOLUTION_WEBHOOK_TOKEN` para ativar a validação do webhook da Evolution.
+- ✅ `CRON_SECRET` **definido no cluster** (verificado ago/2026) — a rota
+  `/api/cron/recalcular-temas` exige `Bearer`, não está aberta.
+- ✅ `EVOLUTION_WEBHOOK_TOKEN` **definido** — validação do webhook da Evolution ativa.
+- ✅ `ENCRYPTION_KEY` (64 chars) e `OPENAI_API_KEY` presentes e reais no cluster.
+- ⏳ **P0** Confirmar que `ENCRYPTION_KEY` e `NEXTAUTH_SECRET` são os valores
+  **definitivos** (trocar `ENCRYPTION_KEY` depois torna dados clínicos ilegíveis).
 - 🔄 **P0** Rotacionar credenciais expostas no histórico do git. ✅ Postgres
   rotacionado; ✅ `.env.example` só com placeholders e `local.yaml` no `.gitignore`.
   ⏳ falta: Resend, AssemblyAI, e decidir sobre a Evolution API key (rotacionar =

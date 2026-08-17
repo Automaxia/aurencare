@@ -13,21 +13,30 @@
 
 ---
 
-## 🔴 1. Agora — ligar a transcrição (AssemblyAI)
-Sem isso, áudio do paciente e o fallback de fala do psicólogo no tablet não funcionam.
+> ℹ️ **Estado do secret verificado em ago/2026** (`kubectl get secret
+> aurencare-secrets -n aurencare`). Já definidos e reais: `ASSEMBLYAI_API_KEY`,
+> `CRON_SECRET`, `EVOLUTION_WEBHOOK_TOKEN`, `OPENAI_API_KEY`, `ENCRYPTION_KEY`,
+> `TURN_URLS`. Pendentes: os dois itens da §1 abaixo.
 
-- [ ] Definir a key no secret e reiniciar:
+## 🔴 1. Agora — tirar o Pagar.me do modo mock
+
+`PAGARME_API_KEY` no cluster é o **placeholder literal** `sk_test_...` (11
+chars). Como esse valor está em `PLACEHOLDER_HINTS` (`env.ts:7`),
+`integrationStatus.pagarme` é `false` e **produção roda em modo mock**: toda
+cobrança gera `mock_pix_…` com link `https://app.audere.ia.br/mock/qr/…png`,
+rota que **não existe** — o paciente recebe 404.
+
+- [ ] Definir a chave de teste real e reiniciar (só DEPOIS do deploy das
+      correções de PIX — sem elas, sair do mock manda link vazio em vez de 404):
   ```bash
   kubectl patch secret aurencare-secrets -n aurencare --type merge \
-    -p '{"stringData":{"ASSEMBLYAI_API_KEY":"<KEY>"}}'
+    -p '{"stringData":{"PAGARME_API_KEY":"sk_test_<real>"}}'
   kubectl rollout restart deploy/aurencare-web -n aurencare
   kubectl rollout status  deploy/aurencare-web -n aurencare
   ```
-- [ ] Conferir: `kubectl get secret aurencare-secrets -n aurencare -o jsonpath='{.data.ASSEMBLYAI_API_KEY}' | base64 -d; echo`
-- [ ] **Rotacionar** a key na AssemblyAI (foi compartilhada em texto) após validar.
-
-Destrava: transcrição do paciente, fallback do tablet, multilíngue (PT/EN) e
-qualidade do PT (antes ia no modelo inglês default).
+- [x] `ASSEMBLYAI_API_KEY` definida — transcrição do paciente, fallback do tablet
+      e multilíngue (PT/EN) destravados.
+- [ ] **Rotacionar** a key da AssemblyAI (foi compartilhada em texto).
 
 ## 🔴 2. Agora — destravar a confirmação de pagamento
 
