@@ -9,7 +9,7 @@ import { log } from '@/server/lib/log'
 export const runtime = 'nodejs'
 
 export async function POST(req: Request, { params }: { params: { id: string } }) {
-  await requirePsicologo()
+  const user = await requirePsicologo()
   const body = await req.json().catch(() => ({} as any))
 
   const transcricao = typeof body?.transcricao === 'string' ? body.transcricao : ''
@@ -18,7 +18,13 @@ export async function POST(req: Request, { params }: { params: { id: string } })
   const stats = body?.transcricaoStats && typeof body.transcricaoStats.audioMs === 'number'
     ? body.transcricaoStats : null
 
-  await encerrarSessao(params.id, { transcricao, indicadores, transcricaoStats: stats })
+  try {
+    await encerrarSessao(user.id, params.id, { transcricao, indicadores, transcricaoStats: stats })
+  } catch {
+    // Não é dono (ou não existe): nada abaixo pode rodar — o que vem depois
+    // grava prontuário, dispara WhatsApp ao paciente e gera resumo por IA.
+    return NextResponse.json({ error: 'not_found' }, { status: 404 })
+  }
 
   // Confirmação pós-sessão pelo paciente (proteção §10).
   // Fire-and-forget — falha aqui não pode quebrar o encerramento.

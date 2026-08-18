@@ -16,12 +16,17 @@ const MOTIVOS_ACIONAVEIS = new Set([
 ])
 
 export async function POST(_req: Request, { params }: { params: { id: string } }) {
-  await requirePsicologo()
+  const user = await requirePsicologo()
   try {
-    await reenviarCobranca(params.id)
+    await reenviarCobranca(user.id, params.id)
     return NextResponse.json({ ok: true })
   } catch (err) {
     const motivo = err instanceof Error ? err.message : ''
+    // Sessão de outro psicólogo cai aqui como 'sessao_nao_encontrada' — mesmo
+    // corpo que uma sessão inexistente, pra não confirmar a existência do id.
+    if (motivo === 'sessao_nao_encontrada') {
+      return NextResponse.json({ error: motivo }, { status: 404 })
+    }
     if (MOTIVOS_ACIONAVEIS.has(motivo)) {
       return NextResponse.json({ error: motivo }, { status: 409 })
     }

@@ -804,13 +804,18 @@ export async function marcarNoShow(
 }
 
 // ── Iniciar / Encerrar / Assinar ──────────────────────────────────────────
-export async function iniciarSessao(sessaoId: string): Promise<void> {
+export async function iniciarSessao(psicologoId: string, sessaoId: string): Promise<void> {
   // iniciada_em ancora a varredura de sessões travadas (cron). Só grava na
   // PRIMEIRA entrada em curso — retomar a mesma sessão não reinicia o relógio.
-  await db.query(
-    `UPDATE sessoes SET status='em_curso', iniciada_em = COALESCE(iniciada_em, NOW()) WHERE id=$1`,
-    [sessaoId],
+  //
+  // O `psicologo_id` no WHERE é o controle de acesso: sem ele, qualquer conta
+  // autenticada mudava o estado da sessão de OUTRA prática só sabendo o id.
+  const { rowCount } = await db.query(
+    `UPDATE sessoes SET status='em_curso', iniciada_em = COALESCE(iniciada_em, NOW())
+      WHERE id=$1 AND psicologo_id=$2`,
+    [sessaoId, psicologoId],
   )
+  if (!rowCount) throw new Error('sessao_nao_encontrada')
   publish({ type: 'sessao.iniciada', sessaoId })
 }
 
@@ -854,9 +859,15 @@ export async function gateIniciarRegistroIa(psicologoId: string, sessaoId: strin
   return { ok: true }
 }
 
-export async function encerrarSessao(sessaoId: string, opts: { transcricao?: string; indicadores?: any; transcricaoStats?: any } = {}): Promise<void> {
+/**
+ * Encerra a sessão e grava o registro. Exige o dono: sem `psicologo_id` no
+ * WHERE, qualquer conta autenticada escrevia transcrição — conteúdo clínico —
+ * no prontuário de paciente de outra prática, e ainda disparava WhatsApp pra
+ * ele. Escopo aqui, e não só na rota, pra que nenhum chamador futuro esqueça.
+ */
+export async function encerrarSessao(psicologoId: string, sessaoId: string, opts: { transcricao?: string; indicadores?: any; transcricaoStats?: any } = {}): Promise<void> {
   const patches: string[] = [`status='concluida'`]
-  const params: any[] = [sessaoId]
+  const params: any[] = [sessaoId, psicologoId]
   if (opts.transcricao) {
     patches.push(`transcricao_texto = $${params.length + 1}`)
     params.push(encrypt(opts.transcricao))
@@ -869,7 +880,10 @@ export async function encerrarSessao(sessaoId: string, opts: { transcricao?: str
     patches.push(`transcricao_stats = $${params.length + 1}`)
     params.push(JSON.stringify(opts.transcricaoStats))
   }
-  await db.query(`UPDATE sessoes SET ${patches.join(', ')} WHERE id=$1`, params)
+  const { rowCount } = await db.query(
+    `UPDATE sessoes SET ${patches.join(', ')} WHERE id=$1 AND psicologo_id=$2`, params,
+  )
+  if (!rowCount) throw new Error('sessao_nao_encontrada')
   publish({ type: 'sessao.encerrada', sessaoId })
 }
 
@@ -1108,9 +1122,12 @@ export async function assinarSessao(sessaoId: string): Promise<void> {
   }
 }
 
-export async function reenviarCobranca(sessaoId: string): Promise<Sessao> {
+export async function reenviarCobranca(psicologoId: string, sessaoId: string): Promise<Sessao> {
   const s = await buscarSessao(sessaoId)
-  if (!s) throw new Error('sessao_nao_encontrada')
+  // Posse antes de qualquer efeito: esta função cria cobrança REAL na Pagar.me
+  // e manda WhatsApp pro paciente. Sem o dono conferido, bastava o id de uma
+  // sessão alheia pra cobrar o paciente de outro psicólogo.
+  if (!s || s.psicologoId !== psicologoId) throw new Error('sessao_nao_encontrada')
   if (!s.pagamentoMetodo) {
     // ainda não escolheu — re-pergunta
     await enviarWA(s.pacienteTelefone, WA_TEMPLATES.fluxo2_perguntarMetodo(formatDateTimeBR(s.dataHora), s.valor))
