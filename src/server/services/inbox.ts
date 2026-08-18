@@ -400,11 +400,20 @@ async function processarComandoPagamento(opts: { telefone: string; cmd: string }
       else                                                  await gerarCobrancaCartao(sessao.id, 'debito')
     } catch (err) {
       const motivo = err instanceof Error ? err.message : ''
-      if (motivo === 'cpf_paciente_ausente') {
+      if (motivo === 'recebimento_nao_configurado') {
+        // O psicólogo ainda não tem recebedor válido na Pagar.me (ou o dele é
+        // sintético, do período em modo mock). Nada que o paciente possa fazer —
+        // nem cartão funciona, então não oferecemos alternativa.
+        log.err('wa.inbox', `cobrança bloqueada: psicólogo ${paciente.psicologoId} sem recebimento configurado — refazer /perfil/recebimentos`, undefined)
+        await enviarERegistrar(telefone, 'Estou finalizando o preparo do pagamento. Já avisei quem te atende para te enviar em seguida.')
+        return
+      }
+      if (motivo === 'cpf_paciente_ausente' || motivo === 'cpf_paciente_invalido') {
         // A Pagar.me exige CPF do pagador no PIX (sem ele a charge é reprovada e
         // volta sem QR). Cartão não exige — então oferecemos a saída imediata em
         // vez de deixar o paciente esperando o cadastro ser completado.
-        log.err('wa.inbox', `PIX bloqueado: paciente ${paciente.id} sem CPF no cadastro (a Pagar.me exige CPF do pagador). Preencher em /pacientes/${paciente.id}.`, undefined)
+        const detalhe = motivo === 'cpf_paciente_invalido' ? 'com CPF inválido' : 'sem CPF'
+        log.err('wa.inbox', `PIX bloqueado: paciente ${paciente.id} ${detalhe} no cadastro (a Pagar.me exige CPF do pagador). Corrigir em /pacientes/${paciente.id}.`, undefined)
         await enviarERegistrar(telefone, 'Para gerar o PIX preciso de um dado que ainda falta no seu cadastro. Já avisei quem te atende. Se preferir seguir agora, responda CREDITO ou DEBITO.')
       } else {
         log.err('wa.inbox', 'falha ao gerar cobrança', err)

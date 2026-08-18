@@ -15,6 +15,7 @@ import { obterAssinatura } from './assinatura'
 import { incrementarSessaoIa, decrementarSessaoIa } from './uso'
 import { lerStatusOnboarding } from './onboardingPagamento'
 import { BETA_LIBERADO } from '@/server/lib/planos'
+import { validarCpf } from '@/lib/documento'
 
 export type SessaoStatus =
   | 'agendada' | 'aguardando_metodo' | 'aguardando_pagamento'
@@ -602,6 +603,10 @@ export async function gerarCobrancaPix(sessaoId: string): Promise<Sessao> {
   // charge é reprovada e volta SEM qr_code — o paciente receberia um link vazio.
   // Falhar aqui, com erro nomeado, é melhor que cobrar e não gerar o QR.
   if (!s.pacienteCpf) throw new Error('cpf_paciente_ausente')
+  // Cadastro antigo pode ter CPF digitado errado (a validação no salvar é nova).
+  // Um CPF inválido chega à Pagar.me, reprova a charge e volta sem QR — o mesmo
+  // beco sem saída do CPF ausente, só que com mensagem genérica.
+  if (!validarCpf(s.pacienteCpf)) throw new Error('cpf_paciente_invalido')
 
   const order = await criarOrderPix({
     sessaoId: s.id,

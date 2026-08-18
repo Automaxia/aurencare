@@ -17,7 +17,8 @@
 > aurencare-secrets -n aurencare`). Já definidos e reais: `ASSEMBLYAI_API_KEY`,
 > `CRON_SECRET`, `EVOLUTION_WEBHOOK_TOKEN`, `OPENAI_API_KEY`, `ENCRYPTION_KEY`,
 > `TURN_URLS`, `PAGARME_API_KEY`, `PAGARME_WEBHOOK_USER`/`_SECRET`.
-> Pendente: `PAGARME_RECIPIENT_PLATAFORMA` (bloqueado pela Pagar.me, ver §4).
+> Pendente: `PAGARME_RECIPIENT_PLATAFORMA` — **não está mais bloqueado pela
+> Pagar.me** (verificado 18/08/2026), só falta rodar o script; ver §2.
 
 ## 🟢 1. Pagar.me fora do modo mock — ✅ RESOLVIDO (ago/2026)
 
@@ -57,9 +58,26 @@ autenticado → sessão vira `confirmada` → SSE + WhatsApp + email.
 > URL correta, autenticação habilitada (Basic) e tentativas > 1.
 
 - [ ] **`PAGARME_RECIPIENT_PLATAFORMA`** — recipient da conta da Audere (sandbox),
-      destino da comissão de 2,5% no split. Bloqueado: a conta ainda não tem
-      recebedores liberados (ver §4). Script pronto:
-      `npm run pagarme:recipient-plataforma`.
+      destino da comissão de 2,5% no split. **Não está mais bloqueado**: em
+      18/08/2026 o `POST /recipients` passou a devolver 422 de validação em vez
+      de `action_forbidden`, ou seja, a conta já cria recebedores. Rodar:
+      ```bash
+      SOCIO_NOME="Nome Completo" SOCIO_CPF=00000000000 SOCIO_NASCIMENTO=1985-01-15 npm run pagarme:recipient-plataforma
+
+      kubectl patch secret aurencare-secrets -n aurencare --type merge -p '{"stringData":{"PAGARME_RECIPIENT_PLATAFORMA":"rp_…"}}'
+      ```
+
+- [ ] **5 psicólogos com recebedor sintético — precisam refazer o onboarding.**
+      Enquanto valia o placeholder da §1, o onboarding gravou `mock_rcp_*` em
+      `psicologos.pagarme_recipient_id` (IDs que não existem na Pagar.me):
+      LUIZ CARLOS DA SILVA FILHO · Daniel Versiani · Leila de Souza Silva
+      Santana · LUCILEIDE MARIA CARDOSO COSTA · QA Ficticia.
+      O código já os trata como "recebimento não configurado" e a aba
+      **Perfil › Recebimentos** mostra o aviso pedindo para refazer — mas alguém
+      precisa avisá-los. Conferir depois:
+      ```bash
+      kubectl exec -n aurencare deploy/aurencare-web -- node -e "…SELECT nome, pagarme_recipient_id FROM psicologos WHERE pagarme_recipient_id LIKE 'mock_%'"
+      ```
 
 ## 🟢 3. Confiabilidade do vídeo — servidor TURN (#11) — ✅ ATIVO
 Chamadas atrás de NAT/4G agora têm relay TURN (antes só STUN).
@@ -79,6 +97,18 @@ Chamadas atrás de NAT/4G agora têm relay TURN (antes só STUN).
       `/etc/coturn/certs` e descomentar `cert`/`pkey` no ConfigMap do `coturn.yaml`.
       Útil em redes que bloqueiam tudo menos 443/TLS; `3478 udp/tcp` cobre o resto.
 - [ ] *(Opcional)* Espelhar `TURN_*` no `.env.local` — dev local roda STUN-only.
+
+## 🟢 3b. PIX — validado direto na API (18/08/2026)
+
+`POST /orders` com `payment_method: pix` e `customer.document` devolveu charge
+`waiting_payment` **com `qr_code` e `qr_code_url`**. O "Modelo de negócio =
+Simulator" está correto no sandbox. A `PAGARME_API_KEY` do cluster foi conferida:
+`sk_test_` real (não placeholder), válida, e da **mesma conta** da chave local.
+
+O que faltava no PIX não era a Pagar.me, e sim o **CPF do pagador**: só
+**3 de 34 pacientes ativos** tinham CPF cadastrado. Corrigido no app — campo CPF
+no cadastro do paciente, validação por dígito verificador e motivo acionável
+quando a cobrança não sai.
 
 ## 🟡 4. Cobrança — **seguimos em SANDBOX durante o beta**
 

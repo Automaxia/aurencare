@@ -106,6 +106,20 @@ export type RecipientCriado = {
 }
 
 /**
+ * Recipient sintético, criado enquanto a integração estava em modo mock —
+ * não existe na Pagar.me.
+ *
+ * Isso não é hipotético: enquanto `PAGARME_API_KEY` era o placeholder literal
+ * (INFRA.md §1), o onboarding de recebimento gravou `mock_rcp_*` para
+ * psicólogos reais, que passaram a constar como "recebimento configurado".
+ * Usar um desses num split faz a Pagar.me recusar a order inteira — a cobrança
+ * do paciente falha. Quem lê `pagarme_recipient_id` precisa filtrar por aqui.
+ */
+export function isRecipientMock(recipientId: string | null | undefined): boolean {
+  return !!recipientId && recipientId.startsWith('mock_rcp_')
+}
+
+/**
  * Pagar.me v5 — POST /recipients. Documentação:
  * https://docs.pagar.me/reference/criar-recebedor-1
  */

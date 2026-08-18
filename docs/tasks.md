@@ -73,15 +73,43 @@ Seis defeitos estavam somados nesse caminho — todos corrigidos:
 - ✅ **Onboarding de recebimento** corrigido (endereço PF/PJ + sócio) — payload
   passa por toda a validação da API; só falta a habilitação abaixo.
 
-### ⏳ Único bloqueio restante
-- **P0 — Habilitação de recebedores/split na conta.**
-  `action_forbidden | This company is not allowed to create a recipient`.
-  Não é self-service. **Chamado aberto** no chat do painel em 17/08/2026 22:56;
-  caiu fora do expediente (seg–sex, 9h–18h) — retomar a conversa, o histórico
-  fica guardado. Destrava: `PAGARME_RECIPIENT_PLATAFORMA`, o onboarding dos
-  psicólogos e a comissão de 2,5%.
-  Quando liberar: `npm run pagarme:recipient-plataforma` (dados da empresa e do
-  sócio já configurados) → aplicar o `rp_…` no secret.
+### ✅ Habilitação de recebedores — LIBERADA (verificado 18/08/2026)
+O `action_forbidden | This company is not allowed to create a recipient` **não
+acontece mais**: `POST /recipients` com payload vazio devolve 422 de validação
+(`default_bank_account is required`), não 403. A conta sandbox já cria recebedores.
+
+### ⏳ O que resta
+- **P0 — `PAGARME_RECIPIENT_PLATAFORMA` ainda ausente no secret.** Agora é só
+  rodar, o bloqueio da conta caiu:
+  ```
+  SOCIO_NOME="…" SOCIO_CPF=… SOCIO_NASCIMENTO=AAAA-MM-DD npm run pagarme:recipient-plataforma
+  ```
+  → aplicar o `rp_…` no secret. Sem ele a cobrança sai SEM split (valor inteiro
+  na conta-mãe) e a comissão de 2,5% não sai.
+- **P0 — 5 psicólogos com recebedor SINTÉTICO.** O onboarding rodou enquanto a
+  produção estava em modo mock (INFRA.md §1) e gravou `mock_rcp_*` em
+  `psicologos.pagarme_recipient_id` — IDs que **não existem na Pagar.me**. Eles
+  constavam como "recebimento configurado" e o dinheiro deles cairia na
+  conta-mãe. Pior: assim que a env da plataforma existir, o split usaria esse ID
+  e a **order inteira seria recusada** — a cobrança do paciente falharia.
+  Código já protegido (`isRecipientMock`, ago/2026): esses cadastros contam como
+  incompletos, a cobrança é bloqueada com motivo nomeado e a aba Recebimentos
+  mostra um aviso pedindo para refazer. **Falta os 5 refazerem o onboarding.**
+
+### 🐞 PIX — o que estava escondido atrás do bloqueio
+- **Só 3 de 34 pacientes ativos têm CPF** (verificado 18/08/2026). Como a
+  Pagar.me exige `customer.document` no PIX, ~91% dos pacientes hoje respondem
+  "PIX" no WhatsApp e são empurrados para cartão. Corrigido: campo **CPF no
+  cadastro do paciente** (`/pacientes/novo`), validação por dígito verificador
+  ao salvar (fonte única em `src/lib/documento.ts`) e motivo acionável no
+  pós-sessão em vez de "falhou · tentar de novo".
+- ✅ **PIX validado direto na API** (18/08/2026): order criada → charge
+  `waiting_payment` → `qr_code` + `qr_code_url` presentes. O "Modelo de negócio
+  = Simulator" está correto no sandbox.
+- ✅ **Chave do cluster conferida** — `sk_test_` real (não placeholder), válida,
+  e da **mesma conta** da chave local (order criada com uma é legível pela outra).
+- ✅ **`npm install` em dia** — `@excalidraw/excalidraw`, `unpdf` e `mammoth`
+  instalados; `tsc --noEmit` e `next build` limpos (era P2 aberto).
 
 ### No go-live (sandbox → produção)
 - 🔮 `PAGARME_API_KEY` → `sk_live` no secret.
@@ -121,8 +149,6 @@ Seis defeitos estavam somados nesse caminho — todos corrigidos:
 - ⏳ **P2** Deduplicação real de webhook (hoje a única guarda é o early-return de
   `pagamentoStatus === 'pago'`).
 - ⏳ **P2** Dica de **"use fones de ouvido"** na tela da sala (reduz eco na origem).
-- ⏳ **P2** `npm install` local desatualizado: `@excalidraw/excalidraw`, `unpdf` e
-  `mammoth` estão no `package.json` mas não instalados — 4 erros no `tsc --noEmit`.
 
 ## Pendências — limpeza e coerência
 

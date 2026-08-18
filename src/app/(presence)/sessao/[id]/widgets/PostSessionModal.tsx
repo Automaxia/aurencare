@@ -22,6 +22,17 @@ type Props = {
   onClose: () => void
 }
 
+/**
+ * Alguns motivos não se resolvem tentando de novo — dependem de um dado que
+ * falta. Dizer qual é, e onde arrumar, poupa o psicólogo de clicar em vão.
+ */
+const COBRANCA_MOTIVOS: Record<string, string> = {
+  cpf_paciente_ausente: 'falta o CPF do paciente · o PIX exige · preencha no perfil dele',
+  cpf_paciente_invalido: 'o CPF do paciente está inválido · corrija no perfil dele',
+  recebimento_nao_configurado: 'seu recebimento não está configurado · conclua em Perfil › Recebimentos',
+  sessao_nao_encontrada: 'sessão não encontrada',
+}
+
 export function PostSessionModal(p: Props) {
   // Nunca injeta placeholder de IA no textarea; começa vazio se o laudo não veio.
   const [resumo, setResumo] = useState(iaIndisponivel(p.resumoIA) ? '' : (p.resumoIA ?? ''))
@@ -71,7 +82,7 @@ export function PostSessionModal(p: Props) {
   const [signed, setSigned] = useState(false)
   const [marcacaoAplicada, setMarcacaoAplicada] = useState(false)
   const [riscoAplicado, setRiscoAplicado] = useState(false)
-  const [cobranca, setCobranca] = useState<{ estado: 'idle' | 'enviando' | 'ok' | 'erro' }>({ estado: 'idle' })
+  const [cobranca, setCobranca] = useState<{ estado: 'idle' | 'enviando' | 'ok' | 'erro'; motivo?: string }>({ estado: 'idle' })
 
   async function assinar() {
     setLoading(true); setError(null)
@@ -97,7 +108,9 @@ export function PostSessionModal(p: Props) {
     setCobranca({ estado: 'enviando' })
     try {
       const res = await fetch(`/api/sessao/${p.sessaoId}/reenviar-cobranca`, { method: 'POST' })
-      setCobranca({ estado: res.ok ? 'ok' : 'erro' })
+      if (res.ok) { setCobranca({ estado: 'ok' }); return }
+      const json = await res.json().catch(() => null)
+      setCobranca({ estado: 'erro', motivo: json?.error })
     } catch {
       setCobranca({ estado: 'erro' })
     }
@@ -124,7 +137,11 @@ export function PostSessionModal(p: Props) {
           ) : (
             <button className="btn ghost" style={{ padding: 0, color: cobranca.estado === 'erro' ? 'var(--rose)' : 'var(--amber)' }}
               onClick={reenviarCobranca} disabled={cobranca.estado === 'enviando'}>
-              {cobranca.estado === 'enviando' ? 'reenviando…' : cobranca.estado === 'erro' ? 'falhou · tentar reenviar de novo' : 'pagamento pendente · reenviar cobrança'}
+              {cobranca.estado === 'enviando'
+                ? 'reenviando…'
+                : cobranca.estado === 'erro'
+                  ? (cobranca.motivo ? COBRANCA_MOTIVOS[cobranca.motivo] : '') || 'falhou · tentar reenviar de novo'
+                  : 'pagamento pendente · reenviar cobrança'}
             </button>
           )}
         </p>

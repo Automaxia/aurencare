@@ -40,6 +40,19 @@ export default async function PerfilRecebimentosPage() {
       <PerfilTabs active="recebimentos" />
       <PageHeader title="Recebimentos" subtitle="Conta bancária e chave PIX." />
 
+      {d.recipientInvalido && (
+        <div className="card" style={{
+          marginBottom: 16, borderLeft: '3px solid var(--rose)',
+          background: 'rgba(196,96,122,.05)', fontSize: 12.5, lineHeight: 1.6, color: 'var(--ink-soft)',
+        }}>
+          <strong style={{ color: 'var(--rose)' }}>Seu recebimento precisa ser refeito.</strong>{' '}
+          Este cadastro foi concluído enquanto a integração de pagamentos estava em modo de
+          demonstração, então o recebedor nunca chegou a existir de fato. Enquanto isso, o valor
+          das sessões não cai na sua conta.{' '}
+          <Link href="/onboarding/recebimentos" style={{ color: 'var(--accent)' }}>Refazer agora →</Link>
+        </div>
+      )}
+
       <div style={{ display: 'grid', gridTemplateColumns: '1.4fr 1fr', gap: 20, alignItems: 'start' }}>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
           {/* Conta bancária — read-only */}

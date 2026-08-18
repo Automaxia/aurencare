@@ -6,11 +6,14 @@ import { salvarCondicoesPaciente, type Condicoes } from '@/server/services/conte
 import {
   atualizarPaciente, arquivarPaciente, reativarPaciente, excluirPacienteDefinitivo,
   salvarDadosCadastro, reenviarConsentimento, type DadosCadastro,
+  type SalvarDadosCadastroResult,
   type AtualizarPacienteInput, type AtualizarPacienteResult, type ExcluirResult, type ReenviarResult,
 } from '@/server/services/pacientes'
 import { revalidatePath } from 'next/cache'
 
-export async function salvarDadosCadastroAction(pacienteId: string, dados: DadosCadastro): Promise<{ ok: boolean }> {
+export async function salvarDadosCadastroAction(
+  pacienteId: string, dados: DadosCadastro,
+): Promise<SalvarDadosCadastroResult> {
   const user = await requirePsicologo()
   const r = await salvarDadosCadastro(user.id, pacienteId, dados)
   if (r.ok) revalidatePath(`/pacientes/${pacienteId}`)

@@ -1,13 +1,24 @@
 import 'server-only'
 import { db } from '@/server/db/pool'
 import { encrypt, tryDecrypt } from '@/server/lib/crypto'
-import { criarRecipient, type RecipientInput } from '@/server/lib/pagarmeRecipient'
+import { criarRecipient, isRecipientMock, type RecipientInput } from '@/server/lib/pagarmeRecipient'
 import { log } from '@/server/lib/log'
+import { cpfCnpjValido, validarCpf, validarCnpj } from '@/lib/documento'
 
 export type OnboardingStatus = {
+  /**
+   * Onboarding utilizável para cobrar de verdade. Um recipient `mock_rcp_*`
+   * (gravado enquanto a integração rodava em modo mock) conta como INCOMPLETO —
+   * ele não existe na Pagar.me e derrubaria a order no split.
+   */
   completo: boolean
   recipientId: string | null
   concluidoEm: string | null
+  /**
+   * Concluiu o onboarding, mas o recipient é sintético: precisa refazer para
+   * que o dinheiro caia na conta dele em vez da conta-mãe da plataforma.
+   */
+  recipientInvalido: boolean
 }
 
 export type TipoChavePix = 'cpf' | 'cnpj' | 'email' | 'celular' | 'aleatoria'
@@ -79,15 +90,23 @@ export async function lerStatusOnboarding(psicologoId: string): Promise<Onboardi
     [psicologoId],
   )
   const r = rows[0]
+  const mock = isRecipientMock(r?.pagarme_recipient_id)
   return {
-    completo: !!r?.pgm_onboarding_em,
-    recipientId: r?.pagarme_recipient_id ?? null,
+    completo: !!r?.pgm_onboarding_em && !mock,
+    recipientId: mock ? null : (r?.pagarme_recipient_id ?? null),
     concluidoEm: r?.pgm_onboarding_em ?? null,
+    recipientInvalido: !!r?.pgm_onboarding_em && mock,
   }
 }
 
 export type OnboardingDetalhes = {
   completo: boolean
+  /**
+   * Cadastro preenchido, mas o recebedor é sintético (`mock_rcp_*`, do período
+   * em modo mock): o dinheiro do paciente cai na conta-mãe da plataforma, não
+   * na dele. Precisa refazer o onboarding.
+   */
+  recipientInvalido: boolean
   tipoPessoa: 'PF' | 'PJ' | null
   documentoMasc: string | null     // ***.***.123-45
   razaoSocial: string | null
@@ -113,13 +132,13 @@ export async function lerOnboardingDetalhes(psicologoId: string): Promise<Onboar
             pgm_banco_codigo, pgm_banco_agencia, pgm_banco_agencia_dv,
             pgm_banco_conta, pgm_banco_conta_dv, pgm_banco_tipo, pgm_titular_nome,
             pgm_chave_pix_tipo, pgm_chave_pix_valor,
-            pgm_onboarding_em
+            pgm_onboarding_em, pagarme_recipient_id
        FROM psicologos WHERE id = $1 LIMIT 1`,
     [psicologoId],
   )
   const r = rows[0]
   if (!r) {
-    return { completo: false, tipoPessoa: null, documentoMasc: null, razaoSocial: null, dataNascimento: null,
+    return { completo: false, recipientInvalido: false, tipoPessoa: null, documentoMasc: null, razaoSocial: null, dataNascimento: null,
       banco: { codigo: null, agencia: null, contaMasc: null, tipo: null, titularNome: null }, chavePix: null }
   }
 
@@ -135,6 +154,7 @@ export async function lerOnboardingDetalhes(psicologoId: string): Promise<Onboar
 
   return {
     completo: !!r.pgm_onboarding_em,
+    recipientInvalido: !!r.pgm_onboarding_em && isRecipientMock(r.pagarme_recipient_id),
     tipoPessoa: r.pgm_tipo_pessoa,
     documentoMasc: docPlain ? mascararDoc(docPlain) : null,
     razaoSocial: r.pgm_razao_social,
@@ -458,39 +478,4 @@ function normalizarChavePix(tipo: TipoChavePix, valor: string): string {
   return v.replace(/\D/g, '')   // cpf, cnpj, celular: só dígitos
 }
 
-/**
- * Validação de CPF (11) ou CNPJ (14) usando dígitos verificadores oficiais.
- */
-function cpfCnpjValido(doc: string): boolean {
-  if (doc.length === 11) return validarCpf(doc)
-  if (doc.length === 14) return validarCnpj(doc)
-  return false
-}
-function validarCpf(cpf: string): boolean {
-  if (/^(\d)\1{10}$/.test(cpf)) return false
-  let s = 0
-  for (let i = 0; i < 9; i++) s += +cpf[i] * (10 - i)
-  let d = (s * 10) % 11
-  if (d === 10) d = 0
-  if (d !== +cpf[9]) return false
-  s = 0
-  for (let i = 0; i < 10; i++) s += +cpf[i] * (11 - i)
-  d = (s * 10) % 11
-  if (d === 10) d = 0
-  return d === +cpf[10]
-}
-function validarCnpj(cnpj: string): boolean {
-  if (/^(\d)\1{13}$/.test(cnpj)) return false
-  const pesos1 = [5,4,3,2,9,8,7,6,5,4,3,2]
-  const pesos2 = [6,5,4,3,2,9,8,7,6,5,4,3,2]
-  let s = 0
-  for (let i = 0; i < 12; i++) s += +cnpj[i] * pesos1[i]
-  let d = s % 11
-  d = d < 2 ? 0 : 11 - d
-  if (d !== +cnpj[12]) return false
-  s = 0
-  for (let i = 0; i < 13; i++) s += +cnpj[i] * pesos2[i]
-  d = s % 11
-  d = d < 2 ? 0 : 11 - d
-  return d === +cnpj[13]
-}
+

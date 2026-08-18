@@ -3,10 +3,11 @@
 import { revalidatePath } from 'next/cache'
 import { requirePsicologo } from '@/server/lib/auth'
 import { criarPaciente, normalizarTelefone } from '@/server/services/pacientes'
+import { apenasDigitos, validarCpf } from '@/lib/documento'
 
 type Result = { ok: true; pacienteId: string } | { ok: false; error: string }
 
-export async function criarPacienteAction(input: { nome: string; telefone: string; email: string | null; mensagem?: string | null }): Promise<Result> {
+export async function criarPacienteAction(input: { nome: string; telefone: string; email: string | null; cpf?: string | null; mensagem?: string | null }): Promise<Result> {
   const user = await requirePsicologo()
 
   const nome = input.nome.trim()
@@ -18,6 +19,11 @@ export async function criarPacienteAction(input: { nome: string; telefone: strin
   if (!internacional && digits.length < 10) return { ok: false, error: 'Telefone inválido (DDD + número). Para internacional, use + e o código do país.' }
   if (internacional && digits.length < 8) return { ok: false, error: 'Telefone internacional inválido (inclua o código do país após o +).' }
 
+  // CPF é opcional aqui, mas se vier tem que ser válido: um CPF errado só se
+  // revelaria quando o paciente responde PIX e a Pagar.me reprova a charge.
+  const cpf = apenasDigitos(input.cpf)
+  if (cpf && !validarCpf(cpf)) return { ok: false, error: 'CPF inválido — confira os dígitos.' }
+
   const mensagem = input.mensagem?.trim() || null
   if (mensagem && mensagem.length > 1200) return { ok: false, error: 'Mensagem muito longa (máx. 1200 caracteres).' }
 
@@ -25,7 +31,7 @@ export async function criarPacienteAction(input: { nome: string; telefone: strin
     const p = await criarPaciente({
       psicologoId: user.id,
       psicologoNome: user.name ?? 'quem vai te atender',
-      nome, telefone: tel, email: input.email,
+      nome, telefone: tel, email: input.email, cpf,
       mensagemCustom: mensagem,
     })
     revalidatePath('/pacientes')

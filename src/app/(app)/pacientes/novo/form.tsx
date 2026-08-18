@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { useToast } from '@/components/feedback/Toast'
 import { criarPacienteAction } from './actions'
+import { apenasDigitos, formatarCpf } from '@/lib/documento'
 
 // Mantido em sincronia com LINK_TOKEN em server/services/pacientes.ts.
 const LINK_TOKEN = '[link de termos]'
@@ -14,6 +15,7 @@ export function NewPatientForm({ psicologoNome }: { psicologoNome: string }) {
   const [nome, setNome] = useState('')
   const [telefone, setTelefone] = useState('')
   const [email, setEmail] = useState('')
+  const [cpf, setCpf] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   // null = usa o texto padrão (que acompanha o nome digitado); string = editado pelo psicólogo.
@@ -22,7 +24,7 @@ export function NewPatientForm({ psicologoNome }: { psicologoNome: string }) {
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault()
     setLoading(true); setError(null)
-    const result = await criarPacienteAction({ nome, telefone, email: email || null, mensagem })
+    const result = await criarPacienteAction({ nome, telefone, email: email || null, cpf: cpf || null, mensagem })
     setLoading(false)
     if (result.ok) {
       toast(`${(nome.split(' ')[0] || 'Paciente').trim()} cadastrado — convite enviado no WhatsApp`)
@@ -60,6 +62,17 @@ Qualquer dúvida, é só responder por aqui.`
         </Field>
         <Field label="Email (opcional)">
           <input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="email@exemplo.com" />
+        </Field>
+        <Field label="CPF (opcional)">
+          <input
+            value={cpf}
+            onChange={e => setCpf(formatarCpf(apenasDigitos(e.target.value).slice(0, 11)))}
+            placeholder="000.000.000-00"
+            inputMode="numeric"
+          />
+          <span style={{ fontSize: 11, color: 'var(--faint)', lineHeight: 1.4 }}>
+            Necessário para cobrar por <strong>PIX</strong>. Sem ele, só cartão.
+          </span>
         </Field>
 
         {error && <div style={{ color: 'var(--rose)', fontSize: 12 }}>{error}</div>}

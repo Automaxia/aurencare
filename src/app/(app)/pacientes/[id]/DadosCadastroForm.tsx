@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { salvarDadosCadastroAction } from './actions'
 import { SavedBadge } from '@/components/brand/Feedback'
 import type { DadosCadastro, ContatoEmergencia } from '@/server/services/pacientes'
+import { apenasDigitos, formatarCpf } from '@/lib/documento'
 
 const RACA_COR = ['Branca', 'Preta', 'Parda', 'Amarela', 'Indígena', 'Prefiro não informar']
 const GENERO = ['Mulher cis', 'Homem cis', 'Mulher trans', 'Homem trans', 'Travesti', 'Não-binário', 'Outro', 'Prefiro não informar']
@@ -26,7 +27,7 @@ export function DadosCadastroForm({ pacienteId, initial }: { pacienteId: string;
     try {
       const r = await salvarDadosCadastroAction(pacienteId, { ...d, contatosEmergencia: contatos })
       if (r.ok) { setSaved(true); setTimeout(() => setSaved(false), 2500) }
-      else setError('Falha ao salvar.')
+      else setError(r.erro)
     } catch {
       setError('Falha ao salvar.')
     } finally {
@@ -37,12 +38,19 @@ export function DadosCadastroForm({ pacienteId, initial }: { pacienteId: string;
   return (
     <div className="card" style={{ display: 'grid', gap: 14, maxWidth: 720 }}>
       <div style={{ fontSize: 11, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '.06em' }}>
-        Dados cadastrais <span style={{ textTransform: 'none', color: 'var(--faint)' }}>· todos opcionais</span>
+        Dados cadastrais <span style={{ textTransform: 'none', color: 'var(--faint)' }}>· opcionais, exceto onde indicado</span>
       </div>
 
       <div className="dc-grid">
         <Campo label="Nome social"><input value={d.nomeSocial ?? ''} onChange={e => set({ nomeSocial: e.target.value })} placeholder="Como prefere ser chamado(a)" /></Campo>
-        <Campo label="CPF"><input value={d.cpf ?? ''} onChange={e => set({ cpf: e.target.value })} inputMode="numeric" placeholder="000.000.000-00" /></Campo>
+        <Campo label="CPF" hint="necessário para cobrar por PIX">
+          <input
+            value={d.cpf ? formatarCpf(d.cpf) : ''}
+            onChange={e => set({ cpf: apenasDigitos(e.target.value).slice(0, 11) })}
+            inputMode="numeric"
+            placeholder="000.000.000-00"
+          />
+        </Campo>
 
         <Campo label="País"><input value={d.pais ?? ''} onChange={e => set({ pais: e.target.value })} placeholder="Brasil" /></Campo>
         <Campo label="Estado"><input value={d.estado ?? ''} onChange={e => set({ estado: e.target.value })} placeholder="SP" /></Campo>
@@ -108,10 +116,13 @@ export function DadosCadastroForm({ pacienteId, initial }: { pacienteId: string;
   )
 }
 
-function Campo({ label, children }: { label: string; children: React.ReactNode }) {
+function Campo({ label, hint, children }: { label: string; hint?: string; children: React.ReactNode }) {
   return (
     <label style={{ display: 'grid', gap: 4 }}>
-      <span style={{ fontSize: 11, color: 'var(--muted)' }}>{label}</span>
+      <span style={{ fontSize: 11, color: 'var(--muted)' }}>
+        {label}
+        {hint && <span style={{ color: 'var(--faint)' }}> · {hint}</span>}
+      </span>
       {children}
     </label>
   )

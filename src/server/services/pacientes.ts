@@ -6,6 +6,7 @@ import { enviarEmail } from '@/server/lib/email'
 import { tplPacienteBoasVindas } from '@/server/lib/emailTemplates'
 import { env } from '@/server/lib/env'
 import { log } from '@/server/lib/log'
+import { apenasDigitos, validarCpf } from '@/lib/documento'
 
 /** Resolve o psicólogo dono do paciente — para atribuir custo de IA a quem é (ver custos.ts). */
 export async function psicologoDoPaciente(pacienteId: string): Promise<string | null> {
@@ -126,6 +127,12 @@ export type CriarPacienteInput = {
   nome: string
   telefone: string
   email?: string | null
+  /**
+   * CPF (só dígitos). Opcional no cadastro, mas **obrigatório para cobrar via
+   * PIX** — a Pagar.me exige `customer.document`. Coletar aqui evita o beco sem
+   * saída de o paciente responder "PIX" no WhatsApp e não haver como gerar o QR.
+   */
+  cpf?: string | null
   /** Mensagem de boas-vindas (WhatsApp) editada pelo psicólogo. Null = template padrão. */
   mensagemCustom?: string | null
 }
@@ -153,11 +160,16 @@ function aplicarLinkBoasVindas(mensagem: string, link: string): string {
 
 export async function criarPaciente(input: CriarPacienteInput): Promise<Paciente> {
   const token = randomUUID().replace(/-/g, '').slice(0, 24)
+  const cpf = apenasDigitos(input.cpf)
+  const dadosCadastro: DadosCadastro = cpf ? { cpf } : {}
   const { rows } = await db.query(
-    `INSERT INTO pacientes (psicologo_id, nome, telefone, email, consentimento_token)
-     VALUES ($1, $2, $3, $4, $5)
+    `INSERT INTO pacientes (psicologo_id, nome, telefone, email, consentimento_token, dados_cadastro)
+     VALUES ($1, $2, $3, $4, $5, $6)
      RETURNING *`,
-    [input.psicologoId, input.nome.trim(), normalizarTelefone(input.telefone), input.email?.trim() || null, token],
+    [
+      input.psicologoId, input.nome.trim(), normalizarTelefone(input.telefone),
+      input.email?.trim() || null, token, JSON.stringify(dadosCadastro),
+    ],
   )
   const paciente = rowToPaciente(rows[0])
 
@@ -386,6 +398,12 @@ async function buscarPacientePorId(pacienteId: string): Promise<Paciente | null>
 export type ContatoEmergencia = { nome?: string; telefone?: string; email?: string }
 export type DadosCadastro = {
   nomeSocial?: string
+  /**
+   * CPF do paciente (armazenado só com dígitos).
+   * Formalmente opcional, mas **obrigatório para cobrar via PIX**: a Pagar.me
+   * exige `customer.document` e, sem ele, reprova a charge e devolve a order
+   * sem `qr_code`. Validado por dígito verificador ao salvar.
+   */
   cpf?: string
   pais?: string
   estado?: string
@@ -407,15 +425,30 @@ export async function buscarDadosCadastro(psicologoId: string, pacienteId: strin
   return rows[0]?.dados_cadastro ?? {}
 }
 
+export type SalvarDadosCadastroResult =
+  | { ok: true }
+  | { ok: false; erro: string; campo?: keyof DadosCadastro }
+
 export async function salvarDadosCadastro(
   psicologoId: string, pacienteId: string, dados: DadosCadastro,
-): Promise<{ ok: boolean }> {
+): Promise<SalvarDadosCadastroResult> {
   // Limpa strings vazias e contatos sem nenhum dado.
   const limpo: DadosCadastro = {}
   for (const [k, v] of Object.entries(dados)) {
     if (k === 'contatosEmergencia') continue
     const s = typeof v === 'string' ? v.trim() : v
     if (s) (limpo as any)[k] = s
+  }
+
+  // CPF: guardar só dígitos e barrar inválido aqui. Um CPF errado só apareceria
+  // lá na frente, quando o paciente responde PIX no WhatsApp e a Pagar.me
+  // reprova a charge — tarde demais, e com mensagem genérica.
+  if (limpo.cpf) {
+    const cpf = apenasDigitos(limpo.cpf)
+    if (!validarCpf(cpf)) {
+      return { ok: false, erro: 'CPF inválido — confira os dígitos.', campo: 'cpf' }
+    }
+    limpo.cpf = cpf
   }
   const contatos = (dados.contatosEmergencia ?? [])
     .map(c => ({ nome: c.nome?.trim() || undefined, telefone: c.telefone?.replace(/\s+/g, ' ').trim() || undefined, email: c.email?.trim() || undefined }))
@@ -426,6 +459,7 @@ export async function salvarDadosCadastro(
     `UPDATE pacientes SET dados_cadastro = $3 WHERE id = $1 AND psicologo_id = $2`,
     [pacienteId, psicologoId, JSON.stringify(limpo)],
   )
-  if (rowCount) log.ok('paciente.dadosCadastro', `id=${pacienteId}`)
-  return { ok: (rowCount ?? 0) > 0 }
+  if (!rowCount) return { ok: false, erro: 'Paciente não encontrado.' }
+  log.ok('paciente.dadosCadastro', `id=${pacienteId}`)
+  return { ok: true }
 }

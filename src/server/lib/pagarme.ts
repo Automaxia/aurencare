@@ -3,6 +3,7 @@ import axios from 'axios'
 import { env, integrationStatus } from './env'
 import { log } from './log'
 import { comissaoSessaoCentavos } from './planos'
+import { isRecipientMock } from './pagarmeRecipient'
 
 /**
  * Cliente Pagar.me v5. §10 (pagamentos).
@@ -57,6 +58,17 @@ export function montarSplitSessao(
   const plataforma = env.pagarmeRecipientPlataforma
   if (!recipientPsicologo) {
     log.warn('pagarme', `${escopo}: psicólogo sem pagarme_recipient_id — cobrança SEM split (valor fica na conta-mãe)`)
+    return null
+  }
+  // Rede de segurança: `lerStatusOnboarding` já filtra, mas um recipient
+  // sintético que escapasse até aqui derrubaria a ORDER INTEIRA na Pagar.me —
+  // o paciente não receberia cobrança nenhuma. Melhor cair para sem-split.
+  if (isRecipientMock(recipientPsicologo)) {
+    log.err('pagarme', `${escopo}: recipient ${recipientPsicologo} é sintético (modo mock) — cobrança SEM split; psicólogo precisa refazer o onboarding de recebimento`, undefined)
+    return null
+  }
+  if (isRecipientMock(plataforma)) {
+    log.err('pagarme', `${escopo}: PAGARME_RECIPIENT_PLATAFORMA é sintético — cobrança SEM split`, undefined)
     return null
   }
   if (!plataforma) {
