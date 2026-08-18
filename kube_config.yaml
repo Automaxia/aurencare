@@ -1,0 +1,20 @@
+apiVersion: v1
+kind: Config
+clusters:
+- name: "local"
+  cluster:
+    server: "https://rancher.automaxia.com.br/k8s/clusters/local"
+
+users:
+- name: "local"
+  user:
+    token: "kubeconfig-user-9mf7n7rbm9:lr7nrrpb54mnpdvjcpgcj2dk74dkcjjfpfls99mg54mf99z2rddv92"
+
+
+contexts:
+- name: "local"
+  context:
+    user: "local"
+    cluster: "local"
+
+current-context: "local"

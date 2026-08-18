@@ -321,6 +321,67 @@ export function traduzirRecusa(
   }
 }
 
+/** Rascunho do onboarding, para repovoar o wizard numa nova tentativa. */
+export type RascunhoOnboarding = {
+  tipoPessoa: 'PF' | 'PJ'
+  documento: string
+  razaoSocial: string
+  dataNascimento: string
+  rendaCentavos: number | null
+  endCep: string; endLogradouro: string; endNumero: string; endComplemento: string
+  endBairro: string; endCidade: string; endUf: string
+  socioNome: string; socioCpf: string; socioNascimento: string
+  socioEmail: string; socioTelefone: string; socioRendaCentavos: number | null
+  bancoCodigo: string; bancoAgencia: string; bancoAgenciaDv: string
+  bancoConta: string; bancoContaDv: string; bancoTipo: 'corrente' | 'poupanca'
+  titularNome: string; titularDocumento: string
+}
+
+/**
+ * Lê o que já foi salvo para repovoar o wizard. Devolve `null` se a pessoa
+ * nunca chegou a enviar nada.
+ *
+ * Os documentos vêm DECIFRADOS: são dados do próprio titular, numa sessão
+ * autenticada dele, e o objetivo aqui é justamente não obrigá-lo a redigitar.
+ * Difere da tela de /perfil/recebimentos, que só EXIBE e por isso mascara.
+ */
+export async function lerRascunhoOnboarding(psicologoId: string): Promise<RascunhoOnboarding | null> {
+  const { rows } = await db.query<any>(
+    `SELECT pgm_tipo_pessoa, pgm_documento, pgm_razao_social, pgm_data_nascimento,
+            pgm_renda_centavos, pgm_end_cep, pgm_end_logradouro, pgm_end_numero,
+            pgm_end_complemento, pgm_end_bairro, pgm_end_cidade, pgm_end_uf,
+            pgm_socio_nome, pgm_socio_cpf, pgm_socio_nascimento, pgm_socio_email,
+            pgm_socio_telefone, pgm_socio_renda_centavos, pgm_banco_codigo,
+            pgm_banco_agencia, pgm_banco_agencia_dv, pgm_banco_conta,
+            pgm_banco_conta_dv, pgm_banco_tipo, pgm_titular_nome, pgm_titular_documento
+       FROM psicologos WHERE id = $1 LIMIT 1`,
+    [psicologoId],
+  )
+  const r = rows[0]
+  if (!r || !r.pgm_tipo_pessoa) return null   // nunca enviou o formulário
+
+  const dia = (d: any) => (d ? new Date(d).toISOString().slice(0, 10) : '')
+  return {
+    tipoPessoa: r.pgm_tipo_pessoa === 'PJ' ? 'PJ' : 'PF',
+    documento: tryDecrypt(r.pgm_documento) ?? '',
+    razaoSocial: r.pgm_razao_social ?? '',
+    dataNascimento: dia(r.pgm_data_nascimento),
+    rendaCentavos: r.pgm_renda_centavos ?? null,
+    endCep: r.pgm_end_cep ?? '', endLogradouro: r.pgm_end_logradouro ?? '',
+    endNumero: r.pgm_end_numero ?? '', endComplemento: r.pgm_end_complemento ?? '',
+    endBairro: r.pgm_end_bairro ?? '', endCidade: r.pgm_end_cidade ?? '',
+    endUf: r.pgm_end_uf ?? '',
+    socioNome: r.pgm_socio_nome ?? '', socioCpf: tryDecrypt(r.pgm_socio_cpf) ?? '',
+    socioNascimento: dia(r.pgm_socio_nascimento), socioEmail: r.pgm_socio_email ?? '',
+    socioTelefone: r.pgm_socio_telefone ?? '', socioRendaCentavos: r.pgm_socio_renda_centavos ?? null,
+    bancoCodigo: r.pgm_banco_codigo ?? '', bancoAgencia: r.pgm_banco_agencia ?? '',
+    bancoAgenciaDv: r.pgm_banco_agencia_dv ?? '', bancoConta: r.pgm_banco_conta ?? '',
+    bancoContaDv: r.pgm_banco_conta_dv ?? '',
+    bancoTipo: r.pgm_banco_tipo === 'poupanca' ? 'poupanca' : 'corrente',
+    titularNome: r.pgm_titular_nome ?? '', titularDocumento: tryDecrypt(r.pgm_titular_documento) ?? '',
+  }
+}
+
 export async function salvarOnboarding(psicologoId: string, input: OnboardingInput): Promise<SalvarResult> {
   const v = validar(input)
   if (v) return { ok: false, error: v.error, campo: v.campo }
@@ -382,65 +443,62 @@ export async function salvarOnboarding(psicologoId: string, input: OnboardingInp
     },
   }
 
-  let recipientId: string
-  try {
-    const r = await criarRecipient(recipientInput)
-    recipientId = r.recipientId
-  } catch (err) {
-    if (err instanceof PagarmeRecipientError) {
-      const t = traduzirRecusa(err.campos, err.status, err.mensagemGeral)
-      log.err('onboardingPagamento', `pagar.me recusou — campo=${t.campo ?? 'desconhecido'}`, err.detalhe)
-      return { ok: false, error: t.error, campo: t.campo }
-    }
-    log.err('onboardingPagamento', 'pagar.me recusou', err)
-    return { ok: false, error: 'Não foi possível registrar seus dados no Pagar.me. Tente novamente em alguns minutos.' }
-  }
-
+  /*
+   * ORDEM IMPORTA: grava os dados ANTES de chamar a Pagar.me.
+   *
+   * Antes era o contrário, e uma recusa da Pagar.me descartava tudo — a pessoa
+   * preenchia três passos de formulário (documento, endereço, sócio, banco,
+   * PIX) e recebia o erro com o banco vazio. Como o bloqueio de conta (412
+   * action_forbidden) recusa TODAS as tentativas, ela redigitava tudo a cada
+   * vez, para falhar igual.
+   *
+   * `pgm_onboarding_em` e `pagarme_recipient_id` NÃO entram aqui: são o que
+   * marca o onboarding como concluído (`lerStatusOnboarding`). Sem recebedor,
+   * o cadastro fica salvo mas incompleto — que é a verdade.
+   */
   const chavePixTipo = input.chavePix?.tipo ?? null
   const chavePixValor = input.chavePix ? encrypt(normalizarChavePix(input.chavePix.tipo, input.chavePix.valor)) : null
 
   try {
     await db.query(
       `UPDATE psicologos SET
-         pagarme_recipient_id = $2,
-         pgm_tipo_pessoa = $3,
-         pgm_documento = $4,
-         pgm_razao_social = $5,
-         pgm_data_nascimento = $6,
-         pgm_renda_centavos = $7,
-         pgm_banco_codigo = $8,
-         pgm_banco_agencia = $9,
-         pgm_banco_agencia_dv = $10,
-         pgm_banco_conta = $11,
-         pgm_banco_conta_dv = $12,
-         pgm_banco_tipo = $13,
-         pgm_titular_nome = $14,
-         pgm_titular_documento = $15,
-         pgm_chave_pix_tipo = $16,
-         pgm_chave_pix_valor = $17,
-         pgm_end_cep = $18,
-         pgm_end_logradouro = $19,
-         pgm_end_numero = $20,
-         pgm_end_complemento = $21,
-         pgm_end_bairro = $22,
-         pgm_end_cidade = $23,
-         pgm_end_uf = $24,
-         pgm_socio_nome = $25,
-         pgm_socio_cpf = $26,
-         pgm_socio_nascimento = $27,
-         pgm_socio_email = $28,
-         pgm_socio_telefone = $29,
-         pgm_socio_renda_centavos = $30,
+         pgm_tipo_pessoa = $2,
+         pgm_documento = $3,
+         pgm_razao_social = $4,
+         pgm_data_nascimento = $5,
+         pgm_renda_centavos = $6,
+         pgm_banco_codigo = $7,
+         pgm_banco_agencia = $8,
+         pgm_banco_agencia_dv = $9,
+         pgm_banco_conta = $10,
+         pgm_banco_conta_dv = $11,
+         pgm_banco_tipo = $12,
+         pgm_titular_nome = $13,
+         pgm_titular_documento = $14,
+         pgm_chave_pix_tipo = $15,
+         pgm_chave_pix_valor = $16,
+         pgm_end_cep = $17,
+         pgm_end_logradouro = $18,
+         pgm_end_numero = $19,
+         pgm_end_complemento = $20,
+         pgm_end_bairro = $21,
+         pgm_end_cidade = $22,
+         pgm_end_uf = $23,
+         pgm_socio_nome = $24,
+         pgm_socio_cpf = $25,
+         pgm_socio_nascimento = $26,
+         pgm_socio_email = $27,
+         pgm_socio_telefone = $28,
+         pgm_socio_renda_centavos = $29,
          -- Na PF o documento do recebedor É o CPF da pessoa: aproveita pra
          -- preencher a identificação fiscal de quem se cadastrou antes de o
          -- campo existir. COALESCE e não atribuição direta — o CPF do cadastro
          -- é a fonte de verdade; aqui só se tapa buraco. Na PJ o documento é
-         -- CNPJ e $31 vem null, então nada muda.
-         cpf = COALESCE(cpf, $31),
-         pgm_onboarding_em = NOW()
+         -- CNPJ e $30 vem null, então nada muda.
+         cpf = COALESCE(cpf, $30)
        WHERE id = $1`,
       [
-        psicologoId, recipientId, input.tipoPessoa,
+        psicologoId, input.tipoPessoa,
         encrypt(docNum), input.razaoSocial.trim(), input.dataNascimento, input.rendaCentavos,
         input.banco.codigo, input.banco.agencia.replace(/\D/g, ''), input.banco.agenciaDv?.replace(/\D/g, '') || null,
         input.banco.conta.replace(/\D/g, ''), input.banco.contaDv.replace(/\D/g, ''),
@@ -457,12 +515,38 @@ export async function salvarOnboarding(psicologoId: string, input: OnboardingInp
         input.tipoPessoa === 'PF' ? encrypt(docNum) : null,
       ],
     )
-    log.ok('onboardingPagamento', `concluído psicologo=${psicologoId} recipient=${recipientId}`)
-    return { ok: true, recipientId }
+    log.ok('onboardingPagamento', `rascunho salvo psicologo=${psicologoId}`)
   } catch (err) {
-    log.err('onboardingPagamento', 'falha ao persistir', err)
+    log.err('onboardingPagamento', 'falha ao salvar rascunho', err)
+    return { ok: false, error: 'Não conseguimos salvar seus dados agora. Tente novamente.' }
+  }
+
+  let recipientId: string
+  try {
+    const r = await criarRecipient(recipientInput)
+    recipientId = r.recipientId
+  } catch (err) {
+    if (err instanceof PagarmeRecipientError) {
+      const t = traduzirRecusa(err.campos, err.status, err.mensagemGeral)
+      log.err('onboardingPagamento', `pagar.me recusou — campo=${t.campo ?? 'desconhecido'}`, err.detalhe)
+      return { ok: false, error: t.error, campo: t.campo }
+    }
+    log.err('onboardingPagamento', 'pagar.me recusou', err)
+    return { ok: false, error: 'Não foi possível registrar seus dados no Pagar.me. Tente novamente em alguns minutos.' }
+  }
+
+  // Recebedor criado: agora sim o onboarding está completo.
+  try {
+    await db.query(
+      `UPDATE psicologos SET pagarme_recipient_id = $2, pgm_onboarding_em = NOW() WHERE id = $1`,
+      [psicologoId, recipientId],
+    )
+  } catch (err) {
+    log.err('onboardingPagamento', 'recebedor criado mas não gravado', err)
     return { ok: false, error: 'Recebedor criado, mas não conseguimos salvar seus dados. Suporte foi notificado.' }
   }
+  log.ok('onboardingPagamento', `concluído psicologo=${psicologoId} recipient=${recipientId}`)
+  return { ok: true, recipientId }
 }
 
 function validar(input: OnboardingInput): { error: string; campo: CampoErro } | null {

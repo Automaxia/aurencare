@@ -1,5 +1,5 @@
 import { requirePsicologo } from '@/server/lib/auth'
-import { lerStatusOnboarding } from '@/server/services/onboardingPagamento'
+import { lerStatusOnboarding, lerRascunhoOnboarding } from '@/server/services/onboardingPagamento'
 import { redirect } from 'next/navigation'
 import { Wizard } from './wizard'
 
@@ -10,5 +10,9 @@ export default async function OnboardingRecebimentosPage() {
   const status = await lerStatusOnboarding(user.id)
   if (status.completo) redirect('/')
 
-  return <Wizard nomePsicologa={user.name ?? ''} />
+  // Tentativa anterior que a Pagar.me recusou deixa os dados salvos — repovoa
+  // o formulário em vez de fazer a pessoa redigitar os três passos.
+  const rascunho = await lerRascunhoOnboarding(user.id)
+
+  return <Wizard nomePsicologa={user.name ?? ''} inicial={rascunho} />
 }

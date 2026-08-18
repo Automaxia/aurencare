@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { Clock } from 'lucide-react'
 import { salvarOnboardingAction } from './actions'
-import type { OnboardingInput, CampoErro, TipoChavePix } from '@/server/services/onboardingPagamento'
+import type { OnboardingInput, CampoErro, TipoChavePix, RascunhoOnboarding } from '@/server/services/onboardingPagamento'
 
 /**
  * Wizard pós-cadastro (2 passos) — coleta dados do Recipient Pagar.me.
@@ -12,7 +12,11 @@ import type { OnboardingInput, CampoErro, TipoChavePix } from '@/server/services
  * até `pgm_onboarding_em` ser preenchido (ver service).
  */
 
-type Props = { nomePsicologa: string }
+type Props = {
+  nomePsicologa: string
+  /** Dados de uma tentativa anterior; `null` quando nunca enviou. */
+  inicial?: RascunhoOnboarding | null
+}
 
 // Top bancos brasileiros (Pagar.me aceita todos com código FEBRABAN).
 // Lista enxuta — se faltar algum, dá pra digitar manualmente.
@@ -58,45 +62,47 @@ const PASSO_DO_CAMPO: Record<string, 1 | 2 | 3> = {
   chavePixTipo: 3, chavePixValor: 3,
 }
 
-export function Wizard({ nomePsicologa }: Props) {
+export function Wizard({ nomePsicologa, inicial }: Props) {
+  const i = inicial ?? null
+  const reais = (c: number | null | undefined) => (c ? String(c / 100) : '')
   const router = useRouter()
   const [step, setStep] = useState<Step>(1)
 
   // Passo 1
-  const [tipoPessoa, setTipoPessoa] = useState<'PF' | 'PJ'>('PF')
-  const [documento, setDocumento] = useState('')
-  const [razaoSocial, setRazaoSocial] = useState(nomePsicologa)
-  const [dataNascimento, setDataNascimento] = useState('')
-  const [rendaReais, setRendaReais] = useState('')
+  const [tipoPessoa, setTipoPessoa] = useState<'PF' | 'PJ'>(i?.tipoPessoa ?? 'PF')
+  const [documento, setDocumento] = useState(i?.documento ?? '')
+  const [razaoSocial, setRazaoSocial] = useState(i?.razaoSocial || nomePsicologa)
+  const [dataNascimento, setDataNascimento] = useState(i?.dataNascimento ?? '')
+  const [rendaReais, setRendaReais] = useState(reais(i?.rendaCentavos))
 
   // Endereço — a Pagar.me recusa o recebedor sem ele (PF e PJ).
-  const [endCep, setEndCep] = useState('')
-  const [endLogradouro, setEndLogradouro] = useState('')
-  const [endNumero, setEndNumero] = useState('')
-  const [endComplemento, setEndComplemento] = useState('')
-  const [endBairro, setEndBairro] = useState('')
-  const [endCidade, setEndCidade] = useState('')
-  const [endUf, setEndUf] = useState('')
+  const [endCep, setEndCep] = useState(i?.endCep ?? '')
+  const [endLogradouro, setEndLogradouro] = useState(i?.endLogradouro ?? '')
+  const [endNumero, setEndNumero] = useState(i?.endNumero ?? '')
+  const [endComplemento, setEndComplemento] = useState(i?.endComplemento ?? '')
+  const [endBairro, setEndBairro] = useState(i?.endBairro ?? '')
+  const [endCidade, setEndCidade] = useState(i?.endCidade ?? '')
+  const [endUf, setEndUf] = useState(i?.endUf ?? '')
   const [buscandoCep, setBuscandoCep] = useState(false)
 
   // Sócio administrador — obrigatório só para PJ (managing_partners).
-  const [socioNome, setSocioNome] = useState('')
-  const [socioCpf, setSocioCpf] = useState('')
-  const [socioNascimento, setSocioNascimento] = useState('')
-  const [socioEmail, setSocioEmail] = useState('')
-  const [socioTelefone, setSocioTelefone] = useState('')
-  const [socioRendaReais, setSocioRendaReais] = useState('')
+  const [socioNome, setSocioNome] = useState(i?.socioNome ?? '')
+  const [socioCpf, setSocioCpf] = useState(i?.socioCpf ?? '')
+  const [socioNascimento, setSocioNascimento] = useState(i?.socioNascimento ?? '')
+  const [socioEmail, setSocioEmail] = useState(i?.socioEmail ?? '')
+  const [socioTelefone, setSocioTelefone] = useState(i?.socioTelefone ?? '')
+  const [socioRendaReais, setSocioRendaReais] = useState(reais(i?.socioRendaCentavos))
 
   // Passo 2
-  const [bancoCodigo, setBancoCodigo] = useState('')
-  const [bancoAgencia, setBancoAgencia] = useState('')
-  const [bancoAgenciaDv, setBancoAgenciaDv] = useState('')
-  const [bancoConta, setBancoConta] = useState('')
-  const [bancoContaDv, setBancoContaDv] = useState('')
-  const [bancoTipo, setBancoTipo] = useState<'corrente' | 'poupanca'>('corrente')
-  const [souTitular, setSouTitular] = useState(true)
-  const [titularNome, setTitularNome] = useState(nomePsicologa)
-  const [titularDocumento, setTitularDocumento] = useState('')
+  const [bancoCodigo, setBancoCodigo] = useState(i?.bancoCodigo ?? '')
+  const [bancoAgencia, setBancoAgencia] = useState(i?.bancoAgencia ?? '')
+  const [bancoAgenciaDv, setBancoAgenciaDv] = useState(i?.bancoAgenciaDv ?? '')
+  const [bancoConta, setBancoConta] = useState(i?.bancoConta ?? '')
+  const [bancoContaDv, setBancoContaDv] = useState(i?.bancoContaDv ?? '')
+  const [bancoTipo, setBancoTipo] = useState<'corrente' | 'poupanca'>(i?.bancoTipo ?? 'corrente')
+  const [souTitular, setSouTitular] = useState(i ? i.titularDocumento === i.documento : true)
+  const [titularNome, setTitularNome] = useState(i?.titularNome || nomePsicologa)
+  const [titularDocumento, setTitularDocumento] = useState(i?.titularDocumento ?? '')
 
   // Passo 3 — chave PIX (opcional)
   const [usaChavePix, setUsaChavePix] = useState(false)
