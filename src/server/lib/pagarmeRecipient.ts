@@ -221,16 +221,25 @@ export async function criarRecipient(input: RecipientInput): Promise<RecipientCr
     log.ok('pagarme.recipient', `criado ${data.id} (status=${data.status})`)
     return { recipientId: data.id, status: data.status ?? 'registration' }
   } catch (err) {
-    const detail = axios.isAxiosError(err) ? err.response?.data : err
+    const ax = axios.isAxiosError(err) ? err : null
+    const detail = ax ? ax.response?.data : err
+    const status = ax?.response?.status ?? null
     const campos = extrairErrosDeCampo(detail)
+    // Sem `errors` por campo, a Pagar.me ainda manda um `message` no topo — é
+    // o formato de 401/403/5xx. Perder essa string é perder o diagnóstico
+    // inteiro: sobra só "tente de novo", que não diz nada a ninguém.
+    const mensagemGeral =
+      (detail as any)?.message ??
+      (ax ? (ax.code === 'ECONNABORTED' ? 'timeout na chamada à Pagar.me' : ax.message) : null)
+
     log.err(
       'pagarme.recipient',
-      campos.length
-        ? `falha ao criar — campos recusados: ${campos.map(c => c.caminho).join(', ')}`
-        : 'falha ao criar',
+      `falha ao criar — http=${status ?? '?'}` +
+        (campos.length ? ` campos=${campos.map(c => c.caminho).join(', ')}` : '') +
+        (mensagemGeral ? ` msg=${mensagemGeral}` : ''),
       detail,
     )
-    throw new PagarmeRecipientError(campos, detail)
+    throw new PagarmeRecipientError(campos, detail, status, mensagemGeral)
   }
 }
 
@@ -245,7 +254,14 @@ export type CampoRecusado = { caminho: string; mensagens: string[] }
  * ou sócio. Quem via a mensagem revisava a conta bancária, que estava certa.
  */
 export class PagarmeRecipientError extends Error {
-  constructor(public readonly campos: CampoRecusado[], public readonly detalhe: unknown) {
+  constructor(
+    public readonly campos: CampoRecusado[],
+    public readonly detalhe: unknown,
+    /** HTTP devolvido pela Pagar.me (401/403 = credencial ou permissão). */
+    public readonly status: number | null = null,
+    /** `message` do topo da resposta — existe mesmo quando não há erro por campo. */
+    public readonly mensagemGeral: string | null = null,
+  ) {
     super('pagarme_recipient_failed')
     this.name = 'PagarmeRecipientError'
   }

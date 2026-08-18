@@ -272,7 +272,11 @@ const RECUSA_PARA_CAMPO: [RegExp, CampoErro, string][] = [
   [/\bname\b/i,                      'razaoSocial',     'Nome recusado pela Pagar.me — informe o nome completo, como no documento.'],
 ]
 
-export function traduzirRecusa(campos: CampoRecusado[]): { error: string; campo?: CampoErro } {
+export function traduzirRecusa(
+  campos: CampoRecusado[],
+  status: number | null = null,
+  mensagemGeral: string | null = null,
+): { error: string; campo?: CampoErro } {
   for (const c of campos) {
     const alvo = `${c.caminho} ${c.mensagens.join(' ')}`
     for (const [re, campo, msg] of RECUSA_PARA_CAMPO) {
@@ -281,10 +285,20 @@ export function traduzirRecusa(campos: CampoRecusado[]): { error: string; campo?
   }
   // Recusa que não sabemos mapear: mostra o que a Pagar.me disse, em vez de
   // apontar o dedo pra conta bancária sem base.
-  const bruto = campos[0]?.mensagens[0]
+  const bruto = campos[0]?.mensagens[0] ?? mensagemGeral
+  // 401/403 não é dado do psicólogo — é credencial ou permissão nossa. Mandar
+  // ele "conferir os dados" seria empurrar um problema de configuração para
+  // quem não pode resolvê-lo.
+  if (status === 401 || status === 403) {
+    return {
+      error: 'Nosso acesso à Pagar.me foi recusado (' + status + ')' +
+        (bruto ? `: ${bruto}` : '') +
+        '. Não é problema nos seus dados — o suporte já foi avisado.',
+    }
+  }
   return {
     error: bruto
-      ? `A Pagar.me recusou o cadastro: ${bruto}`
+      ? `A Pagar.me recusou o cadastro (${status ?? 'erro'}): ${bruto}`
       : 'Não foi possível registrar seus dados no Pagar.me. Tente novamente em alguns minutos.',
   }
 }
@@ -356,7 +370,7 @@ export async function salvarOnboarding(psicologoId: string, input: OnboardingInp
     recipientId = r.recipientId
   } catch (err) {
     if (err instanceof PagarmeRecipientError) {
-      const t = traduzirRecusa(err.campos)
+      const t = traduzirRecusa(err.campos, err.status, err.mensagemGeral)
       log.err('onboardingPagamento', `pagar.me recusou — campo=${t.campo ?? 'desconhecido'}`, err.detalhe)
       return { ok: false, error: t.error, campo: t.campo }
     }
