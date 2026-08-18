@@ -54,11 +54,13 @@ Legenda prioridade: **P0** crítico (segurança/risco) · **P1** importante · *
 > esquecida. **Enquanto isso, todo valor abaixo deve ser o do ambiente sandbox.**
 
 ### Agora (para exercitar o fluxo em sandbox)
-- ⏳ **P0** `PAGARME_WEBHOOK_SECRET` **do painel sandbox** no cluster. Hoje é
-  `change-me`: como produção roda com `NODE_ENV=production`, o webhook é
-  fail-closed e responde **503** — **nenhuma sessão é confirmada** (viola P4),
-  mesmo em sandbox. Cadastrar também a URL no painel:
-  `https://app.audere.ia.br/api/webhooks/pagarme`.
+- ✅ **Webhook funcionando** (ago/2026). Três defeitos corrigidos de uma vez:
+  a URL apontava para `aurencare.automaxia.com.br` (domínio **morto**, curl → 000);
+  o código validava **HMAC** enquanto a Pagar.me usa **Basic Auth**; e o máximo de
+  tentativas era 1. Agora: URL `app.audere.ia.br`, Basic Auth com
+  `PAGARME_WEBHOOK_USER`/`PAGARME_WEBHOOK_SECRET` no cluster, 3 tentativas.
+  Verificado em produção: sem credencial → 401, credencial errada → 401,
+  credencial correta → 200.
 - ⏳ **P0** `PAGARME_RECIPIENT_PLATAFORMA` — recipient **da conta sandbox** da
   Audere, destino da comissão. Sem ele a cobrança sai **sem split** (valor
   inteiro na conta-mãe).

@@ -150,10 +150,17 @@ sessões em curso (15min). Recálculo de grafo **não** é cron — é sob deman
   `ENCRYPTION_KEY` torna dados ilegíveis** — não rotacionar sem migração.
 - **aiGuard** (`src/server/lib/aiGuard.ts`): valida e sanitiza saída da IA; bloqueia
   assinatura com termos proibidos. `CLINICAL_VOICE` prefixado em todo prompt.
-- **Webhooks** (`src/server/lib/webhookAuth.ts`): HMAC **fixo em SHA-256** (não
-  deriva do prefixo do header, para evitar downgrade a sha1), comparação em tempo
-  constante. **Fail-closed em produção**: sem secret configurado, responde 503;
-  em dev, aceita com warning.
+- **Webhooks** (`src/server/lib/webhookAuth.ts`), três mecanismos:
+  - **Pagar.me → HTTP Basic Auth.** É o que o painel oferece ("Habilitar
+    autenticação" → Usuário + Senha) e o que ela envia
+    (`Authorization: Basic base64(user:senha)`). **Não** manda X-Hub-Signature —
+    o código validava HMAC e por isso nenhum secret jamais casaria.
+    Envs: `PAGARME_WEBHOOK_USER` + `PAGARME_WEBHOOK_SECRET` (a senha).
+  - **HMAC SHA-256** mantido como segundo caminho (fixo em sha256, sem derivar do
+    header, para evitar downgrade a sha1).
+  - **Evolution → token compartilhado** (`x-webhook-token` / `?token=`).
+  Comparação sempre em tempo constante. **Fail-closed em produção**: sem nenhum
+  mecanismo configurado, responde 503; em dev, aceita com warning.
 - **Assinatura**: evento de renovação não ressuscita plano cancelado, e a data de
   expiração vinda do payload é **clampada** em `agora + ciclo + 7d` (anti-forja).
 - **Cartão** nunca passa pelo servidor: tokenização no browser contra a API da
