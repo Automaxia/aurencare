@@ -112,10 +112,10 @@ export function Hero() {
         <h1 className="serif h3d-title" key={'t' + sectionIdx}>{s.title}</h1>
         <p className="h3d-sub" key={'s' + sectionIdx}>{s.sub}</p>
         <div className="h3d-cta">
-          <button className="btn-lp btn-lp-primary" onClick={() => scrollTo('acesso')}>Solicitar acesso antecipado →</button>
+          <button className="btn-lp btn-lp-primary" onClick={() => scrollTo('acesso')}>Comece grátis →</button>
           <button className="btn-lp btn-lp-ghost" onClick={() => scrollTo('plataforma')}>Explorar a plataforma</button>
         </div>
-        <div className="hero-v2-reassure">Beta por convite · <strong>sem mensalidade durante o beta</strong></div>
+        <div className="hero-v2-reassure">Grátis para começar · <strong>sem cartão, sem fidelidade</strong></div>
         {!reduce.current && <div className="h3d-prog" key={'p' + seqIdx} style={{ ['--dwell' as any]: ((DWELL[curKey] || 12000) / 1000) + 's' }}><span /></div>}
       </div>
 

@@ -3,12 +3,14 @@
 import { useMemo, useState } from 'react'
 import { salvarPerfilAction, type SalvarInput } from './actions'
 import { SavedBadge } from '@/components/brand/Feedback'
+import { apenasDigitos, formatarCpf } from '@/lib/documento'
 
 type InitialPerfil = {
   nome: string
   crp: string
   email: string
   telefone: string
+  cpf: string
   valorSessao: number | null
   genero: 'f' | 'm' | null
   abordagem: string
@@ -25,6 +27,7 @@ export function PerfilForm({ initial, emailAtual, waConectado }: Props) {
   const [crp, setCrp] = useState(initial.crp)
   const [email, setEmail] = useState(initial.email)
   const [telefone, setTelefone] = useState(initial.telefone)
+  const [cpf, setCpf] = useState(initial.cpf ? formatarCpf(initial.cpf) : '')
   const [genero, setGenero] = useState<'f' | 'm' | ''>(initial.genero ?? '')
   const [abordagem, setAbordagem] = useState(initial.abordagem || 'tcc')
   const [valorSessao, setValor] = useState<string>(initial.valorSessao !== null ? String(initial.valorSessao) : '')
@@ -46,23 +49,25 @@ export function PerfilForm({ initial, emailAtual, waConectado }: Props) {
     const valorAtual = valorSessao === '' ? null : parseFloat(valorSessao.replace(',', '.'))
     const telAtual = telefone.replace(/\D/g, '')
     const telInit  = initial.telefone.replace(/\D/g, '')
+    const cpfAtual = apenasDigitos(cpf)
     return (
       nome.trim() !== initial.nome ||
       crp.trim() !== initial.crp ||
       trocandoEmail ||
       telAtual !== telInit ||
+      cpfAtual !== apenasDigitos(initial.cpf) ||
       valorAtual !== initial.valorSessao ||
       (genero || null) !== initial.genero ||
       abordagem !== (initial.abordagem || 'tcc') ||
       trocandoSenha
     )
-  }, [nome, crp, email, telefone, genero, abordagem, valorSessao, novaSenha, initial, trocandoEmail, trocandoSenha])
+  }, [nome, crp, email, telefone, cpf, genero, abordagem, valorSessao, novaSenha, initial, trocandoEmail, trocandoSenha])
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault()
     setSalvando(true); setErro(null); setErroCampo(null); setSalvo(false)
     const input: SalvarInput = {
-      nome, crp, email, telefone,
+      nome, crp, email, telefone, cpf,
       valorSessao: valorSessao === '' ? null : parseFloat(valorSessao.replace(',', '.')),
       genero: genero === '' ? null : genero,
       abordagem,
@@ -119,6 +124,22 @@ export function PerfilForm({ initial, emailAtual, waConectado }: Props) {
             onChange={e => setTelefone(e.target.value.replace(/[^\d() -]/g, ''))}
             placeholder="(11) 98765-4321"
             inputMode="tel"
+          />
+        </Field>
+
+        <Field
+          label="CPF"
+          hint="Sua identificação fiscal. Usada em recibos, nota fiscal e na conta de recebimento — guardada cifrada."
+          error={erroCampo === 'cpf' ? erro : undefined}
+        >
+          <input
+            type="text" value={cpf}
+            onChange={e => {
+              const d = apenasDigitos(e.target.value).slice(0, 11)
+              setCpf(d.length === 11 ? formatarCpf(d) : d)
+            }}
+            placeholder="000.000.000-00"
+            inputMode="numeric"
           />
         </Field>
 

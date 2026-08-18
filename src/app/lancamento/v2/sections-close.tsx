@@ -85,7 +85,7 @@ export function ManifestoSection() {
 const TRUST = [
   { t: 'Nascido na prática clínica real', d: 'Cada decisão de produto vem de quem atende, não de um genérico de software.' },
   { t: 'Construído sobre CFP 09/2024, CFP 11/2018 e LGPD', d: 'Ética e privacidade são a fundação, não um adendo. Linguagem observacional, nunca diagnóstica.' },
-  { t: 'Beta por convite, acompanhado de perto', d: 'Abrimos acesso em ondas pequenas para acompanhar cada conta na fase inicial.' },
+  { t: 'Acompanhamento de perto desde o primeiro dia', d: 'Cada conta nova é acompanhada na fase inicial — você fala com quem constrói o produto.' },
 ]
 
 export function TrustSection() {
@@ -118,7 +118,7 @@ export function Footer() {
           <a href="#plataforma">Plataforma</a>
           <a href="#privacidade">Privacidade</a>
           <a href="#confianca">Feito por psicólogos</a>
-          <a href="#acesso">Acesso antecipado</a>
+          <a href="/precos">Planos e preços</a>
           <a href="/login">Já tenho conta</a>
         </div>
         <div className="footer-social">

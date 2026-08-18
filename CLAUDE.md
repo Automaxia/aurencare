@@ -659,14 +659,16 @@ Modal abre automaticamente ao encerrar. Contém:
   Config em `src/server/lib/planos.ts`
 - **Instrumentação de custo de IA** — `api_custos` com atribuição por
   psicólogo/paciente/sessão/natureza + latência; painel `/admin/custos`
-- Landing `/lancamento` (hero 3D) + lista de espera
+- Landing `/lancamento` (hero 3D) + vitrine pública `/precos` (compra)
 - CFP badge + AES-256 + consentimento + aiGuard
 
 ### ⏳ Pronto em código, aguardando configuração
-- **Cobrança** — funciona, mas segue em **sandbox** (`sk_test_`/`pk_test_`)
-  durante o beta (`BETA_LIBERADO = true`). Falta o secret do webhook e o
-  `PAGARME_RECIPIENT_PLATAFORMA`; sem eles nenhuma sessão confirma e o split não
-  acontece. Detalhe em [`docs/INFRA.md`](./docs/INFRA.md).
+- **Cobrança** — LIGADA no código (`BETA_LIBERADO = false`, ago/2026), mas as
+  chaves seguem em **sandbox** (`sk_test_`/`pk_test_`). Falta o secret do webhook
+  e o `PAGARME_RECIPIENT_PLATAFORMA`; sem eles nenhuma sessão confirma e o split
+  não acontece. As contas do beta têm cortesia (Essencial por 1 ano, migration
+  047) justamente pra atravessar esse intervalo. Detalhe em
+  [`docs/INFRA.md`](./docs/INFRA.md).
 - **Transcrição do paciente** — falta `ASSEMBLYAI_API_KEY` no cluster.
 
 ### 🔮 Futuro / fora de escopo

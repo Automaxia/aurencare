@@ -1036,27 +1036,34 @@ export type GateImportResult =
   | { ok: false; motivo: 'limite'; cap: number; usadas: number; plano: string }
 
 /**
- * Gate de IMPORTAÇÃO de sessão (backfill de histórico). HOJE é pass-through
- * (beta liberado). Ponto ÚNICO onde o modelo de cobrança do import se pluga ao
- * sair do beta — ver [[auren-care-assinatura]]. Modelos possíveis (decidir 1):
- *   (a) contar na cota mensal de sessões-IA (reusa obterAssinatura/incrementarSessaoIa);
- *   (b) add-on/crédito único de "importar histórico" (contador próprio de imports);
- *   (c) cap de imports grátis por plano (Free N, Essencial M, Pro ilimitado);
- *   (d) import sem laudo/temas por padrão (custo zero) → gate só quando pedir IA.
- * Quando decidir: trocar o corpo abaixo pela checagem; a rota já trata {ok:false}.
+ * Gate de IMPORTAÇÃO de sessão (backfill de histórico).
+ *
+ * Modelo escolhido (ago/2026): a importação CONSOME 1 da cota mensal de
+ * sessões-IA — é o modelo (a). Faz sentido porque o import gera um rascunho de
+ * laudo, ou seja, gasta exatamente o mesmo recurso caro que uma sessão ao vivo.
+ * Enquanto isso era pass-through, uma conta Free (3/mês) podia gerar laudo por
+ * IA sem limite nenhum importando "histórico".
+ *
+ * Aqui só CHECA. Quem debita é `importarSessao`, e só depois de o laudo sair —
+ * a sessão ainda não existe neste ponto, então não haveria linha pra marcar
+ * como contabilizada, e debitar antes cobraria a cota de um import que falhou.
  */
 export async function gateImportarSessao(psicologoId: string, _pacienteId: string): Promise<GateImportResult> {
   if (BETA_LIBERADO) return { ok: true }
-  // TODO(go-live): implementar o modelo escolhido. Esqueleto do modelo (a):
-  //   const info = await obterAssinatura(psicologoId)
-  //   if (info.usadas >= info.cap) return { ok: false, motivo: 'limite', cap: info.cap, usadas: info.usadas, plano: info.plano }
+
+  const info = await obterAssinatura(psicologoId)
+  if (info.usadas >= info.cap) {
+    return { ok: false, motivo: 'limite', cap: info.cap, usadas: info.usadas, plano: info.plano }
+  }
   return { ok: true }
 }
 
 /**
  * Importa uma transcrição externa como sessão de HISTÓRICO. Cria a sessão já
  * concluída (não assinada), salva a transcrição cifrada e gera um RASCUNHO de
- * laudo. NÃO envia WhatsApp, NÃO cobra, NÃO conta cota de IA. O psicólogo revisa
+ * laudo. NÃO envia WhatsApp e NÃO cobra o paciente — mas CONSOME 1 da cota
+ * mensal de sessões-IA quando o laudo é gerado (mesmo recurso caro que uma
+ * sessão ao vivo). Ver `gateImportarSessao`. O psicólogo revisa
  * e assina pela tela normal — e é aí que os temas/evolução são alimentados (CFP:
  * nada vira prontuário sem assinatura). Retorna o id da sessão criada.
  */
@@ -1088,8 +1095,8 @@ export async function importarSessao(input: {
   )
   const sessaoId = rows[0].id
 
-  // Rascunho de laudo (sem cota, sem WhatsApp). Falha de IA não quebra o import —
-  // o psicólogo escreve/ajusta manualmente na revisão.
+  // Rascunho de laudo (sem WhatsApp). Falha de IA não quebra o import — o
+  // psicólogo escreve/ajusta manualmente na revisão.
   let laudo: string | null = null
   if (input.gerarLaudo !== false) {
     try {
@@ -1103,6 +1110,21 @@ export async function importarSessao(input: {
     } catch (err) {
       log.err('importarSessao', `falha ao gerar laudo sessao=${sessaoId}`, err)
     }
+  }
+
+  /*
+   * Cota: debita 1 só se o laudo saiu — IA que não rodou não custa nada e não
+   * deve consumir a mensalidade de ninguém. A marca `ia_contabilizada` é o
+   * mesmo livro-caixa da sessão ao vivo, então a linha não pode ser cobrada
+   * duas vezes por caminhos diferentes.
+   */
+  if (laudo && !BETA_LIBERADO) {
+    const { rowCount } = await db.query(
+      `UPDATE sessoes SET ia_contabilizada = TRUE
+        WHERE id = $1 AND psicologo_id = $2 AND ia_contabilizada = FALSE`,
+      [sessaoId, input.psicologoId],
+    )
+    if (rowCount) await incrementarSessaoIa(input.psicologoId)
   }
 
   return { sessaoId, numero, laudo }

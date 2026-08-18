@@ -19,6 +19,8 @@ export type CockpitProduto = {
   novos30: number
   ativosConta: number
   pagantes: number
+  /** Contas em cortesia do beta — plano concedido, sem assinatura. Não é receita. */
+  cortesia: number
   pacientesAtivos: number
   // Adoção (psicólogos distintos que chegaram a cada etapa)
   comPacientes: number
@@ -49,7 +51,12 @@ export async function obterCockpitProduto(): Promise<CockpitProduto> {
         (SELECT count(*) FROM psicologos)                                                        AS usuarios,
         (SELECT count(*) FROM psicologos WHERE created_at >= NOW() - INTERVAL '30 days')         AS novos30,
         (SELECT count(*) FROM psicologos WHERE status = 'ativo')                                 AS ativos_conta,
-        (SELECT count(*) FROM psicologos WHERE plano IS NOT NULL AND plano <> 'free' AND plano_status = 'ativo') AS pagantes,
+        -- PAGANTE = tem assinatura na Pagar.me. O plano sozinho não serve como
+        -- prova de receita: a cortesia do beta (migration 047) põe a base
+        -- inteira em 'essencial'/'ativo' sem um centavo cobrado, e sem este
+        -- filtro o MRR abaixo viraria ficção.
+        (SELECT count(*) FROM psicologos WHERE plano IS NOT NULL AND plano <> 'free' AND plano_status = 'ativo' AND pagarme_subscription_id IS NOT NULL) AS pagantes,
+        (SELECT count(*) FROM psicologos WHERE plano <> 'free' AND pagarme_subscription_id IS NULL AND plano_expira_em > NOW()) AS cortesia,
         (SELECT count(*) FROM pacientes WHERE status = 'ativo')                                  AS pacientes_ativos,
         (SELECT count(DISTINCT psicologo_id) FROM pacientes)                                     AS com_pacientes,
         (SELECT count(DISTINCT psicologo_id) FROM sessoes WHERE status = 'concluida')            AS com_sessao,
@@ -66,8 +73,8 @@ export async function obterCockpitProduto(): Promise<CockpitProduto> {
         (SELECT count(*) FROM palavras_chave)                                                    AS temas_identificados,
         (SELECT count(*) FROM prontuarios_ia)                                                    AS consultas_memoria,
         (SELECT COALESCE(SUM(sessoes_ia),0) FROM uso_mensal)                                     AS sessoes_com_ia,
-        (SELECT count(*) FROM psicologos WHERE plano = 'essencial' AND plano_status = 'ativo')   AS pag_essencial,
-        (SELECT count(*) FROM psicologos WHERE plano = 'pro' AND plano_status = 'ativo')         AS pag_pro,
+        (SELECT count(*) FROM psicologos WHERE plano = 'essencial' AND plano_status = 'ativo' AND pagarme_subscription_id IS NOT NULL) AS pag_essencial,
+        (SELECT count(*) FROM psicologos WHERE plano = 'pro' AND plano_status = 'ativo' AND pagarme_subscription_id IS NOT NULL)       AS pag_pro,
         (SELECT COALESCE(AVG(valor),0)::float FROM sessoes WHERE pagamento_status = 'pago' AND valor IS NOT NULL) AS valor_medio_sessao
     `),
     db.query<{ t: string }>(`SELECT COALESCE(SUM(tokens_entrada + tokens_saida),0) AS t FROM api_custos WHERE provider = 'anthropic' AND created_at >= date_trunc('month', NOW())`),
@@ -75,6 +82,7 @@ export async function obterCockpitProduto(): Promise<CockpitProduto> {
   const r = esc.rows[0]
   return {
     usuarios: Number(r.usuarios), novos30: Number(r.novos30), ativosConta: Number(r.ativos_conta), pagantes: Number(r.pagantes),
+    cortesia: Number(r.cortesia),
     pacientesAtivos: Number(r.pacientes_ativos),
     comPacientes: Number(r.com_pacientes), comSessao: Number(r.com_sessao), comEvolucao: Number(r.com_evolucao),
     comObjetivos: Number(r.com_objetivos), comMemoria: Number(r.com_memoria), ativados: Number(r.ativados),

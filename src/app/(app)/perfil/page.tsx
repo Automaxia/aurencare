@@ -29,6 +29,7 @@ export default async function PerfilPage() {
           crp: perfil.crp,
           email: perfil.email,
           telefone: perfil.telefone ?? '',
+          cpf: perfil.cpf ?? '',
           valorSessao: perfil.valorSessao,
           genero: perfil.genero,
           abordagem: perfil.abordagem,

@@ -20,8 +20,11 @@ um único produto.
 - **Público-alvo:** psicólogo(a) clínico(a), prática online ou híbrida, 15–30
   pacientes ativos.
 - **Não é:** ERP, prontuário hospitalar, telemedicina genérica.
-- **Estado:** em produção (https://app.audere.ia.br/), em **beta** —
-  `BETA_LIBERADO = true`, acesso liberado e cobrança desligada.
+- **Estado:** em produção (https://app.audere.ia.br/), **vendendo** —
+  `BETA_LIBERADO = false` (ago/2026): o gate de cota vale e a assinatura é
+  cobrada. As contas do beta receberam cortesia equivalente ao Essencial por
+  1 ano (migration 047). Cobrar de verdade ainda depende das chaves live da
+  Pagar.me, do `PAGARME_WEBHOOK_SECRET` e do `PAGARME_RECIPIENT_PLATAFORMA`.
 
 ## 2. Premissas inegociáveis
 
@@ -125,8 +128,13 @@ Premissa adicional adotada neste produto:
   browser — o cartão nunca passa pelo servidor).
 - RF-57 **Comissão de 2,5% por sessão paga**, adicional ao plano, cobrada no
   split da própria liquidação.
-- RF-58 Gate de cota no Modo Presença. Durante o beta (`BETA_LIBERADO`), o gate
-  não bloqueia e não há cobrança — validado **no servidor**, não só na UI.
+- RF-58 Gate de cota no Modo Presença — validado **no servidor**, não só na UI.
+  `BETA_LIBERADO` (hoje `false`) é a chave única que liga/desliga gate e cobrança.
+- RF-58a A IMPORTAÇÃO de histórico consome 1 da MESMA cota mensal de sessões-IA
+  (gera laudo por IA). Debitada só quando o laudo sai — IA que falhou não cobra.
+- RF-58b Cortesia: plano acima do free SEM `pagarme_subscription_id` vence em
+  `plano_expira_em` e volta a valer como Free. Assinante ativo nunca vence por
+  data (webhook atrasado não pode rebaixar quem paga).
 
 ### 3.8 WhatsApp (Evolution API)
 - RF-60 Fluxo 1 — Cadastro/boas-vindas + consentimento.
@@ -152,7 +160,11 @@ Premissa adicional adotada neste produto:
 - RF-73 Reembolso automático em cancelamento >24h.
 
 ### 3.10 Aquisição
-- RF-80 Landing pública `/lancamento` com hero 3D e lista de espera.
+- RF-80 Landing pública `/lancamento` com hero 3D e vitrine de planos.
+- RF-81 Vitrine pública `/precos` (Free/Essencial/Pro, mensal/anual). Preços vêm
+  de `planos.ts`, a mesma fonte que o checkout cobra — vitrine e cobrança não
+  podem divergir. Compra: `/precos` → `/cadastro?plano=&ciclo=` → checkout em
+  `/planos`.
 
 ### 3.11 Critérios de aceite (RFs críticos)
 
@@ -175,8 +187,12 @@ Premissa adicional adotada neste produto:
 - **CA-72 (RF-72 / P4):** cobrança paga → `order.paid` autenticado → sessão em
   `confirmada`, com SSE, WhatsApp e email disparados. Webhook sem credencial ou
   com credencial errada é rejeitado (401). *Verificado em produção, ago/2026.*
-- **CA-58 (RF-58):** com `BETA_LIBERADO`, `assinarAction` recusa no servidor,
-  ainda que chamada diretamente.
+- **CA-58 (RF-58):** `assinarAction` valida plano/ciclo no servidor, ainda que
+  chamada diretamente; com `BETA_LIBERADO` recusa qualquer assinatura.
+- **CA-58c:** trocar de plano CANCELA a assinatura anterior na Pagar.me antes de
+  criar a nova — sem isso a antiga seguia cobrando o cartão, órfã.
+- **CA-82 (multi-tenant):** operações sobre sessão exigem posse (`psicologo_id`
+  no WHERE, no serviço). Sessão de outro psicólogo devolve 404, nunca 403.
 
 ## 4. Requisitos não-funcionais
 

@@ -29,11 +29,16 @@ export type PlanoConfig = {
 
 /**
  * BETA: enquanto true, o acesso é liberado — o gate de cota NÃO bloqueia e não
- * há cobrança (honra "sem mensalidade durante o beta" da landing). Os planos/
- * preços abaixo já ficam definidos; quando as chaves Pagar.me entrarem e a
- * cobrança for ligada, troque para `false` e faça redeploy.
+ * há cobrança. Desligado em ago/2026, quando a landing deixou de oferecer
+ * acesso antecipado e passou a vender assinatura (`/precos`).
+ *
+ * ⚠️ Com `false`, o gate de cota volta a valer e a assinatura é cobrada de
+ * verdade — o que só funciona ponta a ponta com as chaves LIVE da Pagar.me
+ * (`sk_live_`/`pk_live_`), o `PAGARME_WEBHOOK_SECRET` e o
+ * `PAGARME_RECIPIENT_PLATAFORMA` configurados. Em sandbox o checkout roda,
+ * mas nenhuma cobrança é real.
  */
-export const BETA_LIBERADO = true
+export const BETA_LIBERADO = false
 
 /**
  * Comissão da plataforma por sessão paga, ADICIONAL ao plano mensal (§10).

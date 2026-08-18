@@ -76,9 +76,9 @@ export function ThesisSection() {
       {/* P3 — CTA no meio da página, depois do valor estabelecido pela Tese */}
       <div className="lp-midcta">
         <a href="#acesso" className="btn-lp btn-lp-primary" onClick={(e) => { e.preventDefault(); document.getElementById('acesso')?.scrollIntoView({ behavior: 'smooth' }) }}>
-          Solicitar acesso antecipado →
+          Ver planos →
         </a>
-        <span className="lp-midcta-note">Beta por convite · sem mensalidade durante o beta</span>
+        <span className="lp-midcta-note">Grátis para começar · sem cartão, sem fidelidade</span>
       </div>
     </Section>
   )

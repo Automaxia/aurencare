@@ -1,5 +1,8 @@
 import { LogoMark } from '@/components/brand/Logo'
 import Link from 'next/link'
+import { redirect } from 'next/navigation'
+import { getServerSession } from 'next-auth/next'
+import { authOptions } from '@/server/auth/options'
 import { Lock, ShieldCheck, BadgeCheck, Database } from 'lucide-react'
 import { CadastroForm } from './form'
 
@@ -27,7 +30,25 @@ const CONFIANCA = [
   { label: 'Zero Data Training', Icon: Database },
 ]
 
-export default function CadastroPage() {
+export default async function CadastroPage({ searchParams }: {
+  searchParams?: { plano?: string; ciclo?: string }
+}) {
+  /*
+   * Já logado? Não faz sentido mostrar o formulário — o cadastro falharia por
+   * email/CRP duplicado. Isso acontece de verdade: quem tem conta e clica
+   * "Assinar Pro" na vitrine pública chega aqui. Mandamos direto pro checkout,
+   * preservando o plano escolhido.
+   */
+  const session = await getServerSession(authOptions)
+  if (session?.user) {
+    const plano = searchParams?.plano
+    redirect(
+      plano === 'essencial' || plano === 'pro'
+        ? `/planos?plano=${plano}&ciclo=${searchParams?.ciclo === 'anual' ? 'anual' : 'mensal'}`
+        : '/',
+    )
+  }
+
   return (
     <div className="login-split">
       {/* ── Esquerda — posicionamento + expectativa de valor ── */}

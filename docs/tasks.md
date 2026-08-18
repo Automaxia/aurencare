@@ -44,13 +44,19 @@ Legenda prioridade: **P0** crítico (segurança/risco) · **P1** importante · *
   sem mudanças custa 0 chamadas de IA.
 - ✅ **Split Pagar.me** — 2,5% da plataforma, psicólogo recebe líquido; comissão
   gravada por sessão e refletida no Financeiro e na visão contábil.
-- ✅ Landing `/lancamento` (redesign v2, hero 3D) + lista de espera.
+- ✅ Landing `/lancamento` (redesign v2, hero 3D) — acesso antecipado REMOVIDO
+  em ago/2026; a seção `#acesso` virou a vitrine de planos. O backend de lista
+  de espera segue existindo (admin → leads), só não é mais oferecido na landing.
+- ✅ **Vitrine pública `/precos`** + fluxo vitrine → cadastro → checkout.
+- ✅ **Cortesia do beta** (migration 047): contas existentes = Essencial por 1
+  ano, vencimento aplicado em `obterAssinatura`. Excluídas das métricas de
+  pagante/MRR no `/admin` — cortesia não é receita.
 
 ## Pagar.me — estado (ago/2026)
 
-> 🧪 **Sandbox durante o beta.** Chaves `sk_test_`/`pk_test_`: nenhuma cobrança é
-> real, o fluxo inteiro pode ser exercitado sem risco. A troca para `live` é um
-> passo deliberado do go-live, não pendência esquecida.
+> 🧪 **Ainda em sandbox.** Chaves `sk_test_`/`pk_test_`: nenhuma cobrança é real.
+> Desde ago/2026 `BETA_LIBERADO = false`, então o código cobra — mas só passa a
+> cobrar DE VERDADE com as chaves live. Trocar para `live` é o passo que falta.
 
 ### ✅ Fluxo de cobrança validado ponta a ponta
 Verificado em produção: cobrança PIX criada → QR gerado → Simulator paga →
@@ -122,7 +128,10 @@ acontece mais**: `POST /recipients` com payload vazio devolve 422 de validação
 - 🔮 ⚠️ **Recipients são por ambiente**: psicólogos que fizerem o onboarding em
   sandbox precisam refazê-lo (ou ser migrados) no live. Pesar antes de abrir o
   beta para muita gente com KYC completo.
-- 🔮 Trocar `BETA_LIBERADO` para `false` em `planos.ts` + redeploy.
+- ✅ `BETA_LIBERADO = false` em `planos.ts` (ago/2026).
+- 🔮 ⚠️ **Ordem do go-live**: as chaves live precisam entrar ANTES (ou junto)
+  do deploy que leva a flag. Com a flag em `false` e sem chaves live, ninguém
+  consegue assinar — a cortesia de 1 ano é o que segura a base nesse intervalo.
 
 ## Pendências — segurança
 

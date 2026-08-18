@@ -8,9 +8,18 @@ import { PlanosForm } from './form'
 
 export const dynamic = 'force-dynamic'
 
-export default async function PlanosPage() {
+export default async function PlanosPage({ searchParams }: {
+  searchParams?: { plano?: string; ciclo?: string }
+}) {
   const user = await requirePsicologo()
   const info = await obterAssinatura(user.id)
+
+  // Intenção vinda da vitrine pública. Validada aqui — o que chega da URL é
+  // palpite do usuário, não dado: plano desconhecido simplesmente não pré-seleciona.
+  const planoUrl = searchParams?.plano
+  const pre = planoUrl === 'essencial' || planoUrl === 'pro'
+    ? { plano: planoUrl as 'essencial' | 'pro', ciclo: (searchParams?.ciclo === 'anual' ? 'anual' : 'mensal') as 'mensal' | 'anual' }
+    : null
 
   return (
     <div>
@@ -35,9 +44,11 @@ export default async function PlanosPage() {
           cap: info.cap,
           usadas: info.usadas,
           restantes: info.restantes,
+          cortesiaAte: info.cortesiaAte,
         }}
         mock={!integrationStatus.pagarme}
         beta={BETA_LIBERADO}
+        pre={pre}
       />
     </div>
   )

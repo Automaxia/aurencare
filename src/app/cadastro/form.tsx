@@ -1,18 +1,30 @@
 'use client'
 
 import { useState } from 'react'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { signIn } from 'next-auth/react'
 import { Field } from '@/components/form/Field'
 import { PasswordInput } from '@/components/form/PasswordInput'
 import { cadastrarAction } from './actions'
+import { apenasDigitos, formatarCpf } from '@/lib/documento'
 
 export function CadastroForm() {
   const router = useRouter()
+  // Plano escolhido lá na vitrine pública (/precos ou landing). Só carrega a
+  // intenção — quem cobra é o checkout de /planos, que revalida tudo no
+  // servidor. Vindo torto ou ausente, o cadastro segue normal e cai no app.
+  const params = useSearchParams()
+  const planoEscolhido = params.get('plano')
+  const cicloEscolhido = params.get('ciclo')
+  const destino =
+    planoEscolhido === 'essencial' || planoEscolhido === 'pro'
+      ? `/planos?plano=${planoEscolhido}&ciclo=${cicloEscolhido === 'anual' ? 'anual' : 'mensal'}`
+      : '/'
   const [nome, setNome] = useState('')
   const [crp, setCrp] = useState('')
   const [email, setEmail] = useState('')
   const [telefone, setTelefone] = useState('')
+  const [cpf, setCpf] = useState('')
   const [senha, setSenha] = useState('')
   const [aceitouTermos, setAceitouTermos] = useState(false)
 
@@ -30,7 +42,7 @@ export function CadastroForm() {
     }
 
     setLoading(true)
-    const r = await cadastrarAction({ nome, crp, email, telefone, senha })
+    const r = await cadastrarAction({ nome, crp, email, telefone, cpf, senha })
 
     if (!r.ok) {
       setError(r.error)
@@ -41,7 +53,7 @@ export function CadastroForm() {
 
     // Auto-login após cadastro
     const signRes = await signIn('credentials', {
-      email: r.email, password: senha, redirect: false, callbackUrl: '/',
+      email: r.email, password: senha, redirect: false, callbackUrl: destino,
     })
     setLoading(false)
     if (signRes?.error) {
@@ -49,7 +61,7 @@ export function CadastroForm() {
       setTimeout(() => router.push('/login'), 1500)
       return
     }
-    router.push('/')
+    router.push(destino)
   }
 
   return (
@@ -80,6 +92,22 @@ export function CadastroForm() {
           onChange={e => setTelefone(e.target.value.replace(/[^\d() -]/g, ''))}
           placeholder="(11) 98765-4321"
           inputMode="tel" autoComplete="tel"
+        />
+      </Field>
+
+      <Field
+        label="CPF"
+        hint="Identificação fiscal. Usada em recibos e na conta que recebe seus pagamentos. Fica cifrada."
+        error={campoErro === 'cpf' ? error : undefined}
+      >
+        <input
+          type="text" required value={cpf}
+          onChange={e => {
+            const d = apenasDigitos(e.target.value).slice(0, 11)
+            setCpf(d.length === 11 ? formatarCpf(d) : d)
+          }}
+          placeholder="000.000.000-00"
+          inputMode="numeric"
         />
       </Field>
 

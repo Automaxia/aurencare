@@ -62,27 +62,35 @@ type Props = {
     cap: number
     usadas: number
     restantes: number
+    cortesiaAte: string | null
   }
   mock: boolean
   beta: boolean
+  /** Plano escolhido na vitrine pública, herdado via `/planos?plano=&ciclo=`. */
+  pre?: { plano: Exclude<PlanoKey, 'free'>; ciclo: Ciclo } | null
 }
 
 const ORDEM: PlanoKey[] = ['free', 'essencial', 'pro']
 
-export function PlanosForm({ planos, atual, mock, beta }: Props) {
+export function PlanosForm({ planos, atual, mock, beta, pre }: Props) {
   const router = useRouter()
-  const [ciclo, setCiclo] = useState<Ciclo>(atual.ciclo ?? 'mensal')
+  // checkout real exige tanto a public key (tokenizar no front) quanto a
+  // secret key (criar a assinatura no back). Faltando uma, cai no modo demo.
+  const realCheckout = !!PAGARME_PK && !mock
+
+  const [ciclo, setCiclo] = useState<Ciclo>(pre?.ciclo ?? atual.ciclo ?? 'mensal')
   const [pending, setPending] = useState<PlanoKey | 'cancel' | null>(null)
   const [msg, setMsg] = useState<{ tipo: 'ok' | 'erro'; texto: string } | null>(null)
-  // plano escolhido aguardando dados do cartão (só no fluxo real, com public key)
-  const [escolhido, setEscolhido] = useState<Exclude<PlanoKey, 'free'> | null>(null)
+  // plano escolhido aguardando dados do cartão (só no fluxo real, com public key).
+  // Quem chegou da vitrine já cai com o painel de cartão aberto — a pessoa não
+  // deveria ter que escolher o plano duas vezes.
+  const [escolhido, setEscolhido] = useState<Exclude<PlanoKey, 'free'> | null>(
+    pre && realCheckout && !beta ? pre.plano : null,
+  )
   const [card, setCard] = useState({ number: '', holder: '', expMonth: '', expYear: '', cvv: '' })
   const [processando, setProcessando] = useState(false)
 
   const pctUso = atual.cap > 0 ? Math.min(100, Math.round((atual.usadas / atual.cap) * 100)) : 0
-  // checkout real exige tanto a public key (tokenizar no front) quanto a
-  // secret key (criar a assinatura no back). Faltando uma, cai no modo demo.
-  const realCheckout = !!PAGARME_PK && !mock
 
   async function assinar(plano: PlanoKey) {
     if (plano === 'free' || beta) return
@@ -161,8 +169,25 @@ export function PlanosForm({ planos, atual, mock, beta }: Props) {
             {atual.restantes > 0
               ? `${atual.restantes} sessões com IA restantes neste ciclo.`
               : 'Limite atingido — o registro com IA volta no próximo ciclo. Agenda e prontuário seguem normais.'}
-            {atual.expiraEm && atual.plano !== 'free' && ` Renova em ${formatDateBR(atual.expiraEm)}.`}
+            {/* Cancelada/inadimplente não renova — vence. Dizer "Renova em"
+                nesse estado é promessa falsa: naquela data o acesso CAI. */}
+            {!atual.cortesiaAte && atual.expiraEm && atual.plano !== 'free' && (
+              atual.status === 'ativo'
+                ? ` Renova em ${formatDateBR(atual.expiraEm)}.`
+                : ` Acesso até ${formatDateBR(atual.expiraEm)} — depois a conta volta ao Free.`
+            )}
           </div>
+
+          {/* Cortesia do beta: a data precisa aparecer, senão o rebaixamento
+              daqui a um ano chega como surpresa. */}
+          {atual.cortesiaAte && (
+            <div style={{ marginTop: 12, paddingTop: 12, borderTop: '1px solid var(--border)', fontSize: 12, color: 'var(--ink-soft)', lineHeight: 1.6 }}>
+              <strong style={{ color: '#2a6456' }}>Cortesia do beta</strong> — você usa o plano{' '}
+              {planos[atual.plano].nome} sem pagar até <strong>{formatDateBR(atual.cortesiaAte)}</strong>.
+              Obrigado por ter entrado cedo. Depois dessa data a conta volta ao Free (
+              {planos.free.capSessoesIa} sessões/mês) se não houver assinatura.
+            </div>
+          )}
         </div>
       )}
 
@@ -278,7 +303,9 @@ export function PlanosForm({ planos, atual, mock, beta }: Props) {
         </div>
       )}
 
-      {atual.plano !== 'free' && atual.status !== 'cancelado' && (
+      {/* Cortesia não tem assinatura pra cancelar — mostrar o botão só levaria
+          a pessoa a um erro ("Nenhuma assinatura ativa"). */}
+      {atual.plano !== 'free' && atual.status !== 'cancelado' && !atual.cortesiaAte && (
         <button onClick={cancelar} disabled={pending !== null}
           style={{ alignSelf: 'flex-start', background: 'none', border: 'none', color: 'var(--muted)', fontSize: 12, textDecoration: 'underline', cursor: 'pointer' }}>
           {pending === 'cancel' ? 'Cancelando…' : 'Cancelar assinatura'}

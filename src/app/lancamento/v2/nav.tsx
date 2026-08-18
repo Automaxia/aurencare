@@ -7,6 +7,7 @@ const LINKS: [string, string][] = [
   ['plataforma', 'Plataforma'],
   ['privacidade', 'Privacidade'],
   ['confianca', 'Feito por psicólogos'],
+  ['acesso', 'Planos'],
 ]
 
 /** Nav: transparente no topo, sólida ao rolar. CTA persistente (P3). */
@@ -34,7 +35,7 @@ export function Nav() {
             <a key={id} href={'#' + id} onClick={go(id)}>{label}</a>
           ))}
         </div>
-        <a href="#acesso" className="nav-cta" onClick={go('acesso')}>Acesso antecipado →</a>
+        <a href="#acesso" className="nav-cta" onClick={go('acesso')}>Ver planos →</a>
       </div>
     </nav>
   )

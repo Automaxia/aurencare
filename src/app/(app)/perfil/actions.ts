@@ -4,12 +4,14 @@ import { revalidatePath } from 'next/cache'
 import { requirePsicologo } from '@/server/lib/auth'
 import { atualizarPerfil, verificarSenha, emailEmUso, type PerfilPatch } from '@/server/services/psicologo'
 import { normalizarAbordagem } from '@/server/services/temas'
+import { apenasDigitos, validarCpf } from '@/lib/documento'
 
 export type SalvarInput = {
   nome: string
   crp: string
   email: string
   telefone: string
+  cpf: string
   valorSessao: number | null
   genero: 'f' | 'm' | null
   abordagem: string
@@ -29,6 +31,7 @@ export async function salvarPerfilAction(input: SalvarInput): Promise<SalvarResu
   const crp = input.crp.trim()
   const email = input.email.toLowerCase().trim()
   const telefone = input.telefone?.replace(/\D/g, '') || ''
+  const cpf = apenasDigitos(input.cpf)
   const valor = input.valorSessao
   const novaSenha = input.novaSenha
   const confirmar = input.confirmarNovaSenha
@@ -41,6 +44,9 @@ export async function salvarPerfilAction(input: SalvarInput): Promise<SalvarResu
     return { ok: false, error: 'Telefone inválido (DDD + número).', campo: 'telefone' }
   }
   if (valor !== null && valor < 0) return { ok: false, error: 'Valor não pode ser negativo.', campo: 'valorSessao' }
+  // CPF segue opcional no perfil: exigir de quem já tem conta quebraria o save
+  // de quem só queria trocar o telefone. Se vier, precisa ser válido.
+  if (cpf && !validarCpf(cpf)) return { ok: false, error: 'CPF inválido.', campo: 'cpf' }
 
   const trocandoSenha = novaSenha.length > 0
   const trocandoEmail = email !== (user.email ?? '').toLowerCase()
@@ -65,6 +71,7 @@ export async function salvarPerfilAction(input: SalvarInput): Promise<SalvarResu
   const patch: PerfilPatch = {
     nome, crp, email,
     telefone: telefone || null,
+    cpf: cpf || null,
     valorSessao: valor,
     genero: input.genero === 'f' || input.genero === 'm' ? input.genero : null,
     abordagem: normalizarAbordagem(input.abordagem),

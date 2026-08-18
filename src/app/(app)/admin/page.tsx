@@ -63,7 +63,8 @@ export default async function AdminPage() {
           <Metric label="Usuários totais" value={p.usuarios} />
           <Metric label="Novos (30 dias)" value={p.novos30} hint="cadastros recentes" />
           <Metric label="Contas ativas" value={p.ativosConta} color="var(--sage)" />
-          <Metric label="Pagantes" value={p.pagantes} color="var(--accent)" />
+          <Metric label="Pagantes" value={p.pagantes} color="var(--accent)" hint="com assinatura ativa" />
+          <Metric label="Cortesia beta" value={p.cortesia} hint="plano concedido, sem cobrança" />
           <Metric label="Conversão" value={`${conversaoPct}%`} hint="pagantes ÷ totais" />
         </Grid>
       </Section>

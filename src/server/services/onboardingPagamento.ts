@@ -332,6 +332,12 @@ export async function salvarOnboarding(psicologoId: string, input: OnboardingInp
          pgm_socio_email = $28,
          pgm_socio_telefone = $29,
          pgm_socio_renda_centavos = $30,
+         -- Na PF o documento do recebedor É o CPF da pessoa: aproveita pra
+         -- preencher a identificação fiscal de quem se cadastrou antes de o
+         -- campo existir. COALESCE e não atribuição direta — o CPF do cadastro
+         -- é a fonte de verdade; aqui só se tapa buraco. Na PJ o documento é
+         -- CNPJ e $31 vem null, então nada muda.
+         cpf = COALESCE(cpf, $31),
          pgm_onboarding_em = NOW()
        WHERE id = $1`,
       [
@@ -349,6 +355,7 @@ export async function salvarOnboarding(psicologoId: string, input: OnboardingInp
         input.socio?.email.trim() ?? null,
         input.socio?.telefone.replace(/\D/g, '') ?? null,
         input.socio?.rendaMensalCentavos ?? null,
+        input.tipoPessoa === 'PF' ? encrypt(docNum) : null,
       ],
     )
     log.ok('onboardingPagamento', `concluído psicologo=${psicologoId} recipient=${recipientId}`)

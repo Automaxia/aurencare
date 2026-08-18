@@ -29,7 +29,10 @@ export function ImportarSessao({ pacienteId }: { pacienteId: string }) {
     formato_doc_antigo: 'O .doc antigo não é suportado — salve como .docx ou cole o texto.',
     arquivo_grande: 'Arquivo muito grande (máx. 12 MB).',
     falha_extracao: 'Não consegui ler o arquivo. Tente colar o texto.',
-    limite: 'Você atingiu o limite de importações do seu plano neste ciclo.',
+    // A cota é COMPARTILHADA com as sessões ao vivo (o import gera laudo por
+    // IA, mesmo recurso). Dizer "limite de importações" faria a pessoa procurar
+    // um contador separado que não existe.
+    limite: 'Cota de sessões com IA esgotada neste ciclo — importar histórico usa a mesma cota das sessões ao vivo, porque também gera laudo. Veja seu plano em Plano e uso.',
     internal: 'Falha ao importar agora. Tente de novo.',
   }
 

@@ -8,7 +8,7 @@ export const config = {
   /**
    * Protege todo o app exceto rotas públicas:
    * /login · /cadastro · /recuperar-senha · /redefinir-senha/* · /lancamento
-   * (landing pública) · /onboard/* + /api/onboard/* (aceite do paciente, anônimo)
+   * (landing pública) · /precos (vitrine de planos, anônima) · /onboard/* + /api/onboard/* (aceite do paciente, anônimo)
    * · /sala/* · /api/auth/* · /api/webhooks/* · /api/health · /api/ice (ICE
    * servers do WebRTC — paciente é anônimo) · /confirmar/* · /landing/* (imagens
    * públicas da landing) · /api/cron/recalcular-temas e
@@ -16,6 +16,6 @@ export const config = {
    * · assets internos.
    */
   matcher: [
-    '/((?!login|cadastro|recuperar-senha|redefinir-senha|lancamento|landing|confirmar|onboard|sala|mock|api/auth|api/onboard|api/webhooks|api/cron/recalcular-temas|api/cron/temas-validar|api/cron/destravar-sessoes|api/sala|api/wa|api/health|api/ice|_next/static|_next/image|favicon.ico|icon.svg).*)',
+    '/((?!login|cadastro|recuperar-senha|redefinir-senha|lancamento|precos|landing|confirmar|onboard|sala|mock|api/auth|api/onboard|api/webhooks|api/cron/recalcular-temas|api/cron/temas-validar|api/cron/destravar-sessoes|api/sala|api/wa|api/health|api/ice|_next/static|_next/image|favicon.ico|icon.svg).*)',
   ],
 }

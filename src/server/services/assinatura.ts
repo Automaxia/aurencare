@@ -9,6 +9,7 @@ import { contarSessoesIaMes } from './uso'
 export type PlanoStatus = 'ativo' | 'inadimplente' | 'cancelado'
 
 export type AssinaturaInfo = {
+  /** Plano EFETIVO — já considera cortesia vencida (ver `obterAssinatura`). */
   plano: Plano
   status: PlanoStatus
   ciclo: Ciclo | null
@@ -17,6 +18,11 @@ export type AssinaturaInfo = {
   cap: number
   usadas: number
   restantes: number
+  /**
+   * Fim da cortesia (plano concedido sem assinatura), enquanto ela vale.
+   * `null` para assinante pagante, para free puro e depois de vencida.
+   */
+  cortesiaAte: string | null
 }
 
 /** Estado atual do plano + consumo do mês. Fonte única pro gate, UI e webhook. */
@@ -27,18 +33,57 @@ export async function obterAssinatura(psicologoId: string): Promise<AssinaturaIn
     [psicologoId],
   )
   const r = rows[0] ?? {}
-  const plano = (r.plano ?? 'free') as Plano
+  const planoGravado = (r.plano ?? 'free') as Plano
+  const subscriptionId = r.pagarme_subscription_id ?? null
+  const expiraEm = r.plano_expira_em ?? null
+
+  const status = (r.plano_status ?? 'ativo') as PlanoStatus
+
+  /*
+   * Cortesia = plano acima do free SEM assinatura na Pagar.me (migration 047).
+   * Quem pagou sempre tem subscription_id — inclusive no modo mock.
+   */
+  const ehCortesia = planoGravado !== 'free' && !subscriptionId
+
+  /*
+   * Quem atravessa `plano_expira_em` sem perder o plano é APENAS o assinante
+   * que ainda vai renovar: subscription ativa na Pagar.me. Nesse caso uma data
+   * velha significa webhook atrasado, e rebaixar seria tirar acesso de quem
+   * está pagando — quem manda é o webhook.
+   *
+   * Todo o resto vence na data:
+   *   • cortesia do beta (sem subscription);
+   *   • assinatura CANCELADA — mantém o acesso até o fim do ciclo já pago e
+   *     cai depois. Sem isso o cancelamento nunca surtia efeito: não há nova
+   *     cobrança, logo não chega webhook, logo ninguém rebaixava;
+   *   • INADIMPLENTE — a cobrança falhou e o acesso ia "até expirar".
+   *
+   * Exige data preenchida: sem `plano_expira_em` não há o que vencer, e chutar
+   * rebaixaria alguém por falta de dado.
+   */
+  const renovavel = !!subscriptionId && status === 'ativo'
+  const venceu =
+    planoGravado !== 'free' &&
+    !renovavel &&
+    expiraEm != null &&
+    new Date(expiraEm).getTime() <= Date.now()
+
+  // Efetivo, não gravado: o rebaixamento vale na hora da leitura, sem escrever
+  // no banco durante um GET. Se a linha continuar dizendo 'essencial' depois de
+  // vencer, o gate e a UI já tratam como free do mesmo jeito.
+  const plano: Plano = venceu ? 'free' : planoGravado
   const cap = capSessoesIa(plano)
   const usadas = await contarSessoesIaMes(psicologoId)
   return {
     plano,
-    status: (r.plano_status ?? 'ativo') as PlanoStatus,
+    status,
     ciclo: r.plano_ciclo ?? null,
-    expiraEm: r.plano_expira_em ?? null,
-    subscriptionId: r.pagarme_subscription_id ?? null,
+    expiraEm,
+    subscriptionId,
     cap,
     usadas,
     restantes: Math.max(0, cap - usadas),
+    cortesiaAte: ehCortesia && !venceu ? expiraEm : null,
   }
 }
 
@@ -55,11 +100,52 @@ export async function assinar(
   psicologoId: string, plano: PlanoPago, ciclo: Ciclo, cardToken: string,
 ): Promise<AssinarResult> {
   const { rows } = await db.query(
-    `SELECT nome, email, telefone, pgm_documento FROM psicologos WHERE id = $1 LIMIT 1`,
+    `SELECT nome, email, telefone, pgm_documento, cpf, pagarme_subscription_id FROM psicologos WHERE id = $1 LIMIT 1`,
     [psicologoId],
   )
   const psi = rows[0]
   if (!psi) return { ok: false, error: 'Psicólogo não encontrado.' }
+
+  /*
+   * Documento do pagador. `pgm_documento` só existe pra quem passou pelo
+   * onboarding de recebimento — e quem compra assinatura vindo da vitrine
+   * pública normalmente ainda NÃO passou. Sem o fallback pro `cpf` do cadastro
+   * (migration 046), a assinatura ia pra Pagar.me sem documento e a cobrança
+   * no cartão fica exposta a recusa por antifraude.
+   * Ordem: documento do recebedor primeiro (pode ser o CNPJ de quem atende
+   * como PJ, que é quem de fato paga), CPF do cadastro depois.
+   */
+  const documento = tryDecrypt(psi.pgm_documento) || tryDecrypt(psi.cpf)
+
+  /*
+   * TROCA DE PLANO: cancelar a assinatura antiga ANTES de criar a nova.
+   * Sem isso, quem sai do Essencial pro Pro ganhava uma segunda assinatura na
+   * Pagar.me enquanto o `pagarme_subscription_id` da primeira era sobrescrito
+   * — a antiga sumia do nosso banco e seguia cobrando o cartão todo mês, sem
+   * ninguém pra cancelá-la. Cobrança dupla vitalícia.
+   *
+   * Cancelar primeiro (e não depois) é o lado seguro: se a criação da nova
+   * falhar, a pessoa não é cobrada em dobro e mantém o acesso ao plano antigo
+   * até o fim do ciclo já pago — que é a semântica de `cancelar()`.
+   */
+  const subAntiga: string | null = psi.pagarme_subscription_id ?? null
+  if (subAntiga) {
+    const cancelou = await cancelarAssinatura(subAntiga)
+    if (!cancelou) {
+      log.err('assinatura.assinar', `não cancelou assinatura anterior sub=${subAntiga} psicologo=${psicologoId} — troca abortada pra não cobrar em dobro`)
+      return { ok: false, error: 'Não foi possível trocar de plano agora. Tente novamente em alguns minutos.' }
+    }
+    /*
+     * Marca cancelada imediatamente. Se a criação abaixo falhar, a linha não
+     * pode continuar 'ativo' com uma assinatura morta na Pagar.me: pela regra
+     * de vencimento em `obterAssinatura`, 'ativo' nunca expira — e a conta
+     * ficaria com plano pago vitalício de graça.
+     */
+    await db.query(
+      `UPDATE psicologos SET plano_status = 'cancelado', plano_atualizado_em = NOW() WHERE id = $1`,
+      [psicologoId],
+    )
+  }
 
   let sub
   try {
@@ -69,7 +155,7 @@ export async function assinar(
         id: psicologoId,
         nome: psi.nome,
         email: psi.email,
-        documento: tryDecrypt(psi.pgm_documento),
+        documento,
         telefone: psi.telefone,
       },
     })

@@ -3,12 +3,15 @@ import bcrypt from 'bcrypt'
 import { db } from '@/server/db/pool'
 import { log } from '@/server/lib/log'
 import { removerListaEspera } from './listaEspera'
+import { encrypt } from '@/server/lib/crypto'
+import { apenasDigitos, validarCpf } from '@/lib/documento'
 
 export type NovaPsicologa = {
   nome: string
   crp: string
   email: string
   telefone: string  // E164 sem '+' ou só DDD+número (vamos normalizar)
+  cpf: string
   senha: string
 }
 
@@ -26,6 +29,7 @@ export async function cadastrarPsicologa(input: NovaPsicologa): Promise<Cadastro
   const crp = input.crp.trim()
   const email = input.email.toLowerCase().trim()
   const telefone = input.telefone.replace(/\D/g, '')
+  const cpf = apenasDigitos(input.cpf)
 
   // Validações
   if (nome.length < 3 || nome.split(/\s+/).length < 2)
@@ -36,6 +40,12 @@ export async function cadastrarPsicologa(input: NovaPsicologa): Promise<Cadastro
     return { ok: false, error: 'Email inválido.', campo: 'email' }
   if (telefone.length < 10 || telefone.length > 13)
     return { ok: false, error: 'Telefone inválido (DDD + número).', campo: 'telefone' }
+  // CPF é exigido na conta nova: é a identificação fiscal da pessoa e evita
+  // ter que caçar o dado depois, no meio do onboarding de recebimento.
+  if (!cpf)
+    return { ok: false, error: 'Informe seu CPF.', campo: 'cpf' }
+  if (!validarCpf(cpf))
+    return { ok: false, error: 'CPF inválido — confira os dígitos.', campo: 'cpf' }
   if (input.senha.length < 8)
     return { ok: false, error: 'A senha precisa ter pelo menos 8 caracteres.', campo: 'senha' }
 
@@ -62,10 +72,10 @@ export async function cadastrarPsicologa(input: NovaPsicologa): Promise<Cadastro
   try {
     const { rows } = await db.query<{ id: string }>(
       `INSERT INTO psicologos
-         (nome, crp, email, senha_hash, telefone, wa_instancia, valor_sessao, termos_aceitos_em)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, NOW())
+         (nome, crp, email, senha_hash, telefone, cpf, wa_instancia, valor_sessao, termos_aceitos_em)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NOW())
        RETURNING id`,
-      [nome, crp, email, senha_hash, telefone, waInstancia, 200],
+      [nome, crp, email, senha_hash, telefone, encrypt(cpf), waInstancia, 200],
     )
     log.ok('cadastro', `nova psicóloga: ${email} (instância wa=${waInstancia})`)
     // Lead virou usuário: tira da lista de espera (não bloqueia o cadastro).

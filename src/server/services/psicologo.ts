@@ -1,6 +1,8 @@
 import 'server-only'
 import bcrypt from 'bcrypt'
 import { db } from '@/server/db/pool'
+import { encrypt, tryDecrypt } from '@/server/lib/crypto'
+import { apenasDigitos, validarCpf } from '@/lib/documento'
 
 export type PerfilPsicologo = {
   id: string
@@ -8,6 +10,11 @@ export type PerfilPsicologo = {
   crp: string
   email: string
   telefone: string | null
+  /**
+   * CPF em dígitos, já decifrado. Identificação fiscal da pessoa — não confundir
+   * com `pgm_documento`, que é o documento do recebedor Pagar.me (CNPJ na PJ).
+   */
+  cpf: string | null
   valorSessao: number | null
   genero: 'f' | 'm' | null
   /** Abordagem terapêutica → lente da rubrica do grafo de temas (§6). */
@@ -26,6 +33,7 @@ function rowToPerfil(r: any): PerfilPsicologo {
     crp: r.crp,
     email: r.email,
     telefone: r.telefone,
+    cpf: r.cpf ? apenasDigitos(tryDecrypt(r.cpf)) || null : null,
     valorSessao: r.valor_sessao !== null ? parseFloat(r.valor_sessao) : null,
     genero: (r.genero === 'f' || r.genero === 'm') ? r.genero : null,
     abordagem: r.abordagem ?? 'tcc',
@@ -38,7 +46,7 @@ function rowToPerfil(r: any): PerfilPsicologo {
 
 export async function obterPerfil(psicologoId: string): Promise<PerfilPsicologo | null> {
   const { rows } = await db.query(
-    `SELECT id, nome, crp, email, telefone, valor_sessao, genero, abordagem, wa_instancia, wa_conectado, pagarme_recipient_id, created_at
+    `SELECT id, nome, crp, email, telefone, cpf, valor_sessao, genero, abordagem, wa_instancia, wa_conectado, pagarme_recipient_id, created_at
        FROM psicologos WHERE id = $1 LIMIT 1`,
     [psicologoId],
   )
@@ -50,6 +58,8 @@ export type PerfilPatch = {
   crp?: string
   email?: string
   telefone?: string | null
+  /** Dígitos crus; é cifrado aqui dentro. `null` limpa o campo. */
+  cpf?: string | null
   valorSessao?: number | null
   genero?: 'f' | 'm' | null
   abordagem?: string
@@ -68,6 +78,13 @@ export async function atualizarPerfil(psicologoId: string, patch: PerfilPatch): 
   if (patch.crp !== undefined)         add('crp', patch.crp.trim())
   if (patch.email !== undefined)       add('email', patch.email.toLowerCase().trim())
   if (patch.telefone !== undefined)    add('telefone', patch.telefone?.replace(/\D/g, '') || null)
+  if (patch.cpf !== undefined) {
+    // Cifrar aqui — e não na action — garante que nenhum caminho de escrita
+    // grave CPF em claro por esquecimento.
+    const d = apenasDigitos(patch.cpf)
+    if (d && !validarCpf(d)) throw new Error('cpf_invalido')
+    add('cpf', d ? encrypt(d) : null)
+  }
   if (patch.valorSessao !== undefined) add('valor_sessao', patch.valorSessao)
   if (patch.genero !== undefined)      add('genero', patch.genero)
   if (patch.abordagem !== undefined)   add('abordagem', patch.abordagem)
@@ -85,7 +102,7 @@ export async function atualizarPerfil(psicologoId: string, patch: PerfilPatch): 
 
   const { rows } = await db.query(
     `UPDATE psicologos SET ${sets.join(', ')} WHERE id = $1
-     RETURNING id, nome, crp, email, telefone, valor_sessao, genero, abordagem, wa_instancia, wa_conectado, pagarme_recipient_id, created_at`,
+     RETURNING id, nome, crp, email, telefone, cpf, valor_sessao, genero, abordagem, wa_instancia, wa_conectado, pagarme_recipient_id, created_at`,
     params,
   )
   return rowToPerfil(rows[0])
