@@ -41,15 +41,15 @@ export type PlanoConfig = {
 export const BETA_LIBERADO = false
 
 /**
- * Comissão da plataforma por sessão paga, ADICIONAL ao plano mensal (§10).
+ * Taxa administrativa da plataforma por sessão paga, ADICIONAL ao plano mensal (§10).
  * Cobrada via split na própria liquidação da Pagar.me — não há transferência
  * posterior nem boleto pro psicólogo. Ver `montarSplitSessao` em `pagarme.ts`.
  */
-export const COMISSAO_SESSAO_PCT = 0.025 // 2,5%
+export const TAXA_ADM_SESSAO_PCT = 0.025 // 2,5%
 
-/** Comissão da plataforma, em centavos, para um valor de sessão em centavos. */
-export function comissaoSessaoCentavos(valorCentavos: number): number {
-  return Math.round(valorCentavos * COMISSAO_SESSAO_PCT)
+/** Taxa administrativa da plataforma, em centavos, para um valor de sessão em centavos. */
+export function taxaAdmSessaoCentavos(valorCentavos: number): number {
+  return Math.round(valorCentavos * TAXA_ADM_SESSAO_PCT)
 }
 
 export const PLANOS: Record<Plano, PlanoConfig> = {

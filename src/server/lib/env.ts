@@ -36,7 +36,7 @@ export const env = {
   // `Sec` e a SENHA; o par so vale com o usuario abaixo.
   pagarmeWebhookSec:   process.env.PAGARME_WEBHOOK_SECRET,
   pagarmeWebhookUser:  process.env.PAGARME_WEBHOOK_USER,
-  // Recipient da conta da PLATAFORMA — destino da comissão por sessão no split.
+  // Recipient da conta da PLATAFORMA — destino da taxa administrativa por sessão no split.
   // Sem ele não há como dividir: a cobrança sai sem split e o valor inteiro cai
   // na conta-mãe (ver `montarSplitSessao` em pagarme.ts).
   pagarmeRecipientPlataforma: process.env.PAGARME_RECIPIENT_PLATAFORMA,

@@ -118,7 +118,7 @@ Premissa adicional adotada neste produto:
 - RF-53 **Onboarding de recebimento**: cadastro PF/PJ com validação de CPF/CNPJ,
   dados bancários e criação do recipient na Pagar.me. Documentos e chave PIX
   cifrados em repouso.
-- RF-54 Líquido exibido ao psicólogo desconta **taxa do adquirente + comissão da
+- RF-54 Líquido exibido ao psicólogo desconta **taxa do adquirente + taxa administrativa da
   plataforma**; o bruto permanece intacto para fins de ISS/imposto.
 
 ### 3.7 Planos e assinatura
@@ -126,7 +126,7 @@ Premissa adicional adotada neste produto:
   **Pro** R$ 159,90 (80). O medidor é **sessão com IA**, não número de pacientes.
 - RF-56 Assinatura via Pagar.me Subscriptions (cartão recorrente, tokenização no
   browser — o cartão nunca passa pelo servidor).
-- RF-57 **Comissão de 2,5% por sessão paga**, adicional ao plano, cobrada no
+- RF-57 **Taxa administrativa de 2,5% por sessão paga**, adicional ao plano, cobrada no
   split da própria liquidação.
 - RF-58 Gate de cota no Modo Presença — validado **no servidor**, não só na UI.
   `BETA_LIBERADO` (hoje `false`) é a chave única que liga/desliga gate e cobrança.
@@ -152,7 +152,7 @@ Premissa adicional adotada neste produto:
 - RF-70 PIX (QR, expira 30min), crédito (até 6x), débito. O PIX exige **CPF do
   pagador** (`customer.document`) — sem ele a Pagar.me reprova a charge e devolve
   a order sem QR.
-- RF-71 **Split**: o líquido cai direto na conta do psicólogo; a comissão da
+- RF-71 **Split**: o líquido cai direto na conta do psicólogo; a taxa administrativa da
   plataforma e a taxa do adquirente saem na liquidação, sem acerto posterior.
 - RF-72 Webhook confirma a sessão ao receber pagamento (P4) e aplica eventos de
   assinatura (renovação, falha, cancelamento). Autenticado por **HTTP Basic Auth**
@@ -214,8 +214,8 @@ Premissa adicional adotada neste produto:
 - RN-03 Sem assinatura, nota não vira prontuário.
 - RN-04 Reembolso: >24h automático; <24h sem reembolso (configurável).
 - RN-05 Sessão interrompida **estorna** a cota de sessão-IA.
-- RN-06 Comissão da plataforma reduz o **líquido**, não o **bruto**: para
-  ISS/imposto a receita do psicólogo é o valor cheio da sessão; a comissão é
+- RN-06 Taxa administrativa da plataforma reduz o **líquido**, não o **bruto**: para
+  ISS/imposto a receita do psicólogo é o valor cheio da sessão; a taxa administrativa é
   despesa dele.
 - RN-07 Recálculo do grafo é **incremental**: sessão já extraída com o mesmo
   prompt e a mesma conceitualização é reaproveitada (0 chamadas de IA).
@@ -236,7 +236,7 @@ instrumentação de custo de IA, landing `/lancamento`.
 O **fluxo de cobrança está validado ponta a ponta em sandbox** (PIX com QR,
 cartão com checkout, webhook autenticado confirmando a sessão). O que falta é a
 **habilitação de recebedores/split** na conta — sem ela o recipient da plataforma
-não pode ser criado e a comissão de 2,5% não sai. Ver [tasks.md](./tasks.md).
+não pode ser criado e a taxa administrativa de 2,5% não sai. Ver [tasks.md](./tasks.md).
 
 ### Fora de escopo / futuro
 Modo supervisor (Fase 3), app mobile, agendamento inbound pelo paciente via

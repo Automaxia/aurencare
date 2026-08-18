@@ -58,7 +58,7 @@ autenticado → sessão vira `confirmada` → SSE + WhatsApp + email.
 > URL correta, autenticação habilitada (Basic) e tentativas > 1.
 
 - [ ] **`PAGARME_RECIPIENT_PLATAFORMA`** — recipient da conta da Audere (sandbox),
-      destino da comissão de 2,5% no split. **Não está mais bloqueado**: em
+      destino da taxa administrativa de 2,5% no split. **Não está mais bloqueado**: em
       18/08/2026 o `POST /recipients` passou a devolver 422 de validação em vez
       de `action_forbidden`, ou seja, a conta já cria recebedores. Rodar:
       ```bash

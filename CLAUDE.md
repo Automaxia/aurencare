@@ -58,7 +58,7 @@ EVOLUTION_API_KEY=...
 EVOLUTION_INSTANCE_NAME=Automaxia   # instância real no Evolution (case-sensitive; compartilhada c/ Habilita)
 PAGARME_API_KEY=sk_live_...              # sk_test_ em sandbox (hoje: sandbox)
 PAGARME_WEBHOOK_SECRET=...               # do painel; sem ele o webhook devolve 503
-PAGARME_RECIPIENT_PLATAFORMA=rp_...      # recebedor da comissão no split
+PAGARME_RECIPIENT_PLATAFORMA=rp_...      # recebedor da taxa administrativa no split
 DATABASE_URL=postgresql://...
 REDIS_URL=redis://...
 NEXTAUTH_SECRET=...
@@ -654,7 +654,7 @@ Modal abre automaticamente ao encerrar. Contém:
 - **Objetivos e progresso** — marcos, escala GAS, notas, copiloto
 - Financeiro + NF + exportação contábil/tributária; Saúde da Prática (KPIs)
 - **Planos / assinatura** — Free (3 sessões-IA/mês) · Essencial R$ 69,90 (30) ·
-  Pro R$ 159,90 (80) + **comissão de 2,5% por sessão**. Medidor = sessões com
+  Pro R$ 159,90 (80) + **taxa administrativa de 2,5% por sessão**. Medidor = sessões com
   IA/mês. Gate de cota no Modo Presença, validado **no servidor**.
   Config em `src/server/lib/planos.ts`
 - **Instrumentação de custo de IA** — `api_custos` com atribuição por

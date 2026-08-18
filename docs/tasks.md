@@ -42,7 +42,7 @@ Legenda prioridade: **P0** crítico (segurança/risco) · **P1** importante · *
 - ✅ **Curva de custo do grafo medida** — O(n) linear, ~R$ 0,0055/sessão.
 - ✅ **Recálculo incremental do grafo** — reaproveita snapshot válido; recalcular
   sem mudanças custa 0 chamadas de IA.
-- ✅ **Split Pagar.me** — 2,5% da plataforma, psicólogo recebe líquido; comissão
+- ✅ **Split Pagar.me** — 2,5% da plataforma, psicólogo recebe líquido; taxa administrativa
   gravada por sessão e refletida no Financeiro e na visão contábil.
 - ✅ Landing `/lancamento` (redesign v2, hero 3D) — acesso antecipado REMOVIDO
   em ago/2026; a seção `#acesso` virou a vitrine de planos. O backend de lista
@@ -91,7 +91,7 @@ acontece mais**: `POST /recipients` com payload vazio devolve 422 de validação
   SOCIO_NOME="…" SOCIO_CPF=… SOCIO_NASCIMENTO=AAAA-MM-DD npm run pagarme:recipient-plataforma
   ```
   → aplicar o `rp_…` no secret. Sem ele a cobrança sai SEM split (valor inteiro
-  na conta-mãe) e a comissão de 2,5% não sai.
+  na conta-mãe) e a taxa administrativa de 2,5% não sai.
 - **P0 — 5 psicólogos com recebedor SINTÉTICO.** O onboarding rodou enquanto a
   produção estava em modo mock (INFRA.md §1) e gravou `mock_rcp_*` em
   `psicologos.pagarme_recipient_id` — IDs que **não existem na Pagar.me**. Eles

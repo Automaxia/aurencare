@@ -615,7 +615,7 @@ export async function gerarCobrancaPix(sessaoId: string): Promise<Sessao> {
     pacienteEmail: s.pacienteEmail,
     pacienteTelefone: s.pacienteTelefone,
     pacienteDocumento: s.pacienteCpf,
-    // Split: o líquido cai direto na conta do psicólogo; a comissão da
+    // Split: o líquido cai direto na conta do psicólogo; a taxa administrativa da
     // plataforma e a taxa da Pagar.me saem na própria liquidação.
     recipientPsicologo: onb.recipientId,
   })
@@ -626,7 +626,7 @@ export async function gerarCobrancaPix(sessaoId: string): Promise<Sessao> {
             pagarme_order_id=$2, pagarme_qrcode=$3, pagarme_qrcode_url=$4,
             comissao_centavos=$5, wa_metodo_escolhido=TRUE
       WHERE id=$1`,
-    [s.id, order.orderId, order.qrCode ?? null, order.qrCodeUrl ?? null, order.comissaoCentavos || null],
+    [s.id, order.orderId, order.qrCode ?? null, order.qrCodeUrl ?? null, order.taxaAdmCentavos || null],
   )
 
   await enviarWA(s.pacienteTelefone, WA_TEMPLATES.fluxo2_pix(order.qrCodeUrl ?? order.qrCode ?? '', s.valor))
@@ -645,7 +645,7 @@ export async function gerarCobrancaCartao(sessaoId: string, metodo: 'credito' | 
     metodo,
     pacienteNome: s.pacienteNome,
     pacienteEmail: s.pacienteEmail,
-    // Split: o líquido cai direto na conta do psicólogo; a comissão da
+    // Split: o líquido cai direto na conta do psicólogo; a taxa administrativa da
     // plataforma e a taxa da Pagar.me saem na própria liquidação.
     recipientPsicologo: onb.recipientId,
   })
@@ -656,7 +656,7 @@ export async function gerarCobrancaCartao(sessaoId: string, metodo: 'credito' | 
             pagarme_order_id=$3, pagarme_checkout_url=$4,
             comissao_centavos=$5, wa_metodo_escolhido=TRUE
       WHERE id=$1`,
-    [s.id, metodo, order.orderId, order.checkoutUrl ?? null, order.comissaoCentavos || null],
+    [s.id, metodo, order.orderId, order.checkoutUrl ?? null, order.taxaAdmCentavos || null],
   )
 
   await enviarWA(s.pacienteTelefone, WA_TEMPLATES.fluxo2_checkout(order.checkoutUrl ?? '', metodo, s.valor))

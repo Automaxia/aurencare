@@ -105,13 +105,13 @@ evento processado, menos de 10 segundos.
 
 O split tem duas fatias em `flat` (centavos — 2,5% não é inteiro, e a fatia exata
 é auditável e casa com o Financeiro):
-- **psicólogo**: valor − comissão, com `charge_processing_fee` e `liable` (absorve
+- **psicólogo**: valor − taxa administrativa, com `charge_processing_fee` e `liable` (absorve
   a taxa do adquirente e responde por chargeback — o serviço é dele);
 - **plataforma**: 2,5%, limpo.
 
 As duas somam exatamente o valor da order. Sem `PAGARME_RECIPIENT_PLATAFORMA` ou
 sem recipient do psicólogo, a cobrança sai **sem** split (degradação com aviso).
-A comissão é gravada em `sessoes.comissao_centavos` no ato — valor real, não
+A taxa administrativa é gravada em `sessoes.comissao_centavos` no ato — valor real, não
 reestimativa.
 
 ### 4.4 Roteamento de LLM (`src/server/lib/llm.ts`)
