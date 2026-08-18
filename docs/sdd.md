@@ -47,7 +47,7 @@ Browser ── HTTPS (Cloudflare Full strict) ── Ingress nginx ── Servic
 
 > **DDL base: CLAUDE.md §11.** Aqui só o que importa para o design.
 
-- **44 migrations** em `src/server/db/migrations/NNN_*.sql`, aplicadas por
+- **45 migrations** em `src/server/db/migrations/NNN_*.sql`, aplicadas por
   `src/server/db/migrate.mjs` (idempotente, controla em `_migrations`).
 - Campos clínicos cifrados em repouso (AES-256-GCM): `sessoes.transcricao_texto`,
   `nota_clinica`, `resumo_ia`, além de documentos e chave PIX do onboarding — §5.
@@ -95,6 +95,13 @@ Browser ── HTTPS (Cloudflare Full strict) ── Ingress nginx ── Servic
 Psicólogo agenda → WhatsApp pergunta método → Pagar.me gera cobrança **com split**
 → webhook `order.paid` → `marcarPagamentoConfirmado` move a sessão para
 `confirmada`, publica SSE e confirma ao paciente por WhatsApp/email.
+**Validado ponta a ponta em produção (ago/2026):** da criação da cobrança ao
+evento processado, menos de 10 segundos.
+
+> ⚠️ **Ambiente do PIX:** em conta de teste o "Modelo de negócio" do PIX precisa
+> ser **Simulator**; **PSP** exige provisionamento real e faz a charge ser
+> reprovada com `Sem ambiente configurado para este tipo de transação`. No live
+> é o inverso. Foi o que manteve o PIX quebrado até ago/2026.
 
 O split tem duas fatias em `flat` (centavos — 2,5% não é inteiro, e a fatia exata
 é auditável e casa com o Financeiro):

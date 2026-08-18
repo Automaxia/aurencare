@@ -13,7 +13,9 @@ Legenda prioridade: **P0** crítico (segurança/risco) · **P1** importante · *
 
 - ✅ Deploy no Kubernetes — monolito em 1 pod (`aurencare-web`), Ingress dos dois hosts.
 - ✅ **CI/CD** — push em `main` dispara build → migrate → rollout (GitHub Actions).
-- ✅ Job de migrations (`migrate.mjs` em JS puro) — **44 migrations** aplicadas.
+  O secret `KUBE_CONFIG` expirou em ago/2026 e derrubou a esteira (falha na etapa
+  de migration, com o build passando — parecia publicado sem estar); renovado.
+- ✅ Job de migrations (`migrate.mjs` em JS puro) — **45 migrations** aplicadas.
 - ✅ Domínio de produção `app.audere.ia.br` + TLS (Cloudflare Full strict).
 - ✅ WhatsApp — payload Evolution **v2**, 7 fluxos + inbox conversacional + voz.
 - ✅ Email — Resend + domínio `automaxia.com.br` verificado; recuperação de senha.
@@ -44,56 +46,54 @@ Legenda prioridade: **P0** crítico (segurança/risco) · **P1** importante · *
   gravada por sessão e refletida no Financeiro e na visão contábil.
 - ✅ Landing `/lancamento` (redesign v2, hero 3D) + lista de espera.
 
-## Pendências — Pagar.me
+## Pagar.me — estado (ago/2026)
 
-> Todas são **configuração**, não código. Comandos em [INFRA.md](./INFRA.md).
+> 🧪 **Sandbox durante o beta.** Chaves `sk_test_`/`pk_test_`: nenhuma cobrança é
+> real, o fluxo inteiro pode ser exercitado sem risco. A troca para `live` é um
+> passo deliberado do go-live, não pendência esquecida.
 
-> 🧪 **Decisão: seguimos em SANDBOX (`sk_test_`/`pk_test_`) durante o beta.**
-> Nenhuma cobrança é real, então o fluxo inteiro pode ser exercitado sem risco.
-> A troca para `live` é um passo deliberado do go-live, não uma pendência
-> esquecida. **Enquanto isso, todo valor abaixo deve ser o do ambiente sandbox.**
+### ✅ Fluxo de cobrança validado ponta a ponta
+Verificado em produção: cobrança PIX criada → QR gerado → Simulator paga →
+Pagar.me dispara `order.paid` → webhook **autenticado** → evento roteado para
+`marcarPagamentoConfirmado`. Tudo em **menos de 10 segundos**. Numa sessão real
+é aí que ela vira `confirmada`, com SSE + WhatsApp + email.
 
-### Agora (para exercitar o fluxo em sandbox)
-- ✅ **Webhook funcionando** (ago/2026). Três defeitos corrigidos de uma vez:
-  a URL apontava para `aurencare.automaxia.com.br` (domínio **morto**, curl → 000);
-  o código validava **HMAC** enquanto a Pagar.me usa **Basic Auth**; e o máximo de
-  tentativas era 1. Agora: URL `app.audere.ia.br`, Basic Auth com
-  `PAGARME_WEBHOOK_USER`/`PAGARME_WEBHOOK_SECRET` no cluster, 3 tentativas.
-  Verificado em produção: sem credencial → 401, credencial errada → 401,
-  credencial correta → 200.
-- ⏳ **P0** `PAGARME_RECIPIENT_PLATAFORMA` — recipient **da conta sandbox** da
-  Audere, destino da comissão. Sem ele a cobrança sai **sem split** (valor
-  inteiro na conta-mãe).
-- ⏳ **P0** **`PAGARME_API_KEY` no cluster é o PLACEHOLDER `sk_test_...`** (11
-  chars) → `integrationStatus.pagarme = false` → **produção roda em modo mock**:
-  toda cobrança gera link `/mock/qr/…`, rota que não existe (404 pro paciente).
-  Trocar pela chave de teste real assim que o deploy das correções subir.
-- ✅ `ASSEMBLYAI_API_KEY` **definida no cluster** (verificado ago/2026).
-- ⏳ **P1** Validar o split em sandbox, sobretudo em `payment_method: 'checkout'`
-  (cartão). A montagem das fatias tem teste (`npm run test:split`); a aceitação
-  pela API, não — depende da habilitação de recebedores.
+Seis defeitos estavam somados nesse caminho — todos corrigidos:
 
-### Bloqueios do lado da Pagar.me (não são código)
-- ✅ **PIX funcionando no sandbox** (ago/2026). A causa não era chave nem
-  ambiente: em Configurações → Meios de pagamento, o **Modelo de negócio** do PIX
-  estava em **PSP**, que exige provisionamento real junto ao provedor. Em sandbox
-  o valor correto é **Simulator**. Trocado → QR code passou a ser gerado.
-  ⚠️ **No go-live é o inverso**: o ambiente live precisa de **PSP**, com o
-  credenciamento feito.
-- ⏳ **P0** **Recebedores/split não liberados na conta** —
+| # | Defeito | Correção |
+|---|---|---|
+| 1 | PIX sem `customer.document` → charge reprovada, order sem QR | envia CPF de `pacientes.dados_cadastro.cpf` |
+| 2 | `PAGARME_API_KEY` era o placeholder `sk_test_...` → produção em **modo mock** (link `/mock/qr` = 404) | chave real no cluster + `PLACEHOLDER_HINTS` ampliada + rota `/mock` criada |
+| 3 | URL do webhook em `aurencare.automaxia.com.br` — domínio **morto** (curl → 000) | `app.audere.ia.br` |
+| 4 | Código validava **HMAC**; a Pagar.me usa **Basic Auth** — nenhum secret jamais casaria | `verifyBasicAuth` + `PAGARME_WEBHOOK_USER`/`_SECRET` |
+| 5 | Webhook com **1** tentativa — instabilidade perdia a confirmação | 3 tentativas |
+| 6 | PIX com **Modelo de negócio = PSP** em conta de teste | trocado para **Simulator** |
+
+- ✅ **Cartão** (crédito/débito) gera checkout normalmente.
+- ✅ **Onboarding de recebimento** corrigido (endereço PF/PJ + sócio) — payload
+  passa por toda a validação da API; só falta a habilitação abaixo.
+
+### ⏳ Único bloqueio restante
+- **P0 — Habilitação de recebedores/split na conta.**
   `action_forbidden | This company is not allowed to create a recipient`.
-  Não é self-service: exige chamado à Pagar.me pedindo modelo marketplace com
-  split por transação. Bloqueia o onboarding de recebimento e a comissão de 2,5%.
-- ✅ **Cartão (crédito/débito) funciona** no sandbox — checkout testado, gera
-  `payment_url` normalmente.
+  Não é self-service. **Chamado aberto** no chat do painel em 17/08/2026 22:56;
+  caiu fora do expediente (seg–sex, 9h–18h) — retomar a conversa, o histórico
+  fica guardado. Destrava: `PAGARME_RECIPIENT_PLATAFORMA`, o onboarding dos
+  psicólogos e a comissão de 2,5%.
+  Quando liberar: `npm run pagarme:recipient-plataforma` (dados da empresa e do
+  sócio já configurados) → aplicar o `rp_…` no secret.
 
-### No go-live (trocar de sandbox para produção)
+### No go-live (sandbox → produção)
 - 🔮 `PAGARME_API_KEY` → `sk_live` no secret.
 - 🔮 `NEXT_PUBLIC_PAGARME_PUBLIC_KEY` → `pk_live` **no build da imagem**
-  (é build-time; pôr só no secret de runtime **não** funciona).
-- 🔮 Recriar no ambiente live: webhook (URL + secret) e recipient da plataforma.
-  Os recipients dos psicólogos também são por ambiente — o onboarding precisa
-  ser refeito, ou migrado, para as contas já cadastradas em sandbox.
+  (build-time; só no secret de runtime **não** funciona).
+- 🔮 PIX: **Modelo de negócio volta a ser PSP** (o inverso do sandbox), com
+  credenciamento concluído.
+- 🔮 Recriar no ambiente live: webhook (URL + Basic Auth + tentativas > 1) e
+  recipient da plataforma.
+- 🔮 ⚠️ **Recipients são por ambiente**: psicólogos que fizerem o onboarding em
+  sandbox precisam refazê-lo (ou ser migrados) no live. Pesar antes de abrir o
+  beta para muita gente com KYC completo.
 - 🔮 Trocar `BETA_LIBERADO` para `false` em `planos.ts` + redeploy.
 
 ## Pendências — segurança

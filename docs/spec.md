@@ -141,11 +141,14 @@ Premissa adicional adotada neste produto:
   instância compartilhada). Inclui **áudio** (transcrição de voz recebida).
 
 ### 3.9 Pagamentos (Pagar.me)
-- RF-70 PIX (QR, expira 30min), crédito (até 6x), débito.
+- RF-70 PIX (QR, expira 30min), crédito (até 6x), débito. O PIX exige **CPF do
+  pagador** (`customer.document`) — sem ele a Pagar.me reprova a charge e devolve
+  a order sem QR.
 - RF-71 **Split**: o líquido cai direto na conta do psicólogo; a comissão da
   plataforma e a taxa do adquirente saem na liquidação, sem acerto posterior.
 - RF-72 Webhook confirma a sessão ao receber pagamento (P4) e aplica eventos de
-  assinatura (renovação, falha, cancelamento).
+  assinatura (renovação, falha, cancelamento). Autenticado por **HTTP Basic Auth**
+  (mecanismo da Pagar.me v5); fail-closed em produção.
 - RF-73 Reembolso automático em cancelamento >24h.
 
 ### 3.10 Aquisição
@@ -169,6 +172,9 @@ Premissa adicional adotada neste produto:
   disparam a ação correta; texto não reconhecido cai no fallback.
 - **CA-71 (RF-71):** as fatias do split somam **exatamente** o valor da order
   (invariante — divergência de 1 centavo é rejeitada pela Pagar.me).
+- **CA-72 (RF-72 / P4):** cobrança paga → `order.paid` autenticado → sessão em
+  `confirmada`, com SSE, WhatsApp e email disparados. Webhook sem credencial ou
+  com credencial errada é rejeitado (401). *Verificado em produção, ago/2026.*
 - **CA-58 (RF-58):** com `BETA_LIBERADO`, `assinarAction` recusa no servidor,
   ainda que chamada diretamente.
 
@@ -210,9 +216,11 @@ exportação contábil, Saúde da Prática, Evolution (7 fluxos + inbox + voz),
 Pagar.me (PIX/crédito/débito + webhook + split + subscriptions), Resend,
 instrumentação de custo de IA, landing `/lancamento`.
 
-### Pronto em código, aguardando configuração
-Cobrança: planos e split funcionam, mas seguem em **sandbox** durante o beta —
-falta o recipient da plataforma e o secret do webhook. Ver [tasks.md](./tasks.md).
+### Pronto em código, aguardando liberação da Pagar.me
+O **fluxo de cobrança está validado ponta a ponta em sandbox** (PIX com QR,
+cartão com checkout, webhook autenticado confirmando a sessão). O que falta é a
+**habilitação de recebedores/split** na conta — sem ela o recipient da plataforma
+não pode ser criado e a comissão de 2,5% não sai. Ver [tasks.md](./tasks.md).
 
 ### Fora de escopo / futuro
 Modo supervisor (Fase 3), app mobile, agendamento inbound pelo paciente via
