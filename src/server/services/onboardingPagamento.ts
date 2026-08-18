@@ -286,6 +286,24 @@ export function traduzirRecusa(
   // Recusa que não sabemos mapear: mostra o que a Pagar.me disse, em vez de
   // apontar o dedo pra conta bancária sem base.
   const bruto = campos[0]?.mensagens[0] ?? mensagemGeral
+  /*
+   * 412 `action_forbidden` — "This company is not allowed to create a
+   * recipient": a CONTA da Audere na Pagar.me não tem split/marketplace
+   * habilitado. Não há nada que o psicólogo possa corrigir, e mandá-lo tentar
+   * de novo é cruel: ele acabou de preencher três passos de formulário e vai
+   * falhar de novo, sempre. Melhor dizer a verdade e liberar o caminho que
+   * FUNCIONA — cobrar por fora — em vez de deixá-lo travado no wizard.
+   */
+  const bloqueioDeConta = status === 412 || /action_forbidden|not allowed to create a recipient/i.test(bruto ?? '')
+  if (bloqueioDeConta) {
+    return {
+      error: 'A configuração de recebimento está temporariamente indisponível — ' +
+        'é uma liberação pendente do nosso provedor de pagamentos, não um problema ' +
+        'nos seus dados. Você pode continuar atendendo normalmente e combinar o ' +
+        'pagamento direto com o paciente; avisamos assim que estiver liberado.',
+    }
+  }
+
   // 401/403 não é dado do psicólogo — é credencial ou permissão nossa. Mandar
   // ele "conferir os dados" seria empurrar um problema de configuração para
   // quem não pode resolvê-lo.

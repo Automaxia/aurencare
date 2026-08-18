@@ -92,6 +92,9 @@ acontece mais**: `POST /recipients` com payload vazio devolve 422 de validação
   ```
   → aplicar o `rp_…` no secret. Sem ele a cobrança sai SEM split (valor inteiro
   na conta-mãe) e a taxa administrativa de 2,5% não sai.
+  🔴 **Bloqueado antes disso**: a conta Pagar.me devolve `412 action_forbidden —
+  This company is not allowed to create a recipient`. Precisa de habilitação de
+  split/marketplace pela Pagar.me; ver INFRA.md §2.
 - **P0 — 5 psicólogos com recebedor SINTÉTICO.** O onboarding rodou enquanto a
   produção estava em modo mock (INFRA.md §1) e gravou `mock_rcp_*` em
   `psicologos.pagarme_recipient_id` — IDs que **não existem na Pagar.me**. Eles

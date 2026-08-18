@@ -57,10 +57,31 @@ autenticado → sessão vira `confirmada` → SSE + WhatsApp + email.
 > ⚠️ Ao criar o webhook do ambiente **live** no go-live, repetir os três pontos:
 > URL correta, autenticação habilitada (Basic) e tentativas > 1.
 
-- [ ] **`PAGARME_RECIPIENT_PLATAFORMA`** — recipient da conta da Audere (sandbox),
-      destino da taxa administrativa de 2,5% no split. **Não está mais bloqueado**: em
-      18/08/2026 o `POST /recipients` passou a devolver 422 de validação em vez
-      de `action_forbidden`, ou seja, a conta já cria recebedores. Rodar:
+- [ ] **🔴 BLOQUEADO NA PAGAR.ME — a conta não pode criar recebedores.**
+      Teste em produção, 18/08/2026 (após o payload de PF/PJ ser corrigido):
+
+      ```
+      HTTP 412 · The recipient could not be created : action_forbidden
+                 | | This company it not allowed to create a recipient
+      ```
+
+      ⚠️ **A conclusão anterior de "desbloqueado" era falso positivo.** Baseou-se
+      em o `POST /recipients` devolver 422 em vez de `action_forbidden` — mas a
+      Pagar.me valida o PAYLOAD antes de checar PERMISSÃO. Enquanto o payload
+      estava quebrado (bug de PF/PJ, corrigido em 278d8a), a requisição parava
+      no 422 e nunca chegava ao teste de permissão. Corrigido o payload, ela
+      avançou e bateu no 412. **422 não prova permissão.**
+
+      **Isso trava dois itens de uma vez** — o mesmo endpoint cria o recebedor
+      da plataforma e o de cada psicólogo: sem habilitação, ninguém configura
+      recebimento e a taxa administrativa de 2,5% não existe.
+
+      **Ação (não é código):** pedir à Pagar.me a habilitação de split/
+      marketplace (criação de recipients) na conta — sandbox e, no go-live,
+      também na live. Enquanto isso, o psicólogo segue operando com pagamento
+      por fora: sem conta de recebimento, a sessão nasce confirmada/pendente.
+
+      Depois de habilitado, rodar:
       ```bash
       SOCIO_NOME="Nome Completo" SOCIO_CPF=00000000000 SOCIO_NASCIMENTO=1985-01-15 npm run pagarme:recipient-plataforma
 
