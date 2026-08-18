@@ -16,6 +16,6 @@ export const config = {
    * · assets internos.
    */
   matcher: [
-    '/((?!login|cadastro|recuperar-senha|redefinir-senha|lancamento|landing|confirmar|onboard|sala|api/auth|api/onboard|api/webhooks|api/cron/recalcular-temas|api/cron/temas-validar|api/cron/destravar-sessoes|api/sala|api/wa|api/health|api/ice|_next/static|_next/image|favicon.ico|icon.svg).*)',
+    '/((?!login|cadastro|recuperar-senha|redefinir-senha|lancamento|landing|confirmar|onboard|sala|mock|api/auth|api/onboard|api/webhooks|api/cron/recalcular-temas|api/cron/temas-validar|api/cron/destravar-sessoes|api/sala|api/wa|api/health|api/ice|_next/static|_next/image|favicon.ico|icon.svg).*)',
   ],
 }

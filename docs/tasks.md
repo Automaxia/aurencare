@@ -123,15 +123,15 @@ Legenda prioridade: **P0** crítico (segurança/risco) · **P1** importante · *
 
 ## Pendências — limpeza e coerência
 
-- ⏳ **P2** `PAGARME_ENCRYPTION_KEY` é **código morto** (era da API v4; a v5 usa
-  `appId` com `pk_`). Declarada em `.env.local`, `CLAUDE.md` e no secret de
-  exemplo, lida em lugar nenhum — remover das três.
-- ⏳ **P2** `PLACEHOLDER_HINTS` (`env.ts`) não cobre `sk_live_...`, `pk_live_...`
-  nem `<webhook-secret-...>` — justamente os placeholders do próprio
-  `.env.example`. Quem copiar o exemplo cru fica com `integrationStatus.pagarme
-  = true` e chamadas reais dando 401, em vez de cair em mock.
-- ⏳ **P2** Rotas `/mock/qr/*` e `/mock/checkout/*` não existem — em modo mock o
-  WhatsApp envia link quebrado.
+- ✅ `PAGARME_ENCRYPTION_KEY` removida de `CLAUDE.md` e do secret de exemplo
+  (era da API v4; a v5 usa `appId` com `pk_` — nunca foi lida pelo código).
+- ✅ `PLACEHOLDER_HINTS` (`env.ts`) ampliada — cobre `sk_live_...`, `pk_live_...`,
+  `<...>` e afins. Antes, `sk_test_...` no secret de produção derrubava o app
+  inteiro em modo mock, e um `.env.example` copiado cru daria 401 em vez de mock.
+- ✅ Rota `/mock/[...slug]` criada (e liberada no middleware) — em modo mock o
+  link enviado ao paciente explica que é demonstração, em vez de dar 404.
+- ✅ `classificarTom` **já estava correto** — o client envia `who` por turno
+  (`client.tsx:283`) e a rota respeita (`tom-turno/route.ts:43`).
 - ⏳ **P2** Taxas Pagar.me hardcoded em `financeiro.ts` e `visaoContabil.ts`
   (duas cópias, estimadas) — idealmente vir da API ou ao menos ter fonte única.
 - ⏳ **P2** Auditoria/log quando o `aiGuard` rejeita texto.

@@ -3,8 +3,21 @@ import 'server-only'
 /**
  * Marca o env como "configurado" se NÃO contém placeholder.
  * Permite que clients degradem para no-op quando .env.local ainda tem valor padrão.
+ *
+ * A lista precisa cobrir os placeholders do `.env.example` e do
+ * `k8s/aurencare-secrets.example.yaml` — se um deles escapar, o valor falso
+ * passa por "configurado" e o client tenta chamada real, falhando com 401 em
+ * vez de degradar. Já aconteceu ao contrário também: `sk_test_...` no secret de
+ * produção deixou o app inteiro em modo mock (link de cobrança 404).
  */
-const PLACEHOLDER_HINTS = ['change-me', 'sk-ant-...', 'sk-proj-...', 'sk_test_...', 'ek_test_...', 'example.com']
+const PLACEHOLDER_HINTS = [
+  'change-me', 'example.com',
+  'sk-ant-...', 'sk-proj-...',
+  'sk_test_...', 'sk_live_...', 'pk_test_...', 'pk_live_...',
+  'ek_test_...', 'ek_live_...', 'ak_live_...',
+  '<', '>',                       // pega `<webhook-secret-do-painel-pagarme>` e afins
+  'seu_token_aqui', 'coloque-', 'preencha-',
+]
 
 export function isConfigured(value: string | undefined): boolean {
   if (!value || value.trim() === '') return false
