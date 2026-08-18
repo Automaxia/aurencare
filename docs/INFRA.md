@@ -16,48 +16,50 @@
 > ℹ️ **Estado do secret verificado em ago/2026** (`kubectl get secret
 > aurencare-secrets -n aurencare`). Já definidos e reais: `ASSEMBLYAI_API_KEY`,
 > `CRON_SECRET`, `EVOLUTION_WEBHOOK_TOKEN`, `OPENAI_API_KEY`, `ENCRYPTION_KEY`,
-> `TURN_URLS`. Pendentes: os dois itens da §1 abaixo.
+> `TURN_URLS`, `PAGARME_API_KEY`, `PAGARME_WEBHOOK_USER`/`_SECRET`.
+> Pendente: `PAGARME_RECIPIENT_PLATAFORMA` (bloqueado pela Pagar.me, ver §4).
 
-## 🔴 1. Agora — tirar o Pagar.me do modo mock
+## 🟢 1. Pagar.me fora do modo mock — ✅ RESOLVIDO (ago/2026)
 
-`PAGARME_API_KEY` no cluster é o **placeholder literal** `sk_test_...` (11
-chars). Como esse valor está em `PLACEHOLDER_HINTS` (`env.ts:7`),
-`integrationStatus.pagarme` é `false` e **produção roda em modo mock**: toda
-cobrança gera `mock_pix_…` com link `https://app.audere.ia.br/mock/qr/…png`,
-rota que **não existe** — o paciente recebe 404.
+`PAGARME_API_KEY` no cluster era o **placeholder literal** `sk_test_...` (11
+chars), que está em `PLACEHOLDER_HINTS` → `integrationStatus.pagarme = false` →
+**produção rodava em modo mock**: toda cobrança virava link `/mock/qr/…`, rota
+que não existia (404 no paciente).
 
-- [ ] Definir a chave de teste real e reiniciar (só DEPOIS do deploy das
-      correções de PIX — sem elas, sair do mock manda link vazio em vez de 404):
-  ```bash
-  kubectl patch secret aurencare-secrets -n aurencare --type merge \
-    -p '{"stringData":{"PAGARME_API_KEY":"sk_test_<real>"}}'
-  kubectl rollout restart deploy/aurencare-web -n aurencare
-  kubectl rollout status  deploy/aurencare-web -n aurencare
-  ```
+- [x] Chave de teste real aplicada no secret e pod reiniciado.
+- [x] Rota `/mock/[...slug]` criada — se o modo mock voltar a acontecer, o link
+      explica que é demonstração em vez de dar 404.
+- [x] `PLACEHOLDER_HINTS` ampliada para pegar `sk_live_...`, `pk_live_...`, `<...>`.
 - [x] `ASSEMBLYAI_API_KEY` definida — transcrição do paciente, fallback do tablet
       e multilíngue (PT/EN) destravados.
 - [ ] **Rotacionar** a key da AssemblyAI (foi compartilhada em texto).
 
-## 🔴 2. Agora — destravar a confirmação de pagamento
+## 🟢 2. Confirmação de pagamento — ✅ RESOLVIDO (ago/2026)
 
-O webhook da Pagar.me é **fail-closed em produção**: sem `PAGARME_WEBHOOK_SECRET`
-ele responde **503** e **nenhuma sessão é confirmada** (viola a premissa P4). O
-gate é `NODE_ENV=production`, **não** o tipo da chave — vale igual em sandbox.
+O webhook estava quebrado por **três** causas somadas, não uma:
 
-- [ ] Gerar o secret no painel Pagar.me (**ambiente sandbox**, ver §3) e definir:
-  ```bash
-  kubectl patch secret aurencare-secrets -n aurencare --type merge \
-    -p '{"stringData":{"PAGARME_WEBHOOK_SECRET":"<secret>"}}'
-  ```
-- [ ] Cadastrar o webhook no painel → `https://app.audere.ia.br/api/webhooks/pagarme`
-      (eventos: `order.paid`, `order.canceled`, `charge.payment_failed`,
-      `subscription.charged/canceled`, `invoice.paid`).
+- [x] **URL apontava para domínio morto** — estava `aurencare.automaxia.com.br`
+      (curl → 000). Corrigida para `https://app.audere.ia.br/api/webhooks/pagarme`.
+- [x] **Mecanismo errado no código** — a Pagar.me v5 autentica webhook por
+      **HTTP Basic Auth** (painel: "Habilitar autenticação" → Usuário + Senha),
+      não por HMAC/X-Hub-Signature. Enquanto o código validava HMAC, NENHUM valor
+      de secret poderia funcionar. Corrigido em `webhookAuth.ts`.
+- [x] **Máximo de tentativas era 1** → agora 3. Com uma só, qualquer instabilidade
+      perdia a confirmação do pagamento em definitivo.
+- [x] Credenciais no cluster: `PAGARME_WEBHOOK_USER` + `PAGARME_WEBHOOK_SECRET`
+      (a senha do painel).
+
+Verificado em produção: sem credencial → **401**, credencial errada → **401**,
+credencial correta → **200**. O ciclo do cartão fecha: paciente paga → `order.paid`
+autenticado → sessão vira `confirmada` → SSE + WhatsApp + email.
+
+> ⚠️ Ao criar o webhook do ambiente **live** no go-live, repetir os três pontos:
+> URL correta, autenticação habilitada (Basic) e tentativas > 1.
+
 - [ ] **`PAGARME_RECIPIENT_PLATAFORMA`** — recipient da conta da Audere (sandbox),
-      destino da comissão de 2,5% no split. Sem ele a cobrança sai **sem split**
-      e o valor inteiro fica na conta-mãe, em vez de ir para o psicólogo.
-- [ ] **`CRON_SECRET`** — sem ele, `/api/cron/recalcular-temas` fica fora do
-      middleware de auth e aceita **qualquer** chamada; um POST anônimo dispara o
-      recálculo de todos os pacientes (a operação de IA mais cara do sistema).
+      destino da comissão de 2,5% no split. Bloqueado: a conta ainda não tem
+      recebedores liberados (ver §4). Script pronto:
+      `npm run pagarme:recipient-plataforma`.
 
 ## 🟢 3. Confiabilidade do vídeo — servidor TURN (#11) — ✅ ATIVO
 Chamadas atrás de NAT/4G agora têm relay TURN (antes só STUN).
@@ -100,8 +102,8 @@ Quando for ligar de verdade:
 ## 🔒 5. Segurança / hardening
 - [ ] Confirmar que `ENCRYPTION_KEY` e `NEXTAUTH_SECRET` são valores **reais e
       definitivos** (trocar `ENCRYPTION_KEY` depois torna dados clínicos ilegíveis).
-- [ ] `EVOLUTION_WEBHOOK_TOKEN` definido → ativa a validação do webhook da
-      Evolution (hoje degrada sem validar).
+- [x] `EVOLUTION_WEBHOOK_TOKEN` definido → validação do webhook da Evolution
+      **ativa** (verificado no secret, ago/2026).
 - [ ] Rotacionar credenciais já expostas no histórico: AssemblyAI (agora), Resend,
       e decidir sobre a Evolution API key (rotacionar = recriar instância → QR).
 - [ ] **ZDR + DPA com a OpenAI** — ela é o provedor primário de IA, então dado
