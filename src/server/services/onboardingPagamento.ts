@@ -1,7 +1,7 @@
 import 'server-only'
 import { db } from '@/server/db/pool'
 import { encrypt, tryDecrypt } from '@/server/lib/crypto'
-import { criarRecipient, isRecipientMock, type RecipientInput } from '@/server/lib/pagarmeRecipient'
+import { criarRecipient, isRecipientMock, type RecipientInput, PagarmeRecipientError, type CampoRecusado } from '@/server/lib/pagarmeRecipient'
 import { log } from '@/server/lib/log'
 import { cpfCnpjValido, validarCpf, validarCnpj } from '@/lib/documento'
 
@@ -227,6 +227,68 @@ function mascararChavePix(tipo: string, valor: string): string {
   return mascararDoc(valor)
 }
 
+/**
+ * Traduz o campo recusado pela Pagar.me para o campo do NOSSO formulário.
+ *
+ * Sem isso a tela dizia "verifique a conta bancária" para qualquer recusa —
+ * inclusive CEP inválido ou sócio faltando. A pessoa revisava a conta bancária,
+ * que estava certa, e desistia. Mesmo problema que o CPF do paciente tinha.
+ *
+ * A ordem importa: `managing_partners` e `address` são testados ANTES dos
+ * genéricos (`document`, `name`), senão o caminho
+ * `register_information.managing_partners[0].document` cairia em "documento".
+ */
+const RECUSA_PARA_CAMPO: [RegExp, CampoErro, string][] = [
+  // ── sócio administrador (PJ) ──
+  [/managing_partners.*document/i,   'socioCpf',        'A Pagar.me não aceitou o CPF do sócio administrador. Confira os dígitos.'],
+  [/managing_partners.*name/i,       'socioNome',       'A Pagar.me não aceitou o nome do sócio administrador — informe o nome completo, como consta no documento.'],
+  [/managing_partners.*birthdate/i,  'socioNascimento', 'Data de nascimento do sócio administrador inválida ou incompatível com o CPF informado.'],
+  [/managing_partners.*email/i,      'socioEmail',      'A Pagar.me não aceitou o email do sócio administrador.'],
+  [/managing_partners.*phone/i,      'socioTelefone',   'A Pagar.me não aceitou o telefone do sócio administrador. Use DDD + número.'],
+  [/managing_partners/i,             'socioNome',       'A Pagar.me recusou os dados do sócio administrador. Revise nome, CPF, nascimento, email e telefone.'],
+  // ── endereço ──
+  [/address.*zip_?code/i,            'endCep',          'CEP recusado pela Pagar.me. Confira os 8 dígitos.'],
+  [/address.*street_?number/i,       'endNumero',       'Número do endereço recusado pela Pagar.me.'],
+  [/address.*street/i,               'endLogradouro',   'Logradouro recusado pela Pagar.me. Escreva o nome da rua sem abreviar.'],
+  [/address.*neighborhood/i,         'endBairro',       'Bairro recusado pela Pagar.me.'],
+  [/address.*city/i,                 'endCidade',       'Cidade recusada pela Pagar.me — confira a grafia.'],
+  [/address.*state/i,                'endUf',           'UF recusada pela Pagar.me. Use a sigla de 2 letras (ex.: SP).'],
+  [/address/i,                       'endCep',          'A Pagar.me recusou o endereço. Revise CEP, rua, número, bairro, cidade e UF.'],
+  // ── conta bancária ──
+  [/holder_?document/i,              'titularDocumento','O documento do titular não bate com a conta bancária. Em conta PJ o titular é o CNPJ; em conta PF, o CPF.'],
+  [/holder_?name/i,                  'titularNome',     'Nome do titular recusado pela Pagar.me — precisa ser igual ao do banco.'],
+  [/holder_?type/i,                  'titularDocumento','Tipo de titular incompatível: conta de pessoa física exige CPF; de empresa, CNPJ.'],
+  [/branch_?check_?digit/i,          'bancoAgencia',    'Dígito da agência recusado. Se a agência não tem dígito, deixe o campo vazio.'],
+  [/branch_?number/i,                'bancoAgencia',    'Agência recusada pela Pagar.me. Informe só os números da agência; o dígito vai no campo ao lado.'],
+  [/account_?check_?digit/i,         'bancoContaDv',    'Dígito da conta recusado pela Pagar.me.'],
+  [/account_?number/i,               'bancoConta',      'Número da conta recusado pela Pagar.me. Informe sem o dígito.'],
+  [/\bbank\b/i,                      'bancoCodigo',     'Banco não reconhecido pela Pagar.me. Use o código de compensação (ex.: 341, 001, 237).'],
+  [/bank_?account.*type|account.*type/i, 'bancoTipo',   'Tipo de conta recusado (corrente/poupança).'],
+  // ── dados do recebedor ──
+  [/birthdate|founding_?date/i,      'dataNascimento',  'Data recusada pela Pagar.me — confira se bate com o documento informado.'],
+  [/monthly_?income|annual_?revenue/i,'rendaCentavos',  'Renda/faturamento recusado pela Pagar.me.'],
+  [/company_?name|trading_?name/i,   'razaoSocial',     'Razão social recusada pela Pagar.me — precisa ser igual à da Receita.'],
+  [/\bdocument\b/i,                  'documento',       'A Pagar.me não aceitou seu CPF/CNPJ. Confira os dígitos.'],
+  [/\bname\b/i,                      'razaoSocial',     'Nome recusado pela Pagar.me — informe o nome completo, como no documento.'],
+]
+
+export function traduzirRecusa(campos: CampoRecusado[]): { error: string; campo?: CampoErro } {
+  for (const c of campos) {
+    const alvo = `${c.caminho} ${c.mensagens.join(' ')}`
+    for (const [re, campo, msg] of RECUSA_PARA_CAMPO) {
+      if (re.test(alvo)) return { error: msg, campo }
+    }
+  }
+  // Recusa que não sabemos mapear: mostra o que a Pagar.me disse, em vez de
+  // apontar o dedo pra conta bancária sem base.
+  const bruto = campos[0]?.mensagens[0]
+  return {
+    error: bruto
+      ? `A Pagar.me recusou o cadastro: ${bruto}`
+      : 'Não foi possível registrar seus dados no Pagar.me. Tente novamente em alguns minutos.',
+  }
+}
+
 export async function salvarOnboarding(psicologoId: string, input: OnboardingInput): Promise<SalvarResult> {
   const v = validar(input)
   if (v) return { ok: false, error: v.error, campo: v.campo }
@@ -293,8 +355,13 @@ export async function salvarOnboarding(psicologoId: string, input: OnboardingInp
     const r = await criarRecipient(recipientInput)
     recipientId = r.recipientId
   } catch (err) {
+    if (err instanceof PagarmeRecipientError) {
+      const t = traduzirRecusa(err.campos)
+      log.err('onboardingPagamento', `pagar.me recusou — campo=${t.campo ?? 'desconhecido'}`, err.detalhe)
+      return { ok: false, error: t.error, campo: t.campo }
+    }
     log.err('onboardingPagamento', 'pagar.me recusou', err)
-    return { ok: false, error: 'Não foi possível registrar seus dados no Pagar.me. Verifique a conta bancária e tente novamente.' }
+    return { ok: false, error: 'Não foi possível registrar seus dados no Pagar.me. Tente novamente em alguns minutos.' }
   }
 
   const chavePixTipo = input.chavePix?.tipo ?? null

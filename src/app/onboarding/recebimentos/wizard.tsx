@@ -42,6 +42,22 @@ const TIPOS_PIX: Array<{ key: TipoChavePix; label: string; placeholder: string }
   { key: 'aleatoria', label: 'Aleatória', placeholder: 'xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx' },
 ]
 
+/**
+ * Em que passo do wizard cada campo vive.
+ *
+ * O envio acontece no passo 3, mas a Pagar.me pode recusar um campo do passo 1
+ * (CEP, CPF, sócio). Sem voltar o wizard, a pessoa lia "CEP recusado" com o
+ * campo do CEP fora da tela — a mensagem certa, invisível.
+ */
+const PASSO_DO_CAMPO: Record<string, 1 | 2 | 3> = {
+  tipoPessoa: 1, documento: 1, razaoSocial: 1, dataNascimento: 1, rendaCentavos: 1,
+  endCep: 1, endLogradouro: 1, endNumero: 1, endBairro: 1, endCidade: 1, endUf: 1,
+  socioNome: 1, socioCpf: 1, socioNascimento: 1, socioEmail: 1, socioTelefone: 1,
+  bancoCodigo: 2, bancoAgencia: 2, bancoConta: 2, bancoContaDv: 2, bancoTipo: 2,
+  titularNome: 2, titularDocumento: 2,
+  chavePixTipo: 3, chavePixValor: 3,
+}
+
 export function Wizard({ nomePsicologa }: Props) {
   const router = useRouter()
   const [step, setStep] = useState<Step>(1)
@@ -229,7 +245,13 @@ export function Wizard({ nomePsicologa }: Props) {
     const r = await salvarOnboardingAction(input)
     setEnviando(false)
     if (r.ok) { router.push('/') ; router.refresh() }
-    else { setErro(r.error); setErroCampo(r.campo ?? null) }
+    else {
+      setErro(r.error)
+      setErroCampo(r.campo ?? null)
+      // Leva o wizard até onde o campo recusado está visível.
+      const destino = r.campo ? PASSO_DO_CAMPO[r.campo] : undefined
+      if (destino && destino !== step) setStep(destino)
+    }
   }
 
   return (

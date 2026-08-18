@@ -222,7 +222,57 @@ export async function criarRecipient(input: RecipientInput): Promise<RecipientCr
     return { recipientId: data.id, status: data.status ?? 'registration' }
   } catch (err) {
     const detail = axios.isAxiosError(err) ? err.response?.data : err
-    log.err('pagarme.recipient', 'falha ao criar', detail)
-    throw new Error('pagarme_recipient_failed')
+    const campos = extrairErrosDeCampo(detail)
+    log.err(
+      'pagarme.recipient',
+      campos.length
+        ? `falha ao criar — campos recusados: ${campos.map(c => c.caminho).join(', ')}`
+        : 'falha ao criar',
+      detail,
+    )
+    throw new PagarmeRecipientError(campos, detail)
   }
+}
+
+/** Um campo recusado pela Pagar.me: caminho no payload + o que ela disse. */
+export type CampoRecusado = { caminho: string; mensagens: string[] }
+
+/**
+ * Erro de criação de recebedor que CARREGA os campos recusados.
+ *
+ * Antes só se lançava `pagarme_recipient_failed`, e a tela dizia "verifique a
+ * conta bancária" para qualquer recusa — inclusive endereço, data de nascimento
+ * ou sócio. Quem via a mensagem revisava a conta bancária, que estava certa.
+ */
+export class PagarmeRecipientError extends Error {
+  constructor(public readonly campos: CampoRecusado[], public readonly detalhe: unknown) {
+    super('pagarme_recipient_failed')
+    this.name = 'PagarmeRecipientError'
+  }
+}
+
+/**
+ * Normaliza o corpo de erro da Pagar.me v5. Ela responde em mais de um formato
+ * conforme o tipo de falha, então aceitamos os três que já vimos:
+ *   { errors: { "campo.path": ["msg"] } }        ← validação por campo
+ *   { errors: [{ message: "..." }] }             ← lista simples
+ *   { message: "..." }                           ← só a mensagem
+ */
+export function extrairErrosDeCampo(detail: unknown): CampoRecusado[] {
+  const d = detail as any
+  const errs = d?.errors
+  if (!errs) return []
+
+  if (Array.isArray(errs)) {
+    return errs
+      .map((e: any) => ({ caminho: e?.field ?? e?.parameter_name ?? '', mensagens: [String(e?.message ?? e)] }))
+      .filter(c => c.caminho || c.mensagens[0])
+  }
+  if (typeof errs === 'object') {
+    return Object.entries(errs).map(([caminho, msgs]) => ({
+      caminho,
+      mensagens: Array.isArray(msgs) ? msgs.map(String) : [String(msgs)],
+    }))
+  }
+  return []
 }
