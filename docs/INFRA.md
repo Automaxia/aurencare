@@ -92,7 +92,10 @@ Quando for ligar de verdade:
 - [ ] `NEXT_PUBLIC_PAGARME_PUBLIC_KEY` → `pk_live` — ⚠️ **é build-time**: tem que
       entrar no **build da imagem** (`--build-arg` no `build-push.sh` ou env do
       job de build), **não** só no secret de runtime.
-- [ ] Recriar no ambiente live: webhook (URL + secret) e recipient da plataforma.
+- [ ] Recriar no ambiente live: webhook (URL + Basic Auth) e recipient da plataforma.
+- [ ] ⚠️ **Modelo de negócio do PIX**: em Configurações → Meios de pagamento, o
+      sandbox usa **Simulator** e o live precisa de **PSP** (com credenciamento
+      feito). Foi o "Simulator vs PSP" que manteve o PIX quebrado no teste.
 - [ ] ⚠️ **Recipients são por ambiente**: os psicólogos que fizerem o onboarding
       de recebimento em sandbox terão de refazê-lo (ou ser migrados) no live.
       Pesar isso antes de abrir o beta para muita gente com KYC completo.

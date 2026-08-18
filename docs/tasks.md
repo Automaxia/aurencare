@@ -74,11 +74,12 @@ Legenda prioridade: **P0** crítico (segurança/risco) · **P1** importante · *
   pela API, não — depende da habilitação de recebedores.
 
 ### Bloqueios do lado da Pagar.me (não são código)
-- ⏳ **P0** **PIX sem ambiente configurado no sandbox** — a charge é reprovada com
-  `action_forbidden | Sem ambiente configurado para este tipo de transação`.
-  Testado com duas chaves `sk_test_` diferentes, mesmo resultado. A configuração
-  do painel (PIX ativo, modelo PSP) parece ter sido salva no ambiente de
-  **Produção**; precisa ser refeita no ambiente de **Teste**.
+- ✅ **PIX funcionando no sandbox** (ago/2026). A causa não era chave nem
+  ambiente: em Configurações → Meios de pagamento, o **Modelo de negócio** do PIX
+  estava em **PSP**, que exige provisionamento real junto ao provedor. Em sandbox
+  o valor correto é **Simulator**. Trocado → QR code passou a ser gerado.
+  ⚠️ **No go-live é o inverso**: o ambiente live precisa de **PSP**, com o
+  credenciamento feito.
 - ⏳ **P0** **Recebedores/split não liberados na conta** —
   `action_forbidden | This company is not allowed to create a recipient`.
   Não é self-service: exige chamado à Pagar.me pedindo modelo marketplace com
