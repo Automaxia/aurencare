@@ -32,7 +32,10 @@ export const env = {
   evolutionInstance:   process.env.EVOLUTION_INSTANCE_NAME || 'auren-care',
   evolutionWebhookTok: process.env.EVOLUTION_WEBHOOK_TOKEN,
   pagarmeKey:          process.env.PAGARME_API_KEY,
+  // Basic Auth do webhook Pagar.me (painel: Habilitar autenticacao).
+  // `Sec` e a SENHA; o par so vale com o usuario abaixo.
   pagarmeWebhookSec:   process.env.PAGARME_WEBHOOK_SECRET,
+  pagarmeWebhookUser:  process.env.PAGARME_WEBHOOK_USER,
   // Recipient da conta da PLATAFORMA — destino da comissão por sessão no split.
   // Sem ele não há como dividir: a cobrança sai sem split e o valor inteiro cai
   // na conta-mãe (ver `montarSplitSessao` em pagarme.ts).

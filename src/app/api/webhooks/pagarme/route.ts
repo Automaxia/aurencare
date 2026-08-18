@@ -3,7 +3,7 @@ import { marcarPagamentoConfirmado, marcarPagamentoCancelado } from '@/server/se
 import { aplicarEventoAssinatura } from '@/server/services/assinatura'
 import { log } from '@/server/lib/log'
 import { env } from '@/server/lib/env'
-import { verifyHubSignature } from '@/server/lib/webhookAuth'
+import { verifyBasicAuth, verifyHubSignature } from '@/server/lib/webhookAuth'
 
 /**
  * Webhook Pagar.me. §10 Fluxo 2 (pagamento confirmado).
@@ -15,12 +15,24 @@ import { verifyHubSignature } from '@/server/lib/webhookAuth'
 export async function POST(req: Request) {
   const raw = await req.text()
 
-  const sig = verifyHubSignature(
+  // A Pagar.me v5 autentica webhook por **Basic Auth** (painel: "Habilitar
+  // autenticacao" -> Usuario + Senha), NAO por assinatura HMAC. O HMAC fica
+  // como segundo caminho: se um dia vier x-hub-signature-256, ainda validamos.
+  const viaBasic = verifyBasicAuth(
+    req.headers.get('authorization'),
+    env.pagarmeWebhookUser,
+    env.pagarmeWebhookSec,
+  )
+  const viaHmac = viaBasic === 'ok' ? 'ok' : verifyHubSignature(
     raw,
-    // Prefere o header sha256; o legado sha1 não é mais usado pra evitar downgrade.
     req.headers.get('x-hub-signature-256') ?? req.headers.get('x-hub-signature'),
     env.pagarmeWebhookSec,
   )
+  // 'unconfigured' so quando NENHUM dos dois esta configurado.
+  const sig: 'ok' | 'invalid' | 'unconfigured' =
+    viaBasic === 'ok' || viaHmac === 'ok' ? 'ok'
+    : viaBasic === 'unconfigured' && viaHmac === 'unconfigured' ? 'unconfigured'
+    : 'invalid'
   if (sig === 'invalid') {
     log.warn('pagarme.webhook', 'assinatura inválida — rejeitado')
     return NextResponse.json({ error: 'invalid_signature' }, { status: 401 })

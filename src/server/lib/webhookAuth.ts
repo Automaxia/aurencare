@@ -54,3 +54,41 @@ export function verifySharedToken(
   if (!provided) return 'invalid'
   return safeEqual(provided, secret!) ? 'ok' : 'invalid'
 }
+
+/**
+ * Valida HTTP Basic Auth — é o mecanismo que a Pagar.me v5 realmente usa nos
+ * webhooks: no painel, "Habilitar autenticação" pede **Usuário** e **Senha**, e
+ * as entregas chegam com `Authorization: Basic base64(user:senha)`.
+ *
+ * O código antes esperava `X-Hub-Signature-256` (HMAC), que a Pagar.me NÃO
+ * envia — por isso nenhum valor de `PAGARME_WEBHOOK_SECRET` jamais casaria e a
+ * rota ficava presa em 503/401.
+ *
+ * @returns 'ok' | 'invalid' | 'unconfigured'
+ */
+export function verifyBasicAuth(
+  header: string | null,
+  user: string | undefined,
+  pass: string | undefined,
+): 'ok' | 'invalid' | 'unconfigured' {
+  if (!isConfigured(user) || !isConfigured(pass)) return 'unconfigured'
+  if (!header) return 'invalid'
+
+  const [esquema, valor] = header.split(' ', 2)
+  if (!valor || esquema.toLowerCase() !== 'basic') return 'invalid'
+
+  let decodificado: string
+  try { decodificado = Buffer.from(valor.trim(), 'base64').toString('utf8') }
+  catch { return 'invalid' }
+
+  // Só o PRIMEIRO ':' separa — senha pode conter ':'.
+  const sep = decodificado.indexOf(':')
+  if (sep < 0) return 'invalid'
+
+  const u = decodificado.slice(0, sep)
+  const p = decodificado.slice(sep + 1)
+  // Compara os dois SEMPRE (sem short-circuit) para não vazar por tempo.
+  const okUser = safeEqual(u, user!)
+  const okPass = safeEqual(p, pass!)
+  return okUser && okPass ? 'ok' : 'invalid'
+}
