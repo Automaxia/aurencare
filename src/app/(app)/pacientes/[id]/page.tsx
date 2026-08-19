@@ -71,8 +71,14 @@ function resumoPreview(md: string): string {
     .trim()
 }
 
-export default async function PacientePerfilPage({ params }: { params: { id: string } }) {
+export default async function PacientePerfilPage({ params, searchParams }: {
+  params: { id: string }
+  searchParams?: { sessoes?: string }
+}) {
   const user = await requirePsicologo()
+  // O histórico vem truncado por padrão (perfil é briefing, não prontuário
+  // inteiro), mas "ver todas" precisa existir — pacote de 20 sessões cabe.
+  const verTodasSessoes = searchParams?.sessoes === 'todas'
   const { rows } = await db.query<{ id: string; nome: string; telefone: string; email: string | null; psicologo_id: string; consentimento_aceito: boolean; status: string; created_at: string }>(
     'SELECT id, nome, telefone, email, psicologo_id, consentimento_aceito, status, created_at FROM pacientes WHERE id = $1 LIMIT 1',
     [params.id],
@@ -86,7 +92,7 @@ export default async function PacientePerfilPage({ params }: { params: { id: str
     db.query<{ id: string; numero: number; data_hora: string; modalidade: string; duracao_min: number }>(
       `SELECT id, numero, data_hora, modalidade, duracao_min
          FROM sessoes WHERE paciente_id = $1 AND assinada = TRUE
-        ORDER BY data_hora DESC LIMIT 40`, [params.id],
+        ORDER BY data_hora DESC`, [params.id],
     ).then(r => r.rows.map(row => ({
       id: row.id, numero: row.numero, dataHora: row.data_hora, modalidade: row.modalidade, duracaoMin: row.duracao_min,
     }))),
@@ -113,8 +119,7 @@ export default async function PacientePerfilPage({ params }: { params: { id: str
               ${sqlTemRegistro()} AS tem_registro,
               ${sqlTemCobrancaAberta()} AS tem_cobranca_aberta
          FROM sessoes WHERE paciente_id = $1
-         AND status IN ('concluida','no_show','cancelada','confirmada','em_curso','agendada')
-        ORDER BY data_hora DESC LIMIT 12`, [params.id]).then(r => r.rows),
+        ORDER BY data_hora DESC ${verTodasSessoes ? '' : 'LIMIT 12'}`, [params.id]).then(r => r.rows),
   ])
 
   const arquivado = p.status === 'inativo'
@@ -174,10 +179,13 @@ export default async function PacientePerfilPage({ params }: { params: { id: str
         <MemoriaClinica dados={memoria} pacienteId={p.id} />
       </div>
 
-      <details className="bloco-recolhivel">
+      <details className="bloco-recolhivel" id="historico" open={verTodasSessoes}>
         <summary>
           <span>Histórico de sessões</span>
-          <span className="resumo">{historicoSessoes.length} {historicoSessoes.length === 1 ? 'sessão' : 'sessões'}</span>
+          <span className="resumo">
+            {totalSessoes} {totalSessoes === 1 ? 'sessão' : 'sessões'}
+            {historicoSessoes.length < totalSessoes && ` · mostrando as ${historicoSessoes.length} mais recentes`}
+          </span>
         </summary>
         <div className="bloco-conteudo">
           {historicoSessoes.length === 0 ? (
@@ -217,6 +225,13 @@ export default async function PacientePerfilPage({ params }: { params: { id: str
                 )
               })}
             </ol>
+          )}
+          {historicoSessoes.length < totalSessoes && (
+            <div style={{ marginTop: 10, textAlign: 'center' }}>
+              <Link href={`/pacientes/${p.id}?sessoes=todas#historico`} className="btn ghost sm">
+                Ver todas as {totalSessoes} sessões
+              </Link>
+            </div>
           )}
         </div>
       </details>
