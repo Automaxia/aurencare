@@ -111,6 +111,17 @@ export async function registrarMensagem(
       psicologoId = psicologoId ?? rows[0]?.psicologo_id ?? null
       pacienteId = pacienteId ?? rows[0]?.paciente_id ?? null
     }
+    /*
+     * Ainda sem dono: cai no cadastro do paciente. `wa_conversas` só ganha
+     * linha quando o paciente ESCREVE, então a primeira mensagem enviada a um
+     * paciente novo (boas-vindas) ficava com psicologo_id nulo — e o inbox,
+     * que filtra por psicologo_id, nunca a mostrava.
+     */
+    if (psicologoId == null || pacienteId == null) {
+      const pac = await buscarPacientePorTelefone(tel)
+      psicologoId = psicologoId ?? pac?.psicologoId ?? null
+      pacienteId = pacienteId ?? pac?.id ?? null
+    }
     await db.query(
       `INSERT INTO wa_mensagens (telefone, psicologo_id, paciente_id, direcao, texto)
        VALUES ($1, $2, $3, $4, $5)`,

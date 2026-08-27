@@ -190,6 +190,7 @@ export async function criarPaciente(input: CriarPacienteInput): Promise<Paciente
       input.mensagemCustom?.trim()
         ? aplicarLinkBoasVindas(input.mensagemCustom, link)
         : WA_TEMPLATES.fluxo1_boasVindas(paciente.nome, link, input.psicologoNome),
+      { psicologoId: input.psicologoId, pacienteId: paciente.id },
     ).catch(err => log.err('paciente.criar', 'falha WA boas-vindas', err)),
 
     paciente.email && psi ? enviarEmail({
@@ -237,7 +238,7 @@ export async function reenviarConsentimento(psicologoId: string, pacienteId: str
   const canais: string[] = []
 
   await Promise.all([
-    enviarWA(p.telefone, WA_TEMPLATES.fluxo1_boasVindas(p.nome, link, psicologoNome))
+    enviarWA(p.telefone, WA_TEMPLATES.fluxo1_boasVindas(p.nome, link, psicologoNome), { psicologoId, pacienteId })
       .then(() => { canais.push('WhatsApp') })
       .catch(err => log.err('paciente.reenviar', 'falha WA', err)),
     p.email && psi ? enviarEmail({

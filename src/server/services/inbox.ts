@@ -442,7 +442,7 @@ async function processarComandoPagamento(opts: { telefone: string; cmd: string }
 // ──────────────────────────────────────────────────────────────────
 
 async function enviarERegistrar(telefone: string, texto: string) {
-  await enviarWA(telefone, texto)
+  await enviarWA(telefone, texto, { registrar: false })
   await registrarSaida(telefone, texto)
   await registrarMensagem(telefone, 'out', texto)
 }

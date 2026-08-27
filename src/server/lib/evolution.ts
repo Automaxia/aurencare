@@ -15,7 +15,20 @@ function toNumber(telefone: string): string {
   return digits.startsWith('55') ? digits : `55${digits}`
 }
 
-export async function enviarWA(telefone: string, texto: string): Promise<void> {
+/**
+ * Contexto de registro no inbox. Os ids são opcionais: sem eles,
+ * `registrarMensagem` resolve psicóloga/paciente pelo próprio telefone.
+ *
+ * `registrar: false` para quem JÁ persiste a mensagem por conta própria
+ * (inbox e resposta pelo painel), evitando linha duplicada no histórico.
+ */
+export type EnvioWAContexto = {
+  psicologoId?: string | null
+  pacienteId?: string | null
+  registrar?: boolean
+}
+
+export async function enviarWA(telefone: string, texto: string, ctx?: EnvioWAContexto): Promise<void> {
   const number = toNumber(telefone)
   if (!integrationStatus.evolution) {
     log.warn('evolution', `[mock] → ${telefone}: ${texto.slice(0, 80).replace(/\n/g, ' ')}…`)
@@ -29,6 +42,18 @@ export async function enviarWA(telefone: string, texto: string): Promise<void> {
       { headers: { apikey: env.evolutionKey!, 'Content-Type': 'application/json' }, timeout: 12_000 },
     )
     log.ok('evolution', `→ ${telefone} (${texto.length} chars)`)
+    /*
+     * Persiste no inbox AQUI, e não em cada chamador: das 19 chamadas de
+     * `enviarWA` só duas registravam, então boas-vindas, agendamento,
+     * lembretes, cobrança e pós-sessão sumiam — a psicóloga abria Conversas e
+     * lia "nenhuma conversa ainda" depois de o paciente ter recebido tudo.
+     * Só registra o que a Evolution aceitou: histórico é o que o paciente
+     * recebeu, não o que se tentou enviar.
+     */
+    if (ctx?.registrar !== false) {
+      const { registrarMensagem } = await import('@/server/services/wa-conversa')
+      await registrarMensagem(telefone, 'out', texto, { psicologoId: ctx?.psicologoId, pacienteId: ctx?.pacienteId })
+    }
   } catch (err) {
     log.err('evolution', `falha ao enviar para ${telefone}`, err instanceof Error ? err.message : err)
   }

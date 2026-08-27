@@ -74,7 +74,8 @@ export async function responderConversaWa(psicologoId: string, telefone: string,
   const { rows } = await db.query(`SELECT 1 FROM wa_mensagens WHERE telefone = $1 AND psicologo_id = $2 LIMIT 1`, [tel, psicologoId])
   if (!rows[0]) return { ok: false, error: 'Conversa não encontrada.' }
 
-  await enviarWA(tel, texto).catch(() => { /* best-effort; persiste mesmo assim */ })
+  // `registrar: false`: a linha abaixo persiste mesmo se o envio falhar.
+  await enviarWA(tel, texto, { psicologoId, registrar: false }).catch(() => { /* best-effort; persiste mesmo assim */ })
   await registrarMensagem(tel, 'out', texto, { psicologoId })
   await marcarConversaLida(tel)
   return { ok: true }

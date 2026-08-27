@@ -235,6 +235,7 @@ export async function criarSessao(input: CriarSessaoInput): Promise<Sessao> {
       : gratuita
         ? WA_TEMPLATES.fluxo2_agendadaSemCobranca(formatDateTimeBR(sessao.dataHora), online)
         : WA_TEMPLATES.fluxo2_agendadaPagamentoDireto(formatDateTimeBR(sessao.dataHora), sessao.valor, online),
+    { psicologoId: sessao.psicologoId, pacienteId: sessao.pacienteId },
   ).catch(err => log.err('criarSessao', 'falha WA agendamento', err))
 
   return sessao
@@ -309,10 +310,10 @@ export async function reagendarSessao(
         const nova = sessao.dataHora
         const diaSemana = new Date(nova).toLocaleDateString('pt-BR', { weekday: 'long', timeZone: TZ })
         const slot = `${diaSemana} às ${formatTimeBR(nova)}, a partir de ${formatDateBR(nova)}`
-        await enviarWA(sessao.pacienteTelefone, WA_TEMPLATES.fluxo2_remarcadaSerie(afetadas, slot))
+        await enviarWA(sessao.pacienteTelefone, WA_TEMPLATES.fluxo2_remarcadaSerie(afetadas, slot), { psicologoId: sessao.psicologoId, pacienteId: sessao.pacienteId })
           .catch(err => log.err('reagendarSessao', 'falha WA remarcada série', err))
       } else {
-        await enviarWA(sessao.pacienteTelefone, WA_TEMPLATES.fluxo2_remarcada(formatDateTimeBR(sessao.dataHora)))
+        await enviarWA(sessao.pacienteTelefone, WA_TEMPLATES.fluxo2_remarcada(formatDateTimeBR(sessao.dataHora)), { psicologoId: sessao.psicologoId, pacienteId: sessao.pacienteId })
           .catch(err => log.err('reagendarSessao', 'falha WA remarcada', err))
       }
     }
@@ -574,6 +575,7 @@ export async function criarSerie(input: CriarSerieInput): Promise<CriarSerieResu
           gratuita,
           pagamentoDireto: !gratuita && !cobrarPlataforma,
         }),
+        { psicologoId: input.psicologoId, pacienteId: input.pacienteId },
       ).catch(err => log.err('criarSerie', 'falha WA', err)),
       psiS[0] ? enviarEmailPacientePorId(
         input.pacienteId,
@@ -629,7 +631,7 @@ export async function gerarCobrancaPix(sessaoId: string): Promise<Sessao> {
     [s.id, order.orderId, order.qrCode ?? null, order.qrCodeUrl ?? null, order.taxaAdmCentavos || null],
   )
 
-  await enviarWA(s.pacienteTelefone, WA_TEMPLATES.fluxo2_pix(order.qrCodeUrl ?? order.qrCode ?? '', s.valor))
+  await enviarWA(s.pacienteTelefone, WA_TEMPLATES.fluxo2_pix(order.qrCodeUrl ?? order.qrCode ?? '', s.valor), { psicologoId: s.psicologoId, pacienteId: s.pacienteId })
   return (await buscarSessao(s.id))!
 }
 
@@ -659,7 +661,7 @@ export async function gerarCobrancaCartao(sessaoId: string, metodo: 'credito' | 
     [s.id, metodo, order.orderId, order.checkoutUrl ?? null, order.taxaAdmCentavos || null],
   )
 
-  await enviarWA(s.pacienteTelefone, WA_TEMPLATES.fluxo2_checkout(order.checkoutUrl ?? '', metodo, s.valor))
+  await enviarWA(s.pacienteTelefone, WA_TEMPLATES.fluxo2_checkout(order.checkoutUrl ?? '', metodo, s.valor), { psicologoId: s.psicologoId, pacienteId: s.pacienteId })
   return (await buscarSessao(s.id))!
 }
 
@@ -687,7 +689,7 @@ export async function marcarPagamentoConfirmado(pagarmeOrderId: string): Promise
   const { rows: psis } = await db.query<{ nome: string; email: string }>(
     `SELECT nome, email FROM psicologos WHERE id = $1 LIMIT 1`, [sessao.psicologoId])
   await Promise.all([
-    enviarWA(sessao.pacienteTelefone, WA_TEMPLATES.fluxo2_confirmado(formatDateTimeBR(sessao.dataHora), sessao.modalidade === 'online'))
+    enviarWA(sessao.pacienteTelefone, WA_TEMPLATES.fluxo2_confirmado(formatDateTimeBR(sessao.dataHora), sessao.modalidade === 'online'), { psicologoId: sessao.psicologoId, pacienteId: sessao.pacienteId })
       .catch(err => log.err('pagamento.confirmado', 'falha WA', err)),
     psis[0] ? enviarEmailPacientePorSessao(
       sessao.id,
@@ -736,6 +738,7 @@ export async function cancelarSessao(sessaoId: string): Promise<{ reembolsada: b
     enviarWA(
       s.pacienteTelefone,
       reembolsada ? WA_TEMPLATES.fluxo5_canceladaComReembolso() : WA_TEMPLATES.fluxo5_canceladaSemReembolso(),
+      { psicologoId: s.psicologoId, pacienteId: s.pacienteId },
     ).catch(err => log.err('sessao.cancelar', 'falha WA', err)),
     psisC[0] ? enviarEmailPacientePorSessao(
       s.id,
@@ -1140,7 +1143,7 @@ export async function assinarSessao(sessaoId: string): Promise<void> {
   // Fluxo 6 — pós-sessão. Não dispara em sessão importada (histórico): o paciente
   // não deve receber "sua sessão terminou" por uma sessão de meses atrás.
   if (!s.importada) {
-    await enviarWA(s.pacienteTelefone, WA_TEMPLATES.fluxo6_posSessao(s.numero))
+    await enviarWA(s.pacienteTelefone, WA_TEMPLATES.fluxo6_posSessao(s.numero), { psicologoId: s.psicologoId, pacienteId: s.pacienteId })
   }
 }
 
@@ -1152,7 +1155,7 @@ export async function reenviarCobranca(psicologoId: string, sessaoId: string): P
   if (!s || s.psicologoId !== psicologoId) throw new Error('sessao_nao_encontrada')
   if (!s.pagamentoMetodo) {
     // ainda não escolheu — re-pergunta
-    await enviarWA(s.pacienteTelefone, WA_TEMPLATES.fluxo2_perguntarMetodo(formatDateTimeBR(s.dataHora), s.valor))
+    await enviarWA(s.pacienteTelefone, WA_TEMPLATES.fluxo2_perguntarMetodo(formatDateTimeBR(s.dataHora), s.valor), { psicologoId: s.psicologoId, pacienteId: s.pacienteId })
     return s
   }
   if (s.pagamentoMetodo === 'pix')     return gerarCobrancaPix(sessaoId)
