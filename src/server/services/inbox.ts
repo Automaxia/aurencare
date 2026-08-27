@@ -6,7 +6,7 @@ import { log } from '@/server/lib/log'
 import { gerarCobrancaPix, gerarCobrancaCartao, cancelarSessao, buscarSessao } from './sessoes'
 import { criarOuObterSala } from './salaVideo'
 import { formatDateTimeBR } from '@/lib/formatters'
-import { obterConversa, atualizarConversa, registrarSaida, registrarMensagem, buscarPacientePorTelefone, resolverPsicologo, normalizar } from './wa-conversa'
+import { obterConversa, atualizarConversa, registrarSaida, registrarMensagem, buscarPacientePorTelefone, donoDaConversa, normalizar } from './wa-conversa'
 import { gerarMensagemSegura, type Intent } from './wa-voz'
 import { env } from '@/server/lib/env'
 import { processarResposta, acharSessaoPendentePorTelefone, type RespostaPaciente } from './confirmacaoSessao'
@@ -29,7 +29,7 @@ export async function processarMensagemRecebida(msg: Inbound): Promise<void> {
   // Persiste a mensagem recebida no histórico (inbox). Resolve psi/paciente pra
   // garantir que apareça na caixa de entrada da psicóloga, inclusive em comandos.
   {
-    const psi = await resolverPsicologo(msg.instance).catch(() => null)
+    const psi = await donoDaConversa(tel, msg.instance).catch(() => null)
     const pac = await buscarPacientePorTelefone(tel).catch(() => null)
     await registrarMensagem(tel, 'in', cmd, { psicologoId: psi?.id ?? null, pacienteId: pac?.id ?? null })
   }
@@ -67,7 +67,7 @@ export async function processarMensagemRecebida(msg: Inbound): Promise<void> {
   // 2) Roteador conversacional baseado em estado
   // ──────────────────────────────────────────────────────────────────
   const conversa = await obterConversa(tel)
-  const psicologo = await resolverPsicologo(msg.instance)
+  const psicologo = await donoDaConversa(tel, msg.instance)
   if (!psicologo) {
     log.warn('wa.inbox', 'nenhuma psicóloga configurada — ignorando')
     return
@@ -379,12 +379,32 @@ async function processarComandoPagamento(opts: { telefone: string; cmd: string }
     return
   }
 
+  /*
+   * Qual sessão o paciente está pagando.
+   *
+   * Ordenar só por data pegava a sessão ERRADA quando havia mais de uma
+   * marcada: quem responde "PIX" está respondendo à pergunta de uma sessão
+   * específica, e a pergunta é feita por quem está em `aguardando_metodo`.
+   * Com `ORDER BY data_hora` uma sessão já `confirmada` mais cedo no mesmo dia
+   * furava a fila e era ela que recebia o pagamento — com valor de outra
+   * sessão, deixando a que pediu pagamento pendente. Visto em produção.
+   *
+   * Então: quem PERGUNTOU vem primeiro; entre iguais, a mais próxima. E nunca
+   * uma sessão já paga — antes dava para cobrar duas vezes a mesma sessão.
+   */
   const { rows: sRows } = await db.query<{ id: string; status: string }>(
     `SELECT id, status FROM sessoes
       WHERE paciente_id = $1
         AND status IN ('aguardando_metodo','aguardando_pagamento','confirmada')
+        AND pagamento_status IN ('pendente','falhou')
         AND data_hora >= NOW() - INTERVAL '6 hours'
-      ORDER BY data_hora ASC LIMIT 1`,
+      ORDER BY CASE status
+                 WHEN 'aguardando_metodo'    THEN 0
+                 WHEN 'aguardando_pagamento' THEN 1
+                 ELSE 2
+               END,
+               data_hora ASC
+      LIMIT 1`,
     [paciente.id],
   )
   const sessao = sRows[0]

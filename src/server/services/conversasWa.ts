@@ -18,17 +18,22 @@ export type MensagemWa = { id: string; direcao: 'in' | 'out'; texto: string; cre
 /** Lista as conversas do WhatsApp da psicóloga (mais recentes primeiro). */
 export async function listarConversasWa(psicologoId: string): Promise<ConversaResumo[]> {
   const { rows } = await db.query<any>(
+    // Agrupa por telefone CANÔNICO: mensagens gravadas antes da correção do
+    // nono dígito têm 11 dígitos na saída e 10 na entrada, e a mesma pessoa
+    // aparecia como duas conversas.
     `WITH msgs AS (
-       SELECT m.*, row_number() OVER (PARTITION BY telefone ORDER BY created_at DESC) AS rn
+       SELECT m.*, COALESCE(tel_canon(m.telefone), m.telefone) AS tel_c,
+              row_number() OVER (PARTITION BY COALESCE(tel_canon(m.telefone), m.telefone) ORDER BY created_at DESC) AS rn
          FROM wa_mensagens m WHERE m.psicologo_id = $1
      )
      SELECT last.telefone, c.paciente_id, p.nome AS paciente_nome,
             last.texto AS ultima_texto, last.direcao AS ultima_direcao, last.created_at AS ultima_em,
             (SELECT count(*)::int FROM wa_mensagens x
-               WHERE x.telefone = last.telefone AND x.psicologo_id = $1 AND x.direcao = 'in'
+               WHERE COALESCE(tel_canon(x.telefone), x.telefone) = last.tel_c
+                 AND x.psicologo_id = $1 AND x.direcao = 'in'
                  AND (c.psi_lida_em IS NULL OR x.created_at > c.psi_lida_em)) AS nao_lidas
        FROM msgs last
-       LEFT JOIN wa_conversas c ON c.telefone = last.telefone
+       LEFT JOIN wa_conversas c ON COALESCE(tel_canon(c.telefone), c.telefone) = last.tel_c
        LEFT JOIN pacientes p ON p.id = c.paciente_id
       WHERE last.rn = 1
       ORDER BY last.created_at DESC`,
@@ -50,13 +55,15 @@ export async function lerConversaWa(psicologoId: string, telefone: string): Prom
   const tel = normalizar(telefone)
   const { rows } = await db.query<{ id: string; direcao: 'in' | 'out'; texto: string; created_at: string }>(
     `SELECT id, direcao, texto, created_at FROM wa_mensagens
-      WHERE telefone = $1 AND psicologo_id = $2 ORDER BY created_at ASC`,
+      WHERE COALESCE(tel_canon(telefone), telefone) = COALESCE(tel_canon($1), $1)
+        AND psicologo_id = $2 ORDER BY created_at ASC`,
     [tel, psicologoId],
   )
   if (rows.length === 0) return null
 
   const { rows: pac } = await db.query<{ id: string; nome: string }>(
-    `SELECT p.id, p.nome FROM wa_conversas c JOIN pacientes p ON p.id = c.paciente_id WHERE c.telefone = $1 LIMIT 1`,
+    `SELECT p.id, p.nome FROM wa_conversas c JOIN pacientes p ON p.id = c.paciente_id
+      WHERE COALESCE(tel_canon(c.telefone), c.telefone) = COALESCE(tel_canon($1), $1) LIMIT 1`,
     [tel],
   )
   await marcarConversaLida(tel)
@@ -71,7 +78,10 @@ export async function lerConversaWa(psicologoId: string, telefone: string): Prom
 export async function responderConversaWa(psicologoId: string, telefone: string, texto: string): Promise<{ ok: boolean; error?: string }> {
   const tel = normalizar(telefone)
   if (!texto.trim()) return { ok: false, error: 'Mensagem vazia.' }
-  const { rows } = await db.query(`SELECT 1 FROM wa_mensagens WHERE telefone = $1 AND psicologo_id = $2 LIMIT 1`, [tel, psicologoId])
+  const { rows } = await db.query(
+    `SELECT 1 FROM wa_mensagens
+      WHERE COALESCE(tel_canon(telefone), telefone) = COALESCE(tel_canon($1), $1)
+        AND psicologo_id = $2 LIMIT 1`, [tel, psicologoId])
   if (!rows[0]) return { ok: false, error: 'Conversa não encontrada.' }
 
   // `registrar: false`: a linha abaixo persiste mesmo se o envio falhar.

@@ -122,9 +122,16 @@ export async function registrarMensagem(
       psicologoId = psicologoId ?? pac?.psicologoId ?? null
       pacienteId = pacienteId ?? pac?.id ?? null
     }
+    /*
+    * Grava o telefone CANÔNICO. O que sai daqui tem 11 dígitos
+    * (`61999423445`), mas o que a Evolution entrega vem sem o nono
+    * (`6199423445`) — o JID brasileiro do WhatsApp varia. Guardando cru, ida e
+    * volta da MESMA pessoa viravam duas conversas no inbox, que agrupa por
+    * telefone. `tel_canon` já é o critério usado para achar o paciente.
+    */
     await db.query(
       `INSERT INTO wa_mensagens (telefone, psicologo_id, paciente_id, direcao, texto)
-       VALUES ($1, $2, $3, $4, $5)`,
+       VALUES (COALESCE(tel_canon($1), $1), $2, $3, $4, $5)`,
       [tel, psicologoId, pacienteId, direcao, (texto ?? '').slice(0, 4000)],
     )
   } catch (err) {
@@ -134,7 +141,10 @@ export async function registrarMensagem(
 
 /** Marca a conversa como lida pela psicóloga (zera não-lidas). */
 export async function marcarConversaLida(telefone: string): Promise<void> {
-  await db.query(`UPDATE wa_conversas SET psi_lida_em = NOW() WHERE telefone = $1`, [normalizar(telefone)])
+  await db.query(
+    `UPDATE wa_conversas SET psi_lida_em = NOW()
+      WHERE COALESCE(tel_canon(telefone), telefone) = COALESCE(tel_canon($1), $1)`,
+    [normalizar(telefone)])
     .catch(() => { /* */ })
 }
 
@@ -167,6 +177,48 @@ export async function buscarPacientePorTelefone(telefone: string): Promise<{ id:
  * Forward-compat: quando houver provisionamento por instância, o match já
  * funciona sem mudar isto. Evita o vazamento do "pega o primeiro" cego.
  */
+/**
+ * De quem é esta conversa — na ordem em que a pergunta deve ser respondida:
+ *
+ *   1. o psicólogo DO PACIENTE, quando o número já é cadastrado;
+ *   2. o psicólogo que a conversa já tinha;
+ *   3. só então a instância do WhatsApp.
+ *
+ * A ordem importa porque o passo 3 erra em produção: `EVOLUTION_INSTANCE_NAME`
+ * é `Automaxia`, valor que nenhum `psicologos.wa_instancia` tem — a instância é
+ * compartilhada no beta. Sem correspondência, `resolverPsicologo` cai no
+ * "psicólogo ativo mais antigo", então TODA mensagem recebida era arquivada na
+ * caixa de entrada dele, inclusive as de pacientes de outras psicólogas. Isso é
+ * quebra de sigilo, não só inbox errado.
+ *
+ * O paciente é a fonte mais confiável: ele pertence a exatamente um psicólogo.
+ */
+export async function donoDaConversa(
+  telefone: string,
+  instance?: string | null,
+): Promise<{ id: string; nome: string } | null> {
+  const tel = normalizar(telefone)
+
+  const pac = await buscarPacientePorTelefone(tel).catch(() => null)
+  if (pac) {
+    const { rows } = await db.query<{ id: string; nome: string }>(
+      `SELECT id, nome FROM psicologos WHERE id = $1 AND status = 'ativo' LIMIT 1`,
+      [pac.psicologoId],
+    )
+    if (rows[0]) return rows[0]
+  }
+
+  const { rows: conv } = await db.query<{ id: string; nome: string }>(
+    `SELECT p.id, p.nome
+       FROM wa_conversas c JOIN psicologos p ON p.id = c.psicologo_id
+      WHERE c.telefone = $1 AND p.status = 'ativo' LIMIT 1`,
+    [tel],
+  )
+  if (conv[0]) return conv[0]
+
+  return resolverPsicologo(instance)
+}
+
 export async function resolverPsicologo(instance?: string | null): Promise<{ id: string; nome: string } | null> {
   if (instance) {
     const { rows } = await db.query<{ id: string; nome: string }>(
