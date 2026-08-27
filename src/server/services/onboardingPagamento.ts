@@ -283,6 +283,16 @@ export function traduzirRecusa(
       if (re.test(alvo)) return { error: msg, campo }
     }
   }
+  /*
+   * Sem `errors` por campo, a Pagar.me ainda nomeia o campo DENTRO da mensagem:
+   *   invalid_parameter | register_information | child "birthdate" fails …
+   * A mesma tabela resolve — sem isto a recusa mais comum caía no genérico.
+   */
+  if (mensagemGeral) {
+    for (const [re, campo, msg] of RECUSA_PARA_CAMPO) {
+      if (re.test(mensagemGeral)) return { error: msg, campo }
+    }
+  }
   // Recusa que não sabemos mapear: mostra o que a Pagar.me disse, em vez de
   // apontar o dedo pra conta bancária sem base.
   const bruto = campos[0]?.mensagens[0] ?? mensagemGeral
@@ -293,8 +303,13 @@ export function traduzirRecusa(
    * de novo é cruel: ele acabou de preencher três passos de formulário e vai
    * falhar de novo, sempre. Melhor dizer a verdade e liberar o caminho que
    * FUNCIONA — cobrar por fora — em vez de deixá-lo travado no wizard.
+   *
+   * Exige a MENSAGEM, nunca o status sozinho: a Pagar.me devolve 412 também
+   * para `invalid_parameter` (foi o caso do `birthdate` em ISO). Tratar todo
+   * 412 como bloqueio mandava o psicólogo aguardar uma liberação que não
+   * existia, enquanto o problema estava num campo que ele podia corrigir.
    */
-  const bloqueioDeConta = status === 412 || /action_forbidden|not allowed to create a recipient/i.test(bruto ?? '')
+  const bloqueioDeConta = /action_forbidden|not allowed to create a recipient/i.test(bruto ?? '')
   if (bloqueioDeConta) {
     return {
       error: 'A configuração de recebimento está temporariamente indisponível — ' +

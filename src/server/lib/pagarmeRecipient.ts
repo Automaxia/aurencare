@@ -85,6 +85,21 @@ function truncarTitular(nome: string): string {
   return cortado
 }
 
+/**
+ * Data no formato que o POST /recipients exige: **DD/MM/YYYY**.
+ *
+ * Não é capricho de formatação — mandar ISO (o que o `<input type="date">`
+ * produz) faz a Pagar.me responder
+ *   412 invalid_parameter | child "birthdate" fails because ["birthdate" with
+ *   value "1985-01-15" fails to match the required pattern
+ * e o wizard inteiro morre nisso. Outros endpoints da v5 aceitam ISO; este não.
+ */
+function dataPagarme(iso: string): string {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(iso.trim())
+  if (!m) return iso.trim()   // já veio DD/MM/YYYY (ou algo que a API vai recusar com mensagem própria)
+  return `${m[3]}/${m[2]}/${m[1]}`
+}
+
 /** Endereço no formato da Pagar.me v5. */
 function enderecoPagarme(e: EnderecoInput) {
   return {
@@ -160,7 +175,7 @@ export async function criarRecipient(input: RecipientInput): Promise<RecipientCr
       ...(input.tipoPessoa === 'PF'
         ? {
             name: input.razaoSocial,
-            birthdate: input.dataNascimento,
+            birthdate: dataPagarme(input.dataNascimento),
             monthly_income: input.rendaCentavos,
             professional_occupation: 'Psicóloga(o) clínica(o)',
             // `address` (não `main_address`) é o nome do campo para individual.
@@ -169,7 +184,7 @@ export async function criarRecipient(input: RecipientInput): Promise<RecipientCr
         : {
             company_name: input.razaoSocial,
             trading_name: input.razaoSocial,
-            founding_date: input.dataNascimento,
+            founding_date: dataPagarme(input.dataNascimento),
             annual_revenue: input.rendaCentavos * 12,
             main_address: enderecoPagarme(input.endereco),
             // Ao menos um sócio é obrigatório; enviamos o administrador como
@@ -179,7 +194,7 @@ export async function criarRecipient(input: RecipientInput): Promise<RecipientCr
               email: input.socio!.email,
               document: input.socio!.cpf.replace(/\D/g, ''),
               type: 'individual',
-              birthdate: input.socio!.dataNascimento,
+              birthdate: dataPagarme(input.socio!.dataNascimento),
               monthly_income: input.socio!.rendaMensalCentavos,
               professional_occupation: 'Psicóloga(o) clínica(o)',
               self_declared_legal_representative: true,

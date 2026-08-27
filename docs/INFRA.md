@@ -17,8 +17,9 @@
 > aurencare-secrets -n aurencare`). Já definidos e reais: `ASSEMBLYAI_API_KEY`,
 > `CRON_SECRET`, `EVOLUTION_WEBHOOK_TOKEN`, `OPENAI_API_KEY`, `ENCRYPTION_KEY`,
 > `TURN_URLS`, `PAGARME_API_KEY`, `PAGARME_WEBHOOK_USER`/`_SECRET`.
-> Pendente: `PAGARME_RECIPIENT_PLATAFORMA` — **não está mais bloqueado pela
-> Pagar.me** (verificado 18/08/2026), só falta rodar o script; ver §2.
+> Pendente: `PAGARME_RECIPIENT_PLATAFORMA` — a conta **nunca esteve** bloqueada
+> pela Pagar.me (verificado 27/08/2026: o `action_forbidden` vinha de outra
+> chave); só falta rodar o script; ver §2.
 
 ## 🟢 1. Pagar.me fora do modo mock — ✅ RESOLVIDO (ago/2026)
 
@@ -57,36 +58,44 @@ autenticado → sessão vira `confirmada` → SSE + WhatsApp + email.
 > ⚠️ Ao criar o webhook do ambiente **live** no go-live, repetir os três pontos:
 > URL correta, autenticação habilitada (Basic) e tentativas > 1.
 
-- [ ] **🔴 BLOQUEADO NA PAGAR.ME — a conta não pode criar recebedores.**
-      Teste em produção, 18/08/2026 (após o payload de PF/PJ ser corrigido):
+- [x] **~~🔴 BLOQUEADO NA PAGAR.ME~~ — não estava. Era formato de data. (27/08/2026)**
 
-      ```
-      HTTP 412 · The recipient could not be created : action_forbidden
-                 | | This company it not allowed to create a recipient
-      ```
+      O `POST /recipients` com a chave que está **no cluster** cria recebedor
+      normalmente — verificado criando um de teste (`re_cmtbl0…`, status
+      `active`). A conta nunca precisou de habilitação de split.
 
-      ⚠️ **A conclusão anterior de "desbloqueado" era falso positivo.** Baseou-se
-      em o `POST /recipients` devolver 422 em vez de `action_forbidden` — mas a
-      Pagar.me valida o PAYLOAD antes de checar PERMISSÃO. Enquanto o payload
-      estava quebrado (bug de PF/PJ, corrigido em 278d8a), a requisição parava
-      no 422 e nunca chegava ao teste de permissão. Corrigido o payload, ela
-      avançou e bateu no 412. **422 não prova permissão.**
+      **De onde veio o diagnóstico errado.** O `action_forbidden` é real, mas
+      vem de OUTRA chave — a `sk_test_49d8…` do `.env.local`, de uma conta
+      diferente da `sk_test_BjNA…` que roda em produção. O teste de 18/08 foi
+      feito contra a conta errada e a conclusão foi colada aqui.
 
-      **Isso trava dois itens de uma vez** — o mesmo endpoint cria o recebedor
-      da plataforma e o de cada psicólogo: sem habilitação, ninguém configura
-      recebimento e a taxa administrativa de 2,5% não existe.
+      **O que de fato quebrava o onboarding**, os dois corrigidos:
 
-      **Ação (não é código):** pedir à Pagar.me a habilitação de split/
-      marketplace (criação de recipients) na conta — sandbox e, no go-live,
-      também na live. Enquanto isso, o psicólogo segue operando com pagamento
-      por fora: sem conta de recebimento, a sessão nasce confirmada/pendente.
+      1. `birthdate`/`founding_date` iam em ISO (`1985-01-15`), o que o
+         `<input type="date">` produz. Este endpoint exige **DD/MM/YYYY** e
+         responde `412 invalid_parameter`. Outros endpoints da v5 aceitam ISO.
+      2. `complementary` ausente quando o endereço não tem complemento →
+         `422 The complementary field is required`, antes de qualquer outra
+         validação.
 
-      Depois de habilitado, rodar:
+      **E por que a tela mentia.** `traduzirRecusa` classificava **todo** 412
+      como bloqueio de conta, então o erro de data virava "aguarde a liberação
+      do nosso provedor de pagamentos" — mandando o psicólogo esperar por algo
+      que não existia, em vez de mostrar o campo que ele podia corrigir. Agora
+      o bloqueio exige a mensagem `action_forbidden`, não o status.
+
+      **Lição:** confira QUAL chave está sendo testada antes de concluir que a
+      conta está bloqueada — `kubectl get secret aurencare-secrets`, não o
+      `.env.local`.
+
+- [ ] **Criar o recebedor da plataforma** — destravado junto com o item acima;
+      é o que falta para a taxa administrativa de 2,5% existir no split:
       ```bash
       SOCIO_NOME="Nome Completo" SOCIO_CPF=00000000000 SOCIO_NASCIMENTO=1985-01-15 npm run pagarme:recipient-plataforma
 
       kubectl patch secret aurencare-secrets -n aurencare --type merge -p '{"stringData":{"PAGARME_RECIPIENT_PLATAFORMA":"rp_…"}}'
       ```
+      ⚠️ Rodar com a chave do CLUSTER, não com a do `.env.local`.
 
 - [ ] **5 psicólogos com recebedor sintético — precisam refazer o onboarding.**
       Enquanto valia o placeholder da §1, o onboarding gravou `mock_rcp_*` em
