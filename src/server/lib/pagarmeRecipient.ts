@@ -90,7 +90,9 @@ function enderecoPagarme(e: EnderecoInput) {
   return {
     street: e.logradouro.trim(),
     street_number: e.numero.trim(),
-    complementary: e.complemento?.trim() || undefined,
+    // A Pagar.me EXIGE o campo ("The complementary field is required") — sem
+    // complemento o POST /recipients volta 422 antes de qualquer outra checagem.
+    complementary: e.complemento?.trim() || 'N/A',
     neighborhood: e.bairro.trim(),
     city: e.cidade.trim(),
     state: e.uf.trim().toUpperCase(),
