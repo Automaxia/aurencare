@@ -60,17 +60,34 @@ const AUTOMAXIA: RecipientInput = {
     codigo: '237',                     // Bradesco
     agencia: '1469',
     agenciaDv: null,
-    conta: '021141',
-    contaDv: '9',
+    conta: '43028',
+    contaDv: '5',
     tipo: 'corrente',
     titularNome: 'AUTOMAXIA INTELIGENCIA PARA NEGOCIOS LTDA',
     titularDocumento: '38154192000163',
   },
 }
 
+/** Recebedor já cadastrado para este CNPJ, se houver. */
+async function recipientPorDocumento(documento: string, key: string): Promise<{ id: string; status: string } | null> {
+  const auth = 'Basic ' + Buffer.from(`${key}:`).toString('base64')
+  const r = await fetch('https://api.pagar.me/core/v5/recipients?size=100', { headers: { Authorization: auth } })
+  if (!r.ok) return null
+  const j: any = await r.json().catch(() => null)
+  const achado = (j?.data ?? []).find((x: any) => String(x?.document ?? '').replace(/\D/g, '') === documento)
+  return achado ? { id: achado.id, status: achado.status } : null
+}
+
 async function main() {
   const key = process.env.PAGARME_API_KEY ?? ''
-  const ambiente = key.startsWith('sk_live_') ? 'PRODUÇÃO' : key.startsWith('sk_test_') ? 'sandbox' : 'desconhecido'
+  /*
+  * Só `sk_test_` é sandbox. TODO o resto é produção — a chave live da conta é
+  * `sk_<hash>`, sem o prefixo `sk_live_` que este script esperava. Com a regra
+  * antiga ela caía em "desconhecido" e o script abortava; pior, se passasse, o
+  * guard do `--sim` não dispararia e daria para criar recebedor em PRODUÇÃO
+  * sem confirmação.
+  */
+  const ambiente = !key ? 'desconhecido' : key.startsWith('sk_test_') ? 'sandbox' : 'PRODUÇÃO'
 
   console.log(`Ambiente Pagar.me: ${ambiente} (${key.slice(0, 8)}…)`)
   console.log(`Empresa: ${AUTOMAXIA.razaoSocial}`)
@@ -90,6 +107,19 @@ async function main() {
     console.error('Recusando criar recipient em PRODUÇÃO sem `--sim`.')
     console.error('Confira que é isso mesmo e rode: npm run pagarme:recipient-plataforma -- --sim')
     process.exit(1)
+  }
+
+  /*
+  * Recebedor duplicado não dá erro na Pagar.me: ela cria outro com o mesmo
+  * CNPJ, e aí passam a existir dois destinos possíveis para a taxa — só um
+  * recebe, e descobrir qual é depois custa caro. A conta live já tinha um
+  * `Automaxia` ativo quando este guard foi escrito.
+  */
+  const existente = await recipientPorDocumento(AUTOMAXIA.documento, key)
+  if (existente && !process.argv.includes('--duplicar')) {
+    console.log(`Já existe recebedor para este CNPJ: ${existente.id} (status=${existente.status})`)
+    console.log('Use esse ID em PAGARME_RECIPIENT_PLATAFORMA, ou rode com `-- --duplicar` para criar outro mesmo assim.')
+    process.exit(0)
   }
 
   const r = await criarRecipient(AUTOMAXIA)
