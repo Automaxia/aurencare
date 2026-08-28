@@ -380,24 +380,24 @@ async function processarComandoPagamento(opts: { telefone: string; cmd: string }
   }
 
   /*
-   * Qual sessão o paciente está pagando.
+   * Qual sessão o comando atinge. A regra depende do comando, e misturar as
+   * duas já causou um bug: o filtro de "não cobrar sessão paga" valia também
+   * para CANCELAR, e sessão paga passou a ser INCANCELÁVEL pelo WhatsApp —
+   * justamente a que mais precisa, porque envolve reembolso.
    *
-   * Ordenar só por data pegava a sessão ERRADA quando havia mais de uma
-   * marcada: quem responde "PIX" está respondendo à pergunta de uma sessão
-   * específica, e a pergunta é feita por quem está em `aguardando_metodo`.
-   * Com `ORDER BY data_hora` uma sessão já `confirmada` mais cedo no mesmo dia
-   * furava a fila e era ela que recebia o pagamento — com valor de outra
-   * sessão, deixando a que pediu pagamento pendente. Visto em produção.
+   * Cobrança (PIX/CREDITO/DEBITO): só o que ainda deve. Quem PERGUNTOU o
+   * método vem primeiro — ordenar só por data fazia uma sessão confirmada mais
+   * cedo no mesmo dia receber o pagamento de outra.
    *
-   * Então: quem PERGUNTOU vem primeiro; entre iguais, a mais próxima. E nunca
-   * uma sessão já paga — antes dava para cobrar duas vezes a mesma sessão.
+   * CANCELAR/CONFIRMAR: qualquer sessão viva, paga ou não.
    */
+  const ehCobranca = ['PIX', 'CREDITO', 'CRÉDITO', 'DEBITO', 'DÉBITO'].includes(cmd)
   const { rows: sRows } = await db.query<{ id: string; status: string }>(
     `SELECT id, status FROM sessoes
       WHERE paciente_id = $1
         AND status IN ('aguardando_metodo','aguardando_pagamento','confirmada')
-        AND pagamento_status IN ('pendente','falhou')
         AND data_hora >= NOW() - INTERVAL '6 hours'
+        AND ($2::bool IS FALSE OR pagamento_status IN ('pendente','falhou'))
       ORDER BY CASE status
                  WHEN 'aguardando_metodo'    THEN 0
                  WHEN 'aguardando_pagamento' THEN 1
@@ -405,7 +405,7 @@ async function processarComandoPagamento(opts: { telefone: string; cmd: string }
                END,
                data_hora ASC
       LIMIT 1`,
-    [paciente.id],
+    [paciente.id, ehCobranca],
   )
   const sessao = sRows[0]
 
@@ -449,8 +449,15 @@ async function processarComandoPagamento(opts: { telefone: string; cmd: string }
     return
   }
 
-  if (cmd === 'CANCELAR' && sessao) {
-    await cancelarSessao(sessao.id)
+  if (cmd === 'CANCELAR') {
+    if (sessao) {
+      await cancelarSessao(sessao.id)
+      return
+    }
+    // Sem sessão para cancelar, o fallback "já avisei quem te atende" some com
+    // o pedido: quem pediu cancelamento fica achando que cancelou.
+    await enviarERegistrar(telefone, 'Não encontrei uma sessão futura para cancelar. Avisei quem te atende para confirmar com você.')
+    log.warn('wa.inbox', `CANCELAR sem sessão elegível — paciente ${paciente.id}`)
     return
   }
 
