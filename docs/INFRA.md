@@ -88,6 +88,31 @@ autenticado → sessão vira `confirmada` → SSE + WhatsApp + email.
       conta está bloqueada — `kubectl get secret aurencare-secrets`, não o
       `.env.local`.
 
+- [ ] **🔴 VOLTOU (04/09/2026) — split desabilitado na conta que está no cluster.**
+
+      Onboarding de recebimento em **produção** falhou com:
+      `412 The account must have split settings enabled, in order to create a recipient`
+
+      É bloqueio de conta mesmo — redação nova para o mesmo `action_forbidden`,
+      e nada que o psicólogo possa corrigir. Só a Pagar.me habilita split
+      (marketplace) na conta; abrir chamado com eles.
+
+      Como isso convive com o item acima (27/08, recipient `re_cmtbl0…` criado
+      com sucesso): ou a `PAGARME_API_KEY` do cluster mudou desde então, ou o
+      split foi desabilitado do lado deles. **Primeiro passo é conferir a chave
+      que está no cluster agora** — não o `.env.local`, que é o placeholder
+      `sk_test_...` (11 chars, modo mock, nem chama a API):
+      ```bash
+      kubectl get secret aurencare-secrets -n aurencare \
+        -o jsonpath='{.data.PAGARME_API_KEY}' | base64 -d | cut -c1-12
+      ```
+      ⚠️ O kubeconfig `~/.kube/auren-cluster.yaml` estava com token expirado
+      (`Unauthorized`) — regenerar no Rancher antes.
+
+      Código: `traduzirRecusa` já reconhece a redação nova (`split settings
+      enabled`), então a tela mostra o aviso certo e libera o caminho de cobrar
+      por fora, em vez de despejar o erro em inglês.
+
 - [ ] **Criar o recebedor da plataforma** — destravado junto com o item acima;
       é o que falta para a taxa administrativa de 2,5% existir no split:
       ```bash

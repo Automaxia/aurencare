@@ -307,9 +307,13 @@ export function traduzirRecusa(
   // apontar o dedo pra conta bancária sem base.
   const bruto = campos[0]?.mensagens[0] ?? mensagemGeral
   /*
-   * 412 `action_forbidden` — "This company is not allowed to create a
-   * recipient": a CONTA da Audere na Pagar.me não tem split/marketplace
-   * habilitado. Não há nada que o psicólogo possa corrigir, e mandá-lo tentar
+   * 412 de conta sem split — a CONTA da Audere na Pagar.me não tem
+   * split/marketplace habilitado. A API diz isso com DUAS redações diferentes,
+   * e as duas precisam cair aqui:
+   *   "This company is not allowed to create a recipient"   (action_forbidden)
+   *   "The account must have split settings enabled, in order to create a
+   *    recipient"                                           (visto 04/09/2026)
+   * Não há nada que o psicólogo possa corrigir, e mandá-lo tentar
    * de novo é cruel: ele acabou de preencher três passos de formulário e vai
    * falhar de novo, sempre. Melhor dizer a verdade e liberar o caminho que
    * FUNCIONA — cobrar por fora — em vez de deixá-lo travado no wizard.
@@ -319,7 +323,7 @@ export function traduzirRecusa(
    * 412 como bloqueio mandava o psicólogo aguardar uma liberação que não
    * existia, enquanto o problema estava num campo que ele podia corrigir.
    */
-  const bloqueioDeConta = /action_forbidden|not allowed to create a recipient/i.test(bruto ?? '')
+  const bloqueioDeConta = /action_forbidden|not allowed to create a recipient|split settings enabled/i.test(bruto ?? '')
   if (bloqueioDeConta) {
     return {
       error: 'A configuração de recebimento está temporariamente indisponível — ' +
