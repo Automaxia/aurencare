@@ -97,8 +97,11 @@ autenticado → sessão vira `confirmada` → SSE + WhatsApp + email.
 - [ ] **🔴 SPLIT DESABILITADO NA CONTA LIVE — bloqueia a cobrança pela
       plataforma em produção. (04/09/2026)**
 
-      Descoberto ao virar `PAGARME_API_KEY` para a chave live. A Pagar.me é
-      explícita, nas duas pontas:
+      **Por que apareceu agora:** `PAGARME_API_KEY` no cluster foi trocada da
+      chave de teste para a **live** em 04/09/2026. Não é o split que "voltou a
+      cair" — é outra conta. No sandbox ele continua habilitado.
+
+      A Pagar.me é explícita, nas duas pontas:
 
       ```
       POST /recipients → 412 The account must have split settings enabled,
@@ -128,6 +131,17 @@ autenticado → sessão vira `confirmada` → SSE + WhatsApp + email.
       inteiro na conta da Automaxia e o repasse ao psicólogo seria manual. Isso
       exige mudar o gate que hoje só cobra quando o onboarding está completo, e
       é decisão de produto, não de infra.
+
+      **Código:** `traduzirRecusa` reconhece as duas redações do bloqueio
+      (`action_forbidden` e `split settings enabled`), então a tela mostra o
+      aviso de liberação pendente e aponta o caminho de cobrar direto, em vez de
+      despejar o erro em inglês da API no psicólogo.
+
+      Para conferir qual chave está no cluster (nunca o `.env.local`):
+      ```bash
+      kubectl --insecure-skip-tls-verify --kubeconfig=kube_config.yaml         -n aurencare get secret aurencare-secrets         -o jsonpath='{.data.PAGARME_API_KEY}' | base64 -d | cut -c1-12
+      ```
+      `sk_test_` = sandbox; qualquer outro prefixo = produção.
 
 - [ ] **5 psicólogos com recebedor sintético — precisam refazer o onboarding.**
       Enquanto valia o placeholder da §1, o onboarding gravou `mock_rcp_*` em
