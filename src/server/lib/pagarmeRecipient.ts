@@ -137,6 +137,17 @@ export function isRecipientMock(recipientId: string | null | undefined): boolean
 }
 
 /**
+ * Ambiente da chave Pagar.me em uso: `sandbox` para `sk_test_`, `live` para
+ * qualquer outra (a chave de produção desta conta é `sk_<hash>`, sem prefixo
+ * `sk_live_`). Sem chave, `sandbox` — é o modo mock, que não cobra ninguém.
+ */
+export function ambientePagarme(): 'sandbox' | 'live' {
+  const k = env.pagarmeKey ?? ''
+  if (!k) return 'sandbox'
+  return k.startsWith('sk_test_') ? 'sandbox' : 'live'
+}
+
+/**
  * Pagar.me v5 — POST /recipients. Documentação:
  * https://docs.pagar.me/reference/criar-recebedor-1
  */

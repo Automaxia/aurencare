@@ -1,7 +1,7 @@
 import 'server-only'
 import { db } from '@/server/db/pool'
 import { encrypt, tryDecrypt } from '@/server/lib/crypto'
-import { criarRecipient, isRecipientMock, type RecipientInput, PagarmeRecipientError, type CampoRecusado } from '@/server/lib/pagarmeRecipient'
+import { criarRecipient, isRecipientMock, ambientePagarme, type RecipientInput, PagarmeRecipientError, type CampoRecusado } from '@/server/lib/pagarmeRecipient'
 import { log } from '@/server/lib/log'
 import { cpfCnpjValido, validarCpf, validarCnpj } from '@/lib/documento'
 
@@ -84,18 +84,28 @@ export type SalvarResult =
   | { ok: false; error: string; campo?: CampoErro }
 
 export async function lerStatusOnboarding(psicologoId: string): Promise<OnboardingStatus> {
-  const { rows } = await db.query<{ pagarme_recipient_id: string | null; pgm_onboarding_em: string | null }>(
-    `SELECT pagarme_recipient_id, pgm_onboarding_em
+  const { rows } = await db.query<{ pagarme_recipient_id: string | null; pgm_onboarding_em: string | null; pgm_ambiente: string | null }>(
+    `SELECT pagarme_recipient_id, pgm_onboarding_em, pgm_ambiente
        FROM psicologos WHERE id = $1 LIMIT 1`,
     [psicologoId],
   )
   const r = rows[0]
-  const mock = isRecipientMock(r?.pagarme_recipient_id)
+  /*
+   * Recipient de OUTRO ambiente é tão inútil quanto um `mock_rcp_*`: os IDs são
+   * `re_<hash>` nos dois, mas o do sandbox não existe na produção. Ao virar a
+   * chave para live, quem não refizer o onboarding continuaria constando como
+   * "configurado" e a Pagar.me recusaria a ORDER INTEIRA — o paciente não
+   * receberia cobrança nenhuma.
+   * `pgm_ambiente` nulo é cadastro anterior à migration 048: só existiu sandbox.
+   */
+  const ambienteGravado = (r?.pgm_ambiente ?? 'sandbox') as 'sandbox' | 'live'
+  const outroAmbiente = !!r?.pagarme_recipient_id && ambienteGravado !== ambientePagarme()
+  const invalido = isRecipientMock(r?.pagarme_recipient_id) || outroAmbiente
   return {
-    completo: !!r?.pgm_onboarding_em && !mock,
-    recipientId: mock ? null : (r?.pagarme_recipient_id ?? null),
+    completo: !!r?.pgm_onboarding_em && !invalido,
+    recipientId: invalido ? null : (r?.pagarme_recipient_id ?? null),
     concluidoEm: r?.pgm_onboarding_em ?? null,
-    recipientInvalido: !!r?.pgm_onboarding_em && mock,
+    recipientInvalido: !!r?.pgm_onboarding_em && invalido,
   }
 }
 
@@ -553,8 +563,10 @@ export async function salvarOnboarding(psicologoId: string, input: OnboardingInp
   // Recebedor criado: agora sim o onboarding está completo.
   try {
     await db.query(
-      `UPDATE psicologos SET pagarme_recipient_id = $2, pgm_onboarding_em = NOW() WHERE id = $1`,
-      [psicologoId, recipientId],
+      // `pgm_ambiente` anda junto do recipient: o ID sozinho não diz se veio do
+      // sandbox ou da produção, e o do sandbox não existe na live.
+      `UPDATE psicologos SET pagarme_recipient_id = $2, pgm_ambiente = $3, pgm_onboarding_em = NOW() WHERE id = $1`,
+      [psicologoId, recipientId, ambientePagarme()],
     )
   } catch (err) {
     log.err('onboardingPagamento', 'recebedor criado mas não gravado', err)
