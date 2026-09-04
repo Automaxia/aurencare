@@ -17,9 +17,9 @@
 > aurencare-secrets -n aurencare`). Já definidos e reais: `ASSEMBLYAI_API_KEY`,
 > `CRON_SECRET`, `EVOLUTION_WEBHOOK_TOKEN`, `OPENAI_API_KEY`, `ENCRYPTION_KEY`,
 > `TURN_URLS`, `PAGARME_API_KEY`, `PAGARME_WEBHOOK_USER`/`_SECRET`.
-> Pendente: `PAGARME_RECIPIENT_PLATAFORMA` — a conta **nunca esteve** bloqueada
-> pela Pagar.me (verificado 27/08/2026: o `action_forbidden` vinha de outra
-> chave); só falta rodar o script; ver §2.
+> `PAGARME_API_KEY` virou a chave **live** em 04/09/2026, com
+> `PAGARME_RECIPIENT_PLATAFORMA=re_cmq56ad0y1aq40l9taj8lovw6` e webhook live
+> autenticado. Pendente: **split desabilitado na conta live** — ver §2.
 
 ## 🟢 1. Pagar.me fora do modo mock — ✅ RESOLVIDO (ago/2026)
 
@@ -58,11 +58,12 @@ autenticado → sessão vira `confirmada` → SSE + WhatsApp + email.
 > ⚠️ Ao criar o webhook do ambiente **live** no go-live, repetir os três pontos:
 > URL correta, autenticação habilitada (Basic) e tentativas > 1.
 
-- [x] **~~🔴 BLOQUEADO NA PAGAR.ME~~ — não estava. Era formato de data. (27/08/2026)**
+- [x] **~~🔴 BLOQUEADO NA PAGAR.ME~~ — no SANDBOX não estava. Era formato de
+      data. (27/08/2026)** ⚠️ Na conta **live** o split está mesmo desabilitado
+      — ver o item 🔴 logo abaixo.
 
-      O `POST /recipients` com a chave que está **no cluster** cria recebedor
-      normalmente — verificado criando um de teste (`re_cmtbl0…`, status
-      `active`). A conta nunca precisou de habilitação de split.
+      O `POST /recipients` com a chave de teste do cluster cria recebedor
+      normalmente — verificado criando um (`re_cmtbl0…`, status `active`).
 
       **De onde veio o diagnóstico errado.** O `action_forbidden` é real, mas
       vem de OUTRA chave — a `sk_test_49d8…` do `.env.local`, de uma conta
@@ -88,14 +89,45 @@ autenticado → sessão vira `confirmada` → SSE + WhatsApp + email.
       conta está bloqueada — `kubectl get secret aurencare-secrets`, não o
       `.env.local`.
 
-- [ ] **Criar o recebedor da plataforma** — destravado junto com o item acima;
-      é o que falta para a taxa administrativa de 2,5% existir no split:
-      ```bash
-      SOCIO_NOME="Nome Completo" SOCIO_CPF=00000000000 SOCIO_NASCIMENTO=1985-01-15 npm run pagarme:recipient-plataforma
+- [x] **Recebedor da plataforma criado** — `re_cmtbr3xe…` no sandbox, e na
+      **live** já existia `re_cmq56ad0y1aq40l9taj8lovw6` (Automaxia, `active`,
+      criado 08/06/2026), com repasse automático diário ligado em 04/09/2026.
+      O script recusa duplicar recebedor do mesmo CNPJ.
 
-      kubectl patch secret aurencare-secrets -n aurencare --type merge -p '{"stringData":{"PAGARME_RECIPIENT_PLATAFORMA":"rp_…"}}'
+- [ ] **🔴 SPLIT DESABILITADO NA CONTA LIVE — bloqueia a cobrança pela
+      plataforma em produção. (04/09/2026)**
+
+      Descoberto ao virar `PAGARME_API_KEY` para a chave live. A Pagar.me é
+      explícita, nas duas pontas:
+
       ```
-      ⚠️ Rodar com a chave do CLUSTER, não com a do `.env.local`.
+      POST /recipients → 412 The account must have split settings enabled,
+                             in order to create a recipient
+      POST /orders     → 412 Split is disabled.        (order COM split)
+      POST /orders     → 200                            (order SEM split)
+      ```
+
+      Ou seja: em produção dá para **cobrar**, mas não para **dividir** nem para
+      criar recebedores. No sandbox o split funciona — foi lá que todo o fluxo
+      PIX foi validado ponta a ponta.
+
+      Não confunda com o item acima: aquele `action_forbidden` vinha de uma
+      terceira chave (`sk_test_49d8…`, conta alheia) e era falso alarme. Este
+      aqui é a conta de produção de verdade, com mensagem inequívoca.
+
+      **Consequência hoje:** nenhum psicólogo consegue concluir o onboarding de
+      recebimento em produção — dois tentaram sete vezes em 04/09 e viram erro.
+      Todas as sessões nascem confirmadas com pagamento direto, combinado entre
+      psicólogo e paciente. Nada quebra; a plataforma é que não intermedia.
+
+      **Ação (não é código):** pedir à Pagar.me a habilitação de **split de
+      pagamentos** na conta de produção (merchant `merch_D07OoPQSrH24qdnM`,
+      CNPJ 38.154.192/0001-63), citando as duas mensagens de erro acima.
+
+      Enquanto não vier, a alternativa seria cobrar SEM split — o valor cairia
+      inteiro na conta da Automaxia e o repasse ao psicólogo seria manual. Isso
+      exige mudar o gate que hoje só cobra quando o onboarding está completo, e
+      é decisão de produto, não de infra.
 
 - [ ] **5 psicólogos com recebedor sintético — precisam refazer o onboarding.**
       Enquanto valia o placeholder da §1, o onboarding gravou `mock_rcp_*` em
