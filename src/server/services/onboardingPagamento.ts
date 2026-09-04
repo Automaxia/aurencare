@@ -3,6 +3,7 @@ import { db } from '@/server/db/pool'
 import { encrypt, tryDecrypt } from '@/server/lib/crypto'
 import { criarRecipient, isRecipientMock, ambientePagarme, type RecipientInput, PagarmeRecipientError, type CampoRecusado } from '@/server/lib/pagarmeRecipient'
 import { log } from '@/server/lib/log'
+import { redis } from '@/server/lib/redis'
 import { cpfCnpjValido, validarCpf, validarCnpj } from '@/lib/documento'
 
 export type OnboardingStatus = {
@@ -106,6 +107,100 @@ export async function lerStatusOnboarding(psicologoId: string): Promise<Onboardi
     recipientId: invalido ? null : (r?.pagarme_recipient_id ?? null),
     concluidoEm: r?.pgm_onboarding_em ?? null,
     recipientInvalido: !!r?.pgm_onboarding_em && invalido,
+  }
+}
+
+/**
+ * Garante que o psicólogo tenha recebedor VÁLIDO no ambiente Pagar.me atual,
+ * recriando-o a partir dos dados que ele já preencheu.
+ *
+ * Sem isto, trocar o ambiente (ou ter herdado um `mock_rcp_*`) obrigava cada
+ * psicólogo a refazer os três passos do wizard digitando exatamente o que a
+ * plataforma já guarda cifrado — e, até refazer, as sessões dele deixavam de
+ * ser cobradas pela plataforma sem que ninguém percebesse.
+ *
+ * Só funciona para quem JÁ preencheu o formulário: CPF, endereço e conta
+ * bancária são KYC do titular, e a Pagar.me exige. Quem nunca preencheu
+ * continua sendo mandado ao wizard.
+ *
+ * Falha nunca propaga: se a Pagar.me recusar, devolve o status de antes e a
+ * cobrança degrada para pagamento direto — o mesmo caminho de sempre.
+ */
+export async function garantirRecipientAtivo(psicologoId: string): Promise<OnboardingStatus> {
+  const status = await lerStatusOnboarding(psicologoId)
+  if (status.completo) return status
+
+  /*
+   * Freio: enquanto a conta estiver sem split habilitado, TODA tentativa falha
+   * igual. Sem isto, cada sessão criada dispararia uma chamada à Pagar.me que
+   * já se sabe que vai falhar. Uma tentativa por hora por psicólogo basta para
+   * o recebedor voltar sozinho assim que a liberação sair.
+   */
+  const chaveFreio = `pgm:recipient:falha:${psicologoId}`
+  const r = await redis().catch(() => null)
+  if (r && (await r.get(chaveFreio).catch(() => null))) return status
+
+  const rascunho = await lerRascunhoOnboarding(psicologoId)
+  if (!rascunho) return status   // nunca preencheu: nada a recriar
+
+  const { rows } = await db.query<{ email: string; telefone: string | null }>(
+    `SELECT email, telefone FROM psicologos WHERE id = $1 LIMIT 1`, [psicologoId],
+  )
+  const psi = rows[0]
+  if (!psi?.telefone) return status
+
+  const d = rascunho
+  const completo = !!(d.documento && d.razaoSocial && d.dataNascimento && d.rendaCentavos
+    && d.endCep && d.endLogradouro && d.endNumero && d.endBairro && d.endCidade && d.endUf
+    && d.bancoCodigo && d.bancoAgencia && d.bancoConta && d.bancoContaDv
+    && d.titularNome && d.titularDocumento
+    && (d.tipoPessoa !== 'PJ' || (d.socioNome && d.socioCpf && d.socioNascimento)))
+  if (!completo) return status   // falta dado que só o psicólogo pode dar
+
+  const endereco = {
+    cep: d.endCep, logradouro: d.endLogradouro, numero: d.endNumero,
+    complemento: d.endComplemento || null, bairro: d.endBairro,
+    cidade: d.endCidade, uf: d.endUf,
+  }
+
+  try {
+    const criado = await criarRecipient({
+      tipoPessoa: d.tipoPessoa,
+      documento: d.documento,
+      razaoSocial: d.razaoSocial,
+      email: psi.email,
+      telefone: psi.telefone,
+      dataNascimento: d.dataNascimento,
+      rendaCentavos: d.rendaCentavos!,
+      endereco,
+      socio: d.tipoPessoa === 'PJ'
+        ? {
+            nome: d.socioNome, cpf: d.socioCpf, dataNascimento: d.socioNascimento,
+            email: d.socioEmail || psi.email, telefone: d.socioTelefone || psi.telefone,
+            rendaMensalCentavos: d.socioRendaCentavos ?? d.rendaCentavos!,
+            endereco,
+          }
+        : null,
+      banco: {
+        codigo: d.bancoCodigo, agencia: d.bancoAgencia, agenciaDv: d.bancoAgenciaDv || null,
+        conta: d.bancoConta, contaDv: d.bancoContaDv, tipo: d.bancoTipo,
+        titularNome: d.titularNome, titularDocumento: d.titularDocumento,
+      },
+    })
+    await db.query(
+      `UPDATE psicologos SET pagarme_recipient_id = $2, pgm_ambiente = $3, pgm_onboarding_em = NOW()
+        WHERE id = $1`,
+      [psicologoId, criado.recipientId, ambientePagarme()],
+    )
+    log.ok('onboardingPagamento', `recebedor recriado p/ psicologo=${psicologoId} → ${criado.recipientId} (${ambientePagarme()})`)
+    return await lerStatusOnboarding(psicologoId)
+  } catch (err) {
+    const motivo = err instanceof PagarmeRecipientError
+      ? String((err.detalhe as any)?.message ?? err.message)
+      : err instanceof Error ? err.message : String(err)
+    log.warn('onboardingPagamento', `não recriou recebedor de ${psicologoId}: ${motivo}`)
+    if (r) await r.set(chaveFreio, '1', { EX: 3600 }).catch(() => { /* freio é best-effort */ })
+    return status
   }
 }
 

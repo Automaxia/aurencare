@@ -17,6 +17,7 @@
     "test:split": "node --conditions=react-server --import tsx --env-file=.env.local --env-file-if-exists=.env.development.local scripts/test-split-pagarme.ts",
     "backfill:cpf": "node --conditions=react-server --import tsx --env-file=.env.local --env-file-if-exists=.env.development.local scripts/backfill-cpf-psicologo.ts",
     "pagarme:recipient-plataforma": "node --conditions=react-server --import tsx --env-file=.env.local --env-file-if-exists=.env.development.local scripts/criar-recipient-plataforma.ts",
+    "pagarme:migrar-recipients": "node --conditions=react-server --import tsx --env-file=.env.local --env-file-if-exists=.env.development.local scripts/migrar-recipients-ambiente.ts",
     "relatorio:silencio": "node --conditions=react-server --import tsx --env-file=.env.local --env-file-if-exists=.env.development.local scripts/relatorio-silencio.ts"
   },
   "dependencies": {

@@ -13,7 +13,7 @@ import { formatDateTimeBR, formatDateBR, formatTimeBR, TZ } from '@/lib/formatte
 import { sessaoVazia, sqlTemRegistro, sqlTemCobrancaAberta } from '@/lib/sessaoExclusao'
 import { obterAssinatura } from './assinatura'
 import { incrementarSessaoIa, decrementarSessaoIa } from './uso'
-import { lerStatusOnboarding } from './onboardingPagamento'
+import { garantirRecipientAtivo } from './onboardingPagamento'
 import { BETA_LIBERADO } from '@/server/lib/planos'
 import { validarCpf } from '@/lib/documento'
 
@@ -205,7 +205,7 @@ export async function criarSessao(input: CriarSessaoInput): Promise<Sessao> {
   // Cobrança pela plataforma (Pix/cartão via Pagar.me) só pra quem já vinculou a
   // conta de recebimento. Sem conta, a sessão paga é agendada e confirmada — o
   // psicólogo combina o pagamento por fora e concilia no Financeiro (fica 'pendente').
-  const onboarding = gratuita ? null : await lerStatusOnboarding(input.psicologoId)
+  const onboarding = gratuita ? null : await garantirRecipientAtivo(input.psicologoId)
   const cobrarPlataforma = !gratuita && !!onboarding?.completo
 
   const { rows } = await db.query(
@@ -515,7 +515,7 @@ export async function criarSerie(input: CriarSerieInput): Promise<CriarSerieResu
   const gratuita = (input.valor ?? 0) <= 0
 
   // Cobrança pela plataforma só pra quem vinculou conta de recebimento (ver criarSessao).
-  const onboarding = gratuita ? null : await lerStatusOnboarding(input.psicologoId)
+  const onboarding = gratuita ? null : await garantirRecipientAtivo(input.psicologoId)
   const cobrarPlataforma = !gratuita && !!onboarding?.completo
 
   // próximo número de sessão pra esse paciente
@@ -599,7 +599,7 @@ export async function criarSerie(input: CriarSerieInput): Promise<CriarSerieResu
 export async function gerarCobrancaPix(sessaoId: string): Promise<Sessao> {
   const s = await buscarSessao(sessaoId)
   if (!s) throw new Error('sessao_nao_encontrada')
-  const onb = await lerStatusOnboarding(s.psicologoId)
+  const onb = await garantirRecipientAtivo(s.psicologoId)
   if (!onb.completo) throw new Error('recebimento_nao_configurado')
   // A Pagar.me exige CPF do pagador no PIX. Sem ele a order até é criada, mas a
   // charge é reprovada e volta SEM qr_code — o paciente receberia um link vazio.
@@ -638,7 +638,7 @@ export async function gerarCobrancaPix(sessaoId: string): Promise<Sessao> {
 export async function gerarCobrancaCartao(sessaoId: string, metodo: 'credito' | 'debito'): Promise<Sessao> {
   const s = await buscarSessao(sessaoId)
   if (!s) throw new Error('sessao_nao_encontrada')
-  const onb = await lerStatusOnboarding(s.psicologoId)
+  const onb = await garantirRecipientAtivo(s.psicologoId)
   if (!onb.completo) throw new Error('recebimento_nao_configurado')
 
   const order = await criarCheckoutCartao({
