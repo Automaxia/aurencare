@@ -143,6 +143,27 @@ autenticado → sessão vira `confirmada` → SSE + WhatsApp + email.
       ```
       `sk_test_` = sandbox; qualquer outro prefixo = produção.
 
+      **Para checar se já liberaram, sem criar nada** — `POST /recipients` com
+      CPF inválido. O gate do split roda ANTES da validação de campo (o CPF nem
+      chega a ser avaliado), então a resposta é conclusiva e nenhum recebedor é
+      criado, mesmo que o split tenha sido habilitado no meio tempo:
+      ```bash
+      K=$(kubectl -n aurencare get secret aurencare-secrets \
+            -o jsonpath='{.data.PAGARME_API_KEY}' | base64 -d)
+      curl -s -u "$K:" -H 'Content-Type: application/json' -X POST \
+        https://api.pagar.me/core/v5/recipients \
+        -d '{"register_information":{"type":"individual","email":"probe@example.invalid",
+             "document":"11111111111","name":"Probe","birthdate":"01/01/1990",
+             "monthly_income":100000,"professional_occupation":"Teste",
+             "address":{"street":"Rua Teste","street_number":"1","complementary":"N/A",
+             "neighborhood":"Centro","city":"Brasilia","state":"DF","zip_code":"70000000",
+             "reference_point":"N/A"},"phone_numbers":[{"ddd":"61","number":"999999999",
+             "type":"mobile"}]}}'
+      ```
+      Ainda bloqueado → volta o `412 ... split settings enabled`. Liberado →
+      volta erro de campo (documento inválido), e o onboarding real destrava.
+      Rodado em 05/09/2026: **ainda bloqueado**.
+
 - [ ] **5 psicólogos com recebedor sintético — precisam refazer o onboarding.**
       Enquanto valia o placeholder da §1, o onboarding gravou `mock_rcp_*` em
       `psicologos.pagarme_recipient_id` (IDs que não existem na Pagar.me):
@@ -150,7 +171,8 @@ autenticado → sessão vira `confirmada` → SSE + WhatsApp + email.
       Santana · LUCILEIDE MARIA CARDOSO COSTA · QA Ficticia.
       O código já os trata como "recebimento não configurado" e a aba
       **Perfil › Recebimentos** mostra o aviso pedindo para refazer — mas alguém
-      precisa avisá-los. Conferir depois:
+      precisa avisá-los. ⚠️ **Só depois do split sair**: enquanto o item acima
+      valer, refazer o wizard bate no 412 e a frustração é garantida. Conferir depois:
       ```bash
       kubectl exec -n aurencare deploy/aurencare-web -- node -e "…SELECT nome, pagarme_recipient_id FROM psicologos WHERE pagarme_recipient_id LIKE 'mock_%'"
       ```
@@ -194,11 +216,19 @@ inteiro sem risco. **A troca para `live` é um passo deliberado do go-live.**
 
 Quando for ligar de verdade:
 
-- [ ] `PAGARME_API_KEY` → `sk_live` no secret.
+- [x] `PAGARME_API_KEY` → chave live no secret. **Feito em 04/09/2026.**
+      ⚠️ A chave live desta conta **não** tem prefixo `sk_live_`, é `sk_<hash>`
+      — só `sk_test_` é sandbox. Foi essa troca que expôs o split desabilitado
+      da §2.
 - [ ] `NEXT_PUBLIC_PAGARME_PUBLIC_KEY` → `pk_live` — ⚠️ **é build-time**: tem que
       entrar no **build da imagem** (`--build-arg` no `build-push.sh` ou env do
-      job de build), **não** só no secret de runtime.
-- [ ] Recriar no ambiente live: webhook (URL + Basic Auth) e recipient da plataforma.
+      job de build), **não** só no secret de runtime. Hoje vem do secret do
+      **GitHub Actions** (`deploy.yml:65` → `Dockerfile:60`), não do cluster —
+      logo, `kubectl` não mostra e não serve para conferir. Com a secreta já em
+      live, confirmar que a pública também é `pk_live`: se ficou `pk_test`, a
+      tokenização do cartão não fecha.
+- [x] Recriar no ambiente live: webhook (URL + Basic Auth) — feito. Recipient da
+      plataforma já existia no live (`re_cmq56ad0…`, §2).
 - [ ] ⚠️ **Modelo de negócio do PIX**: em Configurações → Meios de pagamento, o
       sandbox usa **Simulator** e o live precisa de **PSP** (com credenciamento
       feito). Foi o "Simulator vs PSP" que manteve o PIX quebrado no teste.
