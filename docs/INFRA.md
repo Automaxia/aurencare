@@ -144,9 +144,15 @@ autenticado → sessão vira `confirmada` → SSE + WhatsApp + email.
       `sk_test_` = sandbox; qualquer outro prefixo = produção.
 
       **Para checar se já liberaram, sem criar nada** — `POST /recipients` com
-      CPF inválido. O gate do split roda ANTES da validação de campo (o CPF nem
+      CPF inválido. O gate do split roda antes da validação de VALOR (o CPF nem
       chega a ser avaliado), então a resposta é conclusiva e nenhum recebedor é
-      criado, mesmo que o split tenha sido habilitado no meio tempo:
+      criado, mesmo que o split tenha sido habilitado no meio tempo.
+
+      ⚠️ **Mande o payload COMPLETO, exatamente como abaixo.** A validação de
+      ESTRUTURA vem antes do gate: sem `default_bank_account` a resposta é
+      `422 The default_bank_account field is required` — que parece "não é mais
+      o split" e leva a concluir que liberaram. Só o payload completo distingue
+      os dois casos.
       ```bash
       K=$(kubectl -n aurencare get secret aurencare-secrets \
             -o jsonpath='{.data.PAGARME_API_KEY}' | base64 -d)
@@ -162,7 +168,7 @@ autenticado → sessão vira `confirmada` → SSE + WhatsApp + email.
       ```
       Ainda bloqueado → volta o `412 ... split settings enabled`. Liberado →
       volta erro de campo (documento inválido), e o onboarding real destrava.
-      Rodado em 05/09/2026: **ainda bloqueado**.
+      Rodado em 05/09/2026 (duas vezes): **ainda bloqueado**.
 
 - [ ] **5 psicólogos com recebedor sintético — precisam refazer o onboarding.**
       Enquanto valia o placeholder da §1, o onboarding gravou `mock_rcp_*` em
