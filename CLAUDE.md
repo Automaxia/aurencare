@@ -675,6 +675,9 @@ Modal abre automaticamente ao encerrar. Contém:
   Pro R$ 159,90 (80) + **taxa administrativa de 2,5% por sessão**. Medidor = sessões com
   IA/mês. Gate de cota no Modo Presença, validado **no servidor**.
   Config em `src/server/lib/planos.ts`
+- **WhatsApp Cloud API (Meta)** — em produção desde 11/09/2026: número próprio
+  +55 61 94758-1770, app Meta "Audere", 17 templates aprovados, webhook
+  assinado. Evolution fica como fallback (`WHATSAPP_PROVIDER`). `docs/INFRA.md` §4b.
 - **Instrumentação de custo de IA** — `api_custos` com atribuição por
   psicólogo/paciente/sessão/natureza + latência; painel `/admin/custos`
 - Landing `/lancamento` (hero 3D) + vitrine pública `/precos` (compra)
@@ -688,10 +691,6 @@ Modal abre automaticamente ao encerrar. Contém:
   047) justamente pra atravessar esse intervalo. Detalhe em
   [`docs/INFRA.md`](./docs/INFRA.md).
 - **Transcrição do paciente** — falta `ASSEMBLYAI_API_KEY` no cluster.
-- **WhatsApp Cloud API** — código pronto (`WHATSAPP_PROVIDER=meta`), número
-  +55 61 94758-1770 cadastrado na WABA, mas **verificação bloqueada** (número
-  ativo em outro WhatsApp). Falta: verificar, token, app secret, webhook,
-  aprovar templates. Passo a passo em `docs/INFRA.md` §4b.
 
 ### 🔮 Futuro / fora de escopo
 - Modo supervisor (Fase 3)

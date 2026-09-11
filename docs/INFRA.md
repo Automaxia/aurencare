@@ -244,7 +244,7 @@ Quando for ligar de verdade:
 - [ ] No código: trocar `BETA_LIBERADO` para `false` em `src/server/lib/planos.ts`
       + redeploy.
 
-## 🟡 4b. WhatsApp — migração Evolution → Cloud API (Meta) (set/2026)
+## 🟢 4b. WhatsApp — Cloud API (Meta) — ✅ LIGADA (11/09/2026)
 
 **Por quê:** a instância Evolution `Automaxia` é o número 61 98644-4584,
 compartilhado com o Habilita — o paciente via "Habilita - CNH Fácil" como
@@ -294,24 +294,31 @@ Publicar o app exige URL de política de privacidade → criada `/privacidade`
       "Enviar código de verificação").
 - [x] Token permanente do usuário do sistema "Cloud API" pro app **Audere**
       (`whatsapp_business_messaging` + `_management`, sem expiração) — no secret.
-- [ ] App Secret do app **Audere**: developers.facebook.com → app → Configurações → Básico.
-- [ ] Secret `aurencare-secrets`: `WHATSAPP_PROVIDER=meta`, `META_WA_TOKEN`,
+- [x] App Secret do app **Audere** no secret (`META_APP_SECRET`) — assinatura validada em produção.
+- [x] Secret `aurencare-secrets`: `WHATSAPP_PROVIDER=meta`, `META_WA_TOKEN`,
       `META_WA_PHONE_NUMBER_ID=1273053965895712`, `META_WA_WABA_ID=512053311999451`,
-      `META_APP_SECRET`, `META_WEBHOOK_VERIFY_TOKEN` (openssl rand -hex 24) → rollout.
+      `META_APP_SECRET`, `META_WEBHOOK_VERIFY_TOKEN`, `META_WA_PIN` (PIN de 2 etapas
+      usado no `POST /{phone_id}/register` — guardar; sem ele não re-registra).
 - [x] Webhook no app Audere → `https://app.audere.ia.br/api/webhooks/meta`,
       campo `messages` assinado; app inscrito na WABA (`subscribed_apps`).
-- [ ] Publicar o app Audere (Publicar → política `https://app.audere.ia.br/privacidade`).
-      Sem publicar, o webhook só recebe eventos de teste.
-- [x] 17 templates criados na WABA (11/09) — aguardar APPROVED. Até aprovar,
-      lembretes/cobranças falham com 132001 no log.
-- [ ] Teste: mandar "oi" do celular pro 11 5123-0371 (abre a janela) e responder
-      pelo painel; depois "Enviar teste" em `/admin/whatsapp` pra um número que
-      NÃO escreveu (exercita o template genérico).
+- [x] App Audere **publicado** (política `https://app.audere.ia.br/privacidade`).
+- [x] 17 templates **APPROVED** (aprovação levou ~20 min).
+- [x] Número registrado na Cloud API (`/register` + PIN) → `status: CONNECTED`.
+- [x] Teste: template `audere_mensagem_psicologo` entregue ao 61 99942-3445;
+      resposta "SIM" chegou pelo webhook (assinatura OK, roteada ao inbox).
+- [x] `WHATSAPP_PROVIDER=meta` em produção desde 11/09 ~21:20.
 - [ ] Método de pagamento na WABA (Gerenciador → Configurações de pagamento —
       hoje aparece "Índia", conferir Brasil). Sem ele o número fica no tier de
       teste. Custo: utilidade ≈ R$ 0,04/msg fora da janela; serviço grátis.
 - [ ] Depois de estável: `EVOLUTION_*` vira só do Habilita; reverter o nome do
       perfil da instância `Automaxia` pra "Habilita - CNH Fácil".
+- [ ] Apagar o fixo 11 5123-0371 ("Não verificado") da WABA.
+- [ ] Nome de exibição "Audere - Continuidade terapêutica" ainda `PENDING_REVIEW`
+      — até aprovar o paciente vê só o número.
+- [ ] Webhook do app antigo `[Automaxia] Cloud API` foi apontado pro admincenter
+      (URL + verify token `automaxia-holerite-2026`, o default do código) — antes
+      apontava pro TalkCare, morto. Filtro por `phone_number_id` no admincenter
+      continua pendente (ele reage a "SIM" de qualquer número da WABA).
 
 **Rollback:** `WHATSAPP_PROVIDER=evolution` no secret + rollout. Nada mais muda.
 
