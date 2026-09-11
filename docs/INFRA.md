@@ -275,23 +275,35 @@ garantia de entrega.
   verificação recusada ("número já registrado em uma conta do WhatsApp").
   Segue na WABA como "Não verificado" — apagar quando o 61 estiver ativo.
 
+**App Meta próprio (11/09, tarde):** o app `[Automaxia] Cloud API` já tinha o
+webhook em uso — a inscrição dele na WABA tem `override_callback_uri` pro
+**admincenter** (`admincenter.automaxia.com.br/api/webhook/whatsapp`, fluxo
+"Detalhe completo" do holerite, ativo). Por isso o Audere ganhou o **app
+"Audere" `1032597096483509`**, inscrito na mesma WABA com webhook próprio
+(`/api/webhooks/meta`, campo `messages`). Token do usuário do sistema "Cloud
+API" gerado pro app Audere (nunca expira). A Meta entrega cada evento da WABA
+aos dois apps; cada um filtra o seu número. ⚠️ O admincenter **não** filtra
+por `phone_number_id` — um paciente respondendo "SIM" cai no regex dele; só
+dispara envio se o telefone tiver demonstrativo registrado.
+
+Publicar o app exige URL de política de privacidade → criada `/privacidade`
+(pública, LGPD/CFP, rodapé da landing aponta pra ela).
+
 **Pra ligar (ordem):**
 - [ ] Verificar o número com o código do SMS (Gerenciador → Números → Perfil →
       "Enviar código de verificação").
-- [ ] Token permanente: Business Suite → Configurações → Usuários do sistema →
-      criar/usar admin → **Gerar token** → app `[Automaxia] Cloud API`, permissões
-      `whatsapp_business_messaging` + `whatsapp_business_management`, sem expiração.
-      Atribuir a WABA ao usuário do sistema (Ativos → Contas do WhatsApp).
-- [ ] App Secret: developers.facebook.com → app → Configurações → Básico.
+- [x] Token permanente do usuário do sistema "Cloud API" pro app **Audere**
+      (`whatsapp_business_messaging` + `_management`, sem expiração) — no secret.
+- [ ] App Secret do app **Audere**: developers.facebook.com → app → Configurações → Básico.
 - [ ] Secret `aurencare-secrets`: `WHATSAPP_PROVIDER=meta`, `META_WA_TOKEN`,
       `META_WA_PHONE_NUMBER_ID=1273053965895712`, `META_WA_WABA_ID=512053311999451`,
       `META_APP_SECRET`, `META_WEBHOOK_VERIFY_TOKEN` (openssl rand -hex 24) → rollout.
-- [ ] Webhook no app Meta: WhatsApp → Configuração → Webhook → URL
-      `https://app.audere.ia.br/api/webhooks/meta` + verify token → **Verificar e
-      salvar** → assinar o campo `messages`. (O app precisa estar no ar antes,
-      senão o handshake GET falha.)
-- [ ] `/admin/whatsapp` → "Criar templates na WABA" → aguardar APPROVED (minutos
-      a horas). Até aprovar, lembretes/cobranças falham com 132001 no log.
+- [x] Webhook no app Audere → `https://app.audere.ia.br/api/webhooks/meta`,
+      campo `messages` assinado; app inscrito na WABA (`subscribed_apps`).
+- [ ] Publicar o app Audere (Publicar → política `https://app.audere.ia.br/privacidade`).
+      Sem publicar, o webhook só recebe eventos de teste.
+- [x] 17 templates criados na WABA (11/09) — aguardar APPROVED. Até aprovar,
+      lembretes/cobranças falham com 132001 no log.
 - [ ] Teste: mandar "oi" do celular pro 11 5123-0371 (abre a janela) e responder
       pelo painel; depois "Enviar teste" em `/admin/whatsapp` pra um número que
       NÃO escreveu (exercita o template genérico).

@@ -116,7 +116,7 @@ export function Footer() {
         </div>
         <div className="footer-links">
           <a href="#plataforma">Plataforma</a>
-          <a href="#privacidade">Privacidade</a>
+          <a href="/privacidade">Política de Privacidade</a>
           <a href="#confianca">Feito por psicólogos</a>
           <a href="/precos">Planos e preços</a>
           <a href="/login">Já tenho conta</a>

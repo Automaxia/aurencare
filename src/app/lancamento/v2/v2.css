@@ -359,3 +359,11 @@
   .lp .pr-grid { grid-template-columns: 1fr; max-width: 420px; margin: 0 auto; }
   .lp .pr-card.destaque { order: -1; }
 }
+
+/* ── Política de privacidade (/privacidade) ─────────────────────────────── */
+.lp .priv-doc{ margin-top:36px; font-size:16px; line-height:1.7; color:var(--ink-soft); }
+.lp .priv-doc h2{ font-family:var(--f-display); font-weight:400; font-size:26px; color:var(--ink); margin:34px 0 10px; }
+.lp .priv-doc p{ margin:0 0 14px; }
+.lp .priv-doc ul{ margin:0 0 14px 22px; }
+.lp .priv-doc li{ margin-bottom:8px; }
+.lp .priv-doc a{ color:var(--accent); }
