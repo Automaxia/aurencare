@@ -2,10 +2,17 @@ import 'server-only'
 import axios from 'axios'
 import { env, integrationStatus } from './env'
 import { log } from './log'
+import { enviarMeta } from './whatsapp/meta'
+import type { TemplateMeta } from './whatsapp/templatesMeta'
 
 /**
  * Cliente Evolution API (Baileys). §10.
  * Quando placeholder, registra a mensagem no log e segue (não interrompe fluxos).
+ *
+ * `enviarWA`/`enviarWADiag` são o ponto único de saída de WhatsApp do app e
+ * escolhem o provider por `WHATSAPP_PROVIDER`: `evolution` (este arquivo) ou
+ * `meta` (Cloud API oficial, ./whatsapp/meta.ts). O resto do módulo é
+ * específico do Evolution (instância, QR, webhook).
  */
 
 function toNumber(telefone: string): string {
@@ -26,9 +33,40 @@ export type EnvioWAContexto = {
   psicologoId?: string | null
   pacienteId?: string | null
   registrar?: boolean
+  /**
+   * Template da Cloud API equivalente ao `texto` (ver WA_META). Só importa
+   * com provider `meta`: fora da janela de 24h a Meta recusa texto livre e
+   * este template é o que sai. Toda mensagem que INICIA conversa (lembrete,
+   * cobrança, boas-vindas…) deve trazê-lo; resposta a comando do paciente
+   * (PIX → QR) pode omitir. Ignorado pelo Evolution.
+   */
+  template?: TemplateMeta | null
+}
+
+async function registrarSaida(telefone: string, texto: string, ctx?: EnvioWAContexto) {
+  if (ctx?.registrar === false) return
+  const { registrarMensagem } = await import('@/server/services/wa-conversa')
+  await registrarMensagem(telefone, 'out', texto, { psicologoId: ctx?.psicologoId, pacienteId: ctx?.pacienteId })
 }
 
 export async function enviarWA(telefone: string, texto: string, ctx?: EnvioWAContexto): Promise<void> {
+  if (env.whatsappProvider === 'meta') {
+    if (!integrationStatus.meta) {
+      log.warn('meta', `[mock] → ${telefone}: ${texto.slice(0, 80).replace(/\n/g, ' ')}…`)
+      return
+    }
+    const r = await enviarMeta(telefone, texto, ctx?.template)
+    if (!r.ok) {
+      log.err('meta', `falha ao enviar para ${telefone}`, r.erro)
+      return
+    }
+    log.ok('meta', `→ ${telefone} via ${r.via} (${texto.length} chars)`)
+    // Registra o texto legível mesmo quando saiu como template: o histórico do
+    // inbox é pra psicóloga ler, não pra reproduzir o payload.
+    await registrarSaida(telefone, texto, ctx)
+    return
+  }
+
   const number = toNumber(telefone)
   if (!integrationStatus.evolution) {
     log.warn('evolution', `[mock] → ${telefone}: ${texto.slice(0, 80).replace(/\n/g, ' ')}…`)
@@ -50,10 +88,7 @@ export async function enviarWA(telefone: string, texto: string, ctx?: EnvioWACon
      * Só registra o que a Evolution aceitou: histórico é o que o paciente
      * recebeu, não o que se tentou enviar.
      */
-    if (ctx?.registrar !== false) {
-      const { registrarMensagem } = await import('@/server/services/wa-conversa')
-      await registrarMensagem(telefone, 'out', texto, { psicologoId: ctx?.psicologoId, pacienteId: ctx?.pacienteId })
-    }
+    await registrarSaida(telefone, texto, ctx)
   } catch (err) {
     log.err('evolution', `falha ao enviar para ${telefone}`, err instanceof Error ? err.message : err)
   }
@@ -76,7 +111,12 @@ export async function estadoConexaoEvolution(): Promise<{ configurado: boolean; 
 }
 
 /** Envia uma mensagem de teste e SURFACE o resultado real (não engole o erro). */
-export async function enviarWADiag(telefone: string, texto: string): Promise<{ ok: boolean; erro?: string }> {
+export async function enviarWADiag(telefone: string, texto: string, template?: TemplateMeta | null): Promise<{ ok: boolean; erro?: string }> {
+  if (env.whatsappProvider === 'meta') {
+    if (!integrationStatus.meta) return { ok: false, erro: 'Cloud API não configurada — defina META_WA_TOKEN e META_WA_PHONE_NUMBER_ID.' }
+    const r = await enviarMeta(telefone, texto, template)
+    return r.ok ? { ok: true } : { ok: false, erro: r.erro }
+  }
   if (!integrationStatus.evolution) return { ok: false, erro: 'Evolution não configurado (modo demonstração) — defina EVOLUTION_API_URL e EVOLUTION_API_KEY.' }
   try {
     await axios.post(

@@ -1,6 +1,7 @@
 import 'server-only'
 import { db } from '@/server/db/pool'
 import { enviarWA, WA_TEMPLATES } from '@/server/lib/evolution'
+import { WA_META } from '@/server/lib/whatsapp/templatesMeta'
 import { criarOrderPix, criarCheckoutCartao, reembolsar } from '@/server/lib/pagarme'
 import { publish } from '@/server/lib/sse'
 import { encrypt, decrypt, tryDecrypt } from '@/server/lib/crypto'
@@ -228,14 +229,22 @@ export async function criarSessao(input: CriarSessaoInput): Promise<Sessao> {
   //  · grátis (valor 0)       → confirma sem pagamento;
   //  · pago, sem recebimento  → confirma e informa pagamento direto com o psicólogo.
   const online = sessao.modalidade === 'online'
+  const quando = formatDateTimeBR(sessao.dataHora)
   await enviarWA(
     sessao.pacienteTelefone,
     cobrarPlataforma
-      ? WA_TEMPLATES.fluxo2_perguntarMetodo(formatDateTimeBR(sessao.dataHora), sessao.valor)
+      ? WA_TEMPLATES.fluxo2_perguntarMetodo(quando, sessao.valor)
       : gratuita
-        ? WA_TEMPLATES.fluxo2_agendadaSemCobranca(formatDateTimeBR(sessao.dataHora), online)
-        : WA_TEMPLATES.fluxo2_agendadaPagamentoDireto(formatDateTimeBR(sessao.dataHora), sessao.valor, online),
-    { psicologoId: sessao.psicologoId, pacienteId: sessao.pacienteId },
+        ? WA_TEMPLATES.fluxo2_agendadaSemCobranca(quando, online)
+        : WA_TEMPLATES.fluxo2_agendadaPagamentoDireto(quando, sessao.valor, online),
+    {
+      psicologoId: sessao.psicologoId, pacienteId: sessao.pacienteId,
+      template: cobrarPlataforma
+        ? WA_META.fluxo2_perguntarMetodo(quando, sessao.valor)
+        : gratuita
+          ? WA_META.fluxo2_agendadaSemCobranca(quando, online)
+          : WA_META.fluxo2_agendadaPagamentoDireto(quando, sessao.valor, online),
+    },
   ).catch(err => log.err('criarSessao', 'falha WA agendamento', err))
 
   return sessao
@@ -310,10 +319,10 @@ export async function reagendarSessao(
         const nova = sessao.dataHora
         const diaSemana = new Date(nova).toLocaleDateString('pt-BR', { weekday: 'long', timeZone: TZ })
         const slot = `${diaSemana} às ${formatTimeBR(nova)}, a partir de ${formatDateBR(nova)}`
-        await enviarWA(sessao.pacienteTelefone, WA_TEMPLATES.fluxo2_remarcadaSerie(afetadas, slot), { psicologoId: sessao.psicologoId, pacienteId: sessao.pacienteId })
+        await enviarWA(sessao.pacienteTelefone, WA_TEMPLATES.fluxo2_remarcadaSerie(afetadas, slot), { psicologoId: sessao.psicologoId, pacienteId: sessao.pacienteId, template: WA_META.fluxo2_remarcadaSerie(afetadas, slot) })
           .catch(err => log.err('reagendarSessao', 'falha WA remarcada série', err))
       } else {
-        await enviarWA(sessao.pacienteTelefone, WA_TEMPLATES.fluxo2_remarcada(formatDateTimeBR(sessao.dataHora)), { psicologoId: sessao.psicologoId, pacienteId: sessao.pacienteId })
+        await enviarWA(sessao.pacienteTelefone, WA_TEMPLATES.fluxo2_remarcada(formatDateTimeBR(sessao.dataHora)), { psicologoId: sessao.psicologoId, pacienteId: sessao.pacienteId, template: WA_META.fluxo2_remarcada(formatDateTimeBR(sessao.dataHora)) })
           .catch(err => log.err('reagendarSessao', 'falha WA remarcada', err))
       }
     }
@@ -565,17 +574,18 @@ export async function criarSerie(input: CriarSerieInput): Promise<CriarSerieResu
     `SELECT nome, email FROM psicologos WHERE id = $1 LIMIT 1`, [input.psicologoId])
   if (pac[0]) {
     const datasFormatadas = datas.map(d => formatDateTimeBR(d))
+    const serieInfo = {
+      nome: pac[0].nome,
+      datas: datasFormatadas,
+      valor: input.valor,
+      gratuita,
+      pagamentoDireto: !gratuita && !cobrarPlataforma,
+    }
     await Promise.all([
       enviarWA(
         pac[0].telefone,
-        WA_TEMPLATES.fluxo2_serieInformativa({
-          nome: pac[0].nome,
-          datas: datasFormatadas,
-          valor: input.valor,
-          gratuita,
-          pagamentoDireto: !gratuita && !cobrarPlataforma,
-        }),
-        { psicologoId: input.psicologoId, pacienteId: input.pacienteId },
+        WA_TEMPLATES.fluxo2_serieInformativa(serieInfo),
+        { psicologoId: input.psicologoId, pacienteId: input.pacienteId, template: WA_META.fluxo2_serieInformativa(serieInfo) },
       ).catch(err => log.err('criarSerie', 'falha WA', err)),
       psiS[0] ? enviarEmailPacientePorId(
         input.pacienteId,
@@ -631,7 +641,8 @@ export async function gerarCobrancaPix(sessaoId: string): Promise<Sessao> {
     [s.id, order.orderId, order.qrCode ?? null, order.qrCodeUrl ?? null, order.taxaAdmCentavos || null],
   )
 
-  await enviarWA(s.pacienteTelefone, WA_TEMPLATES.fluxo2_pix(order.qrCodeUrl ?? order.qrCode ?? '', s.valor), { psicologoId: s.psicologoId, pacienteId: s.pacienteId })
+  const pixUrl = order.qrCodeUrl ?? order.qrCode ?? ''
+  await enviarWA(s.pacienteTelefone, WA_TEMPLATES.fluxo2_pix(pixUrl, s.valor), { psicologoId: s.psicologoId, pacienteId: s.pacienteId, template: WA_META.fluxo2_pix(pixUrl, s.valor) })
   return (await buscarSessao(s.id))!
 }
 
@@ -661,7 +672,7 @@ export async function gerarCobrancaCartao(sessaoId: string, metodo: 'credito' | 
     [s.id, metodo, order.orderId, order.checkoutUrl ?? null, order.taxaAdmCentavos || null],
   )
 
-  await enviarWA(s.pacienteTelefone, WA_TEMPLATES.fluxo2_checkout(order.checkoutUrl ?? '', metodo, s.valor), { psicologoId: s.psicologoId, pacienteId: s.pacienteId })
+  await enviarWA(s.pacienteTelefone, WA_TEMPLATES.fluxo2_checkout(order.checkoutUrl ?? '', metodo, s.valor), { psicologoId: s.psicologoId, pacienteId: s.pacienteId, template: WA_META.fluxo2_checkout(order.checkoutUrl ?? '', metodo, s.valor) })
   return (await buscarSessao(s.id))!
 }
 
@@ -689,7 +700,7 @@ export async function marcarPagamentoConfirmado(pagarmeOrderId: string): Promise
   const { rows: psis } = await db.query<{ nome: string; email: string }>(
     `SELECT nome, email FROM psicologos WHERE id = $1 LIMIT 1`, [sessao.psicologoId])
   await Promise.all([
-    enviarWA(sessao.pacienteTelefone, WA_TEMPLATES.fluxo2_confirmado(formatDateTimeBR(sessao.dataHora), sessao.modalidade === 'online'), { psicologoId: sessao.psicologoId, pacienteId: sessao.pacienteId })
+    enviarWA(sessao.pacienteTelefone, WA_TEMPLATES.fluxo2_confirmado(formatDateTimeBR(sessao.dataHora), sessao.modalidade === 'online'), { psicologoId: sessao.psicologoId, pacienteId: sessao.pacienteId, template: WA_META.fluxo2_confirmado(formatDateTimeBR(sessao.dataHora), sessao.modalidade === 'online') })
       .catch(err => log.err('pagamento.confirmado', 'falha WA', err)),
     psis[0] ? enviarEmailPacientePorSessao(
       sessao.id,
@@ -738,7 +749,10 @@ export async function cancelarSessao(sessaoId: string): Promise<{ reembolsada: b
     enviarWA(
       s.pacienteTelefone,
       reembolsada ? WA_TEMPLATES.fluxo5_canceladaComReembolso() : WA_TEMPLATES.fluxo5_canceladaSemReembolso(),
-      { psicologoId: s.psicologoId, pacienteId: s.pacienteId },
+      {
+        psicologoId: s.psicologoId, pacienteId: s.pacienteId,
+        template: reembolsada ? WA_META.fluxo5_canceladaComReembolso() : WA_META.fluxo5_canceladaSemReembolso(),
+      },
     ).catch(err => log.err('sessao.cancelar', 'falha WA', err)),
     psisC[0] ? enviarEmailPacientePorSessao(
       s.id,
@@ -1143,7 +1157,7 @@ export async function assinarSessao(sessaoId: string): Promise<void> {
   // Fluxo 6 — pós-sessão. Não dispara em sessão importada (histórico): o paciente
   // não deve receber "sua sessão terminou" por uma sessão de meses atrás.
   if (!s.importada) {
-    await enviarWA(s.pacienteTelefone, WA_TEMPLATES.fluxo6_posSessao(s.numero), { psicologoId: s.psicologoId, pacienteId: s.pacienteId })
+    await enviarWA(s.pacienteTelefone, WA_TEMPLATES.fluxo6_posSessao(s.numero), { psicologoId: s.psicologoId, pacienteId: s.pacienteId, template: WA_META.fluxo6_posSessao(s.numero) })
   }
 }
 
@@ -1155,7 +1169,7 @@ export async function reenviarCobranca(psicologoId: string, sessaoId: string): P
   if (!s || s.psicologoId !== psicologoId) throw new Error('sessao_nao_encontrada')
   if (!s.pagamentoMetodo) {
     // ainda não escolheu — re-pergunta
-    await enviarWA(s.pacienteTelefone, WA_TEMPLATES.fluxo2_perguntarMetodo(formatDateTimeBR(s.dataHora), s.valor), { psicologoId: s.psicologoId, pacienteId: s.pacienteId })
+    await enviarWA(s.pacienteTelefone, WA_TEMPLATES.fluxo2_perguntarMetodo(formatDateTimeBR(s.dataHora), s.valor), { psicologoId: s.psicologoId, pacienteId: s.pacienteId, template: WA_META.fluxo2_perguntarMetodo(formatDateTimeBR(s.dataHora), s.valor) })
     return s
   }
   if (s.pagamentoMetodo === 'pix')     return gerarCobrancaPix(sessaoId)

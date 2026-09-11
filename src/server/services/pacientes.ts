@@ -2,6 +2,7 @@ import 'server-only'
 import { randomUUID } from 'node:crypto'
 import { db } from '@/server/db/pool'
 import { enviarWA, WA_TEMPLATES } from '@/server/lib/evolution'
+import { WA_META } from '@/server/lib/whatsapp/templatesMeta'
 import { enviarEmail } from '@/server/lib/email'
 import { tplPacienteBoasVindas } from '@/server/lib/emailTemplates'
 import { env } from '@/server/lib/env'
@@ -190,7 +191,14 @@ export async function criarPaciente(input: CriarPacienteInput): Promise<Paciente
       input.mensagemCustom?.trim()
         ? aplicarLinkBoasVindas(input.mensagemCustom, link)
         : WA_TEMPLATES.fluxo1_boasVindas(paciente.nome, link, input.psicologoNome),
-      { psicologoId: input.psicologoId, pacienteId: paciente.id },
+      {
+        psicologoId: input.psicologoId, pacienteId: paciente.id,
+        // Paciente novo nunca escreveu → na Cloud API isto SEMPRE sai como
+        // template. O texto personalizado vai no genérico (perde quebras de linha).
+        template: input.mensagemCustom?.trim()
+          ? WA_META.fluxo1_boasVindasCustom(input.psicologoNome, aplicarLinkBoasVindas(input.mensagemCustom, link))
+          : WA_META.fluxo1_boasVindas(paciente.nome, link, input.psicologoNome),
+      },
     ).catch(err => log.err('paciente.criar', 'falha WA boas-vindas', err)),
 
     paciente.email && psi ? enviarEmail({
@@ -238,7 +246,7 @@ export async function reenviarConsentimento(psicologoId: string, pacienteId: str
   const canais: string[] = []
 
   await Promise.all([
-    enviarWA(p.telefone, WA_TEMPLATES.fluxo1_boasVindas(p.nome, link, psicologoNome), { psicologoId, pacienteId })
+    enviarWA(p.telefone, WA_TEMPLATES.fluxo1_boasVindas(p.nome, link, psicologoNome), { psicologoId, pacienteId, template: WA_META.fluxo1_boasVindas(p.nome, link, psicologoNome) })
       .then(() => { canais.push('WhatsApp') })
       .catch(err => log.err('paciente.reenviar', 'falha WA', err)),
     p.email && psi ? enviarEmail({

@@ -2,6 +2,7 @@ import 'server-only'
 import cron from 'node-cron'
 import { db } from '@/server/db/pool'
 import { enviarWA, WA_TEMPLATES } from './evolution'
+import { WA_META } from './whatsapp/templatesMeta'
 import { enviarEmailPacientePorSessao } from './emailPaciente'
 import { tplLembrete24h, tplLembrete15min } from './emailTemplates'
 import { criarOuObterSala } from '@/server/services/salaVideo'
@@ -118,6 +119,7 @@ export async function perguntarMetodoPendentes(): Promise<{ enviadas: number; to
       await enviarWA(
         r.telefone,
         WA_TEMPLATES.fluxo2_perguntarMetodo(formatDateTimeBR(r.data_hora), parseFloat(r.valor)),
+        { template: WA_META.fluxo2_perguntarMetodo(formatDateTimeBR(r.data_hora), parseFloat(r.valor)) },
       )
       await db.query(`UPDATE sessoes SET wa_pergunta_metodo_em = NOW() WHERE id = $1`, [r.id])
       enviadas++
@@ -156,7 +158,7 @@ export async function lembrete15min(): Promise<number> {
       } catch (err) { log.err('cron.lembrete15min', 'falha ao criar sala', err) }
     }
     await Promise.all([
-      enviarWA(r.pac_telefone, WA_TEMPLATES.fluxo3_lembrete15min(dataFmt, linkSala))
+      enviarWA(r.pac_telefone, WA_TEMPLATES.fluxo3_lembrete15min(dataFmt, linkSala), { template: WA_META.fluxo3_lembrete15min(dataFmt, linkSala) })
         .catch(err => log.err('cron.lembrete15min', 'falha WA', err)),
       enviarEmailPacientePorSessao(
         r.id,
@@ -192,7 +194,7 @@ export async function lembrete24h(): Promise<number> {
   for (const r of rows) {
     const dataFmt = formatDateTimeBR(r.data_hora)
     await Promise.all([
-      enviarWA(r.pac_telefone, WA_TEMPLATES.fluxo3_lembrete24h(dataFmt))
+      enviarWA(r.pac_telefone, WA_TEMPLATES.fluxo3_lembrete24h(dataFmt), { template: WA_META.fluxo3_lembrete24h(dataFmt) })
         .catch(err => log.err('cron.lembrete24h', 'falha WA', err)),
       enviarEmailPacientePorSessao(
         r.id,
@@ -223,7 +225,7 @@ export async function lembrete2h(): Promise<number> {
      RETURNING s.id, s.data_hora, p.telefone`,
   )
   for (const r of rows) {
-    await enviarWA(r.telefone, WA_TEMPLATES.fluxo3_lembrete2h(formatDateTimeBR(r.data_hora)))
+    await enviarWA(r.telefone, WA_TEMPLATES.fluxo3_lembrete2h(formatDateTimeBR(r.data_hora)), { template: WA_META.fluxo3_lembrete2h(formatDateTimeBR(r.data_hora)) })
   }
   if (rows.length) log.ok('cron.lembrete2h', `${rows.length} mensagem(ns) enviada(s)`)
   return rows.length

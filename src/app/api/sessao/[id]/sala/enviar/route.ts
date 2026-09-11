@@ -3,6 +3,7 @@ import { requirePsicologo } from '@/server/lib/auth'
 import { criarOuObterSala } from '@/server/services/salaVideo'
 import { buscarSessao } from '@/server/services/sessoes'
 import { enviarWADiag, WA_TEMPLATES } from '@/server/lib/evolution'
+import { WA_META } from '@/server/lib/whatsapp/templatesMeta'
 import { env } from '@/server/lib/env'
 import { log } from '@/server/lib/log'
 
@@ -22,7 +23,7 @@ export async function POST(_req: Request, { params }: { params: { id: string } }
   const sala = await criarOuObterSala(params.id, 4)
   const linkSala = `${env.appUrl.replace(/\/$/, '')}/sala/${sala.token}`
 
-  const r = await enviarWADiag(sessao.pacienteTelefone, WA_TEMPLATES.linkSalaAgora(linkSala))
+  const r = await enviarWADiag(sessao.pacienteTelefone, WA_TEMPLATES.linkSalaAgora(linkSala), WA_META.linkSalaAgora(linkSala))
   if (!r.ok) {
     log.err('sala.enviar', `falha ao enviar link WA sessao=${params.id}`, r.erro)
     return NextResponse.json({ ok: false, error: 'wa_falhou', detalhe: r.erro ?? null }, { status: 502 })

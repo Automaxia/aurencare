@@ -1,6 +1,7 @@
 import 'server-only'
 import { db } from '@/server/db/pool'
 import { enviarWA } from '@/server/lib/evolution'
+import { WA_META } from '@/server/lib/whatsapp/templatesMeta'
 import { registrarMensagem, marcarConversaLida, normalizar } from './wa-conversa'
 
 export type ConversaResumo = {
@@ -85,7 +86,11 @@ export async function responderConversaWa(psicologoId: string, telefone: string,
   if (!rows[0]) return { ok: false, error: 'Conversa não encontrada.' }
 
   // `registrar: false`: a linha abaixo persiste mesmo se o envio falhar.
-  await enviarWA(tel, texto, { psicologoId, registrar: false }).catch(() => { /* best-effort; persiste mesmo assim */ })
+  // Na Cloud API, se o paciente está há +24h sem escrever, o texto só sai
+  // embrulhado no template genérico ("Mensagem de <psicóloga> pela Audere: …").
+  const { rows: psi } = await db.query<{ nome: string }>(`SELECT nome FROM psicologos WHERE id = $1`, [psicologoId])
+  await enviarWA(tel, texto, { psicologoId, registrar: false, template: WA_META.mensagemPsicologo(psi[0]?.nome ?? 'sua psicóloga', texto) })
+    .catch(() => { /* best-effort; persiste mesmo assim */ })
   await registrarMensagem(tel, 'out', texto, { psicologoId })
   await marcarConversaLida(tel)
   return { ok: true }

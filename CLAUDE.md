@@ -38,7 +38,9 @@ Backend:     Node.js + Express (ou Next.js API routes)
 Banco:       PostgreSQL + Redis (cache/sessões)
 Auth:        NextAuth.js
 Storage:     S3-compatible (áudio temporário)
-WhatsApp:    Evolution API (Baileys)
+WhatsApp:    Cloud API (Meta) — número próprio +55 61 94758-1770 — com fallback
+             Evolution API (Baileys, instância compartilhada c/ Habilita) via
+             WHATSAPP_PROVIDER. Ver src/server/lib/whatsapp/ e docs/INFRA.md §4b.
 Pagamentos:  Pagar.me (sessões: PIX/crédito/débito · assinatura: cartão recorrente)
 IA:          OpenAI primário + Anthropic fallback · roteamento por tier: fast
              (gpt-4o-mini p/ chamadas ao vivo/mecânicas/temas) · strong (gpt-4o
@@ -56,6 +58,12 @@ ANTHROPIC_API_KEY=sk-ant-...
 EVOLUTION_API_URL=https://...
 EVOLUTION_API_KEY=...
 EVOLUTION_INSTANCE_NAME=Automaxia   # instância real no Evolution (case-sensitive; compartilhada c/ Habilita)
+WHATSAPP_PROVIDER=meta              # evolution | meta (Cloud API oficial)
+META_WA_TOKEN=...                   # token permanente de usuário do sistema
+META_WA_PHONE_NUMBER_ID=1273053965895712
+META_WA_WABA_ID=512053311999451
+META_APP_SECRET=...                 # assina o webhook /api/webhooks/meta
+META_WEBHOOK_VERIFY_TOKEN=...       # handshake do webhook
 PAGARME_API_KEY=sk_live_...              # sk_test_ em sandbox (hoje: sandbox)
 PAGARME_WEBHOOK_SECRET=...               # do painel; sem ele o webhook devolve 503
 PAGARME_RECIPIENT_PLATAFORMA=rp_...      # recebedor da taxa administrativa no split
@@ -439,7 +447,17 @@ if (texto === 'CANCELAR') await cancelarSessao(paciente)
 Registro assinado → Evolution API envia pós-sessão ao paciente
 ```
 
-### Helper de envio
+### Cloud API (Meta) — provider `meta`
+- Texto livre só dentro da **janela de 24h** (última mensagem DO PACIENTE). Fora
+  dela só **template aprovado** → toda mensagem que inicia conversa passa
+  `template: WA_META.x(...)` em `enviarWA` (catálogo em
+  `src/server/lib/whatsapp/templatesMeta.ts`; criação pelo `/admin/whatsapp`).
+- Webhook `/api/webhooks/meta`: por **app**, recebe a WABA inteira → filtra
+  `metadata.phone_number_id`. Botões de resposta rápida chegam como texto
+  (PIX, CONFIRMAR, SIM) e caem no parser de sempre.
+- Inbox/respostas a comando não precisam de template (janela aberta).
+
+### Helper de envio (Evolution, legado)
 ```typescript
 async function enviarWA(instancia: string, telefone: string, texto: string) {
   const number = `55${telefone.replace(/\D/g, '')}@s.whatsapp.net`
@@ -670,6 +688,10 @@ Modal abre automaticamente ao encerrar. Contém:
   047) justamente pra atravessar esse intervalo. Detalhe em
   [`docs/INFRA.md`](./docs/INFRA.md).
 - **Transcrição do paciente** — falta `ASSEMBLYAI_API_KEY` no cluster.
+- **WhatsApp Cloud API** — código pronto (`WHATSAPP_PROVIDER=meta`), número
+  +55 61 94758-1770 cadastrado na WABA, mas **verificação bloqueada** (número
+  ativo em outro WhatsApp). Falta: verificar, token, app secret, webhook,
+  aprovar templates. Passo a passo em `docs/INFRA.md` §4b.
 
 ### 🔮 Futuro / fora de escopo
 - Modo supervisor (Fase 3)

@@ -244,6 +244,65 @@ Quando for ligar de verdade:
 - [ ] No código: trocar `BETA_LIBERADO` para `false` em `src/server/lib/planos.ts`
       + redeploy.
 
+## 🟡 4b. WhatsApp — migração Evolution → Cloud API (Meta) (set/2026)
+
+**Por quê:** a instância Evolution `Automaxia` é o número 61 98644-4584,
+compartilhado com o Habilita — o paciente via "Habilita - CNH Fácil" como
+remetente. Renomeamos o perfil para "Audere" como paliativo (11/09), mas o
+certo é número próprio. O Baileys também não tem nome de exibição aprovado nem
+garantia de entrega.
+
+**O que está pronto no código** (`WHATSAPP_PROVIDER=meta`):
+- `src/server/lib/whatsapp/meta.ts` — cliente Graph: texto livre dentro da
+  janela de 24h, template fora dela (fallback automático no erro 131047).
+- `src/server/lib/whatsapp/templatesMeta.ts` — 17 templates UTILITY (pt_BR),
+  espelho das `WA_TEMPLATES` que iniciam conversa. Botão "Criar templates" em
+  `/admin/whatsapp` cria os que faltam na WABA (idempotente).
+- `POST/GET /api/webhooks/meta` — handshake + assinatura `X-Hub-Signature-256`
+  (App Secret) + dedupe por id em Redis + **filtro por `phone_number_id`**
+  (o webhook é por app e recebe a WABA inteira; só o número da Audere é roteado).
+- `enviarWA`/`enviarWADiag` escolhem o provider; as 19 chamadas não mudaram —
+  as que iniciam conversa passam `template: WA_META.x(...)` junto do texto.
+
+**Na Meta (feito 11/09/2026):**
+- Portfólio "Automaxia para Negócios" (`9194401840590943`) — empresa
+  **verificada** (AUTOMAXIA INTELIGENCIA PARA NEGOCIOS LTDA, jan/2025).
+- WABA "Automaxia para Negócios" `512053311999451` — mesma do 44 3142-5309.
+- Número **+55 61 94758-1770** (celular) adicionado → `phone_number_id`
+  **`1273053965895712`**, nome "Audere - Continuidade terapêutica" (em análise),
+  categoria Medicina e saúde. Código SMS solicitado em 11/09.
+- O fixo +55 11 5123-0371 (`1250126934858785`) foi a primeira tentativa:
+  verificação recusada ("número já registrado em uma conta do WhatsApp").
+  Segue na WABA como "Não verificado" — apagar quando o 61 estiver ativo.
+
+**Pra ligar (ordem):**
+- [ ] Verificar o número com o código do SMS (Gerenciador → Números → Perfil →
+      "Enviar código de verificação").
+- [ ] Token permanente: Business Suite → Configurações → Usuários do sistema →
+      criar/usar admin → **Gerar token** → app `[Automaxia] Cloud API`, permissões
+      `whatsapp_business_messaging` + `whatsapp_business_management`, sem expiração.
+      Atribuir a WABA ao usuário do sistema (Ativos → Contas do WhatsApp).
+- [ ] App Secret: developers.facebook.com → app → Configurações → Básico.
+- [ ] Secret `aurencare-secrets`: `WHATSAPP_PROVIDER=meta`, `META_WA_TOKEN`,
+      `META_WA_PHONE_NUMBER_ID=1273053965895712`, `META_WA_WABA_ID=512053311999451`,
+      `META_APP_SECRET`, `META_WEBHOOK_VERIFY_TOKEN` (openssl rand -hex 24) → rollout.
+- [ ] Webhook no app Meta: WhatsApp → Configuração → Webhook → URL
+      `https://app.audere.ia.br/api/webhooks/meta` + verify token → **Verificar e
+      salvar** → assinar o campo `messages`. (O app precisa estar no ar antes,
+      senão o handshake GET falha.)
+- [ ] `/admin/whatsapp` → "Criar templates na WABA" → aguardar APPROVED (minutos
+      a horas). Até aprovar, lembretes/cobranças falham com 132001 no log.
+- [ ] Teste: mandar "oi" do celular pro 11 5123-0371 (abre a janela) e responder
+      pelo painel; depois "Enviar teste" em `/admin/whatsapp` pra um número que
+      NÃO escreveu (exercita o template genérico).
+- [ ] Método de pagamento na WABA (Gerenciador → Configurações de pagamento —
+      hoje aparece "Índia", conferir Brasil). Sem ele o número fica no tier de
+      teste. Custo: utilidade ≈ R$ 0,04/msg fora da janela; serviço grátis.
+- [ ] Depois de estável: `EVOLUTION_*` vira só do Habilita; reverter o nome do
+      perfil da instância `Automaxia` pra "Habilita - CNH Fácil".
+
+**Rollback:** `WHATSAPP_PROVIDER=evolution` no secret + rollout. Nada mais muda.
+
 ## 🔒 5. Segurança / hardening
 - [ ] Confirmar que `ENCRYPTION_KEY` e `NEXTAUTH_SECRET` são valores **reais e
       definitivos** (trocar `ENCRYPTION_KEY` depois torna dados clínicos ilegíveis).

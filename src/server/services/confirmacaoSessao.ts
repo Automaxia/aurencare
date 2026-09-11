@@ -3,6 +3,7 @@ import { randomBytes } from 'node:crypto'
 import { db } from '@/server/db/pool'
 import { env } from '@/server/lib/env'
 import { enviarWA, WA_TEMPLATES } from '@/server/lib/evolution'
+import { WA_META } from '@/server/lib/whatsapp/templatesMeta'
 import { log } from '@/server/lib/log'
 
 /**
@@ -98,14 +99,15 @@ export async function enviarConfirmacaoPosSessao(sessaoId: string): Promise<Envi
     [sessaoId, token, expira.toISOString()],
   )
 
-  await enviarWA(s.paciente_telefone, WA_TEMPLATES.fluxo7_confirmacao({
+  const confirmacao = {
     nomePaciente: s.paciente_nome,
     horaSessao,
     psicologa: s.psicologa_nome,
     janela: descreverJanela(expira, agora),
     linkConfirmacao: `${env.appUrl}/confirmar/${token}`,
     gratuita,
-  }))
+  }
+  await enviarWA(s.paciente_telefone, WA_TEMPLATES.fluxo7_confirmacao(confirmacao), { template: WA_META.fluxo7_confirmacao(confirmacao) })
 
   log.ok('confirmacao', `enviada sessao=${sessaoId} expira=${expira.toISOString()}`)
   return { ok: true, token }
