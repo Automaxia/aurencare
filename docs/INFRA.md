@@ -310,15 +310,19 @@ Publicar o app exige URL de política de privacidade → criada `/privacidade`
 - [ ] Método de pagamento na WABA (Gerenciador → Configurações de pagamento —
       hoje aparece "Índia", conferir Brasil). Sem ele o número fica no tier de
       teste. Custo: utilidade ≈ R$ 0,04/msg fora da janela; serviço grátis.
-- [ ] Depois de estável: `EVOLUTION_*` vira só do Habilita; reverter o nome do
-      perfil da instância `Automaxia` pra "Habilita - CNH Fácil".
-- [ ] Apagar o fixo 11 5123-0371 ("Não verificado") da WABA.
+- [ ] ⚠️ **Instância Evolution `Automaxia` (Habilita) caiu às 14:57 BRT de 11/09**
+      (`state: close`, código 401), minutos depois do `updateProfileName` pra
+      "Audere". Causa não confirmada, coincidência forte. Precisa reler o QR no
+      celular do 61 98644-4584. O rename de volta pra "Habilita - CNH Fácil" via
+      API deu "Connection Closed" — fazer **pelo celular** depois de reconectar.
+- [x] Fixo 11 5123-0371: a Meta já removeu sozinha (não aparece em `phone_numbers`).
 - [ ] Nome de exibição "Audere - Continuidade terapêutica" ainda `PENDING_REVIEW`
       — até aprovar o paciente vê só o número.
 - [ ] Webhook do app antigo `[Automaxia] Cloud API` foi apontado pro admincenter
       (URL + verify token `automaxia-holerite-2026`, o default do código) — antes
-      apontava pro TalkCare, morto. Filtro por `phone_number_id` no admincenter
-      continua pendente (ele reage a "SIM" de qualquer número da WABA).
+      apontava pro TalkCare, morto. Filtro por `phone_number_id` no admincenter:
+      branch `fix/webhook-whatsapp-filtra-numero` no repo `Automaxia/studio`
+      (commit 147f17d) — **falta merge + deploy** lá.
 
 **Rollback:** `WHATSAPP_PROVIDER=evolution` no secret + rollout. Nada mais muda.
 
