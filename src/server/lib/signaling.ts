@@ -25,10 +25,10 @@ type Subscriber = {
 }
 
 const globalAny = globalThis as unknown as {
-  __aurenSalas?: Map<string, Set<Subscriber>>
+  __audereSalas?: Map<string, Set<Subscriber>>
 }
-const salas: Map<string, Set<Subscriber>> = globalAny.__aurenSalas ?? new Map()
-if (!globalAny.__aurenSalas) globalAny.__aurenSalas = salas
+const salas: Map<string, Set<Subscriber>> = globalAny.__audereSalas ?? new Map()
+if (!globalAny.__audereSalas) globalAny.__audereSalas = salas
 
 export function subscribe(token: string, sub: Subscriber): () => void {
   let s = salas.get(token)

@@ -34,13 +34,13 @@ show_qr() {
 
   if command -v qrencode >/dev/null 2>&1 && [ -n "$code" ]; then
     echo -n "$code" | qrencode -t UTF8
-    echo -n "$code" | qrencode -o /tmp/auren-wa-qr.png 2>/dev/null || true
+    echo -n "$code" | qrencode -o /tmp/audere-wa-qr.png 2>/dev/null || true
   fi
 
   if [ -n "$base64" ]; then
-    echo "${base64#data:image/png;base64,}" | base64 -d > /tmp/auren-wa-qr.png 2>/dev/null || true
-    open /tmp/auren-wa-qr.png 2>/dev/null && echo -e "${DIM}QR aberto em /tmp/auren-wa-qr.png${NC}" \
-      || echo -e "${YELLOW}não consegui abrir o PNG; veja /tmp/auren-wa-qr.png${NC}"
+    echo "${base64#data:image/png;base64,}" | base64 -d > /tmp/audere-wa-qr.png 2>/dev/null || true
+    open /tmp/audere-wa-qr.png 2>/dev/null && echo -e "${DIM}QR aberto em /tmp/audere-wa-qr.png${NC}" \
+      || echo -e "${YELLOW}não consegui abrir o PNG; veja /tmp/audere-wa-qr.png${NC}"
   fi
 
   if [ -z "$code" ] && [ -z "$base64" ]; then
@@ -130,6 +130,6 @@ for i in $(seq 1 30); do
   sleep 1
 done
 echo -e "${YELLOW}não recebi QR em 30s. Possíveis causas:${NC}"
-echo "  · Auren dev server não está rodando (npm run dev)"
+echo "  · Audere dev server não está rodando (npm run dev)"
 echo "  · Redis não está conectado"
-echo "  · Rode 'docker logs aurencare-evolution --tail 20' pra ver erros"
+echo "  · Rode 'docker logs audere-evolution --tail 20' pra ver erros"

@@ -1,7 +1,7 @@
 # syntax=docker/dockerfile:1.7
 
 # ──────────────────────────────────────────────────────────────────────────
-# Auren Care · Dockerfile multi-stage
+# Audere · Dockerfile multi-stage
 #
 # Stages:
 #   deps     — instala TODAS as deps (com cache + build tools p/ bcrypt)
@@ -10,16 +10,16 @@
 #   runner   — imagem final mínima (Alpine, non-root, ~200MB)
 #
 # Build:
-#   docker build -t aurencare:latest .
+#   docker build -t audere:latest .
 #
 # Run:
 #   docker run --rm -p 3000:3000 \
 #     --env-file .env.local \
-#     aurencare:latest
+#     audere:latest
 #
 # Rodar migrations:
 #   docker run --rm --env-file .env.local \
-#     aurencare:latest npm run migrate
+#     audere:latest npm run migrate
 # ──────────────────────────────────────────────────────────────────────────
 
 ARG NODE_VERSION=20-alpine
@@ -75,31 +75,31 @@ ENV HOSTNAME=0.0.0.0
 
 # Usuário não-root pro runtime
 RUN addgroup --system --gid 1001 nodejs && \
-    adduser --system --uid 1001 --ingroup nodejs auren
+    adduser --system --uid 1001 --ingroup nodejs audere
 
 # Output standalone do Next contém apenas o server + deps necessárias
-COPY --from=builder --chown=auren:nodejs /app/.next/standalone ./
-COPY --from=builder --chown=auren:nodejs /app/.next/static ./.next/static
-COPY --from=builder --chown=auren:nodejs /app/public ./public
+COPY --from=builder --chown=audere:nodejs /app/.next/standalone ./
+COPY --from=builder --chown=audere:nodejs /app/.next/static ./.next/static
+COPY --from=builder --chown=audere:nodejs /app/public ./public
 
 # Migrations + tsx + service code pra `npm run migrate` rodar dentro do container.
 # Mantém o caminho relativo que o script `migrate` espera (src/server/db/migrate.ts).
-COPY --from=builder --chown=auren:nodejs /app/src/server/db ./src/server/db
-COPY --from=builder --chown=auren:nodejs /app/package.json ./package.json
+COPY --from=builder --chown=audere:nodejs /app/src/server/db ./src/server/db
+COPY --from=builder --chown=audere:nodejs /app/package.json ./package.json
 # tsx binário + suas deps; cobrir só isso evita arrastar todo node_modules.
-COPY --from=builder --chown=auren:nodejs /app/node_modules/tsx ./node_modules/tsx
-COPY --from=builder --chown=auren:nodejs /app/node_modules/esbuild ./node_modules/esbuild
-COPY --from=builder --chown=auren:nodejs /app/node_modules/@esbuild ./node_modules/@esbuild
-COPY --from=builder --chown=auren:nodejs /app/node_modules/get-tsconfig ./node_modules/get-tsconfig
-COPY --from=builder --chown=auren:nodejs /app/node_modules/pg ./node_modules/pg
-COPY --from=builder --chown=auren:nodejs /app/node_modules/pg-pool ./node_modules/pg-pool
-COPY --from=builder --chown=auren:nodejs /app/node_modules/pg-types ./node_modules/pg-types
-COPY --from=builder --chown=auren:nodejs /app/node_modules/pg-protocol ./node_modules/pg-protocol
-COPY --from=builder --chown=auren:nodejs /app/node_modules/pg-connection-string ./node_modules/pg-connection-string
-COPY --from=builder --chown=auren:nodejs /app/node_modules/pgpass ./node_modules/pgpass
-COPY --from=builder --chown=auren:nodejs /app/node_modules/.bin/tsx ./node_modules/.bin/tsx
+COPY --from=builder --chown=audere:nodejs /app/node_modules/tsx ./node_modules/tsx
+COPY --from=builder --chown=audere:nodejs /app/node_modules/esbuild ./node_modules/esbuild
+COPY --from=builder --chown=audere:nodejs /app/node_modules/@esbuild ./node_modules/@esbuild
+COPY --from=builder --chown=audere:nodejs /app/node_modules/get-tsconfig ./node_modules/get-tsconfig
+COPY --from=builder --chown=audere:nodejs /app/node_modules/pg ./node_modules/pg
+COPY --from=builder --chown=audere:nodejs /app/node_modules/pg-pool ./node_modules/pg-pool
+COPY --from=builder --chown=audere:nodejs /app/node_modules/pg-types ./node_modules/pg-types
+COPY --from=builder --chown=audere:nodejs /app/node_modules/pg-protocol ./node_modules/pg-protocol
+COPY --from=builder --chown=audere:nodejs /app/node_modules/pg-connection-string ./node_modules/pg-connection-string
+COPY --from=builder --chown=audere:nodejs /app/node_modules/pgpass ./node_modules/pgpass
+COPY --from=builder --chown=audere:nodejs /app/node_modules/.bin/tsx ./node_modules/.bin/tsx
 
-USER auren
+USER audere
 
 EXPOSE 3000
 

@@ -15,9 +15,9 @@ export type SseEvent =
 
 type Subscriber = (e: SseEvent) => void
 
-const globalAny = globalThis as unknown as { __aurenSubs?: Set<Subscriber> }
-const subs: Set<Subscriber> = globalAny.__aurenSubs ?? new Set()
-if (!globalAny.__aurenSubs) globalAny.__aurenSubs = subs
+const globalAny = globalThis as unknown as { __audereSubs?: Set<Subscriber> }
+const subs: Set<Subscriber> = globalAny.__audereSubs ?? new Set()
+if (!globalAny.__audereSubs) globalAny.__audereSubs = subs
 
 export function publish(e: SseEvent) {
   for (const s of subs) {

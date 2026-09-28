@@ -13,7 +13,7 @@ cd "$ROOT"
 
 BLUE='\033[36m'; GREEN='\033[32m'; YELLOW='\033[33m'; DIM='\033[90m'; BOLD='\033[1m'; NC='\033[0m'
 
-URL=${AUREN_URL:-http://localhost:3000}
+URL=${AUDERE_URL:-${AUREN_URL:-http://localhost:3000}}
 
 send() {
   local tel="$1" texto="$2"

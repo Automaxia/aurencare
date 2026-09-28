@@ -1,7 +1,10 @@
+# Nome do projeto fixo: sem isso o Compose usa o nome da pasta.
+name: audere
+
 services:
   postgres:
     image: postgres:16-alpine
-    container_name: aurencare-postgres
+    container_name: audere-postgres
     restart: unless-stopped
     environment:
       POSTGRES_USER: aurencare
@@ -20,7 +23,7 @@ services:
 
   redis:
     image: redis:7-alpine
-    container_name: aurencare-redis
+    container_name: audere-redis
     restart: unless-stopped
     ports:
       - "6379:6379"
@@ -34,7 +37,7 @@ services:
 
   evolution:
     image: atendai/evolution-api:v2.2.3
-    container_name: aurencare-evolution
+    container_name: audere-evolution
     restart: unless-stopped
     profiles: [whatsapp]
     ports:
@@ -66,7 +69,7 @@ services:
       CACHE_REDIS_PREFIX_KEY: evolution
       CACHE_LOCAL_ENABLED: "false"
 
-      # ── Webhook global → Auren ──
+      # ── Webhook global → Audere ──
       # host.docker.internal aponta pro Mac que está rodando o `next dev` :3000
       WEBHOOK_GLOBAL_URL: http://host.docker.internal:3000/api/webhooks/evolution
       WEBHOOK_GLOBAL_ENABLED: "true"
@@ -81,7 +84,7 @@ services:
       # com versão WA Web defasada, rejeitada silenciosamente. Próximas
       # tentativas: upgrade Evolution quando lançar > v2.2.3, ou migrar
       # pra serviço hospedado.
-      CONFIG_SESSION_PHONE_CLIENT: AurenCare
+      CONFIG_SESSION_PHONE_CLIENT: Audere
       CONFIG_SESSION_PHONE_NAME: Chrome
     extra_hosts:
       # garante que host.docker.internal funcione em Linux também
@@ -94,7 +97,7 @@ services:
 
   adminer:
     image: adminer:latest
-    container_name: aurencare-adminer
+    container_name: audere-adminer
     restart: unless-stopped
     profiles: [tools]
     ports:
@@ -104,5 +107,9 @@ services:
         condition: service_healthy
 
 volumes:
+  # Nomes fixos: os dados de dev ficaram nos volumes criados quando a pasta
+  # (e o projeto do Compose) ainda se chamava auren-care.
   aurencare-pg:
+    name: auren-care_aurencare-pg
   aurencare-redis:
+    name: auren-care_aurencare-redis

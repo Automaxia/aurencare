@@ -1,5 +1,5 @@
 # ──────────────────────────────────────────────────────────────────────────
-# Job de migrations — Auren Care
+# Job de migrations — Audere
 #
 # Reaproveita a MESMA imagem do app (que já traz tsx + pg + src/server/db) e as
 # variáveis do secret `aurencare-secrets`. O script é idempotente: rastreia o que
