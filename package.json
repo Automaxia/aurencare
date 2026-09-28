@@ -12,6 +12,7 @@
     "seed": "tsx --env-file=.env.local src/server/db/seed.ts",
     "test:custos": "node --conditions=react-server --import tsx --env-file=.env.local --env-file-if-exists=.env.development.local scripts/test-custos-instrumentacao.ts",
     "test:excluir": "node --conditions=react-server --import tsx --env-file=.env.local --env-file-if-exists=.env.development.local scripts/test-excluir-sessao.ts",
+    "test:numeracao": "node --conditions=react-server --import tsx --env-file=.env.local --env-file-if-exists=.env.development.local scripts/test-numeracao-sessao.ts",
     "bench:grafo": "node --conditions=react-server --import tsx --env-file=.env.local --env-file-if-exists=.env.development.local scripts/bench-grafo.ts",
     "test:grafo-incremental": "node --conditions=react-server --import tsx --env-file=.env.local --env-file-if-exists=.env.development.local scripts/test-grafo-incremental.ts",
     "test:split": "node --conditions=react-server --import tsx --env-file=.env.local --env-file-if-exists=.env.development.local scripts/test-split-pagarme.ts",
