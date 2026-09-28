@@ -143,7 +143,7 @@ export async function criarOrderPix(opts: {
       items: [{ amount: opts.valorCentavos, description: `Sessão psicoterapia ${opts.sessaoId.slice(0, 8)}`, quantity: 1 }],
       customer: {
         name: opts.pacienteNome,
-        email: opts.pacienteEmail ?? `${opts.sessaoId}@noemail.aurencare`,
+        email: opts.pacienteEmail ?? `${opts.sessaoId}@noemail.audere`,
         document: opts.pacienteDocumento.replace(/\D/g, ''),
         document_type: 'CPF',
         type: 'individual',
@@ -209,7 +209,7 @@ export async function criarCheckoutCartao(opts: {
   try {
     const { data } = await axios.post(`${BASE}/orders`, {
       items: [{ amount: opts.valorCentavos, description: `Sessão psicoterapia ${opts.sessaoId.slice(0, 8)}`, quantity: 1 }],
-      customer: { name: opts.pacienteNome, email: opts.pacienteEmail ?? `${opts.sessaoId}@noemail.aurencare` },
+      customer: { name: opts.pacienteNome, email: opts.pacienteEmail ?? `${opts.sessaoId}@noemail.audere` },
       payments: [{
         payment_method: 'checkout',
         checkout: {

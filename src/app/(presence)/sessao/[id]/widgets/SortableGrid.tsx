@@ -16,8 +16,8 @@ import { SlidersHorizontal } from 'lucide-react'
  * sem botão Salvar nem confirmação (padrão de dashboards configuráveis).
  */
 
-const STORAGE_KEY = 'auren.sess.widgets.order'
-const STORAGE_KEY_HIDDEN = 'auren.sess.widgets.hidden'
+const STORAGE_KEY = 'audere.sess.widgets.order'
+const STORAGE_KEY_HIDDEN = 'audere.sess.widgets.hidden'
 
 type Props = {
   defaultOrder: string[]

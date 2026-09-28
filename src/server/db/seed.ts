@@ -9,9 +9,18 @@ async function main() {
   }
   const pool = new Pool({ connectionString: process.env.DATABASE_URL })
 
-  const email = 'ana@aurencare.com'
-  const senha = 'auren123'
+  const email = 'ana@audere.ia.br'
+  const senha = 'audere123'
   const hash = await bcrypt.hash(senha, 10)
+
+  // Bancos de dev criados antes do rename têm a demo com o e-mail antigo:
+  // renomeia em vez de criar uma segunda psicóloga.
+  await pool.query(
+    `UPDATE psicologos SET email = $1
+      WHERE email = 'ana@aurencare.com'
+        AND NOT EXISTS (SELECT 1 FROM psicologos WHERE email = $1)`,
+    [email],
+  )
 
   // upsert psicóloga demo
   const { rows: pRows } = await pool.query(
