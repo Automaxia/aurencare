@@ -192,7 +192,7 @@ export type CriarSessaoInput = {
 }
 
 export async function criarSessao(input: CriarSessaoInput): Promise<Sessao> {
-  // calcula próximo número da sessão para esse paciente
+  // Número provisório (fim da fila); `renumerarPorData` acerta pela data logo abaixo.
   const { rows: count } = await db.query<{ n: number }>(
     `SELECT COALESCE(MAX(numero), 0) + 1 AS n
        FROM sessoes WHERE paciente_id = $1`,
@@ -209,20 +209,35 @@ export async function criarSessao(input: CriarSessaoInput): Promise<Sessao> {
   const onboarding = gratuita ? null : await garantirRecipientAtivo(input.psicologoId)
   const cobrarPlataforma = !gratuita && !!onboarding?.completo
 
-  const { rows } = await db.query(
-    `INSERT INTO sessoes (psicologo_id, paciente_id, numero, data_hora, duracao_min, modalidade, status, valor, pagamento_status, wa_pergunta_metodo_em)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
-     RETURNING id`,
-    [
-      input.psicologoId, input.pacienteId, numero, input.dataHora,
-      input.duracaoMin ?? 50, input.modalidade ?? 'online',
-      cobrarPlataforma ? 'aguardando_metodo' : 'confirmada',
-      input.valor,
-      gratuita ? 'isento' : 'pendente',
-      cobrarPlataforma ? new Date().toISOString() : null,
-    ],
-  )
-  const sessao = (await buscarSessao(rows[0].id))!
+  // INSERT + renumeração na mesma transação: uma sessão marcada entre duas
+  // existentes nunca aparece com o número provisório (MAX+1).
+  const cliente = await db.connect()
+  let sessaoId = ''
+  try {
+    await cliente.query('BEGIN')
+    const { rows } = await cliente.query(
+      `INSERT INTO sessoes (psicologo_id, paciente_id, numero, data_hora, duracao_min, modalidade, status, valor, pagamento_status, wa_pergunta_metodo_em)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
+       RETURNING id`,
+      [
+        input.psicologoId, input.pacienteId, numero, input.dataHora,
+        input.duracaoMin ?? 50, input.modalidade ?? 'online',
+        cobrarPlataforma ? 'aguardando_metodo' : 'confirmada',
+        input.valor,
+        gratuita ? 'isento' : 'pendente',
+        cobrarPlataforma ? new Date().toISOString() : null,
+      ],
+    )
+    sessaoId = rows[0].id
+    await renumerarPorData(input.pacienteId, cliente)
+    await cliente.query('COMMIT')
+  } catch (err) {
+    await cliente.query('ROLLBACK').catch(() => {})
+    throw err
+  } finally {
+    cliente.release()
+  }
+  const sessao = (await buscarSessao(sessaoId))!
 
   // Fluxo 2 — WhatsApp pra TODOS. Três casos:
   //  · cobra pela plataforma  → pergunta o método (Pix/cartão);
@@ -266,8 +281,8 @@ export async function reagendarSessao(
   patch: { dataHora?: string; duracaoMin?: number; modalidade?: string },
   escopo: 'uma' | 'seguintes' = 'uma',
 ): Promise<{ ok: boolean; afetadas: number }> {
-  const { rows: alvoRows } = await db.query<{ data_hora: string; serie_id: string | null }>(
-    `SELECT data_hora, serie_id FROM sessoes WHERE id = $1 AND psicologo_id = $2`, [sessaoId, psicologoId],
+  const { rows: alvoRows } = await db.query<{ data_hora: string; serie_id: string | null; paciente_id: string }>(
+    `SELECT data_hora, serie_id, paciente_id FROM sessoes WHERE id = $1 AND psicologo_id = $2`, [sessaoId, psicologoId],
   )
   const alvo = alvoRows[0]
   if (!alvo) return { ok: false, afetadas: 0 }
@@ -310,6 +325,12 @@ export async function reagendarSessao(
   }
 
   const ok = afetadas > 0
+
+  // Mudou de dia → pode ter mudado de lugar na sequência do paciente.
+  if (ok && mudouData) {
+    await renumerarPorDataEmTransacao(alvo.paciente_id)
+      .catch(err => log.err('reagendarSessao', 'falha ao renumerar', err))
+  }
 
   // Avisa o paciente por WhatsApp (best-effort, só se a data mudou).
   if (ok && mudouData) {
@@ -455,6 +476,65 @@ async function renumerarApos(
   return rowCount ?? 0
 }
 
+/**
+ * Numera as sessões do paciente pela DATA em que acontecem, não pela ordem em
+ * que foram criadas. Pacote de 4 sessões (#1–#4) + uma extra marcada entre a
+ * #2 e a #3: a extra vira #3 e as seguintes sobem para #4 e #5. Chamada depois
+ * de criar, remarcar ou importar sessão. Devolve quantas mudaram de número.
+ *
+ * Mesma proteção de `renumerarApos`: sessão com documento gerado ou assinatura
+ * tem o número escrito DENTRO do texto, então nunca muda. Só se renumera o que
+ * vem DEPOIS (na agenda) da última sessão com documento, continuando a partir
+ * do maior número até ela. Uma sessão sem documento marcada ANTES de uma com
+ * documento (registro retroativo) fica com o número que tinha: entre um número
+ * fora de ordem e um prontuário que se contradiz, o primeiro é o mal menor.
+ *
+ * Empate de data_hora desempata por created_at e id (ordem estável). A mesma
+ * regra, para todos os pacientes, está na migration 049.
+ */
+export async function renumerarPorData(
+  pacienteId: string, cliente: { query: typeof db.query } = db,
+): Promise<number> {
+  // FOR UPDATE: duas criações simultâneas pro mesmo paciente não se cruzam.
+  await cliente.query(`SELECT id FROM sessoes WHERE paciente_id = $1 FOR UPDATE`, [pacienteId])
+  const { rowCount } = await cliente.query(
+    `WITH ord AS (
+       SELECT id, numero,
+              (COALESCE(assinada, FALSE) OR resumo_ia IS NOT NULL
+               OR resumo_curto IS NOT NULL OR laudo IS NOT NULL) AS tem_documento,
+              ROW_NUMBER() OVER (ORDER BY data_hora, created_at, id) AS pos
+         FROM sessoes WHERE paciente_id = $1
+     ), corte AS (
+       SELECT COALESCE(MAX(pos) FILTER (WHERE tem_documento), 0) AS ult_doc FROM ord
+     ), base AS (
+       SELECT c.ult_doc, COALESCE(MAX(o.numero) FILTER (WHERE o.pos <= c.ult_doc), 0) AS base
+         FROM corte c CROSS JOIN ord o GROUP BY c.ult_doc
+     ), novo AS (
+       SELECT o.id, b.base + ROW_NUMBER() OVER (ORDER BY o.pos) AS n
+         FROM ord o CROSS JOIN base b WHERE o.pos > b.ult_doc
+     )
+     UPDATE sessoes s SET numero = novo.n
+       FROM novo WHERE s.id = novo.id AND s.numero <> novo.n`,
+    [pacienteId],
+  )
+  return rowCount ?? 0
+}
+
+/** `renumerarPorData` na sua própria transação (quando a mudança já foi gravada). */
+async function renumerarPorDataEmTransacao(pacienteId: string): Promise<void> {
+  const cliente = await db.connect()
+  try {
+    await cliente.query('BEGIN')
+    await renumerarPorData(pacienteId, cliente)
+    await cliente.query('COMMIT')
+  } catch (err) {
+    await cliente.query('ROLLBACK').catch(() => {})
+    throw err
+  } finally {
+    cliente.release()
+  }
+}
+
 // ── Séries recorrentes ────────────────────────────────────────────────────
 export type FrequenciaSerie = 'semanal' | 'quinzenal'
 
@@ -527,7 +607,7 @@ export async function criarSerie(input: CriarSerieInput): Promise<CriarSerieResu
   const onboarding = gratuita ? null : await garantirRecipientAtivo(input.psicologoId)
   const cobrarPlataforma = !gratuita && !!onboarding?.completo
 
-  // próximo número de sessão pra esse paciente
+  // Números provisórios (fim da fila); `renumerarPorData` acerta pela data antes do COMMIT.
   const { rows: count } = await db.query<{ n: number }>(
     `SELECT COALESCE(MAX(numero), 0) + 1 AS n FROM sessoes WHERE paciente_id = $1`,
     [input.pacienteId],
@@ -557,6 +637,8 @@ export async function criarSerie(input: CriarSerieInput): Promise<CriarSerieResu
       )
       sessoesIds.push(rows[0].id)
     }
+    // A série pode cair antes de sessões avulsas já marcadas.
+    await renumerarPorData(input.pacienteId, cliente)
     await cliente.query('COMMIT')
   } catch (err) {
     await cliente.query('ROLLBACK').catch(() => {})
@@ -1111,6 +1193,15 @@ export async function importarSessao(input: {
     [input.psicologoId, input.pacienteId, numero, input.dataHora, 50, encrypt(input.transcricao)],
   )
   const sessaoId = rows[0].id
+
+  // Sem número informado, a importada entra na sequência pela data (em geral é
+  // uma sessão passada). Número informado pelo psicólogo é respeitado.
+  if (input.numero == null) {
+    await renumerarPorDataEmTransacao(input.pacienteId)
+    const { rows: atual } = await db.query<{ numero: number }>(
+      `SELECT numero FROM sessoes WHERE id = $1`, [sessaoId])
+    numero = atual[0]?.numero ?? numero
+  }
 
   // Rascunho de laudo (sem WhatsApp). Falha de IA não quebra o import — o
   // psicólogo escreve/ajusta manualmente na revisão.
