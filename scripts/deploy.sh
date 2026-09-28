@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Auren Care · deploy no Kubernetes
+# Audere · deploy no Kubernetes
 #
 # Aplica namespace, secret de runtime (a partir de .env.production) e
 # os manifests de web + api. Idempotente — pode rodar quantas vezes quiser.
@@ -32,7 +32,7 @@ for arg in "$@"; do
 done
 
 ctx=$(kubectl config current-context)
-echo "── Deploy Auren Care ──"
+echo "── Deploy Audere ──"
 echo "  Contexto: $ctx"
 echo "  Namespace: $NAMESPACE"
 echo ""

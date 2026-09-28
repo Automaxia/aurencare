@@ -64,14 +64,14 @@ fi
 info "rodando migrations..."
 npm run --silent migrate
 
-info "garantindo usuário demo (ana@aurencare.com / auren123)..."
+info "garantindo usuário demo (ana@audere.ia.br / audere123)..."
 npm run --silent seed
 
 # ────────────────────────────────────────────────────────────────────────────
 # Dev server
 # ────────────────────────────────────────────────────────────────────────────
 info "iniciando Next.js em http://localhost:3000"
-info "Login demo: ana@aurencare.com / auren123"
+info "Login demo: ana@audere.ia.br / audere123"
 info "Ctrl-C encerra."
 
 exec npm run dev

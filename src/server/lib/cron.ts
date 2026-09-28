@@ -18,11 +18,11 @@ import { formatDateTimeBR } from '@/lib/formatters'
  * §10 Fluxo 3.
  */
 
-const globalAny = globalThis as unknown as { __aurenCronStarted?: boolean }
+const globalAny = globalThis as unknown as { __audereCronStarted?: boolean }
 
 export function startCron() {
-  if (globalAny.__aurenCronStarted) return
-  globalAny.__aurenCronStarted = true
+  if (globalAny.__audereCronStarted) return
+  globalAny.__audereCronStarted = true
 
   // 18h00 todo dia — lembrete 24h
   cron.schedule('0 18 * * *', () => { void lembrete24h() }, { timezone: 'America/Sao_Paulo' })

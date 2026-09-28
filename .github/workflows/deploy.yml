@@ -1,5 +1,5 @@
 # ──────────────────────────────────────────────────────────────────────────
-# CI/CD — Auren Care (Audere)
+# CI/CD — Audere
 #
 # Dispara a CADA push em `main` (ou manualmente em Actions → Run workflow):
 #   1. build da imagem (linux/amd64) a partir do Dockerfile multi-stage

@@ -9,7 +9,7 @@ type Ctx = {
   isNarrow: boolean            // viewport < BREAKPOINT
 }
 const SidebarCtx = createContext<Ctx | null>(null)
-const STORAGE_KEY = 'auren.sidebar.collapsed'
+const STORAGE_KEY = 'audere.sidebar.collapsed'
 const BREAKPOINT = 1024
 
 export function AppShell({ children }: { children: React.ReactNode }) {

@@ -8,7 +8,7 @@ import { Eye, EyeOff } from 'lucide-react'
  * html.sigilo-on, que borra dados sensíveis do paciente (estilo "esconder saldo").
  * Persiste em localStorage; o layout aplica a classe antes da pintura (sem flash).
  */
-const KEY = 'auren.sigilo'
+const KEY = 'audere.sigilo'
 
 export function SigiloToggle() {
   const [on, setOn] = useState(false)

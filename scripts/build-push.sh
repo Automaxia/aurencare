@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Build da imagem do Auren Care (Next.js standalone — uma imagem só)
+# Build da imagem da Audere (Next.js standalone — uma imagem só)
 # e push pro Docker Hub com dois nomes: aurencare-web e aurencare-api,
 # ambos apontando pra mesma SHA. Isso garante paridade entre os pods.
 #
@@ -38,7 +38,7 @@ if [ -n "$(git status --porcelain)" ]; then
   SHA="${SHA}-dirty"
 fi
 
-echo "── Build Auren Care ──"
+echo "── Build Audere ──"
 echo "  SHA:      $SHA"
 echo "  Platform: $PLATFORM"
 echo "  Registry: $REGISTRY"

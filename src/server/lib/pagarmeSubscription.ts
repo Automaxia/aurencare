@@ -59,7 +59,7 @@ export async function criarAssinatura(opts: {
 
   try {
     const { data } = await axios.post(`${BASE}/subscriptions`, {
-      code: `auren_${opts.plano}_${opts.psicologo.id}`,
+      code: `audere_${opts.plano}_${opts.psicologo.id}`,
       payment_method: 'credit_card',
       billing_type: 'prepaid',
       ...periodo,

@@ -1,5 +1,5 @@
 # ──────────────────────────────────────────────────────────────────────────
-# Auren Care é um monolito Next.js: frontend e API são o MESMO app/imagem.
+# Audere é um monolito Next.js: frontend e API são o MESMO app/imagem.
 # Não há deployment de API separado — este arquivo mantém apenas o Ingress
 # do host `api.aurencare.ia.br`, roteado para o mesmo Service do web.
 # (Útil p/ ter um hostname dedicado a webhooks/API sem duplicar pods.)

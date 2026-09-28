@@ -35,8 +35,10 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html lang="pt-BR" className={`${display.variable} ${sans.variable} ${mono.variable}`}>
       <body>
         {/* Modo sigilo: aplica a classe ANTES da pintura pra não piscar dados
-            sensíveis ao carregar com o sigilo ligado. */}
-        <script dangerouslySetInnerHTML={{ __html: `try{if(localStorage.getItem('auren.sigilo')==='1')document.documentElement.classList.add('sigilo-on')}catch(e){}` }} />
+            sensíveis ao carregar com o sigilo ligado. Antes disso, migra as
+            preferências salvas sob o prefixo antigo `auren.` para `audere.`
+            (sem isso o sigilo desligaria sozinho para quem já o usava). */}
+        <script dangerouslySetInnerHTML={{ __html: `try{var s=localStorage,k=['sigilo','sidebar.collapsed','sess.widgets.order','sess.widgets.hidden'];for(var i=0;i<k.length;i++){var o='auren.'+k[i],n='audere.'+k[i],v=s.getItem(o);if(v!==null){if(s.getItem(n)===null)s.setItem(n,v);s.removeItem(o)}}if(s.getItem('audere.sigilo')==='1')document.documentElement.classList.add('sigilo-on')}catch(e){}` }} />
         <Providers>{children}</Providers>
       </body>
     </html>
