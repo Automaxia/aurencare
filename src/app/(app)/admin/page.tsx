@@ -1,10 +1,9 @@
 import Link from 'next/link'
 import { requireRole } from '@/server/lib/auth'
 import { PageHeader } from '@/components/PageHeader'
-import { obterCockpitProduto, listarUsuariosAdmin } from '@/server/services/admin'
+import { obterCockpitProduto, listarUsuariosAdmin, obterFaturamento } from '@/server/services/admin'
 import { resumoCustos } from '@/server/services/custos'
 import { usdParaBrl } from '@/server/lib/precos'
-import { precoCentavos } from '@/server/lib/planos'
 import { AdminCockpit } from './AdminCockpit'
 
 export const dynamic = 'force-dynamic'
@@ -14,10 +13,11 @@ const pct = (n: number, base: number) => (base > 0 ? Math.round((n / base) * 100
 
 export default async function AdminPage() {
   const admin = await requireRole('admin')
-  const [p, usuarios, custos] = await Promise.all([
+  const [p, usuarios, custos, fat] = await Promise.all([
     obterCockpitProduto(),
     listarUsuariosAdmin(),
     resumoCustos(),
+    obterFaturamento(),
   ])
 
   const conversaoPct = pct(p.pagantes, p.usuarios)
@@ -30,9 +30,16 @@ export default async function AdminPage() {
   const custoPsicologoBrl = p.ativosConta > 0 ? custoMesBrl / p.ativosConta : null
   const custoAtivadoBrl = p.ativados > 0 ? custoMesBrl / p.ativados : null
 
-  // Receita — MRR estimado pelo preço mensal de cada plano pago ativo.
-  const mrrBrl = (p.pagEssencial * precoCentavos('essencial', 'mensal') + p.pagPro * precoCentavos('pro', 'mensal')) / 100
-  const receitaPorPagante = p.pagantes > 0 ? mrrBrl / p.pagantes : 0
+  // Faturamento — receita da Audere no mês = assinaturas (MRR) + taxa sobre sessões cobradas pela plataforma.
+  const cent = (c: number) => brl(c / 100)
+  const sessoes = (n: number) => `${n} ${n === 1 ? 'sessão' : 'sessões'}`
+  const nPagantes = fat.pagantes.essencial + fat.pagantes.pro
+  const receitaMesCent = fat.mrrCentavos + fat.mes.plataforma.taxaCentavos
+  const mesNome = new Date().toLocaleDateString('pt-BR', { month: 'long', timeZone: 'America/Sao_Paulo' })
+  const dataBR = (iso: string | null) => (iso ? new Date(iso).toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' }) : '—')
+  const vencimentoCortesia = fat.cortesia.vencePrimeiro === fat.cortesia.venceUltimo
+    ? `vence em ${dataBR(fat.cortesia.vencePrimeiro)}`
+    : `vence entre ${dataBR(fat.cortesia.vencePrimeiro)} e ${dataBR(fat.cortesia.venceUltimo)}`
 
   const funil = [
     { label: 'Cadastrados', n: p.usuarios },
@@ -57,14 +64,57 @@ export default async function AdminPage() {
         }
       />
 
+      {/* BLOCO 0 — FATURAMENTO (a pergunta "a Audere já fatura?") */}
+      <Section
+        title="Faturamento"
+        hint={`${mesNome} · Pagar.me em ${fat.ambientePagarme === 'live' ? 'produção' : 'sandbox (cobranças de teste)'}`}
+      >
+        <div className="card" style={{ padding: '18px 20px', marginBottom: 12, display: 'flex', flexWrap: 'wrap', alignItems: 'baseline', gap: '6px 22px' }}>
+          <div>
+            <div style={{ fontSize: 11, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '.06em' }}>Receita da Audere no mês</div>
+            <div style={{ fontFamily: 'var(--f-display)', fontSize: 42, lineHeight: 1.05, color: receitaMesCent > 0 ? 'var(--sage)' : 'var(--ink)' }}>{cent(receitaMesCent)}</div>
+          </div>
+          <div style={{ fontSize: 13, color: 'var(--ink-soft)', lineHeight: 1.6, flex: '1 1 280px' }}>
+            {cent(fat.mrrCentavos)} de assinaturas + {cent(fat.mes.plataforma.taxaCentavos)} de taxa sobre sessões cobradas pela plataforma.
+            {nPagantes === 0 && (
+              <div style={{ color: 'var(--amber)' }}>
+                Nenhum assinante pagante ainda{fat.cortesia.n > 0 ? ` — ${fat.cortesia.n} contas estão em cortesia do beta (${vencimentoCortesia})` : ''}.
+              </div>
+            )}
+          </div>
+        </div>
+
+        <div style={{ fontSize: 11.5, color: 'var(--muted)', margin: '4px 0 8px' }}>Assinaturas</div>
+        <Grid min={150}>
+          <Metric label="Assinantes pagantes" value={nPagantes} color={nPagantes > 0 ? 'var(--accent)' : 'var(--amber)'}
+            hint={nPagantes > 0 ? `${fat.pagantes.essencial} Essencial · ${fat.pagantes.pro} Pro` : 'assinatura ativa na Pagar.me'} />
+          <Metric label="Receita recorrente (MRR)" value={cent(fat.mrrCentavos)} hint="só assinaturas pagas" />
+          <Metric label="Em cortesia" value={fat.cortesia.n}
+            hint={fat.cortesia.n > 0 ? `${vencimentoCortesia} · valeria ${cent(fat.cortesia.potencialMrrCentavos)}/mês` : 'sem cortesias vigentes'} />
+          <Metric label="Plano Free" value={fat.free} />
+        </Grid>
+
+        <div style={{ fontSize: 11.5, color: 'var(--muted)', margin: '16px 0 8px' }}>Sessões de {mesNome}</div>
+        <Grid min={170}>
+          <Metric label="Cobradas pela plataforma" value={cent(fat.mes.plataforma.valorCentavos)} color="var(--accent)"
+            hint={`${sessoes(fat.mes.plataforma.n)} · taxa Audere ${cent(fat.mes.plataforma.taxaCentavos)}`} />
+          <Metric label="Pagas por fora" value={cent(fat.mes.porFora.valorCentavos)}
+            hint={`${sessoes(fat.mes.porFora.n)} · direto ao psicólogo, sem receita p/ Audere`} />
+          <Metric label="Realizadas, a receber" value={cent(fat.mes.aReceber.valorCentavos)} color={fat.mes.aReceber.n > 0 ? 'var(--amber)' : undefined}
+            hint={`${sessoes(fat.mes.aReceber.n)} ${fat.mes.aReceber.n === 1 ? 'concluída' : 'concluídas'} sem pagamento`} />
+        </Grid>
+        <div style={{ fontSize: 11.5, color: 'var(--faint)', marginTop: 8 }}>
+          Desde o início: {sessoes(fat.total.plataforma.n)} pela plataforma ({cent(fat.total.plataforma.valorCentavos)}, taxa {cent(fat.total.plataforma.taxaCentavos)})
+          · {sessoes(fat.total.porFora.n)} {fat.total.porFora.n === 1 ? 'paga' : 'pagas'} por fora ({cent(fat.total.porFora.valorCentavos)}).
+        </div>
+      </Section>
+
       {/* BLOCO 1 — CRESCIMENTO */}
       <Section title="Crescimento">
         <Grid min={130}>
           <Metric label="Usuários totais" value={p.usuarios} />
           <Metric label="Novos (30 dias)" value={p.novos30} hint="cadastros recentes" />
           <Metric label="Contas ativas" value={p.ativosConta} color="var(--sage)" />
-          <Metric label="Pagantes" value={p.pagantes} color="var(--accent)" hint="com assinatura ativa" />
-          <Metric label="Cortesia beta" value={p.cortesia} hint="plano concedido, sem cobrança" />
           <Metric label="Conversão" value={`${conversaoPct}%`} hint="pagantes ÷ totais" />
         </Grid>
       </Section>
@@ -124,16 +174,6 @@ export default async function AdminPage() {
           <Metric label="Custo por psicólogo ativo" value={custoPsicologoBrl != null ? brl(custoPsicologoBrl) : '—'} />
           <Metric label="Custo por usuário ativado" value={custoAtivadoBrl != null ? brl(custoAtivadoBrl) : '—'} />
           <Metric label="Tokens consumidos (mês)" value={p.tokensMes.toLocaleString('pt-BR')} hint="entrada + saída · Anthropic" />
-        </Grid>
-      </Section>
-
-      {/* BLOCO 6 — RECEITA */}
-      <Section title="Receita">
-        <Grid min={150}>
-          <Metric label="MRR estimado" value={brl(mrrBrl)} color="var(--accent)" hint="preço mensal dos planos ativos" />
-          <Metric label="Receita por pagante" value={p.pagantes > 0 ? brl(receitaPorPagante) : '—'} />
-          <Metric label="Valor médio / sessão paga" value={p.valorMedioSessaoPaga > 0 ? brl(p.valorMedioSessaoPaga) : '—'} hint="transacionado na plataforma" />
-          <Metric label="Pagantes" value={p.pagantes} hint={`${p.pagEssencial} Essencial · ${p.pagPro} Pro`} />
         </Grid>
       </Section>
 
