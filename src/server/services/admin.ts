@@ -1,6 +1,9 @@
 import 'server-only'
 import { db } from '@/server/db/pool'
 import { log } from '@/server/lib/log'
+import { precoCentavos } from '@/server/lib/planos'
+import { ambientePagarme } from '@/server/lib/pagarmeRecipient'
+import { TZ } from '@/lib/formatters'
 
 /**
  * Gestão da plataforma (cockpit do admin). Foco solo: lista os psicólogos,
@@ -93,6 +96,108 @@ export async function obterCockpitProduto(): Promise<CockpitProduto> {
   }
 }
 
+/**
+ * Faturamento, separado por ORIGEM do dinheiro — a pergunta do admin é "a
+ * Audere já fatura?", e somar tudo num número só escondia a resposta:
+ *
+ *  - Assinaturas: só conta quem tem assinatura na Pagar.me. Cortesia do beta
+ *    (plano concedido, migration 047) aparece à parte, com o vencimento e o
+ *    potencial se converter — mas NÃO é receita.
+ *  - Sessões pela plataforma: cobradas via Pagar.me (`pagarme_order_id`). A
+ *    receita da Audere é a taxa do split (`comissao_centavos`), não o valor.
+ *  - Sessões pagas por fora: o psicólogo marcou como paga. Dinheiro do
+ *    psicólogo, zero para a Audere — mostrado para dar a dimensão do uso.
+ *
+ * Mês = mês civil em Brasília, pela data da SESSÃO (não do pagamento).
+ * `pagamento_status = 'pago'` inclui cancelada sem reembolso (o dinheiro ficou).
+ */
+export type LinhaSessoes = { n: number; valorCentavos: number }
+export type Faturamento = {
+  ambientePagarme: 'sandbox' | 'live'
+  mrrCentavos: number
+  pagantes: { essencial: number; pro: number }
+  cortesia: { n: number; vencePrimeiro: string | null; venceUltimo: string | null; potencialMrrCentavos: number }
+  free: number
+  mes: { plataforma: LinhaSessoes & { taxaCentavos: number }; porFora: LinhaSessoes; aReceber: LinhaSessoes }
+  total: { plataforma: LinhaSessoes & { taxaCentavos: number }; porFora: LinhaSessoes }
+}
+
+export async function obterFaturamento(): Promise<Faturamento> {
+  const [{ rows: planos }, { rows: sess }] = await Promise.all([
+    db.query<any>(`
+      SELECT
+        (pagarme_subscription_id IS NOT NULL AND plano_status = 'ativo') AS pagante,
+        COALESCE(plano, 'free') AS plano, COALESCE(plano_ciclo, 'mensal') AS ciclo,
+        count(*)::int AS n, min(plano_expira_em) AS vence_primeiro, max(plano_expira_em) AS vence_ultimo
+      FROM psicologos
+      WHERE status = 'ativo'
+      GROUP BY 1, 2, 3`),
+    db.query<any>(`
+      WITH s AS (
+        SELECT valor, pagamento_status, comissao_centavos, status,
+               pagarme_order_id IS NOT NULL AS plataforma,
+               data_hora >= (date_trunc('month', NOW() AT TIME ZONE '${TZ}') AT TIME ZONE '${TZ}')
+                 AND data_hora < ((date_trunc('month', NOW() AT TIME ZONE '${TZ}') + INTERVAL '1 month') AT TIME ZONE '${TZ}') AS no_mes
+          FROM sessoes
+      )
+      SELECT
+        count(*) FILTER (WHERE pagamento_status = 'pago' AND plataforma AND no_mes)::int                AS pl_mes_n,
+        COALESCE(sum(valor) FILTER (WHERE pagamento_status = 'pago' AND plataforma AND no_mes), 0)      AS pl_mes_v,
+        COALESCE(sum(comissao_centavos) FILTER (WHERE pagamento_status = 'pago' AND plataforma AND no_mes), 0)::int AS pl_mes_t,
+        count(*) FILTER (WHERE pagamento_status = 'pago' AND NOT plataforma AND no_mes)::int            AS pf_mes_n,
+        COALESCE(sum(valor) FILTER (WHERE pagamento_status = 'pago' AND NOT plataforma AND no_mes), 0)  AS pf_mes_v,
+        count(*) FILTER (WHERE pagamento_status = 'pendente' AND status = 'concluida' AND no_mes)::int  AS ar_mes_n,
+        COALESCE(sum(valor) FILTER (WHERE pagamento_status = 'pendente' AND status = 'concluida' AND no_mes), 0) AS ar_mes_v,
+        count(*) FILTER (WHERE pagamento_status = 'pago' AND plataforma)::int                           AS pl_tot_n,
+        COALESCE(sum(valor) FILTER (WHERE pagamento_status = 'pago' AND plataforma), 0)                 AS pl_tot_v,
+        COALESCE(sum(comissao_centavos) FILTER (WHERE pagamento_status = 'pago' AND plataforma), 0)::int AS pl_tot_t,
+        count(*) FILTER (WHERE pagamento_status = 'pago' AND NOT plataforma)::int                       AS pf_tot_n,
+        COALESCE(sum(valor) FILTER (WHERE pagamento_status = 'pago' AND NOT plataforma), 0)             AS pf_tot_v
+      FROM s`),
+  ])
+
+  const mensal = (plano: string, ciclo: string) => {
+    if (plano !== 'essencial' && plano !== 'pro') return 0
+    return ciclo === 'anual' ? Math.round(precoCentavos(plano, 'anual') / 12) : precoCentavos(plano, 'mensal')
+  }
+  let mrrCentavos = 0, free = 0, potencial = 0
+  const pagantes = { essencial: 0, pro: 0 }
+  const cortesia = { n: 0, vencePrimeiro: null as string | null, venceUltimo: null as string | null }
+  for (const r of planos) {
+    if (r.plano === 'free') { free += r.n; continue }
+    if (r.pagante) {
+      if (r.plano === 'essencial' || r.plano === 'pro') pagantes[r.plano as 'essencial' | 'pro'] += r.n
+      mrrCentavos += r.n * mensal(r.plano, r.ciclo)
+    } else {
+      // Plano pago sem assinatura: cortesia vigente. Vencida conta como free.
+      const vigente = r.vence_ultimo && new Date(r.vence_ultimo) > new Date()
+      if (!vigente) { free += r.n; continue }
+      cortesia.n += r.n
+      potencial += r.n * mensal(r.plano, 'mensal')
+      const iso = (d: any) => (d ? new Date(d).toISOString() : null)
+      if (!cortesia.vencePrimeiro || (r.vence_primeiro && iso(r.vence_primeiro)! < cortesia.vencePrimeiro)) cortesia.vencePrimeiro = iso(r.vence_primeiro)
+      if (!cortesia.venceUltimo || (r.vence_ultimo && iso(r.vence_ultimo)! > cortesia.venceUltimo)) cortesia.venceUltimo = iso(r.vence_ultimo)
+    }
+  }
+
+  const x = sess[0]
+  const c = (v: any) => Math.round(Number(v) * 100)
+  return {
+    ambientePagarme: ambientePagarme(),
+    mrrCentavos, pagantes, free,
+    cortesia: { ...cortesia, potencialMrrCentavos: potencial },
+    mes: {
+      plataforma: { n: x.pl_mes_n, valorCentavos: c(x.pl_mes_v), taxaCentavos: Number(x.pl_mes_t) },
+      porFora: { n: x.pf_mes_n, valorCentavos: c(x.pf_mes_v) },
+      aReceber: { n: x.ar_mes_n, valorCentavos: c(x.ar_mes_v) },
+    },
+    total: {
+      plataforma: { n: x.pl_tot_n, valorCentavos: c(x.pl_tot_v), taxaCentavos: Number(x.pl_tot_t) },
+      porFora: { n: x.pf_tot_n, valorCentavos: c(x.pf_tot_v) },
+    },
+  }
+}
+
 export type UsuarioAdmin = {
   id: string
   nome: string
@@ -103,6 +208,9 @@ export type UsuarioAdmin = {
   status: string
   plano: string | null
   planoStatus: string | null
+  /** Plano pago cobrado na Pagar.me. Sem isso, plano pago = cortesia. */
+  temAssinatura: boolean
+  planoExpiraEm: string | null
   pacientes: number
   sessoes: number
   createdAt: string
@@ -114,6 +222,7 @@ export type UsuarioAdmin = {
 export async function listarUsuariosAdmin(): Promise<UsuarioAdmin[]> {
   const { rows } = await db.query<any>(`
     SELECT p.id, p.nome, p.email, p.telefone, p.crp, p.role, p.status, p.plano, p.plano_status, p.created_at,
+           p.pagarme_subscription_id IS NOT NULL AS tem_assinatura, p.plano_expira_em,
            p.ultimo_login_em, p.login_count, p.ultimo_acesso_em,
            (SELECT count(*) FROM pacientes pa WHERE pa.psicologo_id = p.id AND pa.status = 'ativo') AS pacientes,
            (SELECT count(*) FROM sessoes s  WHERE s.psicologo_id  = p.id)                            AS sessoes
@@ -124,6 +233,8 @@ export async function listarUsuariosAdmin(): Promise<UsuarioAdmin[]> {
     id: r.id, nome: r.nome, email: r.email, telefone: r.telefone ?? null, crp: r.crp,
     role: r.role ?? 'psicologo', status: r.status ?? 'ativo',
     plano: r.plano ?? null, planoStatus: r.plano_status ?? null,
+    temAssinatura: r.tem_assinatura === true,
+    planoExpiraEm: r.plano_expira_em ? new Date(r.plano_expira_em).toISOString() : null,
     pacientes: Number(r.pacientes), sessoes: Number(r.sessoes),
     createdAt: r.created_at,
     ultimoLoginEm: r.ultimo_login_em ?? null,

@@ -27,6 +27,18 @@ function relativo(iso: string | null): string {
   const meses = Math.floor(dias / 30)
   return `há ${meses} ${meses > 1 ? 'meses' : 'mês'}`
 }
+/** Situação de cobrança: pagante (assinatura na Pagar.me), cortesia (plano sem assinatura, vigente) ou Free. */
+function cobranca(u: UsuarioAdmin): { txt: string; sub?: string; fg: string } {
+  const nome = u.plano === 'pro' ? 'Pro' : u.plano === 'essencial' ? 'Essencial' : 'Free'
+  if (nome === 'Free') return { txt: 'Free', fg: 'var(--faint)' }
+  if (u.temAssinatura && u.planoStatus === 'ativo') return { txt: `${nome} · pagante`, fg: 'var(--sage)' }
+  if (u.temAssinatura) return { txt: `${nome} · ${u.planoStatus ?? 'inativo'}`, fg: 'var(--rose)' }
+  if (u.planoExpiraEm && new Date(u.planoExpiraEm) > new Date()) {
+    return { txt: `${nome} · cortesia`, sub: `até ${new Date(u.planoExpiraEm).toLocaleDateString('pt-BR')}`, fg: 'var(--muted)' }
+  }
+  return { txt: 'Free', sub: 'cortesia vencida', fg: 'var(--faint)' }
+}
+
 const dataCompleta = (iso: string | null) => (iso ? new Date(iso).toLocaleString('pt-BR') : '')
 
 export function AdminCockpit({ usuarios, adminId }: { usuarios: UsuarioAdmin[]; adminId: string }) {
@@ -103,6 +115,7 @@ export function AdminCockpit({ usuarios, adminId }: { usuarios: UsuarioAdmin[]; 
               <th style={th}>Usuário</th>
               <th style={th}>Papel</th>
               <th style={th}>Status</th>
+              <th style={th}>Plano</th>
               <th style={{ ...th, textAlign: 'right' }}>Pac.</th>
               <th style={{ ...th, textAlign: 'right' }}>Sess.</th>
               <th style={{ ...th, textAlign: 'right' }}>Último login</th>
@@ -145,6 +158,14 @@ export function AdminCockpit({ usuarios, adminId }: { usuarios: UsuarioAdmin[]; 
                     <td style={td}>
                       <span style={{ padding: '3px 9px', borderRadius: 999, background: chip.bg, color: chip.fg, fontSize: 11, fontWeight: 500 }}>{chip.txt}</span>
                     </td>
+                    <td style={{ ...td, whiteSpace: 'nowrap' }}>
+                      {(() => { const c = cobranca(u); return (
+                        <>
+                          <span style={{ fontSize: 11.5, fontWeight: 500, color: c.fg }}>{c.txt}</span>
+                          {c.sub && <div style={{ fontSize: 10.5, color: 'var(--faint)' }}>{c.sub}</div>}
+                        </>
+                      ) })()}
+                    </td>
                     <td style={{ ...td, textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>{u.pacientes}</td>
                     <td style={{ ...td, textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>{u.sessoes}</td>
                     <td style={{ ...td, textAlign: 'right', color: 'var(--muted)', whiteSpace: 'nowrap' }} title={dataCompleta(u.ultimoLoginEm)}>{relativo(u.ultimoLoginEm)}</td>
@@ -171,7 +192,7 @@ export function AdminCockpit({ usuarios, adminId }: { usuarios: UsuarioAdmin[]; 
                   {aberto && (
                     <tr style={{ background: 'var(--surface)' }}>
                       <td></td>
-                      <td colSpan={9} style={{ padding: '10px 14px 14px' }}>
+                      <td colSpan={10} style={{ padding: '10px 14px 14px' }}>
                         <div style={{ fontSize: 11, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '.05em', marginBottom: 6 }}>
                           Últimos acessos
                         </div>
