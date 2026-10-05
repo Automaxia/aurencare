@@ -3,14 +3,8 @@
 import { useState } from 'react'
 import type { ConversaResumo, MensagemWa } from '@/server/services/conversasWa'
 import { lerConversaAction, responderConversaAction } from './actions'
+import { formatarTelefone } from '@/lib/telefone'
 
-function formatTel(t: string): string {
-  const d = t.replace(/\D/g, '')
-  const n = d.startsWith('55') ? d.slice(2) : d
-  if (n.length === 11) return `(${n.slice(0, 2)}) ${n.slice(2, 7)}-${n.slice(7)}`
-  if (n.length === 10) return `(${n.slice(0, 2)}) ${n.slice(2, 6)}-${n.slice(6)}`
-  return t
-}
 function quando(iso: string): string {
   return new Date(iso).toLocaleString('pt-BR', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit', timeZone: 'America/Sao_Paulo' })
 }
@@ -64,7 +58,7 @@ export function ConversasView({ inicial }: { inicial: ConversaResumo[] }) {
           }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 8 }}>
               <span style={{ fontSize: 13.5, fontWeight: 600, color: 'var(--ink)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                {c.pacienteNome ?? formatTel(c.telefone)}
+                {c.pacienteNome ?? formatarTelefone(c.telefone)}
               </span>
               <span style={{ fontSize: 10.5, color: 'var(--faint)', whiteSpace: 'nowrap' }}>{quando(c.ultimaEm)}</span>
             </div>
@@ -87,8 +81,8 @@ export function ConversasView({ inicial }: { inicial: ConversaResumo[] }) {
         ) : (
           <>
             <div style={{ padding: '12px 16px', borderBottom: '1px solid var(--border)' }}>
-              <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--ink)' }}>{thread?.paciente?.nome ?? formatTel(sel)}</div>
-              <div style={{ fontSize: 11.5, color: 'var(--muted)' }}>{formatTel(sel)} · WhatsApp</div>
+              <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--ink)' }}>{thread?.paciente?.nome ?? formatarTelefone(sel)}</div>
+              <div style={{ fontSize: 11.5, color: 'var(--muted)' }}>{formatarTelefone(sel)} · WhatsApp</div>
             </div>
 
             <div style={{ flex: 1, overflowY: 'auto', padding: 16, display: 'flex', flexDirection: 'column', gap: 8, background: 'var(--surface)' }}>

@@ -5,6 +5,7 @@ import { log } from '@/server/lib/log'
 import { removerListaEspera } from './listaEspera'
 import { encrypt } from '@/server/lib/crypto'
 import { apenasDigitos, validarCpf } from '@/lib/documento'
+import { normalizarTelefone, validarTelefone } from '@/lib/telefone'
 
 export type NovaPsicologa = {
   nome: string
@@ -28,7 +29,7 @@ export async function cadastrarPsicologa(input: NovaPsicologa): Promise<Cadastro
   const nome = input.nome.trim()
   const crp = input.crp.trim()
   const email = input.email.toLowerCase().trim()
-  const telefone = input.telefone.replace(/\D/g, '')
+  const telefone = normalizarTelefone(input.telefone)
   const cpf = apenasDigitos(input.cpf)
 
   // Validações
@@ -38,8 +39,8 @@ export async function cadastrarPsicologa(input: NovaPsicologa): Promise<Cadastro
     return { ok: false, error: 'Informe seu CRP (ex: CRP 06/12345).', campo: 'crp' }
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))
     return { ok: false, error: 'Email inválido.', campo: 'email' }
-  if (telefone.length < 10 || telefone.length > 13)
-    return { ok: false, error: 'Telefone inválido (DDD + número).', campo: 'telefone' }
+  const erroTel = validarTelefone(telefone)
+  if (erroTel) return { ok: false, error: erroTel, campo: 'telefone' }
   // CPF é exigido na conta nova: é a identificação fiscal da pessoa e evita
   // ter que caçar o dado depois, no meio do onboarding de recebimento.
   if (!cpf)

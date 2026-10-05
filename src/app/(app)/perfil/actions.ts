@@ -5,6 +5,7 @@ import { requirePsicologo } from '@/server/lib/auth'
 import { atualizarPerfil, verificarSenha, emailEmUso, type PerfilPatch } from '@/server/services/psicologo'
 import { normalizarAbordagem } from '@/server/services/temas'
 import { apenasDigitos, validarCpf } from '@/lib/documento'
+import { normalizarTelefone, validarTelefone } from '@/lib/telefone'
 
 export type SalvarInput = {
   nome: string
@@ -30,7 +31,7 @@ export async function salvarPerfilAction(input: SalvarInput): Promise<SalvarResu
   const nome = input.nome.trim()
   const crp = input.crp.trim()
   const email = input.email.toLowerCase().trim()
-  const telefone = input.telefone?.replace(/\D/g, '') || ''
+  const telefone = normalizarTelefone(input.telefone ?? '')
   const cpf = apenasDigitos(input.cpf)
   const valor = input.valorSessao
   const novaSenha = input.novaSenha
@@ -40,9 +41,8 @@ export async function salvarPerfilAction(input: SalvarInput): Promise<SalvarResu
   if (nome.length < 2)  return { ok: false, error: 'Informe seu nome completo.', campo: 'nome' }
   if (crp.length < 3)   return { ok: false, error: 'CRP inválido.', campo: 'crp' }
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return { ok: false, error: 'Email inválido.', campo: 'email' }
-  if (telefone && (telefone.length < 10 || telefone.length > 13)) {
-    return { ok: false, error: 'Telefone inválido (DDD + número).', campo: 'telefone' }
-  }
+  const erroTel = telefone ? validarTelefone(telefone) : null
+  if (erroTel) return { ok: false, error: erroTel, campo: 'telefone' }
   if (valor !== null && valor < 0) return { ok: false, error: 'Valor não pode ser negativo.', campo: 'valorSessao' }
   // CPF segue opcional no perfil: exigir de quem já tem conta quebraria o save
   // de quem só queria trocar o telefone. Se vier, precisa ser válido.

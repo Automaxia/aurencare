@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { Pencil, Archive, RotateCw, Settings2, ChevronDown, Trash2 } from 'lucide-react'
+import { TelefoneInput } from '@/components/form/TelefoneInput'
 import {
   atualizarPacienteAction, arquivarPacienteAction,
   reativarPacienteAction, excluirPacienteAction,
@@ -266,12 +267,7 @@ function ModalEditar({ pacienteId, inicial, onFechar }: {
           <input value={nome} onChange={e => setNome(e.target.value)} required autoComplete="name" />
         </Campo>
         <Campo label="Telefone (WhatsApp)" erro={erroCampo === 'telefone' ? erro : null}>
-          <input
-            value={telefone}
-            onChange={e => setTelefone(e.target.value.replace(/[^\d() -]/g, ''))}
-            inputMode="tel" required
-            placeholder="(11) 91234-5678"
-          />
+          <TelefoneInput required valorInicial={inicial.telefone} onChange={setTelefone} padding="10px 14px" />
         </Campo>
         <Campo label="Email (opcional)" erro={erroCampo === 'email' ? erro : null}>
           <input

@@ -4,7 +4,8 @@ import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { useToast } from '@/components/feedback/Toast'
 import { criarSessaoAction, criarSerieAction, conflitosSerieAction } from './actions'
-import { horarioBrasiliaParaISO, TZ } from '@/lib/formatters'
+import { formatBRL, horarioBrasiliaParaISO, TZ } from '@/lib/formatters'
+import { ValorInput } from '@/components/form/ValorInput'
 
 type Modo = 'avulsa' | 'serie'
 type Frequencia = 'semanal' | 'quinzenal'
@@ -158,12 +159,7 @@ export function NewSessionForm({ pacientes }: { pacientes: { id: string; nome: s
           </select>
         </Field>
         <Field label={modo === 'serie' ? 'Valor por sessão (R$)' : 'Valor (R$)'}>
-          <input
-            type="number" value={gratuita ? 0 : valor}
-            onChange={e => setValor(+e.target.value)}
-            min={0} step={10} disabled={gratuita}
-            style={gratuita ? { opacity: .5 } : undefined}
-          />
+          <ValorInput value={gratuita ? 0 : valor} onChange={v => setValor(v ?? 0)} disabled={gratuita} />
         </Field>
       </div>
 
@@ -203,7 +199,7 @@ export function NewSessionForm({ pacientes }: { pacientes: { id: string; nome: s
       <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', alignItems: 'center' }}>
         {modo === 'serie' && datasPreview.length > 0 && (
           <span style={{ fontSize: 11, color: 'var(--muted)', marginRight: 'auto' }}>
-            Total: R$ {(valor * datasPreview.length).toFixed(2)}
+            Total: {formatBRL(valor * datasPreview.length)}
           </span>
         )}
         <a href="/agenda" className="btn ghost">Cancelar</a>

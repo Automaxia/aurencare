@@ -7,6 +7,7 @@ import { Field } from '@/components/form/Field'
 import { PasswordInput } from '@/components/form/PasswordInput'
 import { cadastrarAction } from './actions'
 import { apenasDigitos, formatarCpf } from '@/lib/documento'
+import { TelefoneInput } from '@/components/form/TelefoneInput'
 
 export function CadastroForm() {
   const router = useRouter()
@@ -87,12 +88,7 @@ export function CadastroForm() {
         hint="Receberá mensagens, lembretes e comunicações da sua prática. Pode ser o mesmo número do celular pessoal."
         error={campoErro === 'telefone' ? error : undefined}
       >
-        <input
-          type="tel" required value={telefone}
-          onChange={e => setTelefone(e.target.value.replace(/[^\d() -]/g, ''))}
-          placeholder="(11) 98765-4321"
-          inputMode="tel" autoComplete="tel"
-        />
+        <TelefoneInput required onChange={setTelefone} padding="11px 13px" fontSize={15} />
       </Field>
 
       <Field

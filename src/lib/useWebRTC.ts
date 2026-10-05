@@ -134,7 +134,7 @@ export function useWebRTC({ token, role, caller, withVideo = true, onApp }: Opti
     const dev = (id: string) => (modo === 'exact' ? { deviceId: { exact: id } } : { deviceId: { ideal: id } })
     return {
       audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true, ...(mic ? dev(mic) : {}) },
-      video: withVideo ? { width: { ideal: 640 }, height: { ideal: 360 }, ...(cam ? dev(cam) : {}) } : false,
+      video: withVideo ? { width: { ideal: 640 }, height: { ideal: 360 }, frameRate: { ideal: 24, max: 30 }, ...(cam ? dev(cam) : {}) } : false,
     }
   }
 
@@ -281,6 +281,7 @@ export function useWebRTC({ token, role, caller, withVideo = true, onApp }: Opti
         pcRef.current = pc
 
         for (const t of stream.getTracks()) pc.addTrack(t, stream)
+        preferirH264(pc)
 
         // Recebe remote tracks. Emitimos uma NOVA referência de MediaStream a cada
         // track que chega — sem isso, a transcrição do paciente (createMediaStreamSource
@@ -412,4 +413,26 @@ export function useWebRTC({ token, role, caller, withVideo = true, onApp }: Opti
   }, [sendSignal])
 
   return { estado, localStream, remoteStream, outroPresente, err, micOn, setMicOn, camOn, setCamOn, replaceVideoTrack, encerrar, cameras, microfones, camId, micId, trocarCamera, trocarMicrofone, semVideo, outroCompartilhando, sinalizarTela, enviarApp }
+}
+
+/**
+ * Põe H.264 na frente do VP8 na negociação. O psicólogo (Chrome desktop) é quem
+ * oferta, e o Chrome lista VP8 primeiro — no iPhone o VP8 é codificado e
+ * decodificado em software (CPU), o que esquenta o celular numa sessão de 50 min;
+ * o H.264 roda no chip de vídeo. Os demais codecs ficam como fallback, então a
+ * chamada continua conectando onde não houver H.264.
+ */
+function preferirH264(pc: RTCPeerConnection) {
+  try {
+    const caps = typeof RTCRtpReceiver !== 'undefined' ? RTCRtpReceiver.getCapabilities?.('video') : null
+    if (!caps?.codecs?.length) return
+    const h264 = caps.codecs.filter(c => c.mimeType.toLowerCase() === 'video/h264')
+    if (!h264.length) return
+    const resto = caps.codecs.filter(c => c.mimeType.toLowerCase() !== 'video/h264')
+    for (const tr of pc.getTransceivers()) {
+      if (tr.receiver.track?.kind === 'video' || tr.sender.track?.kind === 'video') {
+        tr.setCodecPreferences?.([...h264, ...resto])
+      }
+    }
+  } catch { /* navegador sem setCodecPreferences — segue com o padrão */ }
 }

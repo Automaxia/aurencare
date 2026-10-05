@@ -4,6 +4,7 @@ import { env, integrationStatus } from './env'
 import { log } from './log'
 import { taxaAdmSessaoCentavos } from './planos'
 import { isRecipientMock } from './pagarmeRecipient'
+import { telefonePagarme } from '@/lib/telefone'
 
 /**
  * Cliente Pagar.me v5. §10 (pagamentos).
@@ -147,7 +148,7 @@ export async function criarOrderPix(opts: {
         document: opts.pacienteDocumento.replace(/\D/g, ''),
         document_type: 'CPF',
         type: 'individual',
-        phones: { mobile_phone: { country_code: '55', number: opts.pacienteTelefone.replace(/\D/g, '').slice(-9), area_code: opts.pacienteTelefone.replace(/\D/g, '').slice(-11, -9) } },
+        phones: { mobile_phone: telefonePagarme(opts.pacienteTelefone) },
       },
       payments: [{
         payment_method: 'pix',

@@ -4,6 +4,9 @@ import { useMemo, useState } from 'react'
 import { salvarPerfilAction, type SalvarInput } from './actions'
 import { SavedBadge } from '@/components/brand/Feedback'
 import { apenasDigitos, formatarCpf } from '@/lib/documento'
+import { ValorInput, parseValor } from '@/components/form/ValorInput'
+import { TelefoneInput } from '@/components/form/TelefoneInput'
+import { formatarTelefone, normalizarTelefone } from '@/lib/telefone'
 
 type InitialPerfil = {
   nome: string
@@ -46,9 +49,9 @@ export function PerfilForm({ initial, emailAtual, waConectado }: Props) {
 
   // ── dirty state: habilita Salvar só quando há mudança real ──
   const dirty = useMemo(() => {
-    const valorAtual = valorSessao === '' ? null : parseFloat(valorSessao.replace(',', '.'))
-    const telAtual = telefone.replace(/\D/g, '')
-    const telInit  = initial.telefone.replace(/\D/g, '')
+    const valorAtual = valorSessao === '' ? null : parseValor(valorSessao)
+    const telAtual = normalizarTelefone(telefone)
+    const telInit  = normalizarTelefone(initial.telefone)
     const cpfAtual = apenasDigitos(cpf)
     return (
       nome.trim() !== initial.nome ||
@@ -68,7 +71,7 @@ export function PerfilForm({ initial, emailAtual, waConectado }: Props) {
     setSalvando(true); setErro(null); setErroCampo(null); setSalvo(false)
     const input: SalvarInput = {
       nome, crp, email, telefone, cpf,
-      valorSessao: valorSessao === '' ? null : parseFloat(valorSessao.replace(',', '.')),
+      valorSessao: valorSessao === '' ? null : parseValor(valorSessao),
       genero: genero === '' ? null : genero,
       abordagem,
       novaSenha, confirmarNovaSenha, senhaAtual,
@@ -99,10 +102,10 @@ export function PerfilForm({ initial, emailAtual, waConectado }: Props) {
             <input required value={crp} onChange={e => setCrp(e.target.value)} placeholder="CRP 06/12345" />
           </Field>
           <Field label="Valor da sessão (R$)" error={erroCampo === 'valorSessao' ? erro : undefined}>
-            <input
-              type="number" min={0} step={10} value={valorSessao}
-              onChange={e => setValor(e.target.value)}
-              placeholder="220"
+            <ValorInput
+              value={valorSessao === '' ? null : parseValor(valorSessao)}
+              onChange={v => setValor(v === null ? '' : String(v))}
+              placeholder="220,00"
             />
           </Field>
         </div>
@@ -119,12 +122,7 @@ export function PerfilForm({ initial, emailAtual, waConectado }: Props) {
           hint="Número da prática. É por ele que pacientes mandam mensagem e marcam sessão."
           error={erroCampo === 'telefone' ? erro : undefined}
         >
-          <input
-            type="tel" value={telefone}
-            onChange={e => setTelefone(e.target.value.replace(/[^\d() -]/g, ''))}
-            placeholder="(11) 98765-4321"
-            inputMode="tel"
-          />
+          <TelefoneInput valorInicial={initial.telefone} onChange={setTelefone} />
         </Field>
 
         <Field
@@ -232,7 +230,7 @@ export function PerfilForm({ initial, emailAtual, waConectado }: Props) {
               </div>
               <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 2 }}>
                 {telefone
-                  ? `Pacientes te mandam mensagem em ${formatPhone(telefone)}.`
+                  ? `Pacientes te mandam mensagem em ${formatarTelefone(telefone)}.`
                   : 'Adicione um telefone WhatsApp ao lado pra ativar.'}
               </div>
             </div>
@@ -252,13 +250,6 @@ export function PerfilForm({ initial, emailAtual, waConectado }: Props) {
       </aside>
     </div>
   )
-}
-
-function formatPhone(raw: string): string {
-  const d = raw.replace(/\D/g, '')
-  if (d.length === 11) return `(${d.slice(0, 2)}) ${d.slice(2, 7)}-${d.slice(7)}`
-  if (d.length === 10) return `(${d.slice(0, 2)}) ${d.slice(2, 6)}-${d.slice(6)}`
-  return raw
 }
 
 function Field({ label, hint, error, children }: { label: string; hint?: string; error?: string | null; children: React.ReactNode }) {

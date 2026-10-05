@@ -3,6 +3,7 @@
 import Link from 'next/link'
 import type { PatientCardData } from './PatientCard'
 import { Sigilo } from '@/components/Sigilo'
+import { formatarTelefone } from '@/lib/telefone'
 
 /**
  * Linha compacta de paciente — alternativa de visualização "Lista".
@@ -45,7 +46,7 @@ export function PatientRow({ p }: { p: PatientCardData }) {
           {p.demo && <span className="tag t-info" style={{ fontSize: 9, marginLeft: 6 }}>demonstração</span>}
         </div>
         <div style={{ fontSize: 11, color: 'var(--faint)', marginTop: 2 }}>
-          {p.telefone} · desde {p.desdeMes} · {p.sessoesTotais} sessõe{p.sessoesTotais === 1 ? '' : 's'}
+          {formatarTelefone(p.telefone)} · desde {p.desdeMes} · {p.sessoesTotais} sessõe{p.sessoesTotais === 1 ? '' : 's'}
         </div>
       </div>
 

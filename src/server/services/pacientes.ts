@@ -8,6 +8,8 @@ import { tplPacienteBoasVindas } from '@/server/lib/emailTemplates'
 import { env } from '@/server/lib/env'
 import { log } from '@/server/lib/log'
 import { apenasDigitos, validarCpf } from '@/lib/documento'
+import { normalizarTelefone, validarTelefone } from '@/lib/telefone'
+export { normalizarTelefone }
 
 /** Resolve o psicólogo dono do paciente — para atribuir custo de IA a quem é (ver custos.ts). */
 export async function psicologoDoPaciente(pacienteId: string): Promise<string | null> {
@@ -147,11 +149,6 @@ export const LINK_TOKEN = '[link de termos]'
  * mantém o prefixo — o envio WhatsApp usa o DDI como veio, sem assumir Brasil.
  * Sem `+`, guarda só os dígitos (DDD + número) e o DDI 55 é aplicado no envio.
  */
-export function normalizarTelefone(raw: string): string {
-  const internacional = raw.trim().startsWith('+')
-  const digits = raw.replace(/\D/g, '')
-  return internacional ? `+${digits}` : digits
-}
 
 function aplicarLinkBoasVindas(mensagem: string, link: string): string {
   const m = mensagem.trim()
@@ -291,10 +288,8 @@ export async function atualizarPaciente(
     if (n.length < 3) return { ok: false, error: 'Informe o nome completo.', campo: 'nome' }
   }
   if (patch.telefone !== undefined) {
-    const tel = patch.telefone.replace(/\D/g, '')
-    if (tel.length < 10 || tel.length > 13) {
-      return { ok: false, error: 'Telefone inválido (DDD + número).', campo: 'telefone' }
-    }
+    const erroTel = validarTelefone(normalizarTelefone(patch.telefone))
+    if (erroTel) return { ok: false, error: erroTel, campo: 'telefone' }
   }
   if (patch.email !== undefined && patch.email !== null && patch.email !== '') {
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(patch.email)) {
@@ -306,7 +301,9 @@ export async function atualizarPaciente(
   const values: any[] = [pacienteId]
   const set = (col: string, v: any) => { fields.push(`${col} = $${values.length + 1}`); values.push(v) }
   if (patch.nome !== undefined)     set('nome', patch.nome.trim())
-  if (patch.telefone !== undefined) set('telefone', patch.telefone.replace(/\D/g, ''))
+  // normalizarTelefone preserva o '+' do internacional — com replace(/\D/) ele sumia
+  // e o envio passava a prefixar 55 (número brasileiro inexistente).
+  if (patch.telefone !== undefined) set('telefone', normalizarTelefone(patch.telefone))
   if (patch.email !== undefined)    set('email', patch.email?.trim() || null)
   if (fields.length === 0) {
     const p = await buscarPacientePorId(pacienteId)
