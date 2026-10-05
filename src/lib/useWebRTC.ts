@@ -1,6 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { iniciarQualidadeChamada } from './qualidadeChamada'
 
 /**
  * Hook de chamada WebRTC P2P 1:1 com signaling via SSE+POST.
@@ -165,6 +166,7 @@ export function useWebRTC({ token, role, caller, withVideo = true, onApp }: Opti
     let stream: MediaStream | null = null
     let reconexaoTimer: ReturnType<typeof setTimeout> | null = null
     let ultimaReconexao = 0
+    let qualidade: ReturnType<typeof iniciarQualidadeChamada> | null = null
 
     const limparTimer = () => { if (reconexaoTimer) { clearTimeout(reconexaoTimer); reconexaoTimer = null } }
 
@@ -177,6 +179,7 @@ export function useWebRTC({ token, role, caller, withVideo = true, onApp }: Opti
       const agora = Date.now()
       if (agora - ultimaReconexao < 2000) return
       ultimaReconexao = agora
+      if (jaConectouRef.current) qualidade?.reconexao()
       try { esRef.current?.close() } catch { /* */ }
       // Credencial TURN nova antes do iceRestart: a da entrada pode ter vencido.
       renovarIce().finally(() => {
@@ -320,14 +323,17 @@ export function useWebRTC({ token, role, caller, withVideo = true, onApp }: Opti
         pc.onconnectionstatechange = () => {
           const s = pcRef.current?.connectionState
           if (s === 'connected') { jaConectouRef.current = true; limparTimer(); setEstado('conectado') }
-          else if (s === 'failed') { setEstado('conectando'); agendarReconexao(400) }
-          else if (s === 'disconnected') { setEstado('conectando'); agendarReconexao(3500) }
+          else if (s === 'failed') { qualidade?.queda(); setEstado('conectando'); agendarReconexao(400) }
+          else if (s === 'disconnected') { qualidade?.queda(); setEstado('conectando'); agendarReconexao(3500) }
           else if (s === 'closed') setEstado('encerrado')
         }
         // ICE 'failed' às vezes chega antes do connectionState — reforça a reação.
         pc.oniceconnectionstatechange = () => {
           if (pcRef.current?.iceConnectionState === 'failed') agendarReconexao(400)
         }
+
+        // Medição de qualidade (caminho de rede, latência, perda) — ver qualidadeChamada.ts.
+        qualidade = iniciarQualidadeChamada({ token, role, getPc: () => pcRef.current })
 
         // 3. SSE de signaling
         esRef.current = montarES()
@@ -344,6 +350,7 @@ export function useWebRTC({ token, role, caller, withVideo = true, onApp }: Opti
       cancelled = true
       encerradoRef.current = true
       limparTimer()
+      qualidade?.parar()
       try { navigator.mediaDevices.removeEventListener?.('devicechange', listarDispositivos) } catch { /* */ }
       try { esRef.current?.close() } catch { /* */ }
       try { pc?.close() } catch { /* */ }
