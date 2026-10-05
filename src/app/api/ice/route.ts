@@ -12,7 +12,7 @@ export const dynamic = 'force-dynamic'
  * expô-las aqui é seguro — é o mesmo modelo de credenciais de curta duração.
  */
 export async function GET() {
-  const iceServers = getIceServers()
+  const iceServers = await getIceServers()
   return NextResponse.json(
     { iceServers },
     { headers: { 'Cache-Control': 'no-store' } },

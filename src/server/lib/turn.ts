@@ -1,6 +1,7 @@
 import 'server-only'
 import { createHmac } from 'node:crypto'
 import { isConfigured } from './env'
+import { log } from './log'
 
 /**
  * Monta a lista de ICE servers (STUN + TURN) entregue ao browser.
@@ -9,7 +10,15 @@ import { isConfigured } from './env'
  * TURN só entra quando configurado — é o que faz a chamada sobreviver atrás de
  * NAT simétrico / 4G corporativo, onde o P2P direto falha.
  *
- * Dois modos de TURN, detectados automaticamente:
+ * Ordem de preferência:
+ *
+ *  0. Cloudflare Realtime TURN (CLOUDFLARE_TURN_KEY_ID + CLOUDFLARE_TURN_API_TOKEN)
+ *     — PREFERIDO. Anycast com POP no Brasil (o coturn próprio fica na França,
+ *     ~250 ms de ida e volta) e entrega turn/turns nas portas 443 e 80, que passam
+ *     em rede corporativa/hospital. Credencial gerada por chamada à API, 24h.
+ *     Se a API falhar, cai pro coturn abaixo sem o usuário perceber.
+ *
+ * Modos do coturn (fallback), detectados automaticamente:
  *
  *  1. Efêmero (coturn `use-auth-secret`/`static-auth-secret`) — PREFERIDO.
  *     O servidor gera usuário=`<expiry>` e senha=`base64(HMAC-SHA1(secret, usuário))`.
@@ -50,7 +59,40 @@ function efemeras(secret: string, ttlSec: number): { username: string; credentia
  * Lista de ICE servers para esta requisição. STUN sempre; TURN quando configurado.
  * Gera credenciais novas a cada chamada (no modo efêmero).
  */
-export function getIceServers(): RTCIceServer[] {
+const CF_TTL = 86_400
+
+async function iceCloudflare(): Promise<RTCIceServer[] | null> {
+  const keyId = process.env.CLOUDFLARE_TURN_KEY_ID
+  const token = process.env.CLOUDFLARE_TURN_API_TOKEN
+  if (!isConfigured(keyId) || !isConfigured(token)) return null
+  try {
+    const r = await fetch(`https://rtc.live.cloudflare.com/v1/turn/keys/${keyId}/credentials/generate-ice-servers`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ttl: CF_TTL }),
+      cache: 'no-store',
+      signal: AbortSignal.timeout(4000),
+    })
+    if (!r.ok) { log.warn('turn.cloudflare', `HTTP ${r.status} — usando coturn`); return null }
+    const data = await r.json() as { iceServers?: RTCIceServer[] }
+    const lista = (data.iceServers ?? []).map(s => ({
+      ...s,
+      // A porta 53 é bloqueada pelos navegadores e só atrasa a coleta de candidatos.
+      urls: (Array.isArray(s.urls) ? s.urls : [s.urls]).filter(u => !/:53(\?|$)/.test(u)),
+    })).filter(s => s.urls.length > 0)
+    return lista.some(s => s.username) ? lista : null
+  } catch (e) {
+    log.warn('turn.cloudflare', `falhou (${(e as Error)?.message}) — usando coturn`)
+    return null
+  }
+}
+
+/** ICE servers da chamada: Cloudflare quando configurada; senão o coturn próprio. */
+export async function getIceServers(): Promise<RTCIceServer[]> {
+  return (await iceCloudflare()) ?? getIceServersCoturn()
+}
+
+function getIceServersCoturn(): RTCIceServer[] {
   const urls = turnUrls()
   if (urls.length === 0) return [STUN]
 

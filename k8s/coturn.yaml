@@ -54,6 +54,10 @@ metadata:
   namespace: aurencare
 spec:
   replicas: 1
+  # hostNetwork prende as portas no nó: no RollingUpdate o pod novo fica Pending
+  # esperando o antigo, que nunca sai. Recreate derruba e sobe (alguns segundos).
+  strategy:
+    type: Recreate
   selector:
     matchLabels:
       app: coturn
