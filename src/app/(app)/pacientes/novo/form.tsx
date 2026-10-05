@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { useToast } from '@/components/feedback/Toast'
 import { criarPacienteAction } from './actions'
 import { apenasDigitos, formatarCpf } from '@/lib/documento'
+import { TelefoneInput } from '@/components/form/TelefoneInput'
 
 // Mantido em sincronia com LINK_TOKEN em server/services/pacientes.ts.
 const LINK_TOKEN = '[link de termos]'
@@ -49,16 +50,7 @@ Qualquer dúvida, é só responder por aqui.`
           <input required value={nome} onChange={e => setNome(e.target.value)} placeholder="Ex: Fernanda K." />
         </Field>
         <Field label="Telefone (WhatsApp)">
-          <input
-            required
-            value={telefone}
-            onChange={e => setTelefone(e.target.value.replace(/[^\d()+\s-]/g, ''))}
-            placeholder="(11) 99999-9999 ou +1 555 123 4567"
-            inputMode="tel"
-          />
-          <span style={{ fontSize: 11, color: 'var(--faint)', lineHeight: 1.4 }}>
-            Fora do Brasil, comece com <strong>+</strong> e o código do país.
-          </span>
+          <TelefoneInput required onChange={setTelefone} />
         </Field>
         <Field label="Email (opcional)">
           <input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="email@exemplo.com" />

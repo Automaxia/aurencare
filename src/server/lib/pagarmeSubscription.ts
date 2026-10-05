@@ -4,6 +4,7 @@ import { env, integrationStatus } from './env'
 import { log } from './log'
 import type { PlanoPago, Ciclo } from './planos'
 import { PLANOS, precoCentavos } from './planos'
+import { telefonePagarme } from '@/lib/telefone'
 
 /**
  * Assinatura recorrente da mensalidade do psicólogo — Pagar.me v5 Subscriptions.
@@ -55,7 +56,6 @@ export async function criarAssinatura(opts: {
   }
 
   const documento = opts.psicologo.documento?.replace(/\D/g, '') || undefined
-  const tel = opts.psicologo.telefone?.replace(/\D/g, '')
 
   try {
     const { data } = await axios.post(`${BASE}/subscriptions`, {
@@ -68,7 +68,7 @@ export async function criarAssinatura(opts: {
         name: opts.psicologo.nome,
         email: opts.psicologo.email,
         ...(documento ? { document: documento, type: documento.length > 11 ? 'company' : 'individual' } : {}),
-        ...(tel ? { phones: { mobile_phone: { country_code: '55', area_code: tel.slice(-11, -9), number: tel.slice(-9) } } } : {}),
+        ...(opts.psicologo.telefone ? { phones: { mobile_phone: telefonePagarme(opts.psicologo.telefone) } } : {}),
       },
       items: [{
         description: `Audere ${cfg.nome} (${opts.ciclo})`,

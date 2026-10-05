@@ -4,6 +4,7 @@ import {
   Document, Page, Text, View, StyleSheet,
 } from '@react-pdf/renderer'
 import type { RelatorioSessaoDados } from './relatorioSessaoExport'
+import { formatarTelefone } from '@/lib/telefone'
 
 /**
  * Relatório de Sessão — layout fiel ao modelo RELATO2.HTM.
@@ -151,7 +152,7 @@ export function RelatorioSessaoPDF({ d }: { d: RelatorioSessaoDados }) {
         {paciente.estadoCivil     && <Campo lbl="Estado civil"      val={paciente.estadoCivil} />}
         {paciente.ocupacao        && <Campo lbl="Ocupação"          val={paciente.ocupacao} />}
         {paciente.endereco        && <Campo lbl="Endereço"          val={paciente.endereco} />}
-        <Campo lbl="Telefone"     val={formatTel(paciente.telefone)} />
+        <Campo lbl="Telefone"     val={formatarTelefone(paciente.telefone)} />
         {paciente.cpf             && <Campo lbl="CPF"               val={paciente.cpf} />}
         {paciente.email           && <Campo lbl="E-mail"            val={paciente.email} />}
         <Campo lbl="Data da sessão" val={`${dataSessao} · ${sessao.duracaoMin}min · ${sessao.modalidade}`} />
@@ -306,11 +307,4 @@ function formatDataHora(iso: string): string {
       hour: '2-digit', minute: '2-digit',
     })
   } catch { return iso }
-}
-
-function formatTel(raw: string): string {
-  const d = raw.replace(/\D/g, '')
-  if (d.length === 11) return `(${d.slice(0, 2)}) ${d.slice(2, 7)}-${d.slice(7)}`
-  if (d.length === 10) return `(${d.slice(0, 2)}) ${d.slice(2, 6)}-${d.slice(6)}`
-  return raw
 }

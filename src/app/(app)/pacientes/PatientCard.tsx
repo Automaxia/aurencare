@@ -3,6 +3,7 @@
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { Sigilo } from '@/components/Sigilo'
+import { telefoneWaMe } from '@/lib/telefone'
 
 export type PatientCardData = {
   id: string
@@ -86,7 +87,7 @@ export function PatientCard({ p }: { p: PatientCardData }) {
           </Link>
           <a
             className="btn sm"
-            href={`https://wa.me/55${p.telefone.replace(/\D/g, '')}`}
+            href={`https://wa.me/${telefoneWaMe(p.telefone)}`}
             target="_blank" rel="noopener noreferrer"
             onClick={stop}
           >

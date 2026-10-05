@@ -2,11 +2,11 @@
  * Formatadores compartilhados (client + server safe).
  */
 
+import { formatarTelefone } from './telefone'
+
+/** BR em (DD) 9XXXX-XXXX; internacional no padrão do país (+351 912 345 678). */
 export function formatPhone(raw: string): string {
-  const d = raw.replace(/\D/g, '')
-  if (d.length === 11) return `(${d.slice(0, 2)}) ${d.slice(2, 7)}-${d.slice(7)}`
-  if (d.length === 10) return `(${d.slice(0, 2)}) ${d.slice(2, 6)}-${d.slice(6)}`
-  return raw
+  return formatarTelefone(raw)
 }
 
 export function formatBRL(centsOrFloat: number, asCents = false): string {

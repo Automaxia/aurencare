@@ -3,6 +3,7 @@ import bcrypt from 'bcrypt'
 import { db } from '@/server/db/pool'
 import { encrypt, tryDecrypt } from '@/server/lib/crypto'
 import { apenasDigitos, validarCpf } from '@/lib/documento'
+import { normalizarTelefone } from '@/lib/telefone'
 
 export type PerfilPsicologo = {
   id: string
@@ -77,7 +78,7 @@ export async function atualizarPerfil(psicologoId: string, patch: PerfilPatch): 
   if (patch.nome !== undefined)        add('nome', patch.nome.trim())
   if (patch.crp !== undefined)         add('crp', patch.crp.trim())
   if (patch.email !== undefined)       add('email', patch.email.toLowerCase().trim())
-  if (patch.telefone !== undefined)    add('telefone', patch.telefone?.replace(/\D/g, '') || null)
+  if (patch.telefone !== undefined)    add('telefone', patch.telefone ? normalizarTelefone(patch.telefone) || null : null)
   if (patch.cpf !== undefined) {
     // Cifrar aqui — e não na action — garante que nenhum caminho de escrita
     // grave CPF em claro por esquecimento.
