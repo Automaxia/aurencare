@@ -24,7 +24,7 @@ import { isConfigured } from './env'
  *   TURN_STATIC_AUTH_SECRET segredo compartilhado com o coturn (modo efêmero)
  *   TURN_USERNAME           usuário fixo (modo estático)
  *   TURN_PASSWORD           senha fixa (modo estático)
- *   TURN_TTL                validade das credenciais efêmeras em s (default 3600)
+ *   TURN_TTL                validade das credenciais efêmeras em s (default 86400, mínimo 6h)
  */
 
 const STUN: RTCIceServer = {
@@ -56,7 +56,13 @@ export function getIceServers(): RTCIceServer[] {
 
   const secret = process.env.TURN_STATIC_AUTH_SECRET
   if (isConfigured(secret)) {
-    const ttl = Number(process.env.TURN_TTL) || 3600
+    // A credencial precisa valer a chamada INTEIRA: o coturn revalida o usuário
+    // (= timestamp de expiração) a cada Refresh da alocação, a cada poucos minutos.
+    // Com 1h, a chamada que passava pelo relay caía perto dos 60 min contados da
+    // entrada na sala (o psicólogo abre antes, a sessão estica), e a reconexão
+    // também falhava porque reaproveitava a mesma credencial vencida.
+    // Piso de 6h; o padrão é 24h, o usual pra credencial REST do coturn.
+    const ttl = Math.max(Number(process.env.TURN_TTL) || 86_400, 6 * 3600)
     const { username, credential } = efemeras(secret!, ttl)
     return [STUN, { urls, username, credential }]
   }

@@ -178,7 +178,22 @@ export function useWebRTC({ token, role, caller, withVideo = true, onApp }: Opti
       if (agora - ultimaReconexao < 2000) return
       ultimaReconexao = agora
       try { esRef.current?.close() } catch { /* */ }
-      esRef.current = montarES()
+      // Credencial TURN nova antes do iceRestart: a da entrada pode ter vencido.
+      renovarIce().finally(() => {
+        if (cancelled || encerradoRef.current) return
+        esRef.current = montarES()
+      })
+    }
+
+    // Troca os ICE servers do pc (vale pras próximas coletas de candidatos, ou seja,
+    // pro iceRestart que vem a seguir). Falhou a rota → mantém os que já tinha.
+    async function renovarIce() {
+      const p = pcRef.current
+      if (!p) return
+      try {
+        const iceServers = await fetchIceServers()
+        if (iceServers !== STUN_FALLBACK) p.setConfiguration({ ...p.getConfiguration(), iceServers })
+      } catch { /* */ }
     }
     reconectarRef.current = reconectar
 
@@ -219,6 +234,7 @@ export function useWebRTC({ token, role, caller, withVideo = true, onApp }: Opti
           onAppRef.current?.(data.payload)
         } else if (data.type === 'offer' && !caller) {
           setEstado('conectando')
+          if (jaConectouRef.current) await renovarIce()   // re-oferta (iceRestart) → credencial nova
           await p.setRemoteDescription({ type: 'offer', sdp: data.sdp })
           remoteSetRef.current = true
           for (const c of pendingICE.current) { try { await p.addIceCandidate(c) } catch { /* */ } }
