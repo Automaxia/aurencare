@@ -89,7 +89,9 @@ export function useBackgroundBlur(source: MediaStream | null, enabled: boolean) 
         const tmp = document.createElement('canvas')
         const tctx = tmp.getContext('2d', { willReadFrequently: true })!
 
-        out = canvas.captureStream(24)
+        // Celular: 15 fps (segmentação a cada quadro é o que mais esquenta o aparelho).
+        const fps = (window.matchMedia?.('(pointer: coarse)').matches ?? false) ? 15 : 24
+        out = canvas.captureStream(fps)
         source!.getAudioTracks().forEach(a => out!.addTrack(a))
         if (cancelled) { out.getVideoTracks().forEach(t => t.stop()); return }
 
@@ -131,8 +133,15 @@ export function useBackgroundBlur(source: MediaStream | null, enabled: boolean) 
           if (!started) { started = true; if (!cancelled) { setStream(out); setError(null) } }
         }
 
-        const loop = () => {
+        // Segmenta no ritmo do vídeo enviado, não no da tela: o rAF roda a 60–120 Hz
+        // no celular e cada passada é modelo + getImageData + blur de canvas.
+        const intervalo = 1000 / fps
+        let ultimo = 0
+
+        const loop = (ts: number) => {
           if (cancelled || !video) return
+          if (ts - ultimo < intervalo - 4) { raf = requestAnimationFrame(loop); return }
+          ultimo = ts
           try {
             segmenter.segmentForVideo(video, performance.now(), (result: any) => {
               if (cancelled) { try { result.close?.() } catch { /* */ } ; return }

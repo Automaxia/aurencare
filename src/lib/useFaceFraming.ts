@@ -36,56 +36,59 @@ async function getDetector(): Promise<any> {
 
 const clamp = (v: number) => Math.max(0, Math.min(100, v))
 
+// Uma detecção por segundo basta: o rosto mexe pouco numa sessão e a transição
+// CSS suaviza o recorte. Antes eram ~7 detecções/s + um rAF a 60 Hz reescrevendo
+// o style — no celular do paciente, isso por 50 min esquentava o aparelho.
+const INTERVALO_MS = 1000
+
 export function useFaceFraming(videoRef: React.RefObject<HTMLVideoElement>, active: boolean) {
   useEffect(() => {
     const el = videoRef.current
-    if (!active) { if (el) el.style.objectPosition = '' ; return }
+    if (!active) { if (el) { el.style.objectPosition = ''; el.style.transition = '' } ; return }
 
     let cancelled = false
-    let raf = 0
-    let lastDetect = 0
+    let timer: ReturnType<typeof setTimeout> | undefined
     let detector: any = null
-    // Posição corrente e alvo (em %). Começa no centro-alto (rostos costumam
-    // ficar no terço superior), então mesmo antes de detectar já é melhor.
-    const target = { x: 50, y: 38 }
-    const cur = { x: 50, y: 38 }
+    let ultimo = { x: 50, y: 38 }
+    // Começa no centro-alto (rostos costumam ficar no terço superior), então mesmo
+    // antes de detectar já é melhor que o centro.
+    if (el) {
+      el.style.transition = 'object-position .9s ease-out'
+      el.style.objectPosition = `${ultimo.x}% ${ultimo.y}%`
+    }
+
+    const tick = () => {
+      if (cancelled) return
+      const v = videoRef.current
+      // Aba em segundo plano / tela apagada: não detecta nada.
+      if (v && !document.hidden && v.videoWidth > 0 && v.videoHeight > 0) {
+        try {
+          const res = detector.detectForVideo(v, performance.now())
+          const box = res?.detections?.[0]?.boundingBox
+          if (box) {
+            const x = clamp(((box.originX + box.width / 2) / v.videoWidth) * 100)
+            const y = clamp(((box.originY + box.height / 2) / v.videoHeight) * 100)
+            // Só mexe no style se o rosto andou de verdade (evita recomposição à toa).
+            if (Math.abs(x - ultimo.x) > 1.5 || Math.abs(y - ultimo.y) > 1.5) {
+              ultimo = { x, y }
+              v.style.objectPosition = `${x.toFixed(1)}% ${y.toFixed(1)}%`
+            }
+          }
+        } catch { /* frame ruim — ignora */ }
+      }
+      timer = setTimeout(tick, INTERVALO_MS)
+    }
 
     ;(async () => {
       try { detector = await getDetector() } catch { return /* fail-safe: fica no padrão */ }
-      if (cancelled) return
-
-      const loop = (ts: number) => {
-        if (cancelled) return
-        const v = videoRef.current
-        if (v && v.videoWidth > 0 && v.videoHeight > 0) {
-          if (ts - lastDetect > 140) {
-            lastDetect = ts
-            try {
-              const res = detector.detectForVideo(v, ts)
-              const box = res?.detections?.[0]?.boundingBox
-              if (box) {
-                const cx = (box.originX + box.width / 2) / v.videoWidth
-                const cy = (box.originY + box.height / 2) / v.videoHeight
-                target.x = clamp(cx * 100)
-                target.y = clamp(cy * 100)
-              }
-            } catch { /* frame ruim — ignora */ }
-          }
-          // Suaviza (lerp) pra não dar solavanco no recorte.
-          cur.x += (target.x - cur.x) * 0.14
-          cur.y += (target.y - cur.y) * 0.14
-          v.style.objectPosition = `${cur.x.toFixed(1)}% ${cur.y.toFixed(1)}%`
-        }
-        raf = requestAnimationFrame(loop)
-      }
-      raf = requestAnimationFrame(loop)
+      if (!cancelled) tick()
     })()
 
     return () => {
       cancelled = true
-      cancelAnimationFrame(raf)
+      clearTimeout(timer)
       const v = videoRef.current
-      if (v) v.style.objectPosition = ''
+      if (v) { v.style.objectPosition = ''; v.style.transition = '' }
     }
   }, [active, videoRef])
 }
