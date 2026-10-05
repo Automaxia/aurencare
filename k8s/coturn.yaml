@@ -37,6 +37,9 @@ data:
     # Endurecimento — nega tráfego pra redes internas/privadas:
     no-multicast-peers
     no-cli
+    # hostNetwork vê todos os núcleos do nó e o coturn abria 16 servidores de
+    # relay (cada um com seus buffers). 4 dão conta de dezenas de chamadas 1:1.
+    relay-threads=4
     denied-peer-ip=10.0.0.0-10.255.255.255
     denied-peer-ip=172.16.0.0-172.31.255.255
     denied-peer-ip=192.168.0.0-192.168.255.255
@@ -84,8 +87,11 @@ spec:
               mountPath: /etc/coturn/turnserver.conf
               subPath: turnserver.conf
           resources:
-            requests: { memory: "128Mi", cpu: "100m" }
-            limits:   { memory: "256Mi", cpu: "500m" }
+            # 256Mi era pouco: o uso sobe com o tempo (216Mi após 15 dias) e o
+            # OOMKill derrubava TODAS as chamadas que passavam pelo relay (47
+            # reinícios em 118 dias, até set/2026).
+            requests: { memory: "256Mi", cpu: "100m" }
+            limits:   { memory: "768Mi", cpu: "1" }
       volumes:
         - name: config
           configMap:
