@@ -269,3 +269,33 @@ export async function aplicarEventoAssinatura(
   }
   log.ok('assinatura.webhook', `sub=${subscriptionId} acao=${acao}`)
 }
+
+/** Dias sem acessar o app após os quais a cortesia volta pro Free. */
+export const DIAS_INATIVO_REBAIXA_CORTESIA = 15
+
+/**
+ * Rebaixa pro Free quem tem plano de CORTESIA (acima do free, sem assinatura na
+ * Pagar.me) e não acessa o app há mais de 15 dias. Regra de out/2026: a cortesia
+ * do beta é pra quem está usando; quem parou volta pro Free e pode assinar.
+ *
+ * "Usou" = último acesso ao app (`ultimo_acesso_em`, atualizado a cada request
+ * autenticado, ou `ultimo_login_em`); quem nunca entrou conta da criação da conta.
+ * Fica de fora: assinante pagante (tem subscription — quem manda é o webhook) e
+ * conta admin (equipe).
+ */
+export async function rebaixarCortesiasInativas(): Promise<{ id: string; nome: string }[]> {
+  const { rows } = await db.query<{ id: string; nome: string }>(
+    `UPDATE psicologos
+        SET plano = 'free', plano_status = 'ativo', plano_ciclo = NULL,
+            plano_expira_em = NULL, plano_atualizado_em = NOW()
+      WHERE plano <> 'free'
+        AND pagarme_subscription_id IS NULL
+        AND coalesce(role, 'psicologo') <> 'admin'
+        AND coalesce(greatest(ultimo_acesso_em, ultimo_login_em), created_at)
+            < NOW() - make_interval(days => $1)
+      RETURNING id, nome`,
+    [DIAS_INATIVO_REBAIXA_CORTESIA],
+  )
+  if (rows.length) log.warn('assinatura.inativos', `cortesia → free por ${DIAS_INATIVO_REBAIXA_CORTESIA}d sem acesso: ${rows.map(r => r.id).join(', ')}`)
+  return rows
+}
