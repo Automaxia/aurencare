@@ -8,6 +8,7 @@ import { tplLembrete24h, tplLembrete15min } from './emailTemplates'
 import { criarOuObterSala } from '@/server/services/salaVideo'
 import { liberarSilenciosos } from '@/server/services/confirmacaoSessao'
 import { interromperSessao } from '@/server/services/sessoes'
+import { rebaixarCortesiasInativas } from '@/server/services/assinatura'
 import { env } from './env'
 import { log } from './log'
 import { formatDateTimeBR } from '@/lib/formatters'
@@ -36,8 +37,12 @@ export function startCron() {
   cron.schedule('*/30 7-21 * * *', () => { void perguntarMetodoPendentes() }, { timezone: 'America/Sao_Paulo' })
   // A cada 15 min — destrava sessões esquecidas em 'em_curso' (aba fechada/queda)
   cron.schedule('*/15 * * * *', () => { void destravarSessoesEmCurso() }, { timezone: 'America/Sao_Paulo' })
+  // 04h10 todo dia — cortesia sem acesso há 15 dias volta pro Free
+  cron.schedule('10 4 * * *', () => {
+    rebaixarCortesiasInativas().catch(err => log.err('cron', 'rebaixar cortesias inativas falhou', err))
+  }, { timezone: 'America/Sao_Paulo' })
 
-  log.ok('cron', 'agendamentos registrados (24h@18h · 2h@30min · 15min@5min · liberar@5min · perguntar-metodo@30min · destravar@15min)')
+  log.ok('cron', 'agendamentos registrados (24h@18h · 2h@30min · 15min@5min · liberar@5min · perguntar-metodo@30min · destravar@15min · cortesia-inativa@04h10)')
 }
 
 /** Horas em 'em_curso' após as quais a sessão é considerada abandonada. */
