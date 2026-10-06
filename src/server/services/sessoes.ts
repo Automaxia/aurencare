@@ -1266,3 +1266,40 @@ export async function reenviarCobranca(psicologoId: string, sessaoId: string): P
   if (s.pagamentoMetodo === 'pix')     return gerarCobrancaPix(sessaoId)
   return gerarCobrancaCartao(sessaoId, s.pagamentoMetodo)
 }
+
+export type CotaIaResult = GateRegistroResult | { ok: false; motivo: 'nao_encontrada' }
+
+/**
+ * Cota de IA aplicada NO SERVIDOR em toda rota que chama IA para uma sessão.
+ *
+ * Antes só `/ia/iniciar` (o botão de iniciar registro) checava a cota, e o front
+ * deixava gravar se essa chamada falhasse por rede. As demais rotas (análises ao
+ * vivo, token de transcrição, laudo, resumo no encerrar) chamavam a IA sem olhar
+ * nada — sessão que não passava pelo botão usava IA sem contar.
+ *
+ *  - 'consumir': uso de IA da sessão em si. Conta 1 na primeira vez (idempotente
+ *    pela marca `ia_contabilizada`, a mesma do gate e do import) e bloqueia se o
+ *    plano estourou.
+ *  - 'verificar': IA de apoio antes do registro (contexto, sessão anterior). Não
+ *    debita — abrir o Modo Presença sem registrar não gasta cota —, mas bloqueia
+ *    se o plano já estourou e esta sessão ainda não foi contabilizada.
+ */
+export async function checarCotaIaSessao(
+  psicologoId: string, sessaoId: string, modo: 'consumir' | 'verificar',
+): Promise<CotaIaResult> {
+  // Dono primeiro: o gate do botão deixa passar sessão alheia/inexistente pra não
+  // travar o front, mas aqui isso seria um jeito de usar IA sem contar nada.
+  const { rows } = await db.query<{ ia_contabilizada: boolean }>(
+    `SELECT ia_contabilizada FROM sessoes WHERE id = $1 AND psicologo_id = $2 LIMIT 1`,
+    [sessaoId, psicologoId],
+  ).catch(() => ({ rows: [] as { ia_contabilizada: boolean }[] }))   // id malformado (não-uuid)
+  if (!rows[0]) return { ok: false, motivo: 'nao_encontrada' }
+  if (BETA_LIBERADO || rows[0].ia_contabilizada) return { ok: true }
+  if (modo === 'consumir') return gateIniciarRegistroIa(psicologoId, sessaoId)
+
+  const info = await obterAssinatura(psicologoId)
+  if (info.usadas >= info.cap) {
+    return { ok: false, motivo: 'limite', cap: info.cap, usadas: info.usadas, plano: info.plano }
+  }
+  return { ok: true }
+}

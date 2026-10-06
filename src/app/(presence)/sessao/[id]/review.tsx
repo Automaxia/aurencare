@@ -124,7 +124,7 @@ export function SessionReview({ sessao }: { sessao: Sessao }) {
         setLaudoTexto(json.laudo)   // documento formal à parte — NÃO toca o registro assinado
         setLaudoGerado(true)
       } else {
-        setLaudoErro(json.iaIndisponivel ? 'IA indisponível agora — tente novamente em instantes.' : 'Não foi possível gerar o laudo.')
+        setLaudoErro(json.error === 'limite_plano' ? 'Limite de sessões com IA do seu plano atingido neste mês. Veja Plano e uso.' : json.iaIndisponivel ? 'IA indisponível agora — tente novamente em instantes.' : 'Não foi possível gerar o laudo.')
       }
     } catch {
       setLaudoErro('Falha ao gerar o laudo.')

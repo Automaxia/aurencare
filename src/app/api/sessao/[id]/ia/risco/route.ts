@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { requirePsicologo } from '@/server/lib/auth'
 import { chat } from '@/server/lib/anthropic'
 import { CLINICAL_VOICE } from '@/server/lib/clinicalVoice'
+import { bloqueioCotaIa } from '@/server/lib/cotaIa'
 
 export const runtime = 'nodejs'
 
@@ -28,6 +29,8 @@ Retorne EXCLUSIVAMENTE JSON válido (sem prosa, sem markdown):
 
 export async function POST(req: Request, { params }: { params: { id: string } }) {
   const user = await requirePsicologo()
+  const bloqueio = await bloqueioCotaIa(user.id, params.id)
+  if (bloqueio) return bloqueio
   const body = await req.json().catch(() => ({}))
   const transcricao = String(body?.transcricao ?? '').slice(0, 12_000)
   if (!transcricao) return NextResponse.json({ error: 'sem_transcricao' }, { status: 400 })

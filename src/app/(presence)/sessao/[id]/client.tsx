@@ -71,6 +71,7 @@ export function PresenceClient(props: Props) {
   const [showPostModal, setShowPostModal] = useState(false)
   const [resumoIA, setResumoIA] = useState<string | null>(null)
   const [resumoIndisponivel, setResumoIndisponivel] = useState(false)
+  const [limitePlano, setLimitePlano] = useState(false)
   const [semTranscricao, setSemTranscricao] = useState(false)
   const [sugestaoTurnos, setSugestaoTurnos] = useState<Array<{ idx: number; mark: TurnMark; razao: string }> | null>(null)
   const [sugestaoRisco, setSugestaoRisco] = useState<{ autolesao: 'lo'|'md'|'hi'; ideacao: 'lo'|'md'|'hi'; plano: 'lo'|'md'|'hi'; justificativa: string } | null>(null)
@@ -163,6 +164,7 @@ export function PresenceClient(props: Props) {
   }, [recording, supported, presencial])
 
   const localFallbackSTT = useRemoteTranscribe({
+    sessaoId: props.sessaoId,
     enabled: recording && supported === false && !presencial && !!localMicStream,
     stream: localMicStream,
     onFinal: (texto, ts) => addPsicologoTurn(texto, ts),
@@ -176,6 +178,7 @@ export function PresenceClient(props: Props) {
   // (eco residual), esse texto chega aqui como "paciente" mas é cópia de um turno
   // recente da psicóloga — descartamos pra não contaminar a análise do paciente.
   const remoteSTT = useRemoteTranscribe({
+    sessaoId: props.sessaoId,
     enabled: recording && !presencial && !!remoteStream,
     stream: remoteStream,
     onFinal: (texto, ts) => {
@@ -242,6 +245,7 @@ export function PresenceClient(props: Props) {
   }
 
   const salaSTT = useRemoteTranscribe({
+    sessaoId: props.sessaoId,
     enabled: recording && presencial && !!salaMicStream,
     stream: salaMicStream,
     speakerLabels: true,
@@ -424,7 +428,8 @@ export function PresenceClient(props: Props) {
     }).catch(() => null)
     const json = res && res.ok ? await res.json().catch(() => ({} as any)) : {}
     setResumoIA(json.resumo ?? null)
-    setResumoIndisponivel(!res || !res.ok || json.iaIndisponivel === true)
+    setLimitePlano(json.limitePlano === true)
+    setResumoIndisponivel(!json.limitePlano && (!res || !res.ok || json.iaIndisponivel === true))
     setSemTranscricao(json.motivo === 'sem_transcricao')
 
     if (transcricao.length > 60) {
@@ -771,6 +776,7 @@ export function PresenceClient(props: Props) {
           pacienteNome={props.pacienteNome}
           resumoIA={resumoIA}
           resumoIndisponivel={resumoIndisponivel}
+          limitePlano={limitePlano}
           semTranscricao={semTranscricao}
           pagamentoStatus={props.pagamentoStatus}
           sugestaoMarcacao={sugestaoTurnos}

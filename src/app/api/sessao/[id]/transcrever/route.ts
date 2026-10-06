@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { requirePsicologo } from '@/server/lib/auth'
 import { transcreverChunk } from '@/server/lib/assemblyai'
+import { bloqueioCotaIa } from '@/server/lib/cotaIa'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -10,8 +11,10 @@ export const dynamic = 'force-dynamic'
  * O cliente decide a quem atribuir o turno (psicóloga vs paciente).
  * §14: áudio NÃO é persistido.
  */
-export async function POST(req: Request, _: { params: { id: string } }) {
-  await requirePsicologo()
+export async function POST(req: Request, { params }: { params: { id: string } }) {
+  const user = await requirePsicologo()
+  const bloqueio = await bloqueioCotaIa(user.id, params.id)
+  if (bloqueio) return bloqueio
 
   const ct = req.headers.get('content-type') ?? ''
   let audio: Buffer
