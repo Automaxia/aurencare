@@ -3,6 +3,7 @@ import { requirePsicologo } from '@/server/lib/auth'
 import { buscarSessao, salvarLaudo, resumosAnteriores } from '@/server/services/sessoes'
 import { gerarLaudoFormal, iaIndisponivel } from '@/server/lib/anthropic'
 import { log } from '@/server/lib/log'
+import { bloqueioCotaIa } from '@/server/lib/cotaIa'
 
 export const runtime = 'nodejs'
 
@@ -21,6 +22,10 @@ export async function POST(_req: Request, { params }: { params: { id: string } }
 
   // Já existe → devolve (idempotente, sem custo).
   if (sessao.laudo) return NextResponse.json({ ok: true, laudo: sessao.laudo, jaExistia: true })
+
+  // Gerar custa IA → passa pela cota (conta a sessão se ainda não contou).
+  const bloqueio = await bloqueioCotaIa(user.id, params.id)
+  if (bloqueio) return bloqueio
 
   const transcricao = sessao.transcricao ?? ''
   if (transcricao.length <= 40) {

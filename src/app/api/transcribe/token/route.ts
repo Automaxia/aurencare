@@ -1,6 +1,10 @@
 import { NextResponse } from 'next/server'
 import { env, integrationStatus } from '@/server/lib/env'
 import { log } from '@/server/lib/log'
+import { requirePsicologo } from '@/server/lib/auth'
+import { bloqueioCotaIa } from '@/server/lib/cotaIa'
+import { obterAssinatura } from '@/server/services/assinatura'
+import { BETA_LIBERADO } from '@/server/lib/planos'
 
 /**
  * GET /api/transcribe/token
@@ -12,7 +16,20 @@ import { log } from '@/server/lib/log'
 export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
 
-export async function GET() {
+export async function GET(req: Request) {
+  // Cota: o token abre a transcrição (o custo mais caro da sessão-IA), então
+  // passa pelo mesmo controle das demais rotas de IA. Sem `?sessao=` (aba antiga
+  // aberta durante o deploy) checa só se o plano ainda tem saldo no mês.
+  const user = await requirePsicologo()
+  const sessaoId = new URL(req.url).searchParams.get('sessao')
+  if (sessaoId) {
+    const bloqueio = await bloqueioCotaIa(user.id, sessaoId)
+    if (bloqueio) return bloqueio
+  } else if (!BETA_LIBERADO) {
+    const info = await obterAssinatura(user.id)
+    if (info.usadas >= info.cap) return NextResponse.json({ ok: false, error: 'limite_plano' }, { status: 403 })
+  }
+
   if (!integrationStatus.assembly) {
     return NextResponse.json({ demo: true, token: null }, { status: 200 })
   }

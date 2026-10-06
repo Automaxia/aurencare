@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { requirePsicologo } from '@/server/lib/auth'
 import { chat } from '@/server/lib/anthropic'
+import { bloqueioCotaIa } from '@/server/lib/cotaIa'
 
 export const runtime = 'nodejs'
 
@@ -19,6 +20,8 @@ Critérios:
 
 export async function POST(req: Request, { params }: { params: { id: string } }) {
   const psi = await requirePsicologo()
+  const bloqueio = await bloqueioCotaIa(psi.id, params.id)
+  if (bloqueio) return bloqueio
   const body = await req.json().catch(() => ({} as any))
   const texto = String(body?.texto ?? '').slice(0, 600)
   const contexto = Array.isArray(body?.contexto) ? body.contexto.slice(-3) : []

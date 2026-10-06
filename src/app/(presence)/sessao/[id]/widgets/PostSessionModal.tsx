@@ -12,6 +12,8 @@ type Props = {
   resumoIA: string | null
   /** true quando o laudo automático FALHOU/expirou (IA fora) — mostra retry. */
   resumoIndisponivel?: boolean
+  /** A cota de IA do plano acabou: sessão encerrada e salva, sem rascunho automático. */
+  limitePlano?: boolean
   /** true quando não houve transcrição suficiente — não é falha, escreva manual. */
   semTranscricao?: boolean
   pagamentoStatus: string
@@ -69,7 +71,7 @@ export function PostSessionModal(p: Props) {
     try {
       const r = await fetch(`/api/sessao/${p.sessaoId}/laudo`, { method: 'POST' }).then(r => r.json()).catch(() => null)
       if (r?.ok && r.resumo) { setResumo(r.resumo); setLaudoFormalGerado(true) }
-      else setLaudoMsg(r?.iaIndisponivel ? 'IA indisponível agora — tente em instantes.' : 'Não foi possível gerar o laudo.')
+      else setLaudoMsg(r?.error === 'limite_plano' ? 'Limite de sessões com IA do seu plano atingido neste mês. Veja Plano e uso.' : r?.iaIndisponivel ? 'IA indisponível agora — tente em instantes.' : 'Não foi possível gerar o laudo.')
     } catch {
       setLaudoMsg('Falha ao gerar o laudo.')
     } finally {
@@ -159,6 +161,11 @@ export function PostSessionModal(p: Props) {
           </div>
         )}
 
+        {p.limitePlano && !resumo.trim() && (
+          <div style={{ background: 'var(--surface)', borderRadius: 10, padding: '10px 14px', marginBottom: 12, fontSize: 12.5, color: 'var(--ink-soft)', lineHeight: 1.5 }}>
+            O limite de sessões com IA do seu plano neste mês foi atingido, então esta sessão ficou sem rascunho automático. Escreva o resumo abaixo e assine normalmente — ou veja os planos em <a href="/planos" style={{ color: 'var(--accent)' }}>Plano e uso</a>.
+          </div>
+        )}
         {!laudoFalhou && p.semTranscricao && !resumo.trim() && (
           <div style={{ background: 'var(--surface)', borderRadius: 10, padding: '10px 14px', marginBottom: 12, fontSize: 12.5, color: 'var(--ink-soft)', lineHeight: 1.5 }}>
             Esta sessão não teve transcrição suficiente para um rascunho automático. Escreva o resumo manualmente abaixo e assine normalmente.

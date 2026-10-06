@@ -21,6 +21,8 @@ import { useEffect, useRef, useState } from 'react'
  */
 
 type Options = {
+  /** Sessão dona da transcrição — o token passa pela cota de IA dela. */
+  sessaoId: string
   stream: MediaStream | null
   enabled: boolean
   /** 3º arg `speaker` só chega quando speakerLabels=true (rótulo 'A'/'B'/… da AssemblyAI). */
@@ -49,7 +51,7 @@ export type TranscribeStats = {
   ultimoMs: number
 }
 
-export function useRemoteTranscribe({ stream, enabled, onFinal, onInterim, speakerLabels, maxSpeakers }: Options) {
+export function useRemoteTranscribe({ sessaoId, stream, enabled, onFinal, onInterim, speakerLabels, maxSpeakers }: Options) {
   const [active, setActive] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -80,7 +82,7 @@ export function useRemoteTranscribe({ stream, enabled, onFinal, onInterim, speak
 
     async function fetchToken(): Promise<{ token: string; expiresIn: number } | null> {
       try {
-        const r = await fetch('/api/transcribe/token', { cache: 'no-store' })
+        const r = await fetch(`/api/transcribe/token?sessao=${encodeURIComponent(sessaoId)}`, { cache: 'no-store' })
         const j = await r.json() as { token?: string; expiresIn?: number; demo?: boolean; error?: string }
         if (j.demo) {
           if (!cancelled) setError('AssemblyAI não configurado — transcrição do paciente desabilitada')

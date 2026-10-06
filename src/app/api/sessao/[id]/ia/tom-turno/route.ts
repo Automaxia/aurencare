@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { requirePsicologo } from '@/server/lib/auth'
 import { chat } from '@/server/lib/anthropic'
+import { bloqueioCotaIa } from '@/server/lib/cotaIa'
 
 export const runtime = 'nodejs'
 
@@ -29,6 +30,8 @@ type TurnoIn = { texto: string; who?: 'psicologo' | 'paciente' }
 
 export async function POST(req: Request, { params }: { params: { id: string } }) {
   const user = await requirePsicologo()
+  const bloqueio = await bloqueioCotaIa(user.id, params.id)
+  if (bloqueio) return bloqueio
   const body = await req.json().catch(() => ({} as any))
 
   // Aceita lote ({ turnos: [...] }) ou turno único ({ texto, who }) por compat.

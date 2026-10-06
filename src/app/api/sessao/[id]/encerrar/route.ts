@@ -5,6 +5,7 @@ import { gerarResumoCurto, iaIndisponivel } from '@/server/lib/anthropic'
 import { enviarConfirmacaoPosSessao } from '@/server/services/confirmacaoSessao'
 import { registrarCustoAssemblyEstimado } from '@/server/services/custos'
 import { log } from '@/server/lib/log'
+import { checarCotaIaSessao } from '@/server/services/sessoes'
 
 export const runtime = 'nodejs'
 
@@ -49,6 +50,14 @@ export async function POST(req: Request, { params }: { params: { id: string } })
       estimado: segundosReais == null,
       psicologoId: sessao.psicologoId, sessaoId: sessao.id, pacienteId: sessao.pacienteId,
     }).catch(() => {})
+    // Cota: a sessão normalmente já foi contabilizada no início do registro; isto
+    // cobre quem chegou aqui sem passar pelo gate. Estourou → a sessão encerra e o
+    // registro fica salvo, só sem o resumo da IA.
+    const cota = await checarCotaIaSessao(user.id, params.id, 'consumir')
+    if (!cota.ok) {
+      log.warn('encerrar', `cota de IA esgotada — sem resumo curto sessao=${params.id}`)
+      return NextResponse.json({ ok: true, resumo: null, limitePlano: true })
+    }
     try {
       const resumo = await gerarResumoCurto(transcricao, { numero: sessao.numero, pacienteNome: sessao.pacienteNome, psicologoId: sessao.psicologoId, sessaoId: sessao.id, pacienteId: sessao.pacienteId })
       if (iaIndisponivel(resumo)) {

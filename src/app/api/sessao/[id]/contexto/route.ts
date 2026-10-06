@@ -4,6 +4,7 @@ import { buscarSessao } from '@/server/services/sessoes'
 import { ultimaSessaoAssinada, ultimasSessoesAssinadas, lerCondicoesPaciente } from '@/server/services/contexto'
 import { chat } from '@/server/lib/anthropic'
 import { redis } from '@/server/lib/redis'
+import { bloqueioCotaIa } from '@/server/lib/cotaIa'
 
 export const runtime = 'nodejs'
 
@@ -17,6 +18,8 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
   const sessao = await buscarSessao(params.id)
   if (!sessao) return NextResponse.json({ error: 'not_found' }, { status: 404 })
   if (sessao.psicologoId !== user.id) return NextResponse.json({ error: 'forbidden' }, { status: 403 })
+  const bloqueio = await bloqueioCotaIa(user.id, params.id, 'verificar')
+  if (bloqueio) return bloqueio
 
   const [ultima, condicoes] = await Promise.all([
     ultimaSessaoAssinada(sessao.pacienteId, sessao.id),

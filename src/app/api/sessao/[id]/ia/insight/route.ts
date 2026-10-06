@@ -5,6 +5,7 @@ import { tryDecrypt } from '@/server/lib/crypto'
 import { chat } from '@/server/lib/anthropic'
 import { CLINICAL_VOICE } from '@/server/lib/clinicalVoice'
 import { redis } from '@/server/lib/redis'
+import { bloqueioCotaIa } from '@/server/lib/cotaIa'
 
 export const runtime = 'nodejs'
 
@@ -38,6 +39,8 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
   const s = rows[0]
   if (!s) return NextResponse.json({ error: 'not_found' }, { status: 404 })
   if (s.psicologo_id !== user.id) return NextResponse.json({ error: 'forbidden' }, { status: 403 })
+  const bloqueio = await bloqueioCotaIa(user.id, params.id)
+  if (bloqueio) return bloqueio
 
   const cacheKey = `sessao-insight:${s.id}`
   const r = await redis()
