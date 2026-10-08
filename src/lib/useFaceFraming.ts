@@ -22,7 +22,7 @@ let detectorPromise: Promise<any> | null = null
 async function getDetector(): Promise<any> {
   if (detectorPromise) return detectorPromise
   detectorPromise = (async () => {
-    // @ts-ignore — ESM da CDN (mesmo pacote do desfoque), sem dep npm.
+    // @ts-ignore — ESM da CDN (MediaPipe Tasks Vision), sem dep npm.
     const vision: any = await import(/* webpackIgnore: true */ 'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.18/vision_bundle.mjs')
     const fileset = await vision.FilesetResolver.forVisionTasks(WASM_BASE)
     const mk = (delegate: 'GPU' | 'CPU') => vision.FaceDetector.createFromOptions(fileset, {

@@ -1,9 +1,8 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
-import { Mic, MicOff, Video, VideoOff, PhoneOff, Maximize2, Minimize2, Aperture, ScreenShare, ScreenShareOff, Settings, Target, PenLine, SmilePlus, Network } from 'lucide-react'
+import { Mic, MicOff, Video, VideoOff, PhoneOff, Maximize2, Minimize2, ScreenShare, ScreenShareOff, Settings, Target, PenLine, SmilePlus, Network } from 'lucide-react'
 import { useWebRTC, type WebRTCState } from '@/lib/useWebRTC'
-import { useBackgroundBlur } from '@/lib/useBackgroundBlur'
 import { useFaceFraming } from '@/lib/useFaceFraming'
 import { PalcoCompartilhado, type PalcoState } from './PalcoCompartilhado'
 import { QuadroOverlay } from './QuadroOverlay'
@@ -79,7 +78,7 @@ export function VideoCall({ token, role, caller, compact, fill, onEncerrar, onRe
     try { e.currentTarget.releasePointerCapture(e.pointerId) } catch { /* */ }
   }
 
-  // #1: controles da janela — maximizar (fullscreen), minimizar (flutuante), blur de fundo.
+  // #1: controles da janela — maximizar (fullscreen), minimizar (flutuante).
   const shellRef = useRef<HTMLDivElement>(null)
   const [minimized, setMinimized] = useState(false)
   const [maximized, setMaximized] = useState(false)
@@ -91,9 +90,6 @@ export function VideoCall({ token, role, caller, compact, fill, onEncerrar, onRe
     const v = e.currentTarget
     if (v.videoWidth && v.videoHeight) setRemotePortrait(v.videoHeight > v.videoWidth * 1.05)
   }
-  const [blur, setBlur] = useState(false)
-  const blurProc = useBackgroundBlur(ctrl.localStream, blur)
-  const blurOk = !blurProc.error
 
   // Enquadramento facial do vídeo remoto quando há recorte forte (tela cheia /
   // sala do paciente em fullscreen): segue o rosto em vez de cortar no centro.
@@ -112,7 +108,6 @@ export function VideoCall({ token, role, caller, compact, fill, onEncerrar, onRe
     try {
       const s = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: false })
       s.getVideoTracks()[0]?.addEventListener('ended', () => setScreenStream(null)) // parou pela UI do navegador
-      setBlur(false) // compartilhar tela desliga o desfoque
       setScreenStream(s)
     } catch { /* usuário cancelou */ }
   }
@@ -190,22 +185,19 @@ export function VideoCall({ token, role, caller, compact, fill, onEncerrar, onRe
     } catch { /* */ }
   }
 
-  // Preview local: tela compartilhada > desfoque > câmera crua.
+  // Preview local: tela compartilhada > câmera.
   useEffect(() => {
     const v = localRef.current
     if (!v) return
-    v.srcObject = screenStream ? screenStream : (blur && blurProc.stream) ? blurProc.stream : ctrl.localStream
-  }, [ctrl.localStream, blur, blurProc.stream, screenStream])
+    v.srcObject = screenStream ? screenStream : ctrl.localStream
+  }, [ctrl.localStream, screenStream])
 
-  // Track ENVIADO: tela compartilhada > blurred > câmera (null reverte pra câmera).
+  // Track ENVIADO: tela compartilhada > câmera (null reverte pra câmera).
   useEffect(() => {
     if (screenStream) ctrl.replaceVideoTrack(screenStream.getVideoTracks()[0] ?? null)
-    else if (blur && blurProc.stream) ctrl.replaceVideoTrack(blurProc.stream.getVideoTracks()[0] ?? null)
     else ctrl.replaceVideoTrack(null)
-  }, [screenStream, blur, blurProc.stream, ctrl])
+  }, [screenStream, ctrl])
 
-  // Falhou (modelo não carregou / device fraco) → volta o botão pro off.
-  useEffect(() => { if (blurProc.error) setBlur(false) }, [blurProc.error])
   useEffect(() => {
     if (remoteRef.current && ctrl.remoteStream) remoteRef.current.srcObject = ctrl.remoteStream
     onRemoteStream?.(ctrl.remoteStream)
@@ -254,14 +246,6 @@ export function VideoCall({ token, role, caller, compact, fill, onEncerrar, onRe
             )}
           </div>
         )}
-        <button
-          className={`vc-win${blur && blurProc.stream ? ' on' : ''}`}
-          onClick={() => setBlur(b => !b)}
-          disabled={!blurOk}
-          title={!blurOk ? 'Desfoque indisponível neste dispositivo' : blur ? (blurProc.stream ? 'Desativar desfoque de fundo' : 'Carregando desfoque…') : 'Desfocar o fundo'}
-        >
-          <Aperture size={14} />
-        </button>
         {!fill && (
           <button className="vc-win" onClick={() => setMinimized(m => !m)} title={minimized ? 'Restaurar' : 'Minimizar'}>
             <Minimize2 size={14} />
