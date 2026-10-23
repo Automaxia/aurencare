@@ -49,7 +49,7 @@ Browser ── HTTPS (Cloudflare Full strict) ── Ingress nginx ── Servic
 
 > **DDL base: CLAUDE.md §11.** Aqui só o que importa para o design.
 
-- **50 migrations** em `src/server/db/migrations/NNN_*.sql`, aplicadas por
+- **51 migrations** em `src/server/db/migrations/NNN_*.sql`, aplicadas por
   `src/server/db/migrate.mjs` (idempotente, controla em `_migrations`).
 - Campos clínicos cifrados em repouso (AES-256-GCM): `sessoes.transcricao_texto`,
   `nota_clinica`, `resumo_ia`, além de documentos e chave PIX do onboarding — §5.
@@ -66,6 +66,7 @@ Browser ── HTTPS (Cloudflare Full strict) ── Ingress nginx ── Servic
 - `psicologos.pgm_ambiente` (migration 048) — ambiente (sandbox/live) em que o
   recebedor foi criado; recebedor de outro ambiente conta como não configurado.
 - `chamadas_qualidade` (migration 050) — métricas de qualidade da chamada de vídeo.
+- Migration 051 — contas admin sempre no plano Pro, sem vencimento.
 
 ## 4. Fluxos-chave
 

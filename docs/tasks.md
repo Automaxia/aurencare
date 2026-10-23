@@ -16,7 +16,7 @@ Legenda prioridade: **P0** crítico (segurança/risco) · **P1** importante · *
   O secret `KUBE_CONFIG` expirou em ago/2026 **e de novo em 23/10/2026** e
   derrubou a esteira (falha na etapa de migration, com o build passando —
   parecia publicado sem estar); renovado nas duas vezes. Ver INFRA.md.
-- ✅ Job de migrations (`migrate.mjs` em JS puro) — **50 migrations** aplicadas.
+- ✅ Job de migrations (`migrate.mjs` em JS puro) — **51 migrations** aplicadas.
 - ✅ **WhatsApp Cloud API (Meta)** em produção desde 11/09/2026 — número próprio
   +55 61 94758-1770, 17 templates aprovados; Evolution vira fallback
   (`WHATSAPP_PROVIDER`). Ver INFRA.md §4b.
