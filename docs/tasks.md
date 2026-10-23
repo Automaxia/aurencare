@@ -2,7 +2,7 @@
 
 > Acompanhamento de trabalho. Requisitos em [spec.md](./spec.md); design em [sdd.md](./sdd.md).
 > Pendências de infra/operação (com comandos) em [INFRA.md](./INFRA.md).
-> Última atualização: agosto 2026.
+> Última atualização: 23/10/2026.
 
 Legenda status: ✅ concluído · 🔄 em andamento · ⏳ pendente · 🔮 futuro
 Legenda prioridade: **P0** crítico (segurança/risco) · **P1** importante · **P2** desejável
@@ -13,9 +13,19 @@ Legenda prioridade: **P0** crítico (segurança/risco) · **P1** importante · *
 
 - ✅ Deploy no Kubernetes — monolito em 1 pod (`aurencare-web`), Ingress dos dois hosts.
 - ✅ **CI/CD** — push em `main` dispara build → migrate → rollout (GitHub Actions).
-  O secret `KUBE_CONFIG` expirou em ago/2026 e derrubou a esteira (falha na etapa
-  de migration, com o build passando — parecia publicado sem estar); renovado.
-- ✅ Job de migrations (`migrate.mjs` em JS puro) — **45 migrations** aplicadas.
+  O secret `KUBE_CONFIG` expirou em ago/2026 **e de novo em 23/10/2026** e
+  derrubou a esteira (falha na etapa de migration, com o build passando —
+  parecia publicado sem estar); renovado nas duas vezes. Ver INFRA.md.
+- ✅ Job de migrations (`migrate.mjs` em JS puro) — **50 migrations** aplicadas.
+- ✅ **WhatsApp Cloud API (Meta)** em produção desde 11/09/2026 — número próprio
+  +55 61 94758-1770, 17 templates aprovados; Evolution vira fallback
+  (`WHATSAPP_PROVIDER`). Ver INFRA.md §4b.
+- ✅ **TURN da Cloudflare** no código + medição de qualidade da chamada
+  (`chamadas_qualidade`, migration 050) — out/2026. ⏳ Faltam as envs
+  `CLOUDFLARE_TURN_*` no cluster; até lá, coturn.
+- ✅ **Cortesia inativa volta pro Free** — cron diário 04h10: conta de cortesia
+  sem acesso há 15 dias é rebaixada (out/2026).
+- ✅ Desfoque de fundo do vídeo **removido** (qualidade ruim do recorte).
 - ✅ Domínio de produção `app.audere.ia.br` + TLS (Cloudflare Full strict).
 - ✅ WhatsApp — payload Evolution **v2**, 7 fluxos + inbox conversacional + voz.
 - ✅ Email — Resend + domínio `automaxia.com.br` verificado; recuperação de senha.
@@ -52,11 +62,13 @@ Legenda prioridade: **P0** crítico (segurança/risco) · **P1** importante · *
   ano, vencimento aplicado em `obterAssinatura`. Excluídas das métricas de
   pagante/MRR no `/admin` — cortesia não é receita.
 
-## Pagar.me — estado (ago/2026)
+## Pagar.me — estado (23/10/2026)
 
-> 🧪 **Ainda em sandbox.** Chaves `sk_test_`/`pk_test_`: nenhuma cobrança é real.
-> Desde ago/2026 `BETA_LIBERADO = false`, então o código cobra — mas só passa a
-> cobrar DE VERDADE com as chaves live. Trocar para `live` é o passo que falta.
+> 💳 **Em live.** Chave secreta live no cluster desde 04/09/2026; chave pública
+> live no build desde 23/10/2026 — antes disso o checkout da assinatura ficava
+> em "modo demonstração" e ninguém conseguia assinar. `BETA_LIBERADO = false`.
+> **Assinatura** cobra de verdade (sem split). **Sessão com split** segue
+> bloqueada: a conta live não pode criar recebedores (ver abaixo).
 
 ### ✅ Fluxo de cobrança validado ponta a ponta
 Verificado em produção: cobrança PIX criada → QR gerado → Simulator paga →
@@ -79,22 +91,22 @@ Seis defeitos estavam somados nesse caminho — todos corrigidos:
 - ✅ **Onboarding de recebimento** corrigido (endereço PF/PJ + sócio) — payload
   passa por toda a validação da API; só falta a habilitação abaixo.
 
-### ✅ Habilitação de recebedores — LIBERADA (verificado 18/08/2026)
-O `action_forbidden | This company is not allowed to create a recipient` **não
-acontece mais**: `POST /recipients` com payload vazio devolve 422 de validação
-(`default_bank_account is required`), não 403. A conta sandbox já cria recebedores.
+### Recebedores
+- ✅ **Sandbox** cria recebedores normalmente (verificado 23/10/2026 com payload
+  completo). ⚠️ Payload vazio dá 422 e **não prova** liberação — a validação de
+  estrutura vem antes do gate de permissão.
+- ✅ `PAGARME_RECIPIENT_PLATAFORMA` no secret (`re_cmq56ad0…`, conta live).
+- ✅ **Split ativado** no painel da conta live (Funcionalidades › Split, 23/10/2026).
 
 ### ⏳ O que resta
-- **P0 — `PAGARME_RECIPIENT_PLATAFORMA` ainda ausente no secret.** Agora é só
-  rodar, o bloqueio da conta caiu:
-  ```
-  SOCIO_NOME="…" SOCIO_CPF=… SOCIO_NASCIMENTO=AAAA-MM-DD npm run pagarme:recipient-plataforma
-  ```
-  → aplicar o `rp_…` no secret. Sem ele a cobrança sai SEM split (valor inteiro
-  na conta-mãe) e a taxa administrativa de 2,5% não sai.
-  🔴 **Bloqueado antes disso**: a conta Pagar.me devolve `412 action_forbidden —
-  This company is not allowed to create a recipient`. Precisa de habilitação de
-  split/marketplace pela Pagar.me; ver INFRA.md §2.
+- **P0 — Conta live sem permissão de criar recebedores.** Depois de ativar o
+  split, `POST /recipients` passou de `412 split settings enabled` para
+  `412 action_forbidden — This company it not allowed to create a recipient`.
+  Pedido aberto no suporte da Pagar.me em 23/10/2026. Até liberar, nenhum
+  psicólogo conclui o onboarding de recebimento e a taxa de 2,5% não sai.
+  Probe para conferir em INFRA.md §2.
+- **P1 — Testar assinatura real** em `/planos` (cartão próprio, cancelar depois).
+- **P1 — PIX no live**: conferir "Modelo de negócio" = **PSP** em Meios de pagamento.
 - **P0 — 5 psicólogos com recebedor SINTÉTICO.** O onboarding rodou enquanto a
   produção estava em modo mock (INFRA.md §1) e gravou `mock_rcp_*` em
   `psicologos.pagarme_recipient_id` — IDs que **não existem na Pagar.me**. Eles
@@ -120,21 +132,17 @@ acontece mais**: `POST /recipients` com payload vazio devolve 422 de validação
 - ✅ **`npm install` em dia** — `@excalidraw/excalidraw`, `unpdf` e `mammoth`
   instalados; `tsc --noEmit` e `next build` limpos (era P2 aberto).
 
-### No go-live (sandbox → produção)
-- 🔮 `PAGARME_API_KEY` → `sk_live` no secret.
-- 🔮 `NEXT_PUBLIC_PAGARME_PUBLIC_KEY` → `pk_live` **no build da imagem**
-  (build-time; só no secret de runtime **não** funciona).
-- 🔮 PIX: **Modelo de negócio volta a ser PSP** (o inverso do sandbox), com
-  credenciamento concluído.
-- 🔮 Recriar no ambiente live: webhook (URL + Basic Auth + tentativas > 1) e
-  recipient da plataforma.
-- 🔮 ⚠️ **Recipients são por ambiente**: psicólogos que fizerem o onboarding em
-  sandbox precisam refazê-lo (ou ser migrados) no live. Pesar antes de abrir o
-  beta para muita gente com KYC completo.
+### Go-live (sandbox → produção)
+- ✅ `PAGARME_API_KEY` → chave live no secret (04/09/2026; prefixo `sk_`, sem `_live_`).
+- ✅ `NEXT_PUBLIC_PAGARME_PUBLIC_KEY` → chave live **no build da imagem**, via
+  secret do GitHub Actions (23/10/2026). Build-time: só no secret de runtime
+  **não** funciona.
+- ⏳ PIX: **Modelo de negócio = PSP** no live (o inverso do sandbox) — conferir.
+- ✅ Webhook live (URL + Basic Auth) e recipient da plataforma no live.
+- ⏳ ⚠️ **Recipients são por ambiente**: psicólogos que fizeram o onboarding em
+  sandbox precisam refazê-lo no live (o código já invalida recebedor de outro
+  ambiente — migration 048).
 - ✅ `BETA_LIBERADO = false` em `planos.ts` (ago/2026).
-- 🔮 ⚠️ **Ordem do go-live**: as chaves live precisam entrar ANTES (ou junto)
-  do deploy que leva a flag. Com a flag em `false` e sem chaves live, ninguém
-  consegue assinar — a cortesia de 1 ano é o que segura a base nesse intervalo.
 
 ## Pendências — segurança
 
@@ -146,13 +154,16 @@ acontece mais**: `POST /recipients` com payload vazio devolve 422 de validação
   **definitivos** (trocar `ENCRYPTION_KEY` depois torna dados clínicos ilegíveis).
 - 🔄 **P0** Rotacionar credenciais expostas no histórico do git. ✅ Postgres
   rotacionado; ✅ `.env.example` só com placeholders e `local.yaml` no `.gitignore`.
-  ⏳ falta: Resend, AssemblyAI, e decidir sobre a Evolution API key (rotacionar =
-  recriar instância → reescanear QR).
+  ⏳ falta: Resend, AssemblyAI, PAT do GitHub embutido no `git remote`, e decidir
+  sobre a Evolution API key (rotacionar = recriar instância → reescanear QR).
 
 ## Pendências — operação/robustez
 
 - ⏳ **P1** Migrar cron in-process (`node-cron`) para **CronJob do k8s** ou fila
   (evita lembrete duplicado se houver mais de um pod).
+- ⏳ **P1** kubeconfig do Rancher **sem expiração** (ou lembrete antes de vencer) —
+  já derrubou o deploy duas vezes.
+- ⏳ **P2** Aplicar `CLOUDFLARE_TURN_KEY_ID`/`_API_TOKEN` no secret (TURN no Brasil).
 - ⏳ **P2** Espelhar `TURN_*` no `.env.local` (o dev local roda **só com STUN**;
   em produção o TURN está ativo). Não bloqueia nada — só reduz a fidelidade do
   teste de vídeo local.
@@ -166,6 +177,7 @@ acontece mais**: `POST /recipients` com payload vazio devolve 422 de validação
 
 - ✅ `PAGARME_ENCRYPTION_KEY` removida de `CLAUDE.md` e do secret de exemplo
   (era da API v4; a v5 usa `appId` com `pk_` — nunca foi lida pelo código).
+  ⏳ Ainda presente no secret **do cluster** (23/10/2026) — inofensiva, remover.
 - ✅ `PLACEHOLDER_HINTS` (`env.ts`) ampliada — cobre `sk_live_...`, `pk_live_...`,
   `<...>` e afins. Antes, `sk_test_...` no secret de produção derrubava o app
   inteiro em modo mock, e um `.env.example` copiado cru daria 401 em vez de mock.
@@ -176,8 +188,6 @@ acontece mais**: `POST /recipients` com payload vazio devolve 422 de validação
 - ⏳ **P2** Taxas Pagar.me hardcoded em `financeiro.ts` e `visaoContabil.ts`
   (duas cópias, estimadas) — idealmente vir da API ou ao menos ter fonte única.
 - ⏳ **P2** Auditoria/log quando o `aiGuard` rejeita texto.
-- ⏳ **P2** Corrigir `classificarTom` (envia `who:'paciente'` fixo também para
-  turnos do psicólogo).
 - ⏳ **P2** Rename de infra `aurencare` → `audere` (domínio, banco, namespace,
   imagem) — hoje só a camada user-facing é Audere.
 

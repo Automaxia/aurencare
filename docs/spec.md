@@ -2,7 +2,7 @@
 
 > Especificação funcional e de negócio. Para arquitetura técnica veja [sdd.md](./sdd.md);
 > para acompanhamento de tarefas veja [tasks.md](./tasks.md).
-> Última atualização: agosto 2026.
+> Última atualização: 23/10/2026.
 >
 > **Nome:** o produto é **Audere** (marca, UI, copy). Os identificadores técnicos
 > seguem `aurencare`/`auren` (domínio, banco, namespace k8s, imagem) — rename de
@@ -23,8 +23,10 @@ um único produto.
 - **Estado:** em produção (https://app.audere.ia.br/), **vendendo** —
   `BETA_LIBERADO = false` (ago/2026): o gate de cota vale e a assinatura é
   cobrada. As contas do beta receberam cortesia equivalente ao Essencial por
-  1 ano (migration 047). Cobrar de verdade ainda depende das chaves live da
-  Pagar.me, do `PAGARME_WEBHOOK_SECRET` e do `PAGARME_RECIPIENT_PLATAFORMA`.
+  1 ano (migration 047); cortesia sem acesso há 15 dias volta ao Free. Chaves
+  Pagar.me **live** (back desde 04/09, front desde 23/10/2026): a assinatura
+  cobra de verdade. O split das sessões aguarda a Pagar.me liberar a criação de
+  recebedores na conta live.
 
 ## 2. Premissas inegociáveis
 
@@ -84,7 +86,9 @@ Premissa adicional adotada neste produto:
 - RF-34 Marcação de turnos (insight / comportamento / avanço) e reatribuição
   manual de falante.
 - RF-35 Vídeo P2P embutido (WebRTC) com sala pública para o paciente,
-  reconexão automática e memória de câmera/microfone.
+  reconexão automática, memória de câmera/microfone e **medição de qualidade**
+  da chamada (caminho, RTT, perda, congelamentos). Sem desfoque de fundo
+  (removido em out/2026).
 - RF-36 **Palco compartilhado** (web): o que o psicólogo mostra ao paciente
   durante a chamada — objetivos, **quadro branco** (Excalidraw, desenho ao vivo),
   **checagem de humor interativa** (o paciente responde) e **grafo de temas**.
@@ -135,8 +139,16 @@ Premissa adicional adotada neste produto:
 - RF-58b Cortesia: plano acima do free SEM `pagarme_subscription_id` vence em
   `plano_expira_em` e volta a valer como Free. Assinante ativo nunca vence por
   data (webhook atrasado não pode rebaixar quem paga).
+- RF-58c Cortesia **inativa**: conta de cortesia sem acesso há 15 dias volta ao
+  Free (cron diário 04h10). Não se aplica a assinante pagante.
 
-### 3.8 WhatsApp (Evolution API)
+### 3.8 WhatsApp (Cloud API da Meta · Evolution como fallback)
+
+> Desde 11/09/2026 o provedor é a **Cloud API oficial** (número próprio
+> +55 61 94758-1770, `WHATSAPP_PROVIDER=meta`). Mensagem que inicia conversa
+> (fora da janela de 24h) sai como **template aprovado**; dentro da janela,
+> texto livre. A Evolution (Baileys) segue como fallback configurável.
+
 - RF-60 Fluxo 1 — Cadastro/boas-vindas + consentimento.
 - RF-61 Fluxo 2 — Agendamento + escolha de método (PIX/CRÉDITO/DÉBITO) + cobrança.
 - RF-62 Fluxo 3 — Lembretes automáticos (24h, 2h e 15min).
@@ -228,15 +240,18 @@ importação de histórico), agenda (3 visões + série), Modo Presença complet
 (transcrição dual, 9 widgets, vídeo WebRTC, palco compartilhado, quadro branco),
 pós-sessão, laudo híbrido, sessão interrompida, Temas Recorrentes (grafo de
 construtos), Evolução longitudinal, objetivos/marcos/GAS, financeiro + NF +
-exportação contábil, Saúde da Prática, Evolution (7 fluxos + inbox + voz),
-Pagar.me (PIX/crédito/débito + webhook + split + subscriptions), Resend,
-instrumentação de custo de IA, landing `/lancamento`.
+exportação contábil, Saúde da Prática, WhatsApp (Cloud API da Meta + Evolution
+fallback; 7 fluxos + inbox + voz), Pagar.me (PIX/crédito/débito + webhook +
+split + subscriptions, chaves live), Resend, instrumentação de custo de IA,
+landing `/lancamento`, vitrine `/precos`.
 
 ### Pronto em código, aguardando liberação da Pagar.me
 O **fluxo de cobrança está validado ponta a ponta em sandbox** (PIX com QR,
-cartão com checkout, webhook autenticado confirmando a sessão). O que falta é a
-**habilitação de recebedores/split** na conta — sem ela o recipient da plataforma
-não pode ser criado e a taxa administrativa de 2,5% não sai. Ver [tasks.md](./tasks.md).
+cartão com checkout, webhook autenticado confirmando a sessão) e a **assinatura
+já cobra em live**. O que falta é a **permissão de criar recebedores** na conta
+live (o split já foi ativado no painel em 23/10/2026; a API ainda responde
+`412 action_forbidden`) — sem ela o psicólogo não conclui o onboarding de
+recebimento e a taxa administrativa de 2,5% não sai. Ver [tasks.md](./tasks.md).
 
 ### Fora de escopo / futuro
 Modo supervisor (Fase 3), app mobile, agendamento inbound pelo paciente via

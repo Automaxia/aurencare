@@ -13,13 +13,21 @@
 
 ---
 
-> ℹ️ **Estado do secret verificado em ago/2026** (`kubectl get secret
+> ℹ️ **Estado do secret verificado em 23/10/2026** (`kubectl get secret
 > aurencare-secrets -n aurencare`). Já definidos e reais: `ASSEMBLYAI_API_KEY`,
 > `CRON_SECRET`, `EVOLUTION_WEBHOOK_TOKEN`, `OPENAI_API_KEY`, `ENCRYPTION_KEY`,
-> `TURN_URLS`, `PAGARME_API_KEY`, `PAGARME_WEBHOOK_USER`/`_SECRET`.
-> `PAGARME_API_KEY` virou a chave **live** em 04/09/2026, com
+> `TURN_*`, `PAGARME_API_KEY`, `PAGARME_WEBHOOK_USER`/`_SECRET`,
+> `PAGARME_RECIPIENT_PLATAFORMA`, `META_*` e `WHATSAPP_PROVIDER=meta`.
+> `PAGARME_API_KEY` é a chave **live** (`sk_c…5d5c`) desde 04/09/2026, com
 > `PAGARME_RECIPIENT_PLATAFORMA=re_cmq56ad0y1aq40l9taj8lovw6` e webhook live
-> autenticado. Pendente: **split desabilitado na conta live** — ver §2.
+> autenticado. **Ausentes:** `CLOUDFLARE_TURN_*` (o TURN segue no coturn — §3).
+> Pendente: **criação de recebedor bloqueada na conta live** — ver §2.
+>
+> ⚠️ **kubeconfig do Rancher expira** (ago/2026 e 23/10/2026). Sintoma: deploy
+> falha na etapa *Migration* com `the server has asked for the client to provide
+> credentials`, com o build passando. Correção: baixar kubeconfig novo no Rancher
+> → `gh secret set KUBE_CONFIG < kube_config.yaml` → `gh run rerun <id>`. Os
+> `local.yaml`/`kube_config.yaml` da raiz do repo podem estar vencidos.
 
 ## 🟢 1. Pagar.me fora do modo mock — ✅ RESOLVIDO (ago/2026)
 
@@ -94,8 +102,21 @@ autenticado → sessão vira `confirmada` → SSE + WhatsApp + email.
       criado 08/06/2026), com repasse automático diário ligado em 04/09/2026.
       O script recusa duplicar recebedor do mesmo CNPJ.
 
-- [ ] **🔴 SPLIT DESABILITADO NA CONTA LIVE — bloqueia a cobrança pela
-      plataforma em produção. (04/09/2026)**
+- [ ] **🔴 CRIAÇÃO DE RECEBEDOR BLOQUEADA NA CONTA LIVE — bloqueia a cobrança
+      pela plataforma em produção. (04/09/2026 · atualizado 23/10/2026)**
+
+      **23/10/2026:** o Split foi **ativado** no painel (Configurações ›
+      Funcionalidades › Split → Editar → Ativo, confirmado com senha). O erro
+      mudou, mas o bloqueio continua:
+      ```
+      antes  → 412 The account must have split settings enabled, in order to create a recipient
+      agora  → 412 action_forbidden | This company it not allowed to create a recipient
+      ```
+      O que falta é a **permissão de criar recebedores (marketplace)**, que não
+      tem chave no painel — pedido aberto no chat do suporte da Pagar.me em
+      23/10/2026. Quando responderem, rodar o probe abaixo.
+
+      Histórico (04/09):
 
       **Por que apareceu agora:** `PAGARME_API_KEY` no cluster foi trocada da
       chave de teste para a **live** em 04/09/2026. Não é o split que "voltou a
@@ -148,11 +169,11 @@ autenticado → sessão vira `confirmada` → SSE + WhatsApp + email.
       chega a ser avaliado), então a resposta é conclusiva e nenhum recebedor é
       criado, mesmo que o split tenha sido habilitado no meio tempo.
 
-      ⚠️ **Mande o payload COMPLETO, exatamente como abaixo.** A validação de
-      ESTRUTURA vem antes do gate: sem `default_bank_account` a resposta é
-      `422 The default_bank_account field is required` — que parece "não é mais
-      o split" e leva a concluir que liberaram. Só o payload completo distingue
-      os dois casos.
+      ⚠️ **Mande o payload COMPLETO, exatamente como abaixo — inclusive
+      `default_bank_account`.** A validação de ESTRUTURA vem antes do gate: sem
+      a conta bancária a resposta é `422 The default_bank_account field is
+      required` — que parece "liberou" e é falso. (A versão anterior deste probe
+      não tinha a conta bancária e dava exatamente esse falso positivo.)
       ```bash
       K=$(kubectl -n aurencare get secret aurencare-secrets \
             -o jsonpath='{.data.PAGARME_API_KEY}' | base64 -d)
@@ -164,11 +185,14 @@ autenticado → sessão vira `confirmada` → SSE + WhatsApp + email.
              "address":{"street":"Rua Teste","street_number":"1","complementary":"N/A",
              "neighborhood":"Centro","city":"Brasilia","state":"DF","zip_code":"70000000",
              "reference_point":"N/A"},"phone_numbers":[{"ddd":"61","number":"999999999",
-             "type":"mobile"}]}}'
+             "type":"mobile"}]},
+             "default_bank_account":{"holder_name":"Probe","holder_type":"individual",
+             "holder_document":"11111111111","bank":"341","branch_number":"1234",
+             "account_number":"12345","account_check_digit":"6","type":"checking"}}'
       ```
-      Ainda bloqueado → volta o `412 ... split settings enabled`. Liberado →
-      volta erro de campo (documento inválido), e o onboarding real destrava.
-      Rodado em 05/09/2026 (duas vezes): **ainda bloqueado**.
+      Ainda bloqueado → `412 action_forbidden` (ou `split settings enabled`).
+      Liberado → erro de campo (documento inválido), e o onboarding real destrava.
+      Rodado em 05/09/2026 e 23/10/2026: **ainda bloqueado** (`action_forbidden`).
 
 - [ ] **5 psicólogos com recebedor sintético — precisam refazer o onboarding.**
       Enquanto valia o placeholder da §1, o onboarding gravou `mock_rcp_*` em
@@ -185,6 +209,15 @@ autenticado → sessão vira `confirmada` → SSE + WhatsApp + email.
 
 ## 🟢 3. Confiabilidade do vídeo — servidor TURN (#11) — ✅ ATIVO
 Chamadas atrás de NAT/4G agora têm relay TURN (antes só STUN).
+
+> **Cloudflare Realtime TURN (código desde 05/10/2026, commit `449e514`):**
+> `/api/ice` usa a Cloudflare (POP no Brasil, `turn/turns` em 443/80, credencial
+> de 24h) quando `CLOUDFLARE_TURN_KEY_ID` e `CLOUDFLARE_TURN_API_TOKEN` existem;
+> sem elas ou com a API fora, cai no coturn abaixo. O coturn fica na França
+> (~250 ms ida e volta).
+> - [ ] **As duas envs NÃO estão no secret** (verificado 23/10/2026) — produção
+>       segue no coturn. Criar a chave TURN no painel da Cloudflare e aplicar.
+> - Qualidade de chamada agora é medida (`chamadas_qualidade`, migration 050).
 
 - [x] **Código** — app lê TURN do cluster: `src/server/lib/turn.ts` (credenciais
       **efêmeras** HMAC, modo coturn `use-auth-secret`), rota pública `/api/ice`
@@ -214,25 +247,27 @@ O que faltava no PIX não era a Pagar.me, e sim o **CPF do pagador**: só
 no cadastro do paciente, validação por dígito verificador e motivo acionável
 quando a cobrança não sai.
 
-## 🟡 4. Cobrança — **seguimos em SANDBOX durante o beta**
+## 🟡 4. Cobrança — **em LIVE desde 23/10/2026 (assinatura)**
 
-Hoje: `BETA_LIBERADO=true` (acesso liberado, sem cobrança) e chaves
-`sk_test_`/`pk_test_`. Nenhuma cobrança é real — dá para exercitar o fluxo
-inteiro sem risco. **A troca para `live` é um passo deliberado do go-live.**
+Hoje: `BETA_LIBERADO=false`, chave secreta **live** no cluster (04/09) e chave
+pública **live** no build (23/10). A assinatura do plano por cartão cobra de
+verdade, na conta da Automaxia (sem split). A cobrança de **sessão** com split
+depende da §2.
 
-Quando for ligar de verdade:
+Checklist do go-live:
 
 - [x] `PAGARME_API_KEY` → chave live no secret. **Feito em 04/09/2026.**
       ⚠️ A chave live desta conta **não** tem prefixo `sk_live_`, é `sk_<hash>`
       — só `sk_test_` é sandbox. Foi essa troca que expôs o split desabilitado
       da §2.
-- [ ] `NEXT_PUBLIC_PAGARME_PUBLIC_KEY` → `pk_live` — ⚠️ **é build-time**: tem que
-      entrar no **build da imagem** (`--build-arg` no `build-push.sh` ou env do
-      job de build), **não** só no secret de runtime. Hoje vem do secret do
-      **GitHub Actions** (`deploy.yml:65` → `Dockerfile:60`), não do cluster —
-      logo, `kubectl` não mostra e não serve para conferir. Com a secreta já em
-      live, confirmar que a pública também é `pk_live`: se ficou `pk_test`, a
-      tokenização do cartão não fecha.
+- [x] `NEXT_PUBLIC_PAGARME_PUBLIC_KEY` → chave pública live. **Feito em
+      23/10/2026** (`pk_neVJd97CBtoODXx7`, secret do GitHub Actions + rerun do
+      deploy; tokenização validada com HTTP 200). ⚠️ **É build-time**: vem do
+      secret do **GitHub Actions** (`deploy.yml:65` → `Dockerfile:60`), não do
+      cluster — `kubectl` não mostra. Para conferir, o log do build deve trazer
+      `--build-arg NEXT_PUBLIC_PAGARME_PUBLIC_KEY=***`; vazio (`=`) = checkout em
+      "modo demonstração", que foi o estado de 04/09 a 23/10.
+      Como a secreta, a pública desta conta **não** tem prefixo `pk_live_`.
 - [x] Recriar no ambiente live: webhook (URL + Basic Auth) — feito. Recipient da
       plataforma já existia no live (`re_cmq56ad0…`, §2).
 - [ ] ⚠️ **Modelo de negócio do PIX**: em Configurações → Meios de pagamento, o
@@ -241,8 +276,9 @@ Quando for ligar de verdade:
 - [ ] ⚠️ **Recipients são por ambiente**: os psicólogos que fizerem o onboarding
       de recebimento em sandbox terão de refazê-lo (ou ser migrados) no live.
       Pesar isso antes de abrir o beta para muita gente com KYC completo.
-- [ ] No código: trocar `BETA_LIBERADO` para `false` em `src/server/lib/planos.ts`
-      + redeploy.
+- [x] No código: `BETA_LIBERADO = false` em `src/server/lib/planos.ts` (ago/2026).
+- [ ] Teste real de ponta a ponta: assinar um plano em `/planos` com cartão
+      próprio e cancelar em seguida.
 
 ## 🟢 4b. WhatsApp — Cloud API (Meta) — ✅ LIGADA (11/09/2026)
 
@@ -333,6 +369,9 @@ Publicar o app exige URL de política de privacidade → criada `/privacidade`
       **ativa** (verificado no secret, ago/2026).
 - [ ] Rotacionar credenciais já expostas no histórico: AssemblyAI (agora), Resend,
       e decidir sobre a Evolution API key (rotacionar = recriar instância → QR).
+- [ ] Rotacionar o PAT do GitHub embutido na URL do `git remote`.
+- [ ] Remover `PAGARME_ENCRYPTION_KEY` do secret do cluster (API v4, nunca lida
+      pelo código — ainda presente em 23/10/2026).
 - [ ] **ZDR + DPA com a OpenAI** — ela é o provedor primário de IA, então dado
       clínico trafega para lá na maioria das chamadas. A promessa "zero data
       training" exibida na UI depende desse contrato.
@@ -372,4 +411,4 @@ quando houver as credenciais (o dev faz o código; estas etapas são suas):
 
 ---
 
-*Atualizado: ago/2026. Itens de código associados ficam com o time de dev.*
+*Atualizado: 23/10/2026. Itens de código associados ficam com o time de dev.*
