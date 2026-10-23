@@ -2,7 +2,7 @@
 
 > Documento de design técnico. Para requisitos veja [spec.md](./spec.md);
 > para tarefas/backlog veja [tasks.md](./tasks.md).
-> Última atualização: agosto 2026.
+> Última atualização: 23/10/2026.
 
 ---
 
@@ -18,8 +18,9 @@ Browser ── HTTPS (Cloudflare Full strict) ── Ingress nginx ── Servic
                           ┌───────────────────────────────────────────────────┼───────────────┐
                        PostgreSQL                Redis              Integrações externas
                   (namespace postgresql)   (namespace database)   OpenAI · Anthropic ·
-                                                                  AssemblyAI · Evolution ·
-                                                                  Pagar.me · Resend
+                                                                  AssemblyAI · Meta Cloud API ·
+                                                                  Evolution · Pagar.me · Resend ·
+                                                                  Cloudflare TURN
 ```
 
 ### Camadas
@@ -28,8 +29,9 @@ Browser ── HTTPS (Cloudflare Full strict) ── Ingress nginx ── Servic
 - `src/app/lancamento/**` — landing pública.
 - `src/app/api/**` — Route Handlers (webhooks, IA, cron, SSE, sala).
 - `src/server/services/**` — regras de negócio (~45 módulos).
-- `src/server/lib/**` — integrações e utilitários (llm, anthropic, evolution,
-  pagarme*, planos, precos, email, crypto, aiGuard, turn, sse, cron, env…).
+- `src/server/lib/**` — integrações e utilitários (llm, anthropic, whatsapp/
+  {meta, templatesMeta}, evolution, pagarme*, planos, precos, email, crypto,
+  aiGuard, turn, sse, cron, env…).
 - `src/server/db/**` — pool, migrations, runner.
 
 ## 2. Stack
@@ -47,7 +49,7 @@ Browser ── HTTPS (Cloudflare Full strict) ── Ingress nginx ── Servic
 
 > **DDL base: CLAUDE.md §11.** Aqui só o que importa para o design.
 
-- **45 migrations** em `src/server/db/migrations/NNN_*.sql`, aplicadas por
+- **51 migrations** em `src/server/db/migrations/NNN_*.sql`, aplicadas por
   `src/server/db/migrate.mjs` (idempotente, controla em `_migrations`).
 - Campos clínicos cifrados em repouso (AES-256-GCM): `sessoes.transcricao_texto`,
   `nota_clinica`, `resumo_ia`, além de documentos e chave PIX do onboarding — §5.
@@ -61,6 +63,10 @@ Browser ── HTTPS (Cloudflare Full strict) ── Ingress nginx ── Servic
 - `psicologos.role` (`psicologo`|`admin`) e `organizacao_id` (gancho org-ready,
   hoje sempre NULL) — migration 022.
 - Estado conversacional do WhatsApp em `wa_conversas` (chave = telefone E.164).
+- `psicologos.pgm_ambiente` (migration 048) — ambiente (sandbox/live) em que o
+  recebedor foi criado; recebedor de outro ambiente conta como não configurado.
+- `chamadas_qualidade` (migration 050) — métricas de qualidade da chamada de vídeo.
+- Migration 051 — contas admin sempre no plano Pro, sem vencimento.
 
 ## 4. Fluxos-chave
 
@@ -97,6 +103,10 @@ Psicólogo agenda → WhatsApp pergunta método → Pagar.me gera cobrança **co
 `confirmada`, publica SSE e confirma ao paciente por WhatsApp/email.
 **Validado ponta a ponta em produção (ago/2026):** da criação da cobrança ao
 evento processado, menos de 10 segundos.
+
+> ⚠️ **Conta live (23/10/2026):** o split está ativo no painel, mas a API ainda
+> recusa `POST /recipients` com `412 action_forbidden` — falta a Pagar.me
+> liberar a criação de recebedores. Até lá as sessões saem sem split.
 
 > ⚠️ **Ambiente do PIX:** em conta de teste o "Modelo de negócio" do PIX precisa
 > ser **Simulator**; **PSP** exige provisionamento real e faz a charge ser
@@ -139,17 +149,25 @@ Camada única: todo texto/classificação de IA passa por `chat()`.
 - **SSE** `/api/eventos` (painel) e `/api/sala/[token]/eventos` (signaling de vídeo):
   cada conexão limpa heartbeat + subscription no `cancel()`/`abort` para evitar
   vazamento e `ERR_INVALID_STATE`.
-- **ICE** `/api/ice` entrega STUN + TURN. O TURN usa credencial **efêmera**
-  (coturn `use-auth-secret`, HMAC com TTL) — obrigatório porque o paciente é
-  anônimo e o bundle é público, então senha fixa nunca é exposta.
-  Em produção o coturn roda no cluster (`k8s/coturn.yaml`, hostNetwork) atrás de
-  `turn.audere.ia.br`. **Dev local não tem TURN** — cai em STUN-only.
+- **ICE** `/api/ice` entrega STUN + TURN, sempre com credencial **efêmera** —
+  obrigatório porque o paciente é anônimo e o bundle é público, então senha
+  fixa nunca é exposta. Ordem:
+  1. **Cloudflare Realtime TURN** (POP no Brasil, `turn/turns` em 443/80,
+     credencial de 24h) quando `CLOUDFLARE_TURN_KEY_ID`/`_API_TOKEN` existem.
+     ⏳ Ainda não configurado no cluster (out/2026).
+  2. **coturn** no cluster (`k8s/coturn.yaml`, hostNetwork, `use-auth-secret`
+     HMAC com TTL) atrás de `turn.audere.ia.br` — fica na França (~250 ms).
+  **Dev local não tem TURN** — cai em STUN-only.
+- **Qualidade da chamada:** coletor de `getStats` no navegador
+  (`src/lib/qualidadeChamada.ts`) → `/api/sala/[token]/qualidade` →
+  `chamadas_qualidade`, a cada minuto e no `pagehide`.
 
 ### 4.6 Cron
-Seis jobs in-process (`src/server/lib/cron.ts`, timezone America/Sao_Paulo):
+Sete jobs in-process (`src/server/lib/cron.ts`, timezone America/Sao_Paulo):
 lembrete 24h (18h), lembrete 2h (a cada 30min, 7–21h), lembrete 15min (5min),
-liberar silenciosos (5min), perguntar método pendente (30min, 7–21h) e destravar
-sessões em curso (15min). Recálculo de grafo **não** é cron — é sob demanda.
+liberar silenciosos (5min), perguntar método pendente (30min, 7–21h), destravar
+sessões em curso (15min) e rebaixar cortesia inativa há 15 dias (04h10).
+Recálculo de grafo **não** é cron — é sob demanda.
 
 ## 5. Segurança e compliance
 
@@ -166,6 +184,9 @@ sessões em curso (15min). Recálculo de grafo **não** é cron — é sob deman
   - **HMAC SHA-256** mantido como segundo caminho (fixo em sha256, sem derivar do
     header, para evitar downgrade a sha1).
   - **Evolution → token compartilhado** (`x-webhook-token` / `?token=`).
+  - **Meta Cloud API → `X-Hub-Signature-256`** com o App Secret, dedupe por id
+    no Redis e filtro por `metadata.phone_number_id` (o webhook é por app e
+    recebe a WABA inteira).
   Comparação sempre em tempo constante. **Fail-closed em produção**: sem nenhum
   mecanismo configurado, responde 503; em dev, aceita com warning.
 - **Assinatura**: evento de renovação não ressuscita plano cancelado, e a data de
@@ -182,15 +203,18 @@ sessões em curso (15min). Recálculo de grafo **não** é cron — é sob deman
 | OpenAI | **primário** — todos os tiers | `gpt-4o-mini` / `gpt-4o`; cacheia prefixo automaticamente |
 | Anthropic | **fallback** | Haiku/Sonnet; `cache_control` explícito quando usado |
 | AssemblyAI | transcrição do paciente | token efêmero via `/api/transcribe/token` |
-| Evolution v2 | WhatsApp | payload `{ number, text }`; instância compartilhada |
-| Pagar.me | cobrança, split, assinatura, recipient | API v5 via axios; sem SDK |
+| Meta Cloud API | WhatsApp (**primário** desde 11/09/2026) | número próprio; templates fora da janela de 24h |
+| Evolution v2 | WhatsApp (fallback) | payload `{ number, text }`; instância compartilhada c/ Habilita |
+| Pagar.me | cobrança, split, assinatura, recipient | API v5 via axios; sem SDK; chaves **live** |
 | Resend | email | domínio verificado (`automaxia.com.br`) |
-| WebRTC | vídeo P2P | STUN público + **TURN ativo** (coturn no cluster, `lib/turn.ts`) |
+| WebRTC | vídeo P2P | STUN público + TURN (Cloudflare se configurado, senão coturn — `lib/turn.ts`) |
 
 ## 7. Infraestrutura e deploy
 
 - **Imagem** multi-stage (`Dockerfile`), Next standalone, usuário não-root.
 - **CI/CD**: push em `main` → GitHub Actions → build → migrate → rollout.
+  Secrets do repo: `DOCKERHUB_*`, `KUBE_CONFIG` (kubeconfig do Rancher — **expira**;
+  vencido, o deploy falha na migration) e `NEXT_PUBLIC_PAGARME_PUBLIC_KEY`.
 - **Kubernetes** (namespace `aurencare`):
   - 1 Deployment (`aurencare-web`) servindo `app.` e `api.aurencare.ia.br` /
     `app.audere.ia.br`.

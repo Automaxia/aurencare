@@ -684,13 +684,15 @@ Modal abre automaticamente ao encerrar. Contém:
 - CFP badge + AES-256 + consentimento + aiGuard
 
 ### ⏳ Pronto em código, aguardando configuração
-- **Cobrança** — LIGADA no código (`BETA_LIBERADO = false`, ago/2026), mas as
-  chaves seguem em **sandbox** (`sk_test_`/`pk_test_`). Falta o secret do webhook
-  e o `PAGARME_RECIPIENT_PLATAFORMA`; sem eles nenhuma sessão confirma e o split
-  não acontece. As contas do beta têm cortesia (Essencial por 1 ano, migration
-  047) justamente pra atravessar esse intervalo. Detalhe em
-  [`docs/INFRA.md`](./docs/INFRA.md).
-- **Transcrição do paciente** — falta `ASSEMBLYAI_API_KEY` no cluster.
+- **Split das sessões** — cobrança LIGADA (`BETA_LIBERADO = false`) e chaves
+  Pagar.me **live** (secreta desde 04/09, pública no build desde 23/10/2026):
+  a **assinatura** já cobra de verdade. O split foi ativado no painel em
+  23/10/2026, mas a conta live ainda não pode **criar recebedores**
+  (`412 action_forbidden`) — aguardando o suporte da Pagar.me. Sem isso o
+  psicólogo não conclui o onboarding de recebimento e a taxa de 2,5% não sai.
+  Detalhe em [`docs/INFRA.md`](./docs/INFRA.md) §2.
+- **TURN da Cloudflare** — no código; faltam `CLOUDFLARE_TURN_*` no cluster
+  (até lá, coturn).
 
 ### 🔮 Futuro / fora de escopo
 - Modo supervisor (Fase 3)
