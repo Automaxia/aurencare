@@ -28,7 +28,7 @@ export type AssinaturaInfo = {
 /** Estado atual do plano + consumo do mês. Fonte única pro gate, UI e webhook. */
 export async function obterAssinatura(psicologoId: string): Promise<AssinaturaInfo> {
   const { rows } = await db.query(
-    `SELECT plano, plano_status, plano_ciclo, plano_expira_em, pagarme_subscription_id
+    `SELECT plano, plano_status, plano_ciclo, plano_expira_em, pagarme_subscription_id, role
        FROM psicologos WHERE id = $1 LIMIT 1`,
     [psicologoId],
   )
@@ -71,7 +71,10 @@ export async function obterAssinatura(psicologoId: string): Promise<AssinaturaIn
   // Efetivo, não gravado: o rebaixamento vale na hora da leitura, sem escrever
   // no banco durante um GET. Se a linha continuar dizendo 'essencial' depois de
   // vencer, o gate e a UI já tratam como free do mesmo jeito.
-  const plano: Plano = venceu ? 'free' : planoGravado
+  // Conta admin (equipe) é sempre Pro, sem vencimento — vale também pra quem
+  // for promovido depois, sem depender do que está gravado na linha.
+  const ehAdmin = r.role === 'admin'
+  const plano: Plano = ehAdmin ? 'pro' : venceu ? 'free' : planoGravado
   const cap = capSessoesIa(plano)
   const usadas = await contarSessoesIaMes(psicologoId)
   return {
@@ -83,7 +86,7 @@ export async function obterAssinatura(psicologoId: string): Promise<AssinaturaIn
     cap,
     usadas,
     restantes: Math.max(0, cap - usadas),
-    cortesiaAte: ehCortesia && !venceu ? expiraEm : null,
+    cortesiaAte: ehCortesia && !venceu && !ehAdmin ? expiraEm : null,
   }
 }
 
