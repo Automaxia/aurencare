@@ -6,6 +6,7 @@ import { atualizarPerfil, verificarSenha, emailEmUso, type PerfilPatch } from '@
 import { normalizarAbordagem } from '@/server/services/temas'
 import { apenasDigitos, validarCpf } from '@/lib/documento'
 import { normalizarTelefone, validarTelefone } from '@/lib/telefone'
+import { salvarLembretesPadrao, type LembretesPadrao } from '@/server/services/lembretes'
 
 export type SalvarInput = {
   nome: string
@@ -86,4 +87,11 @@ export async function salvarPerfilAction(input: SalvarInput): Promise<SalvarResu
     if (err?.code === '23505') return { ok: false, error: 'Conflito de dados (CRP ou email já em uso).' }
     return { ok: false, error: 'Falha ao salvar. Tente novamente.' }
   }
+}
+
+export async function salvarLembretesPadraoAction(v: LembretesPadrao): Promise<{ ok: boolean }> {
+  const user = await requirePsicologo()
+  await salvarLembretesPadrao(user.id, v)
+  revalidatePath('/perfil')
+  return { ok: true }
 }

@@ -424,6 +424,8 @@ Psicóloga agenda → Evolution API pergunta: "PIX, CREDITO ou DEBITO?" →
 Cron 18h00: lembrete 24h → "CONFIRMAR" ou "CANCELAR"
 Cron 08h00: lembrete 2h antes
 ```
+Opcionais (migration 052): padrão no Perfil, ajuste por paciente na ficha
+(NULL = padrão). 15 min desligado em sessão online → manda só o link da sala.
 
 **Fluxo 4 — Webhook Evolution (parser)**
 ```typescript
