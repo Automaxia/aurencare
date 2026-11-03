@@ -4,6 +4,8 @@ import { obterPerfil } from '@/server/services/psicologo'
 import { redirect } from 'next/navigation'
 import Link from 'next/link'
 import { PerfilForm } from './form'
+import { LembretesForm } from './LembretesForm'
+import { lerLembretesPadrao } from '@/server/services/lembretes'
 
 export const dynamic = 'force-dynamic'
 
@@ -11,6 +13,7 @@ export default async function PerfilPage() {
   const user = await requirePsicologo()
   const perfil = await obterPerfil(user.id)
   if (!perfil) redirect('/')
+  const lembretes = await lerLembretesPadrao(user.id)
 
   return (
     <div>
@@ -37,6 +40,7 @@ export default async function PerfilPage() {
         emailAtual={perfil.email}
         waConectado={perfil.waConectado}
       />
+      {lembretes && <LembretesForm initial={lembretes} />}
     </div>
   )
 }

@@ -1247,7 +1247,13 @@ export async function assinarSessao(sessaoId: string): Promise<void> {
   )
   // Fluxo 6 — pós-sessão. Não dispara em sessão importada (histórico): o paciente
   // não deve receber "sua sessão terminou" por uma sessão de meses atrás.
-  if (!s.importada) {
+  // Também não dispara se o paciente já recebeu a confirmação do Fluxo 7 ao
+  // encerrar (sessão cobrada pela plataforma): uma mensagem só por sessão.
+  const { rows: conf } = await db.query<{ enviada: boolean }>(
+    `SELECT confirmacao_enviada_em IS NOT NULL AS enviada FROM sessoes WHERE id = $1`,
+    [sessaoId],
+  )
+  if (!s.importada && !conf[0]?.enviada) {
     await enviarWA(s.pacienteTelefone, WA_TEMPLATES.fluxo6_posSessao(s.numero), { psicologoId: s.psicologoId, pacienteId: s.pacienteId, template: WA_META.fluxo6_posSessao(s.numero) })
   }
 }

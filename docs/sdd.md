@@ -49,7 +49,7 @@ Browser ── HTTPS (Cloudflare Full strict) ── Ingress nginx ── Servic
 
 > **DDL base: CLAUDE.md §11.** Aqui só o que importa para o design.
 
-- **51 migrations** em `src/server/db/migrations/NNN_*.sql`, aplicadas por
+- **52 migrations** em `src/server/db/migrations/NNN_*.sql`, aplicadas por
   `src/server/db/migrate.mjs` (idempotente, controla em `_migrations`).
 - Campos clínicos cifrados em repouso (AES-256-GCM): `sessoes.transcricao_texto`,
   `nota_clinica`, `resumo_ia`, além de documentos e chave PIX do onboarding — §5.
@@ -67,6 +67,8 @@ Browser ── HTTPS (Cloudflare Full strict) ── Ingress nginx ── Servic
   recebedor foi criado; recebedor de outro ambiente conta como não configurado.
 - `chamadas_qualidade` (migration 050) — métricas de qualidade da chamada de vídeo.
 - Migration 051 — contas admin sempre no plano Pro, sem vencimento.
+- `psicologos.lembrete_*` / `pacientes.lembrete_*` (migration 052) — lembretes
+  opcionais; no paciente NULL = segue o padrão do psicólogo (COALESCE no cron).
 
 ## 4. Fluxos-chave
 
@@ -164,7 +166,8 @@ Camada única: todo texto/classificação de IA passa por `chat()`.
 
 ### 4.6 Cron
 Sete jobs in-process (`src/server/lib/cron.ts`, timezone America/Sao_Paulo):
-lembrete 24h (18h), lembrete 2h (a cada 30min, 7–21h), lembrete 15min (5min),
+lembrete 24h (18h), lembrete 2h (a cada 30min, 7–21h), lembrete 15min (5min)
+— os três respeitam as preferências da migration 052 —,
 liberar silenciosos (5min), perguntar método pendente (30min, 7–21h), destravar
 sessões em curso (15min) e rebaixar cortesia inativa há 15 dias (04h10).
 Recálculo de grafo **não** é cron — é sob demanda.

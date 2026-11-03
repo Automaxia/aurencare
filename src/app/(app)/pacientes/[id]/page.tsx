@@ -15,6 +15,8 @@ import { podeExcluirSessao, temAnotacaoViva, sqlTemRegistro, sqlTemCobrancaAbert
 import { ExcluirSessao } from '@/components/ExcluirSessao'
 import { PatientProfileForm } from './profile-form'
 import { DadosCadastroForm } from './DadosCadastroForm'
+import { LembretesPaciente } from './LembretesPaciente'
+import { lerLembretesPadrao, lerLembretesPaciente, TIPOS_LEMBRETE } from '@/server/services/lembretes'
 import { ConsentimentoPendente } from './ConsentimentoPendente'
 import { ExportarProntuario } from './ExportarProntuario'
 import { ImportarSessao } from './ImportarSessao'
@@ -71,6 +73,15 @@ function resumoPreview(md: string): string {
     .trim()
 }
 
+/** "3 de 3 ligados" — valor efetivo (ajuste do paciente ou padrão do psicólogo). */
+function resumoLembretes(
+  pac: Record<string, boolean | null>, padrao: Record<string, boolean>,
+): string {
+  const ligados = TIPOS_LEMBRETE.filter(t => (pac[t] ?? padrao[t])).length
+  if (ligados === 0) return 'Todos desligados'
+  return `${ligados} de ${TIPOS_LEMBRETE.length} ligados`
+}
+
 export default async function PacientePerfilPage({ params, searchParams }: {
   params: { id: string }
   searchParams?: { sessoes?: string }
@@ -87,6 +98,10 @@ export default async function PacientePerfilPage({ params, searchParams }: {
   if (!p) notFound()
   if (p.psicologo_id !== user.id) redirect('/pacientes')
 
+  const [lembretesPac, lembretesPadrao] = await Promise.all([
+    lerLembretesPaciente(user.id, params.id),
+    lerLembretesPadrao(user.id),
+  ])
   const [condicoes, sessoesAssinadas, totalSessoes, dadosCadastro, objetivos, memoria, ultimaEvol, proximaRows, ultimaRows, historicoSessoes] = await Promise.all([
     lerCondicoesPaciente(params.id),
     db.query<{ id: string; numero: number; data_hora: string; modalidade: string; duracao_min: number }>(
@@ -255,6 +270,18 @@ export default async function PacientePerfilPage({ params, searchParams }: {
           <DadosCadastroForm pacienteId={p.id} initial={dadosCadastro} />
         </div>
       </details>
+
+      {lembretesPac && lembretesPadrao && (
+        <details className="bloco-recolhivel">
+          <summary>
+            <span>Lembretes</span>
+            <span className="resumo">{resumoLembretes(lembretesPac, lembretesPadrao)}</span>
+          </summary>
+          <div className="bloco-conteudo">
+            <LembretesPaciente pacienteId={p.id} initial={lembretesPac} padrao={lembretesPadrao} />
+          </div>
+        </details>
+      )}
     </div>
   )
 }

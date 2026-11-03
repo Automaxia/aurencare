@@ -151,11 +151,15 @@ Premissa adicional adotada neste produto:
 
 - RF-60 Fluxo 1 — Cadastro/boas-vindas + consentimento.
 - RF-61 Fluxo 2 — Agendamento + escolha de método (PIX/CRÉDITO/DÉBITO) + cobrança.
-- RF-62 Fluxo 3 — Lembretes automáticos (24h, 2h e 15min).
+- RF-62 Fluxo 3 — Lembretes automáticos (24h, 2h e 15min), **opcionais**: o
+  psicólogo define o padrão no Perfil e ajusta por paciente na ficha. Com o de
+  15 min desligado, sessão online ainda recebe o link da sala.
 - RF-63 Fluxo 4 — Parser de comandos recebidos.
 - RF-64 Fluxo 5 — Cancelamento + reembolso (regra >24h / <24h).
-- RF-65 Fluxo 6 — Pós-sessão.
-- RF-66 Fluxo 7 — Confirmação pós-sessão (janela diurna/noturna; silêncio libera).
+- RF-65 Fluxo 6 — Pós-sessão ("obrigada"), só quando o Fluxo 7 não foi enviado.
+- RF-66 Fluxo 7 — Confirmação pós-sessão (janela diurna/noturna; silêncio libera),
+  **só para sessão cobrada pela plataforma** (pedido Pagar.me pago). Gratuita ou
+  paga por fora não recebe.
 - RF-67 **Inbox conversacional** — conversa livre com o paciente, com resposta
   gerada e roteamento por telefone (blindado contra número duplicado em
   instância compartilhada). Inclui **áudio** (transcrição de voz recebida).

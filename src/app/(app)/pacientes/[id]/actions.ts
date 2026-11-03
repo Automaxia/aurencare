@@ -10,6 +10,7 @@ import {
   type AtualizarPacienteInput, type AtualizarPacienteResult, type ExcluirResult, type ReenviarResult,
 } from '@/server/services/pacientes'
 import { revalidatePath } from 'next/cache'
+import { salvarLembretesPaciente, type LembretesPaciente } from '@/server/services/lembretes'
 
 export async function salvarDadosCadastroAction(
   pacienteId: string, dados: DadosCadastro,
@@ -71,4 +72,13 @@ export async function excluirPacienteAction(pacienteId: string): Promise<Excluir
   const r = await excluirPacienteDefinitivo(user.id, pacienteId)
   if (r.ok) revalidatePath('/pacientes')
   return r
+}
+
+export async function salvarLembretesPacienteAction(
+  pacienteId: string, v: LembretesPaciente,
+): Promise<{ ok: boolean }> {
+  const user = await requirePsicologo()
+  const ok = await salvarLembretesPaciente(user.id, pacienteId, v)
+  if (ok) revalidatePath(`/pacientes/${pacienteId}`)
+  return { ok }
 }

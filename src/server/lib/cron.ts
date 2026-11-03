@@ -9,6 +9,7 @@ import { criarOuObterSala } from '@/server/services/salaVideo'
 import { liberarSilenciosos } from '@/server/services/confirmacaoSessao'
 import { interromperSessao } from '@/server/services/sessoes'
 import { rebaixarCortesiasInativas } from '@/server/services/assinatura'
+import { sqlLembreteAtivo } from '@/server/services/lembretes'
 import { env } from './env'
 import { log } from './log'
 import { formatDateTimeBR } from '@/lib/formatters'
@@ -138,9 +139,12 @@ export async function perguntarMetodoPendentes(): Promise<{ enviadas: number; to
 
 export async function lembrete15min(): Promise<number> {
   // Janela 12–18 min (maior que o intervalo de 5 min → cobre toda sessão; flag dedupe).
+  // Lembrete desligado (migration 052) só corta o TEXTO de lembrete: sessão online
+  // continua recebendo o link da sala. Presencial com lembrete desligado → nada.
   const { rows } = await db.query<{
     id: string; data_hora: string; modalidade: string;
     pac_nome: string; pac_telefone: string; psi_nome: string; psi_email: string;
+    lembrete_ativo: boolean;
   }>(
     `UPDATE sessoes s
         SET wa_lembrete_15min = TRUE
@@ -149,9 +153,11 @@ export async function lembrete15min(): Promise<number> {
         AND s.data_hora BETWEEN NOW() + INTERVAL '12 minutes' AND NOW() + INTERVAL '18 minutes'
         AND s.status IN ('confirmada','agendada')
         AND s.wa_lembrete_15min = FALSE
+        AND (${sqlLembreteAtivo('lembrete15min')} OR s.modalidade = 'online')
      RETURNING s.id, s.data_hora, s.modalidade,
                p.nome AS pac_nome, p.telefone AS pac_telefone,
-               ps.nome AS psi_nome, ps.email AS psi_email`,
+               ps.nome AS psi_nome, ps.email AS psi_email,
+               ${sqlLembreteAtivo('lembrete15min')} AS lembrete_ativo`,
   )
   for (const r of rows) {
     const dataFmt = formatDateTimeBR(r.data_hora)
@@ -161,6 +167,14 @@ export async function lembrete15min(): Promise<number> {
         const sala = await criarOuObterSala(r.id, 4)
         linkSala = `${env.appUrl.replace(/\/$/, '')}/sala/${sala.token}`
       } catch (err) { log.err('cron.lembrete15min', 'falha ao criar sala', err) }
+    }
+    if (!r.lembrete_ativo) {
+      // Só o link, sem lembrete (e sem e-mail de lembrete).
+      if (linkSala) {
+        await enviarWA(r.pac_telefone, WA_TEMPLATES.linkSalaAgora(linkSala), { template: WA_META.linkSalaAgora(linkSala) })
+          .catch(err => log.err('cron.lembrete15min', 'falha WA (link)', err))
+      }
+      continue
     }
     await Promise.all([
       enviarWA(r.pac_telefone, WA_TEMPLATES.fluxo3_lembrete15min(dataFmt, linkSala), { template: WA_META.fluxo3_lembrete15min(dataFmt, linkSala) })
@@ -192,6 +206,7 @@ export async function lembrete24h(): Promise<number> {
         AND s.data_hora BETWEEN NOW() + INTERVAL '20 hours' AND NOW() + INTERVAL '28 hours'
         AND s.status IN ('confirmada','agendada')
         AND s.wa_lembrete_24h = FALSE
+        AND ${sqlLembreteAtivo('lembrete24h')}
      RETURNING s.id, s.data_hora, s.modalidade,
                p.nome AS pac_nome, p.telefone AS pac_telefone,
                ps.nome AS psi_nome, ps.email AS psi_email`,
@@ -222,11 +237,12 @@ export async function lembrete2h(): Promise<number> {
   const { rows } = await db.query(
     `UPDATE sessoes s
         SET wa_lembrete_2h = TRUE
-       FROM pacientes p
-      WHERE s.paciente_id = p.id
+       FROM pacientes p, psicologos ps
+      WHERE s.paciente_id = p.id AND s.psicologo_id = ps.id
         AND s.data_hora BETWEEN NOW() + INTERVAL '90 minutes' AND NOW() + INTERVAL '150 minutes'
         AND s.status IN ('confirmada','agendada')
         AND s.wa_lembrete_2h = FALSE
+        AND ${sqlLembreteAtivo('lembrete2h')}
      RETURNING s.id, s.data_hora, p.telefone`,
   )
   for (const r of rows) {
