@@ -2,6 +2,7 @@
 
 > Acompanhamento de trabalho. Requisitos em [spec.md](./spec.md); design em [sdd.md](./sdd.md).
 > Pendências de infra/operação (com comandos) em [INFRA.md](./INFRA.md).
+> Migração de gateway para o Asaas: [asaas/spec.md](./asaas/spec.md) · [asaas/sdd.md](./asaas/sdd.md) · [asaas/tasks.md](./asaas/tasks.md).
 > Última atualização: 23/10/2026.
 
 Legenda status: ✅ concluído · 🔄 em andamento · ⏳ pendente · 🔮 futuro
