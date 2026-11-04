@@ -6,6 +6,10 @@
 > Fontes: código em 04/11/2026 e documentação oficial do Asaas
 > (docs.asaas.com, lida em 04/11/2026). Itens marcados **[validar]** não estão
 > confirmados na documentação e precisam de teste no sandbox (tasks.md, Fase 0).
+>
+> **Spike da Fase 0 feito em 04/11/2026** — respostas reais em [spike.md](./spike.md).
+> Os itens validados viraram **[spike ✅]**; o que ainda depende de teste manual ou de
+> tempo está marcado **[spike ⏳]**.
 
 ---
 
@@ -110,6 +114,7 @@ Fase 4 (remoção), sendo só lidas.
 ALTER TABLE sessoes
   ADD COLUMN gateway            VARCHAR(20),   -- 'pagarme' | 'asaas'
   ADD COLUMN cobranca_id        VARCHAR(100),  -- order (pagarme) | pay_... (asaas)
+  ADD COLUMN cobranca_parcelamento_id VARCHAR(100), -- asaas installment (crédito parcelado, D-03)
   ADD COLUMN cobranca_qrcode    TEXT,
   ADD COLUMN cobranca_qrcode_url TEXT,
   ADD COLUMN cobranca_url       TEXT,          -- checkout (pagarme) | invoiceUrl (asaas)
@@ -158,9 +163,12 @@ CREATE TABLE webhook_eventos (
 
 - Os dados de KYC `pgm_*` são **reaproveitados** pelo wizard do Asaas (mesmos
   campos, mesma cifragem). Renomear para `kyc_*` fica para a Fase 4.
-- `cobranca_id` precisa ser o identificador usado no estorno. No Asaas é o
-  `pay_...` (da 1ª parcela, no parcelado). Se D-03 resultar em parcelamento,
-  acrescentar `cobranca_parcelamento_id` (id do `installment`) na mesma migration.
+- `cobranca_id` é o `pay_...` (da 1ª parcela, no parcelado). Como D-03 fechou em
+  parcelamento pela API, a migration 053 acrescenta
+  `sessoes.cobranca_parcelamento_id VARCHAR(100)` (id do `installment`): o estorno
+  do parcelado é `POST /v3/installments/{id}/refund`, e o webhook chega **uma vez
+  por parcela** (cada uma com seu `pay_...`) — o lookup da sessão usa
+  `externalReference` ou o `installment` do payload, não só o `cobranca_id`.
 - Todo `obterAssinatura`, Admin (MRR, cortesia) e `sqlTemCobrancaAberta` passam a
   ler `assinatura_id` / `cobranca_id`. A cortesia continua sendo "plano ≠ free e
   sem `assinatura_id`" (migration 047 usa o mesmo critério).
@@ -191,13 +199,25 @@ wizard (dados atuais pgm_*) ──► salvarOnboarding
   (`MEI|LIMITED|INDIVIDUAL|ASSOCIATION`, campo novo no wizard).
 - **Conta bancária e chave PIX saem do wizard** no modelo sem BaaS: o titular
   cadastra no próprio Asaas. A tela final explica o e-mail de ativação (RF-PG-12).
-- `apiKey` só vem uma vez: se a gravação falhar depois do `POST`, registrar o
-  `id` em log de erro e o admin recupera (gera nova chave pelo endpoint de chaves
-  da subconta) **[validar]**.
-- Idempotência: antes de criar, `GET /v3/accounts?cpfCnpj=` **[validar filtro]**
-  para não duplicar subconta em retry.
+- `apiKey` só vem uma vez (no topo **e** em `accessToken.apiKey`): se a gravação
+  falhar depois do `POST`, registrar o `id` em log de erro e o admin recupera
+  pelo endpoint de chaves da subconta — que **exige whitelist de IPs configurada
+  na conta raiz** (`400 invalid_action` sem ela) **[spike ✅]**. Item de conta.
+- Idempotência: antes de criar, `GET /v3/accounts?cpfCnpj=` (filtro existe; também
+  `?walletId=`/`?email=`). Documento repetido → `400 "O CPF … já está em uso."`:
+  tratar como "já existe" e buscar **[spike ✅]**.
+- **Latência:** `POST /v3/accounts` levou 10 s (PF) e 29 s (PJ) no sandbox →
+  timeout de 60 s e estado "criando sua conta…" no wizard **[spike ✅]**.
 - Situação: webhook `ACCOUNT_STATUS_*` (por dimensão) + consulta
   `GET /v3/myAccount/status` com a `apiKey` da subconta (reconciliação no cron).
+  Os eventos chegam **fora de ordem** (`GENERAL_APPROVAL_AWAITING_APPROVAL` depois
+  de aprovações parciais), mas cada um traz `accountStatus` com o **snapshot atual**
+  das quatro dimensões (+ `account.ownerId` = conta raiz). O handler grava o
+  `accountStatus` do payload e ignora o nome do evento; o `GET` fica só para a
+  reconciliação do cron **[spike ✅]**. Sandbox: aprovar com
+  `POST /v3/sandbox/myAccount/approve` usando a apiKey da subconta.
+- Situação inicial observada: PF `commercialInfo=APPROVED`, demais `PENDING`;
+  PJ `commercialInfo=AWAITING_APPROVAL`.
   Mapeamento: qualquer `REJECTED` → `recusado`; `general=APPROVED` → `aprovado`;
   algum `AWAITING_APPROVAL` → `em_analise`; senão `pendente`.
   `COMMERCIAL_INFO_EXPIRED` vira alerta mesmo com `general=APPROVED`.
@@ -214,43 +234,63 @@ gerarCobrancaPix / gerarCobrancaCartao
      (name, cpfCnpj, email, mobilePhone, externalReference=paciente_id,
       notificationDisabled=true — quem avisa é o WhatsApp da Audere)
      cache em pacientes.dados_cadastro->'asaas_customer_id'
-  2. POST /v3/payments
+  2. POST /v3/payments   (SEM split)
        customer, billingType PIX | CREDIT_CARD, value, dueDate,
-       externalReference = sessao_id, description,
-       split: [{ walletId: psicologo, fixedValue: ? }]   ← ver D-01
-  3. PIX: GET /v3/payments/{id}/pixQrCode → payload (copia e cola) + encodedImage
+       externalReference = sessao_id, description
+       [crédito parcelado: installmentCount + totalValue — D-03]
+     ◄── netValue já vem na resposta (no parcelado: Σ netValue das parcelas)
+  3. split (D-01):
+       à vista:   PUT /v3/payments/{id}  { split: [{ walletId, fixedValue: netValue − taxaAdm }] }
+       parcelado: PUT /v3/installments/{installment}/splits
+                  { splits: [{ walletId, totalFixedValue: Σ netValue − taxaAdm }] }
+  4. PIX: GET /v3/payments/{id}/pixQrCode → payload (copia e cola) + encodedImage
      CRÉDITO: invoiceUrl
-  4. grava gateway='asaas', cobranca_id, cobranca_qrcode, cobranca_url,
-     cobranca_vence_em, comissao_centavos
+  5. grava gateway='asaas', cobranca_id, cobranca_parcelamento_id, cobranca_qrcode,
+     cobranca_url, cobranca_vence_em, comissao_centavos
 ```
 
 - **Split sobre o líquido.** No Asaas `percentualValue` e o teto do split são
   sobre o `netValue` (valor − tarifa do Asaas). Para a plataforma ficar com
   **exatamente 2,5% do bruto** e o psicólogo absorver a tarifa (regra atual):
-  `fixedValue_psicologo = netValue − taxaAdm`. Como `netValue` só é conhecido
-  depois de criar, a decisão D-01 escolhe entre:
-  - (a) criar sem split, ler `netValue`, e `PUT /v3/lean/payments/{id}` com o split
-    (documentado); ou
-  - (b) calcular a tarifa pela tabela da conta (`GET` "Recuperar taxas da conta")
-    e mandar o split já na criação.
-  **Recomendado: (a)**, com fallback para (b) se o PUT falhar — a cobrança só é
-  enviada ao paciente depois do split gravado.
+  `fixedValue_psicologo = netValue − taxaAdm`. **D-01 fechado em (a)** **[spike ✅]**:
+  o `netValue` já vem na resposta da criação; o split vai por
+  `PUT /v3/payments/{id}` (o `PUT /v3/lean/payments/{id}` responde 200 mas não
+  devolve o split — não usar). Sessão de R$ 10 no PIX: raiz **+R$ 0,25**,
+  psicólogo **+R$ 8,76**, exatos. No parcelado (3× R$ 100): sobra da raiz
+  **R$ 7,50**, exata. A cobrança só é enviada ao paciente depois do split gravado;
+  se o `PUT` falhar, cair para (b) — split na criação com a tarifa de
+  `GET /v3/myAccount/fees` (também bateu no spike, mas depende da promoção da
+  conta, que expira em 05/01/2027).
+- **Split para subconta ainda não aprovada** é aceito e liquidado no sandbox
+  (`split.status=DONE`, saldo creditado na subconta) **[spike ✅]**. Só o saque
+  depende da aprovação → RN-06 passa a ser "split assim que houver `walletId`"
+  (confirmar no piloto em produção).
 - **Divergência:** se o split passar do líquido no recebimento, o Asaas bloqueia
   (`PAYMENT_SPLIT_DIVERGENCE_BLOCK`, 2 dias úteis para corrigir). Alerta no admin.
-- **Psicólogo não apto** (sem `recebedor_wallet_id` ou situação ≠ apta):
-  cobrança sem split + alerta (RF-PG-24).
+- **Psicólogo não apto** (sem `recebedor_wallet_id`, ou subconta `recusado`):
+  cobrança sem split + alerta (RF-PG-24). Situação `pendente`/`em_analise` **não**
+  bloqueia o split (RN-06 revisada).
 - **PIX:** a conta raiz precisa de **chave PIX cadastrada**; sem ela o QR é
   "transitório" e expira às 23:59 do dia (descontinuado pelo Asaas). Com chave,
-  o QR vale até 12 meses após o vencimento → a expiração de 30 min da regra de
-  negócio passa a ser **nossa** (cron cancela `DELETE /v3/payments/{id}` das
-  cobranças vencidas pela regra, D-05).
+  o QR vale até 12 meses após o vencimento (sandbox: `expirationDate` = vencimento
+  + 1 ano **[spike ✅]**) → a expiração de 30 min da regra de negócio passa a ser
+  **nossa** (cron cancela `DELETE /v3/payments/{id}` das cobranças vencidas pela
+  regra, D-05).
 - **Crédito:** fatura hospedada (`invoiceUrl`), sem dado de cartão na Audere.
-  Parcelamento: D-03.
+  Parcelamento **D-03 → opção (1)**: o WhatsApp pergunta "em quantas vezes (1 a
+  6)?" e a cobrança nasce com `installmentCount`. O link de pagamento aceita o
+  campo `split` mas **o descarta** (não volta na resposta nem no `GET`, e o link pago em 6x gerou
+  parcelas sem split) **[spike ✅]**. Pagar a 1ª parcela
+  confirma todas (`PAYMENT_CONFIRMED` por parcela); o split fica
+  `AWAITING_CREDIT` até o crédito (~32 dias).
 - **Débito:** removido (não existe na criação de cobrança). `inbox.ts`, os textos
   de `evolution.ts` e os templates Meta `audere_*` mudam (novos templates exigem
   nova aprovação da Meta).
 - `notificationDisabled=true` no customer evita que o Asaas mande e-mail/SMS
-  próprio ao paciente (o canal é o WhatsApp) **[validar efeito em cobranças]**.
+  próprio ao paciente (o canal é o WhatsApp) **[spike ✅]**. Confirmado no painel
+  (a cobrança não tem envio ativo); `GET /customers/{id}/notifications` continua
+  listando tudo como ativo e **não serve** de verificação. Reforço opcional:
+  `PUT /v3/notifications/batch` com tudo `false` na criação do customer.
 
 ### 4.3 Webhook `/api/webhooks/asaas`
 
@@ -275,12 +315,23 @@ POST /api/webhooks/asaas
 | `SUBSCRIPTION_INACTIVATED`, `SUBSCRIPTION_DELETED` | `assinatura.cancelada` | `cancelado` |
 | `ACCOUNT_STATUS_*` | `recebedor.situacao` | atualiza `recebedor_situacao*` |
 
-- Confirmar em `PAYMENT_CONFIRMED` (não esperar `RECEIVED`): no cartão o
-  `RECEIVED` só vem ~32 dias depois. Em PIX de conta PF o `CONFIRMED` pode ser
+- Confirmar no **primeiro** de `PAYMENT_CONFIRMED`/`PAYMENT_RECEIVED`: no cartão o
+  `RECEIVED` só vem ~32 dias depois; no **PIX vem só `RECEIVED`** (sem
+  `CONFIRMED`) **[spike ✅]**. Em PIX de conta PF o `CONFIRMED` pode ser
   provisório (retenção de até 72 h) — a conta raiz é PJ, então não se aplica.
-- Entrega "at least once", até 15 falhas seguidas pausam a fila (eventos guardados
-  14 dias): responder rápido e processar de forma idempotente. `sendType:
-  SEQUENTIALLY`.
+- **`payload.id`** = `evt_<32 hex>&<número>`; o hex se repete para todo evento do
+  mesmo tipo, o número é que distingue → `evento_id` é a **string inteira**
+  (nunca cortar no `&`) **[spike ✅]**.
+- Entrega "at least once": com 500, o mesmo evento voltou em ~32 s com o **mesmo
+  `id`** **[spike ✅]**; 15 falhas seguidas pausam a fila (eventos guardados 14
+  dias, reenvio manual pelo painel › Logs de Webhooks; sem API). Responder rápido
+  e processar de forma idempotente. `sendType: SEQUENTIALLY` — mas a **ordem não é
+  garantida** entre recursos (`SUBSCRIPTION_CREATED` chegou depois do
+  `PAYMENT_CONFIRMED` da mesma assinatura): nenhum handler pode depender de um
+  evento anterior ter chegado.
+- O payload traz `account { id, ownerId }` + o objeto completo (`payment` com
+  `value`, `netValue`, `status`, `externalReference`, `subscription`,
+  `installment`), então `taxa_gateway_centavos` sai do próprio evento.
 - Webhook da conta raiz criado por `POST /v3/webhooks` (script `npm run
   asaas:webhook`); o das subcontas vai no `webhooks` do `POST /v3/accounts`.
 - O webhook da Pagar.me continua no ar (RF-PG-03) e passa a usar a mesma tabela
@@ -288,12 +339,28 @@ POST /api/webhooks/asaas
 
 ### 4.4 Reembolso
 
-`POST /v3/payments/{id}/refund` (sem `value` = total). O estorno de cobrança com
-split **estorna os repasses** (documentado). Parcial: mandar `splitRefunds`
-explícito para não depender do rateio automático **[validar]**. PIX pode falhar
-com 400 se a conta não tiver saldo logo após o recebimento → marcar
-`reembolso_pendente` e tentar no cron. Corrige o defeito 1 também para a Pagar.me
-(`DELETE /charges/{charge_id}` no adaptador `pagarme`).
+Resultado do spike **[spike ✅]**:
+
+- **Sempre** `POST /v3/payments/{id}/refund { value, splitRefunds: [{ id: split.id, value }] }`.
+  Sem `splitRefunds` o rateio automático tira **só da parte da raiz** e o parcial
+  falha (`"Valor da cobrança insuficiente…"`). Regra Audere: o psicólogo devolve
+  proporcionalmente; no total, `splitRefunds` = valor inteiro do split.
+- **Saldo na raiz ≥ valor bruto do estorno**, mesmo quando quase tudo volta da
+  subconta (R$ 9,50 recusado com raiz em R$ 7,52; R$ 7,40 aceito). Sem saldo → 400
+  (não entra em fila) → D-08.
+- Logo após o recebimento pode vir `400 "Tente novamente em alguns instantes"` →
+  retentativa com espera (cron `reembolso_pendente`).
+- Estorno PIX aceito fica **`AWAITING_CRITICAL_ACTION_AUTHORIZATION`**: o saldo
+  sai na hora (raiz e subconta), mas o dinheiro só volta ao paciente — e
+  `PAYMENT_REFUNDED` só chega — depois de alguém autorizar o evento crítico no
+  painel (token/SMS) → D-09. Proposta: novo `pagamento_status`
+  `reembolso_solicitado` até o webhook.
+- **Cartão parcelado:** `POST /v3/installments/{id}/refund` → todas as parcelas
+  `REFUNDED`, split `CANCELLED`, `PAYMENT_REFUNDED` por parcela, sem depender de
+  saldo nem de autorização (antes do crédito).
+
+Corrige o defeito 1 também para a Pagar.me (`DELETE /charges/{charge_id}` no
+adaptador `pagarme`).
 
 ### 4.5 Assinatura do plano
 
@@ -308,8 +375,14 @@ assinar(plano, ciclo)
      (sem creditCard/creditCardToken)
   3. GET das cobranças da assinatura → invoiceUrl da 1ª → redireciona o psicólogo
   4. webhook da 1ª cobrança paga → plano ativo; o Asaas guarda o cartão para as
-     renovações [validar: renovação automática quando o 1º pagamento é pela fatura]
+     renovações
 ```
+
+- Spike: assinatura `CREDIT_CARD` sem cartão → 200 `ACTIVE`, 1ª cobrança com
+  `invoiceUrl` na hora. Paga a 1ª (via API), a assinatura passa a ter `creditCard`
+  (final, bandeira, token) e a cobrança seguinte **já nasce com o cartão** — igual
+  com a 1ª paga **pela fatura** (página do Asaas) **[spike ✅]**. Falta ver a
+  renovação debitada sozinha **[spike ⏳]** (spike.md §10, P3).
 
 - Alternativa (se o item acima não se confirmar): tokenizar via
   `POST /v3/creditCard/tokenizeCreditCard` **no servidor** (o Asaas não tem
@@ -356,15 +429,18 @@ Atualizar `.env.example`, `k8s/aurencare-secrets.example.yaml`, `env.ts`
 
 ## 7. Decisões
 
-| # | Decisão | Opções | Recomendação |
+| # | Decisão | Opções | Situação |
 |---|---|---|---|
-| D-01 | Como garantir 2,5% exatos do bruto com split sobre o líquido | (a) criar → ler `netValue` → `PUT` split; (b) tarifa da tabela da conta | **(a)**, validar no sandbox |
-| D-02 | Quem cria a cobrança | conta raiz com split p/ psicólogo; subconta (apiKey dela) com split p/ raiz | **raiz** (documentado; o outro não é) |
-| D-03 | Parcelas no crédito | (1) WhatsApp pergunta "em quantas vezes?" e cria `installmentCount`; (2) Link de pagamento com até 6x à escolha do pagador; (3) só à vista | testar (2) no sandbox (split em link **[validar]**); senão (1) |
-| D-04 | Cartão da assinatura | fatura do Asaas (sem cartão na Audere); tokenização no servidor | **fatura** |
-| D-05 | Validade do PIX | manter 30 min (cron cancela) ; vencer só na data da sessão | **30 min**, mantém templates e regra atual |
+| D-01 | Como garantir 2,5% exatos do bruto com split sobre o líquido | (a) criar → ler `netValue` → `PUT` split; (b) tarifa da tabela da conta | ✅ **fechada: (a)** via `PUT /v3/payments/{id}` (parcelado: `PUT /v3/installments/{id}/splits`); (b) como fallback. Exato no spike (R$ 0,25 de R$ 10; R$ 7,50 de 3× R$ 100) |
+| D-02 | Quem cria a cobrança | conta raiz com split p/ psicólogo; subconta (apiKey dela) com split p/ raiz | ✅ **raiz** (documentado; usado em todo o spike) |
+| D-03 | Parcelas no crédito | (1) WhatsApp pergunta "em quantas vezes?" e cria `installmentCount`; (2) Link de pagamento com até 6x à escolha do pagador; (3) só à vista | ✅ **fechada: (1)**. O link descarta o `split` sem erro (pago em 6x: parcelas sem split); o parcelado pela API dá split exato. Migration 053 ganha `cobranca_parcelamento_id`; o fluxo do WhatsApp ganha uma pergunta (template Meta novo) |
+| D-04 | Cartão da assinatura | fatura do Asaas (sem cartão na Audere); tokenização no servidor | ✅ **fatura** — assinatura sem cartão aceita; paga pela página, guarda o cartão e a próxima cobrança já nasce com ele; ⏳ só a renovação debitada em 05/11 |
+| D-05 | Validade do PIX | manter 30 min (cron cancela) ; vencer só na data da sessão | **30 min** (QR do Asaas vale 1 ano: a regra é nossa) |
 | D-06 | Onboarding | sem BaaS (e-mail do Asaas); BaaS (link/API dentro da Audere) | **sem BaaS** agora; BaaS depois com gerente de contas |
 | D-07 | Coexistência | coluna `gateway` por registro | sim (RF-PG-02) |
+| D-08 | Saldo para estornos PIX (o Asaas exige saldo na raiz ≥ valor do estorno) | (a) manter **reserva** fixa na raiz (ex.: maior valor de sessão × N) e não sacar abaixo dela; (b) estorno vira `reembolso_pendente` e o cron tenta quando houver saldo; (c) só (b) | **(a) + (b)**: reserva + fila; alerta no admin quando o saldo da raiz < reserva. Perguntar ao Asaas se vale igual em produção |
+| D-09 | Autorização de evento crítico nos estornos PIX via API | (a) autorizar manualmente no painel (token/SMS); (b) configuração do Asaas que dispense (whitelist de IP / ajuste de segurança) | **perguntar ao Asaas** (tasks Fase 0, [conta]); até lá (a) com rotina diária e `reembolso_solicitado` visível |
+| RN-06 | Quando o psicólogo entra no split | situação geral aprovada; ou assim que existir `walletId` | **`walletId`** (split para subconta pendente foi aceito e liquidado no sandbox); confirmar no piloto |
 
 ## 8. Testes
 

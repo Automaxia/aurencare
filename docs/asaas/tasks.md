@@ -22,24 +22,33 @@ Dono: **[conta]** = ação no painel/comercial do Asaas (dono da conta) · **[de
   (10 subcontas / R$ 2.000 por subconta / 60 dias); (3) playbook de marca para
   white-label; (4) habilitação de tokenização (só se D-04 mudar); (5) BaaS — custo
   e prazo (D-06, futuro).
-- ⏳ **P0 [conta]** Criar conta **sandbox** (sandbox.asaas.com), gerar chave,
-  desligar o período de avaliação no sandbox.
-- ⏳ **P0 [dev]** Spike no sandbox (`scripts/asaas-spike.ts`), registrando as
-  respostas reais em `docs/asaas/spike.md`:
-  - [ ] criar subconta PF e PJ; confirmar campos obrigatórios e se o filtro
-        `GET /v3/accounts?cpfCnpj=` existe (idempotência);
-  - [ ] aprovar subconta pelo endpoint de sandbox; ver eventos `ACCOUNT_STATUS_*`;
-  - [ ] split antes da aprovação da subconta: aceita? (define RN-06);
-  - [ ] **D-01:** criar PIX sem split → ler `netValue` → `PUT /v3/lean/payments/{id}`
-        com `fixedValue` → pagar → conferir que a raiz ficou com 2,5% do bruto;
-  - [ ] **D-03:** link de pagamento com `maxInstallmentCount=6` aceita split?
-        parcelado via `installmentCount` com `totalFixedValue`;
-  - [ ] **D-04:** assinatura `CREDIT_CARD` sem cartão → pagar 1ª fatura → a 2ª
-        cobrança é debitada sozinha?
-  - [ ] estorno total e parcial de cobrança com split (`splitRefunds`);
-  - [ ] `notificationDisabled=true` impede e-mail/SMS do Asaas ao paciente?
-  - [ ] reenvio do mesmo webhook (idempotência) e formato de `payload.id`.
-- ⏳ **P1** Atualizar `sdd.md` com o resultado do spike e fechar D-01, D-03, D-04.
+- ✅ **P0 [conta]** Conta **sandbox** com chave (`.env.local`), raiz aprovada e
+  chave PIX CNPJ. ⚠️ Compartilhada com o BolsoAI (não mexer no webhook dele).
+- ⏳ **P0 [conta]** Novos, saídos do spike ([spike.md](./spike.md) §10 P5):
+  - **whitelist de IPs** na raiz (pré-requisito para gerar nova apiKey de subconta);
+  - perguntar ao Asaas: estorno PIX via API sem **autorização manual de evento
+    crítico** (D-09) e se a exigência de **saldo na raiz ≥ estorno** vale em
+    produção (D-08).
+- ✅ **P0 [dev]** Spike no sandbox (`scripts/asaas-spike.ts`, `npm run asaas:spike`),
+  respostas reais em [`spike.md`](./spike.md) — 04/11/2026:
+  - [x] subconta PF e PJ; campos obrigatórios; filtro `?cpfCnpj=` existe; documento
+        repetido → 400 "já está em uso";
+  - [x] aprovação por `POST /sandbox/myAccount/approve` (apiKey da subconta);
+        `ACCOUNT_STATUS_*` chegam fora de ordem;
+  - [x] split antes da aprovação: **aceito e liquidado** (RN-06 → `walletId`);
+  - [x] **D-01:** raiz ficou com R$ 0,25 exatos de R$ 10 — via `PUT /v3/payments/{id}`
+        (o `lean` não devolve o split);
+  - [x] **D-03:** link descarta o `split` (pago em 6x, sem split) → opção (1); parcelado com
+        `PUT /v3/installments/{id}/splits` exato;
+  - [~] **D-04:** sem cartão ok; paga **pela fatura**, guarda o cartão;
+        ⏳ ver a renovação de 05/11 (`-- pendencias`);
+  - [x] estorno: cartão ok; PIX exige `splitRefunds`, saldo na raiz e autorização
+        de evento crítico (D-08, D-09);
+  - [x] `notificationDisabled=true` desliga e-mail/SMS (confirmado no painel);
+  - [x] webhook reenviado em ~32 s com o mesmo `id` (`evt_<hex>&<n>`).
+- ✅ **P1** `sdd.md` atualizado; D-01, D-02, D-03 fechadas; D-04 com pendência;
+  D-08/D-09 novas.
+- ⏳ **P1 [dev]** Pendências do spike P3 e P5 (spike.md §10); P1, P2 e P4 feitas em 04/11.
 
 ## Fase 1 — Camada de abstração (sem mudar comportamento)
 
@@ -92,9 +101,13 @@ Dono: **[conta]** = ação no painel/comercial do Asaas (dono da conta) · **[de
   Asaas e a marca Asaas (RF-PG-12).
 - ⏳ **P0 [dev]** Perfil › Recebimentos e `OnboardingBanner` mostram a situação
   cadastral (RF-PG-13).
-- ⏳ **P0 [dev]** WhatsApp sem DÉBITO: `inbox.ts` (parser), `evolution.ts`
+- ⏳ **P0 [dev]** WhatsApp sem DÉBITO e **com a pergunta de parcelas** no CRÉDITO
+  (D-03: "em quantas vezes, de 1 a 6?"): `inbox.ts` (parser), `evolution.ts`
   (textos) e templates Meta `audere_*` novos → **submeter à aprovação da Meta**
   pelo `/admin/whatsapp` com antecedência.
+- ⏳ **P1 [dev]** Estorno PIX (D-08/D-09): reserva mínima de saldo na raiz com
+  alerta no admin, `reembolso_pendente` (sem saldo / "tente novamente") e
+  `reembolso_solicitado` (aguardando autorização de evento crítico).
 - ⏳ **P0 [dev]** `/planos` no modo Asaas: botão → fatura do Asaas → retorno.
 - ⏳ **P1 [dev]** Cron: cancelar PIX vencido pela regra de 30 min (D-05);
   reconciliar situação das subcontas pendentes (1×/dia); reprocessar
