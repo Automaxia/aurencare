@@ -118,8 +118,11 @@ Dono: **[conta]** = ação no painel/comercial do Asaas (dono da conta) · **[de
   configurar/documentos/recusado (RF-PG-13). 05/11/2026.
 - ✅ **P0 [dev]** WhatsApp sem DÉBITO e com a pergunta de parcelas no CRÉDITO
   (D-03, migration 055) — validado no E2E de 05/11.
-- ⏳ **P0 [conta]** **Submeter à Meta** `audere_sessao_metodo_v2` e
-  `audere_checkout_v2` pelo `/admin/whatsapp` — bloqueia a virada.
+- 🟡 **P0 [conta]** `audere_sessao_metodo_v2` e `audere_checkout_v2` **submetidos
+  à Meta em 05/11/2026** (WhatsApp Manager, Utilidade, pt_BR) — "Em análise".
+  Conferir a aprovação antes da virada. (As variáveis do checkout_v2 foram
+  reordenadas para {{1}} valor · {{2}} forma · {{3}} link: a Meta recusa fora
+  de ordem.)
 - ✅ **P1 [dev]** Estorno PIX (D-08): `/admin/pagamentos` mostra o saldo da raiz ×
   reserva (`ASAAS_RESERVA_ESTORNO`, padrão R$ 500, ou a soma da fila se maior),
   com alerta, e lista os estornos na fila. ⏳ Falta: estornos aguardando
@@ -129,8 +132,9 @@ Dono: **[conta]** = ação no painel/comercial do Asaas (dono da conta) · **[de
   proporcional (D-10, migration 054).
 - ✅ **P1 [dev]** Prévia da troca avisa quando a diferença sai em fatura à parte
   (próxima cobrança ainda não gerada, ex. anual) — `proximaCobrancaGerada`.
-- ⏳ **P1 [produto]** E-mail único por subconta: decidir entre reaproveitar a
-  subconta existente ou usar alias (quem refaz o cadastro PF→PJ fica travado).
+- ✅ **P1 [dev]** E-mail único por subconta: refazer o cadastro com e-mail já usado
+  abre a subconta com o alias `+audere2` (até `+audere5`); o Perfil mostra o
+  e-mail usado (migration 056 `recebedor_email`). Validado no `test:asaas`.
 - ✅ **P2 [dev]** Banner "Cobrança pelo WhatsApp em ativação" só no modo Pagar.me
   (lá a live ainda não cria recebedor; no Asaas seria falso).
 - ✅ **P1 [dev]** Cron (`services/manutencaoPagamentos.ts`, in-process + rota

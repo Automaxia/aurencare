@@ -178,8 +178,9 @@
 
 ### Restrições descobertas nos testes (04–05/11/2026)
 - **E-mail único por subconta:** o Asaas recusa uma 2ª subconta com o mesmo
-  e-mail ("já está em uso"). Quem refaz o cadastro (ex.: PF → PJ) fica travado —
-  decisão pendente (reaproveitar a subconta ou usar alias).
+  e-mail ("já está em uso"). Decidido (05/11/2026): quem refaz o cadastro (ex.:
+  PF → PJ) recebe o alias `nome+audere2@dominio` (até +audere5); o Perfil mostra
+  qual e-mail recebeu o acesso.
 - **`nextDueDate` da assinatura pula de ciclo** assim que a próxima cobrança é
   gerada (PENDING); a data real de renovação é o vencimento dessa cobrança.
 - **Sandbox:** o PIX de teste sai do saldo da própria raiz e exige autorização

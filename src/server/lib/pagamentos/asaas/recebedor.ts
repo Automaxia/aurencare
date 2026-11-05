@@ -59,31 +59,56 @@ export async function criarSubconta(input: RecebedorInput): Promise<RecebedorCri
   if (wh) corpo.webhooks = wh
   else log.warn('asaas.recebedor', 'subconta sem webhook (ASAAS_WEBHOOK_TOKEN ou URL https ausente) — situação só pela reconciliação')
 
-  try {
-    const r = await asaas('POST', '/accounts', corpo, { rotulo: 'criar subconta' })
-    const apiKey: string | null = r?.apiKey ?? r?.accessToken?.apiKey ?? null
-    if (!apiKey) log.err('asaas.recebedor', `subconta ${r?.id} criada SEM apiKey na resposta`, undefined)
-    log.ok('asaas.recebedor', `subconta ${r.id} criada (wallet ${r.walletId})`)
-    return {
-      gateway: 'asaas', ambiente: ambienteAsaas(), id: r.id, walletId: r.walletId ?? null, apiKey,
-      // Situação real chega por webhook; a criação sempre começa pendente.
-      situacao: 'pendente',
-    }
-  } catch (err) {
-    if (err instanceof AsaasErro) {
-      // Corrida: outra tentativa criou entre a busca e o POST.
-      if (err.tem(/já está em uso/i)) {
+  /*
+   * E-mail único por subconta: quem refaz o cadastro (PF → PJ, ou o 1º foi
+   * recusado) já tem uma subconta com o e-mail de login. Tenta o alias
+   * `nome+audere2@dominio` (até +audere5) — o acesso do Asaas chega na mesma
+   * caixa na maioria dos provedores, e o Perfil mostra qual e-mail foi usado.
+   */
+  for (let tentativa = 1; ; tentativa++) {
+    const email = tentativa === 1 ? input.email : emailAlternativo(input.email, tentativa)
+    try {
+      const r = await asaas('POST', '/accounts', { ...corpo, email }, { rotulo: 'criar subconta' })
+      const apiKey: string | null = r?.apiKey ?? r?.accessToken?.apiKey ?? null
+      if (!apiKey) log.err('asaas.recebedor', `subconta ${r?.id} criada SEM apiKey na resposta`, undefined)
+      log.ok('asaas.recebedor', `subconta ${r.id} criada (wallet ${r.walletId})${tentativa > 1 ? ` com e-mail alternativo (+audere${tentativa})` : ''}`)
+      return {
+        gateway: 'asaas', ambiente: ambienteAsaas(), id: r.id, walletId: r.walletId ?? null, apiKey,
+        // Situação real chega por webhook; a criação sempre começa pendente.
+        situacao: 'pendente',
+        emailUsado: tentativa > 1 ? email : null,
+      }
+    } catch (err) {
+      if (err instanceof AsaasErro && err.tem(/já está em uso/i)) {
+        // Corrida: outra tentativa criou entre a busca e o POST (documento repetido).
         const agora = await buscarPorDocumento(doc)
         if (agora) return agora
+        // Não é o documento → é o e-mail: tenta o próximo alias.
+        if (err.tem(/e-?mail/i) && tentativa < 5) continue
       }
-      throw new RecebedorErro(
-        'asaas',
-        err.erros.map(e => ({ caminho: e.code, mensagens: [e.description] })),
-        err.corpo, err.status, err.descricao,
-      )
+      throw traduzirErro(err)
     }
-    throw err
   }
+}
+
+/** Recusa do Asaas → `RecebedorErro` (o wizard traduz e volta ao campo). */
+function traduzirErro(err: unknown): unknown {
+  if (!(err instanceof AsaasErro)) return err
+  return new RecebedorErro(
+    'asaas',
+    err.erros.map(e => ({ caminho: e.code, mensagens: [e.description] })),
+    err.corpo, err.status, err.descricao,
+  )
+}
+
+/**
+ * `ana@x.com` → `ana+audere2@x.com`. Um sufixo que já exista é preservado
+ * (`ana+clinica@` → `ana+clinica+audere2@`): a entrega segue na mesma caixa e
+ * não colide com o alias de outra pessoa que use o mesmo prefixo.
+ */
+export function emailAlternativo(email: string, n: number): string {
+  const i = email.lastIndexOf('@')
+  return `${email.slice(0, i)}+audere${n}${email.slice(i)}`
 }
 
 async function buscarPorDocumento(doc: string): Promise<RecebedorCriado | null> {

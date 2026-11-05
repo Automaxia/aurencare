@@ -141,11 +141,12 @@ Qualquer mudança, é só responder por aqui.`,
 
   /** Asaas: a fatura não expira em 2h e já sai no parcelamento escolhido. */
   audere_checkout_v2: {
-    body: `Aqui está o link para pagar R$ {{2}} {{1}}:
+    body: `Aqui está o link para pagar R$ {{1}} {{2}}:
 {{3}}
 
 Assim que o pagamento for aprovado, sua sessão é confirmada automaticamente.`,
-    exemplo: ['no cartão de crédito em 3x de R$ 50,00', '150,00', 'https://www.asaas.com/i/abc123'],
+    // Variáveis na ordem em que aparecem no texto (a Meta recusa fora de ordem).
+    exemplo: ['150,00', 'no cartão de crédito em 3x de R$ 50,00', 'https://www.asaas.com/i/abc123'],
   },
 
   audere_pagamento_confirmado: {
@@ -280,11 +281,12 @@ export const WA_META = {
   fluxo2_checkout: (url: string, metodo: 'credito' | 'debito', valor: number, parcelas?: number) =>
     semDebito()
       ? t('audere_checkout_v2', [
+        // v2 usa vírgula decimal (as v1 seguem com ponto: template aprovado é imutável).
+        (Math.round(valor * 100) / 100).toFixed(2).replace('.', ','),
         parcelas && parcelas > 1
           ? `no cartão de crédito em ${parcelas}x de R$ ${(Math.round(valor / parcelas * 100) / 100).toFixed(2).replace('.', ',')}`
           : 'no cartão de crédito à vista',
-        // v2 usa vírgula decimal (as v1 seguem com ponto: template aprovado é imutável).
-        (Math.round(valor * 100) / 100).toFixed(2).replace('.', ','), url])
+        url])
       : t('audere_checkout', [metodo === 'credito' ? 'no cartão de crédito (até 6x)' : 'no débito', brl(valor), url]),
 
   fluxo2_confirmado: (dataHora: string, online?: boolean) =>

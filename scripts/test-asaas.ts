@@ -63,6 +63,16 @@ async function main() {
     endereco: { cep: '01310100', logradouro: 'Av. Paulista', numero: '1000', bairro: 'Bela Vista', cidade: 'São Paulo', uf: 'SP' },
   })
   ok('mesmo CPF de novo → reaproveita (não duplica)', de_novo.reaproveitado === true && de_novo.id === rec.id && de_novo.walletId === rec.walletId)
+  // Refazer o cadastro (ex.: PF → PJ) com o MESMO e-mail: o Asaas recusa e-mail
+  // repetido → a 2ª subconta sai com o alias +audere2.
+  const emailRepetido = `spike.asaas+teste-${t}@audere.ia.br`
+  const outra = await g.criarRecebedor({
+    tipoPessoa: 'PF', documento: gerarCpf(), razaoSocial: `Psicóloga Teste B ${t}`, email: emailRepetido,
+    telefone: '11987654321', dataNascimento: '1990-05-10', rendaCentavos: 800000,
+    endereco: { cep: '01310100', logradouro: 'Av. Paulista', numero: '1000', bairro: 'Bela Vista', cidade: 'São Paulo', uf: 'SP' },
+  })
+  ok('e-mail já usado → 2ª subconta com alias +audere2', outra.id !== rec.id && !!outra.walletId
+    && outra.emailUsado === `spike.asaas+teste-${t}+audere2@audere.ia.br`, `id=${outra.id} email=${outra.emailUsado}`)
 
   // Aprovação no sandbox (retenta: logo após criar pode dar 500 — spike §2)
   for (let i = 0; i < 5; i++) {

@@ -161,10 +161,12 @@ async function gravarRecebedor(psicologoId: string, c: RecebedorCriado): Promise
         recebedor_situacao = $6::text, recebedor_situacao_detalhe = $7::jsonb, recebedor_ambiente = $8::text,
         pagarme_recipient_id = CASE WHEN $2::text = 'pagarme' THEN $3::text ELSE pagarme_recipient_id END,
         pgm_ambiente         = CASE WHEN $2::text = 'pagarme' THEN $8::text ELSE pgm_ambiente END,
+        recebedor_email = $9::text,
         pgm_onboarding_em = NOW()
       WHERE id = $1`,
     [psicologoId, c.gateway, c.id, c.walletId, c.apiKey ? encrypt(c.apiKey) : null,
-     c.situacao, c.situacaoDetalhe ? JSON.stringify(c.situacaoDetalhe) : null, c.ambiente],
+     c.situacao, c.situacaoDetalhe ? JSON.stringify(c.situacaoDetalhe) : null, c.ambiente,
+     c.emailUsado ?? null],
   )
 }
 
@@ -318,7 +320,7 @@ export async function lerOnboardingDetalhes(psicologoId: string): Promise<Onboar
             pgm_banco_conta, pgm_banco_conta_dv, pgm_banco_tipo, pgm_titular_nome,
             pgm_chave_pix_tipo, pgm_chave_pix_valor,
             pgm_onboarding_em, pagarme_recipient_id,
-            recebedor_gateway, recebedor_situacao, recebedor_situacao_detalhe, email
+            recebedor_gateway, recebedor_situacao, recebedor_situacao_detalhe, email, recebedor_email
        FROM psicologos WHERE id = $1 LIMIT 1`,
     [psicologoId],
   )
@@ -358,7 +360,8 @@ export async function lerOnboardingDetalhes(psicologoId: string): Promise<Onboar
       gateway: (r.recebedor_gateway ?? (r.pagarme_recipient_id ? 'pagarme' : null)) as Gateway | null,
       situacao: (r.recebedor_situacao ?? null) as SituacaoRecebedor | null,
       etapas: r.recebedor_situacao_detalhe ?? null,
-      email: r.email ?? null,
+      // Alias quando a subconta foi aberta com e-mail alternativo (migration 056).
+      email: r.recebedor_email ?? r.email ?? null,
     },
   }
 }

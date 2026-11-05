@@ -76,6 +76,8 @@ export type RecebedorCriado = {
   situacaoDetalhe?: Record<string, unknown> | null
   /** true quando a subconta já existia (idempotência por CPF/CNPJ). */
   reaproveitado?: boolean
+  /** Asaas: e-mail com que a subconta foi aberta, quando difere do informado (alias). */
+  emailUsado?: string | null
 }
 
 /** O que o split precisa saber do psicólogo, já lido do banco. */
