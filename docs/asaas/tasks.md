@@ -120,9 +120,10 @@ Dono: **[conta]** = ação no painel/comercial do Asaas (dono da conta) · **[de
   (D-03, migration 055) — validado no E2E de 05/11.
 - ⏳ **P0 [conta]** **Submeter à Meta** `audere_sessao_metodo_v2` e
   `audere_checkout_v2` pelo `/admin/whatsapp` — bloqueia a virada.
-- ⏳ **P1 [dev]** Estorno PIX (D-08/D-09): reserva mínima de saldo na raiz com
-  alerta no admin; listar no admin as sessões com `reembolso_pendente_em` e os
-  estornos aguardando autorização de evento crítico.
+- ✅ **P1 [dev]** Estorno PIX (D-08): `/admin/pagamentos` mostra o saldo da raiz ×
+  reserva (`ASAAS_RESERVA_ESTORNO`, padrão R$ 500, ou a soma da fila se maior),
+  com alerta, e lista os estornos na fila. ⏳ Falta: estornos aguardando
+  autorização de evento crítico (D-09) — depende da resposta do Asaas (P5).
 - ✅ **P0 [dev]** `/planos` no modo Asaas: fatura do Asaas, "Pagar fatura"
   reabre a cobrança em aberto, "Renova em" com a data do Asaas, troca de plano
   proporcional (D-10, migration 054).
@@ -137,8 +138,10 @@ Dono: **[conta]** = ação no painel/comercial do Asaas (dono da conta) · **[de
   `webhook_eventos` com erro @10min; estornos com `reembolso_pendente_em` @hora
   (D-08, alerta por e-mail ao admin após 24h); situação das subcontas 07h40/19h40.
   Validado no E2E local de 04/11/2026.
-- ⏳ **P1 [dev]** `/admin`: subcontas por situação, cobranças sem split, eventos
-  com erro, divergência de split.
+- ✅ **P1 [dev]** `/admin/pagamentos` (RF-PG-51): recebedores por situação,
+  cobranças sem split (60 dias), webhooks com erro (7 dias), bloqueios por
+  divergência de split e "Rodar manutenção agora" (mesma rotina do cron).
+  05/11/2026.
 - ✅ **P1 [dev]** Financeiro e exportação contábil: rótulo "Taxas do gateway" e
   taxa real; "estorno pendente" na linha da cobrança.
 - ⏳ **P1 [dev]** `/privacidade` e termos: Asaas como operador de pagamento.

@@ -36,7 +36,7 @@ export default async function WhatsAppDiagPage() {
       <PageHeader
         title="Diagnóstico de WhatsApp"
         subtitle="Por que as mensagens não estão chegando?"
-        actions={<Link href="/admin" className="btn ghost">← Administração</Link>}
+        actions={<Link href="/admin" className="btn">← Administração</Link>}
       />
 
       <div className="card" style={{ padding: 20, marginBottom: 16, borderLeft: `4px solid ${status.cor}` }}>
@@ -111,7 +111,7 @@ async function DiagMeta() {
       <PageHeader
         title="Diagnóstico de WhatsApp"
         subtitle="Cloud API (Meta) · número próprio da Audere"
-        actions={<Link href="/admin" className="btn ghost">← Administração</Link>}
+        actions={<Link href="/admin" className="btn">← Administração</Link>}
       />
 
       <div className="card" style={{ padding: 20, marginBottom: 16, borderLeft: `4px solid ${status.cor}` }}>

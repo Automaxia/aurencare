@@ -57,9 +57,10 @@ export default async function AdminPage() {
         subtitle="Cockpit de produto — o Audere está gerando valor?"
         actions={
           <span style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-            <Link href="/admin/whatsapp" className="btn ghost">Diagnóstico WhatsApp →</Link>
-            <Link href="/admin/leads" className="btn ghost">Lista de espera →</Link>
-            <Link href="/admin/custos" className="btn ghost">Economia da plataforma →</Link>
+            <Link href="/admin/pagamentos" className="btn">Operação de pagamentos →</Link>
+            <Link href="/admin/whatsapp" className="btn">Diagnóstico WhatsApp →</Link>
+            <Link href="/admin/leads" className="btn">Lista de espera →</Link>
+            <Link href="/admin/custos" className="btn">Economia da plataforma →</Link>
           </span>
         }
       />

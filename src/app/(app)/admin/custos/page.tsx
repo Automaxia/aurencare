@@ -80,7 +80,7 @@ export default async function EconomiaPage() {
       <PageHeader
         title="Economia da Plataforma"
         subtitle="Custos, consumo de IA e eficiência operacional da Audere."
-        actions={<Link href="/admin" className="btn ghost">← Administração</Link>}
+        actions={<Link href="/admin" className="btn">← Administração</Link>}
       />
 
       {/* BLOCO 1 — RESUMO EXECUTIVO */}

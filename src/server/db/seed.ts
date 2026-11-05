@@ -33,6 +33,17 @@ async function main() {
   const psicologoId = pRows[0].id
   console.log(`✓ psicóloga demo: ${email} / ${senha}`)
 
+  // Admin de dev (área /admin). Conta separada da demo: admin é sempre Pro
+  // sem vencimento, o que atrapalharia testar planos com a ana.
+  const emailAdmin = 'admin.dev@audere.local'
+  await pool.query(
+    `INSERT INTO psicologos (nome, crp, email, senha_hash, role, valor_sessao)
+     VALUES ('Admin Dev', 'CRP 00/00000', $1, $2, 'admin', 0)
+     ON CONFLICT (email) DO UPDATE SET senha_hash = EXCLUDED.senha_hash, role = 'admin'`,
+    [emailAdmin, hash],
+  )
+  console.log(`✓ admin de dev: ${emailAdmin} / ${senha}`)
+
   // 3 pacientes fictícios
   const pacientes = [
     { nome: 'Fernanda K.',    tel: '11999990001', email: 'fernanda@example.com', aceito: true  },

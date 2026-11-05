@@ -678,14 +678,16 @@ html.sigilo-on :is(.sigilo, .pts-name, .pts-av, .pb-name, .sess-pill span) {
 .btn {
   display: inline-flex; align-items: center; justify-content: center; gap: 6px;
   box-sizing: border-box; min-height: var(--btn-h); padding: 0 14px;
-  border-radius: var(--rsm); border: 1px solid var(--border);
-  background: var(--card); color: var(--ink-soft);
+  /* Borda = a dos campos (--field-border): com --border (5,5%) o secundário
+     sumia no fundo off-white e parecia texto solto. */
+  border-radius: var(--rsm); border: 1px solid var(--field-border);
+  background: var(--card); color: var(--ink);
   font-family: inherit; font-weight: 500; font-size: 13px; line-height: 1.2;
   white-space: nowrap; text-decoration: none; vertical-align: middle;
   cursor: pointer; user-select: none;
   transition: background .12s var(--ease), color .12s var(--ease), transform .12s var(--ease);
 }
-.btn:hover { background: var(--surface); }
+.btn:hover { background: rgba(106,78,200,.05); border-color: var(--field-border-hover); }
 .btn:focus-visible { outline: none; box-shadow: var(--field-ring); }
 .btn:disabled, .btn[aria-disabled="true"] { opacity: .55; cursor: not-allowed; }
 .btn.primary { background: var(--accent); color: white; border-color: transparent; }

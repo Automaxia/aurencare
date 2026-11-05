@@ -14,7 +14,7 @@ export default async function LeadsPage() {
       <PageHeader
         title="Lista de espera"
         subtitle={`${leads.length} ${leads.length === 1 ? 'inscrito' : 'inscritos'} no acesso antecipado`}
-        actions={<Link href="/admin" className="btn ghost">← Administração</Link>}
+        actions={<Link href="/admin" className="btn">← Administração</Link>}
       />
 
       {leads.length === 0 ? (
