@@ -74,7 +74,12 @@
 - **RF-PG-13** A Audere acompanha a **situação cadastral** da subconta
   (documentos, dados comerciais, conta bancária, aprovação geral) e mostra no
   Perfil › Recebimentos: "Aguardando documentos", "Em análise", "Aprovada",
-  "Recusada — veja o e-mail do Asaas".
+  "Recusada — veja o e-mail do Asaas", com o status de cada etapa e o botão
+  "Atualizar situação" (consulta o Asaas na hora). O banner do topo diz o que
+  falta: *configurar* (sem onboarding), *enviar documentos* (subconta pendente:
+  cobra, mas não saca) ou *recusada* (cobrança pela plataforma pausada) — conta
+  recusada não pode cair em "configure seus recebimentos". No modo Asaas o
+  Perfil não mostra conta bancária nem chave PIX (são da subconta).
 - **RF-PG-14** Enquanto a subconta não está apta a receber split, as sessões do
   psicólogo seguem o comportamento atual de "recebimento não configurado".
 - **RF-PG-15** Psicólogos com recebedor `mock_rcp_*` ou recebedor Pagar.me que
@@ -87,9 +92,12 @@
   **Débito sai do produto**: o Asaas não cria cobrança online em cartão de débito.
 - **RF-PG-21** **PIX:** o paciente recebe o QR/copia-e-cola e o link da fatura.
   A cobrança vence no horário-limite definido pela regra de negócio (§6).
-- **RF-PG-22** **Crédito:** o paciente recebe o link da fatura hospedada no
-  Asaas e paga em até **6x sem juros** para o paciente (decisão D-03 no SDD
-  define como o número de parcelas é escolhido).
+- **RF-PG-22** **Crédito:** o paciente paga em até **6x sem juros** na fatura
+  hospedada no Asaas. As parcelas são escolhidas ANTES da fatura (D-03): ao
+  responder CREDITO, o WhatsApp pergunta "em quantas vezes, de 1 a 6?" e mostra
+  o valor de cada opção; a resposta ("3", "3x", "em 3 vezes", "CREDITO 3")
+  gera a fatura parcelada com split. Um número solto só vale para a sessão com
+  a pergunta feita nas últimas 24h. DEBITO recebe "não aceitamos débito".
 - **RF-PG-23** Toda cobrança de sessão com psicólogo apto sai **com split**:
   psicólogo recebe o valor menos a taxa administrativa; a plataforma fica com
   **2,5% do valor bruto**, exato, auditável e igual ao que aparece no Financeiro.
@@ -116,10 +124,20 @@
   Asaas, no cartão de crédito, com renovação automática.
 - **RF-PG-41** Os dados do cartão **não passam pelo servidor da Audere**
   (decisão D-04 no SDD).
-- **RF-PG-42** Upgrade/downgrade/cancelamento mantêm as regras atuais
-  (`assinatura.ts`): cancelamento mantém acesso até `plano_expira_em`.
-- **RF-PG-43** Falha de renovação deixa o plano `inadimplente`; pagamento
-  posterior reativa.
+- **RF-PG-42** Troca de plano no mesmo cartão (regra de 04/11/2026):
+  - **subir** vale na hora; a diferença proporcional aos dias que faltam no
+    ciclo entra na **próxima fatura** (nada é cobrado na hora);
+  - **descer** de plano ou **trocar o ciclo** vale na **renovação** — a pessoa
+    segue no plano pago até lá (fecha o furo de subir, gastar a cota e descer);
+  - escolher o plano atual desfaz a troca agendada;
+  - a tela mostra antes quanto entra na fatura e quando vale.
+  Cancelamento mantém acesso até `plano_expira_em`. Na Pagar.me a troca segue
+  cancelando e criando (cobra o plano novo cheio na hora).
+- **RF-PG-43** Falha de renovação deixa o plano `inadimplente` (acesso até o fim
+  do ciclo pago). O banner e o `/planos` mostram **"Pagar fatura"**, que reabre a
+  cobrança em aberto — nunca cria outra assinatura. Pagamento posterior reativa.
+- **RF-PG-45** "Renova em" mostra a data em que o Asaas vai cobrar (vencimento
+  da próxima cobrança), não uma estimativa.
 - **RF-PG-44** Assinaturas existentes na Pagar.me continuam lá até o assinante
   trocar de plano ou de cartão; aí migram para o Asaas.
 
@@ -157,6 +175,15 @@
 - **Débito online não existe** na criação de cobrança/assinatura.
 - A `apiKey` da subconta só é devolvida **uma vez**, na criação.
 - Tokenização de cartão em produção depende de **habilitação** pelo Asaas.
+
+### Restrições descobertas nos testes (04–05/11/2026)
+- **E-mail único por subconta:** o Asaas recusa uma 2ª subconta com o mesmo
+  e-mail ("já está em uso"). Quem refaz o cadastro (ex.: PF → PJ) fica travado —
+  decisão pendente (reaproveitar a subconta ou usar alias).
+- **`nextDueDate` da assinatura pula de ciclo** assim que a próxima cobrança é
+  gerada (PENDING); a data real de renovação é o vencimento dessa cobrança.
+- **Sandbox:** o PIX de teste sai do saldo da própria raiz e exige autorização
+  de evento crítico — por isso o estorno PIX com saldo só é testável na live.
 
 ## 8. Critérios de aceite (produção)
 

@@ -5,6 +5,7 @@ import { lerPerfilTributario } from '@/server/services/perfilTributario'
 import Link from 'next/link'
 import { ChavePixForm } from './form'
 import { TributarioForm } from './TributarioForm'
+import { SituacaoAsaas } from './SituacaoAsaas'
 
 export const dynamic = 'force-dynamic'
 
@@ -22,11 +23,16 @@ export default async function PerfilRecebimentosPage() {
     lerPerfilTributario(user.id),
   ])
 
+  // Asaas: o dinheiro cai na subconta e o saque é feito lá — sem conta
+  // bancária nem chave PIX aqui (RF-PG-12/13).
+  const asaas = d.recebedor.gateway === 'asaas'
+  const subtitulo = asaas ? 'Sua conta de recebimento e os dados fiscais.' : 'Conta bancária e chave PIX.'
+
   if (!d.completo) {
     return (
       <div>
         <PerfilTabs active="recebimentos" />
-        <PageHeader title="Recebimentos" subtitle="Conta bancária e chave PIX." />
+        <PageHeader title="Recebimentos" subtitle={subtitulo} />
         <EmptyState>
           Você ainda não configurou seus dados de recebimento.{' '}
           <Link href="/onboarding/recebimentos" style={{ color: 'var(--accent)' }}>Completar agora →</Link>
@@ -38,9 +44,9 @@ export default async function PerfilRecebimentosPage() {
   return (
     <div>
       <PerfilTabs active="recebimentos" />
-      <PageHeader title="Recebimentos" subtitle="Conta bancária e chave PIX." />
+      <PageHeader title="Recebimentos" subtitle={subtitulo} />
 
-      {d.recipientInvalido && (
+      {d.recipientInvalido && !asaas && (
         <div className="card" style={{
           marginBottom: 16, borderLeft: '3px solid var(--rose)',
           background: 'rgba(196,96,122,.05)', fontSize: 12.5, lineHeight: 1.6, color: 'var(--ink-soft)',
@@ -55,8 +61,10 @@ export default async function PerfilRecebimentosPage() {
 
       <div style={{ display: 'grid', gridTemplateColumns: '1.4fr 1fr', gap: 20, alignItems: 'start' }}>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-          {/* Conta bancária — read-only */}
-          <div className="card">
+          {asaas && <SituacaoAsaas situacao={d.recebedor.situacao} etapas={d.recebedor.etapas} email={d.recebedor.email} />}
+
+          {/* Conta bancária — read-only (Pagar.me) */}
+          {!asaas && <div className="card">
             <div className="sec-lbl" style={{ marginBottom: 12 }}>Conta bancária para repasse</div>
             <ReadField label="Banco" value={d.banco.codigo ? `${d.banco.codigo} — ${BANCOS_NOME[d.banco.codigo] ?? '—'}` : '—'} />
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12, marginTop: 10 }}>
@@ -72,10 +80,10 @@ export default async function PerfilRecebimentosPage() {
               Alterações na conta bancária exigem reanálise da Pagar.me.{' '}
               <strong>Fale com o suporte</strong> pra atualizar.
             </div>
-          </div>
+          </div>}
 
-          {/* Chave PIX — editável */}
-          <ChavePixForm chaveAtual={d.chavePix} />
+          {/* Chave PIX — editável (Pagar.me; no Asaas o PIX é da subconta) */}
+          {!asaas && <ChavePixForm chaveAtual={d.chavePix} />}
 
           {/* Perfil tributário — pra cálculo de impostos e exportações pro contador */}
           <TributarioForm inicial={tributario} />
@@ -103,6 +111,7 @@ function PerfilTabs({ active }: { active: 'perfil' | 'recebimentos' }) {
     <div style={{ display: 'flex', gap: 4, marginBottom: 14 }}>
       <TabLink href="/perfil"              label="Perfil"       active={active === 'perfil'} />
       <TabLink href="/perfil/recebimentos" label="Recebimentos" active={active === 'recebimentos'} />
+      <TabLink href="/planos"              label="Plano e uso"  active={false} />
     </div>
   )
 }

@@ -1,7 +1,7 @@
 import { Sidebar } from '@/components/layout/Sidebar'
 import { Topbar } from '@/components/layout/Topbar'
 import { AppShell } from '@/components/layout/AppShell'
-import { OnboardingBanner } from '@/components/layout/OnboardingBanner'
+import { OnboardingBanner, type MotivoOnboardingBanner } from '@/components/layout/OnboardingBanner'
 import { PlanoUsoBanner } from '@/components/layout/PlanoUsoBanner'
 import { ToastProvider } from '@/components/feedback/Toast'
 import { getServerSession } from 'next-auth/next'
@@ -26,6 +26,14 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     obterAssinatura(userId),
   ])
 
+  // Recebimento: recusado no Asaas não é "configure" (refazer igual falharia
+  // de novo); subconta criada sem documentos ainda cobra, mas não saca.
+  const recebimentoBanner: MotivoOnboardingBanner | null =
+    onboarding.situacao === 'recusado' ? 'recusado'
+    : !onboarding.completo ? 'configurar'
+    : onboarding.recebedor?.gateway === 'asaas' && onboarding.situacao === 'pendente' ? 'documentos'
+    : null
+
   const planoBanner: 'limite' | 'inadimplente' | null =
     assinatura.status === 'inadimplente' ? 'inadimplente'
     : assinatura.restantes === 0 ? 'limite'
@@ -40,7 +48,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
           initialPendencias={atalhos.pendencias}
         />
         <ToastProvider>
-          {!onboarding.completo && <OnboardingBanner />}
+          {recebimentoBanner && <OnboardingBanner motivo={recebimentoBanner} />}
           {planoBanner && <PlanoUsoBanner motivo={planoBanner} cap={assinatura.cap} gateway={assinatura.gateway} />}
           <main className="app-content">{children}</main>
         </ToastProvider>

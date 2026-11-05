@@ -90,7 +90,14 @@ interface GatewayPagamento {
 
   // Assinatura do plano
   criarAssinatura(input: AssinaturaInput): Promise<AssinaturaCriada>
+  /** Troca no mesmo cartão; `acrescimoCentavos` = diferença proporcional do upgrade. */
+  atualizarAssinatura?(id: string, input: AssinaturaInput, acrescimoCentavos?: number): Promise<AtualizacaoAssinatura>
   cancelarAssinatura(assinaturaId: string): Promise<boolean>
+  faturaEmAberto?(assinaturaId: string): Promise<string | null>   // invoiceUrl PENDING/OVERDUE
+  proximaCobranca?(assinaturaId: string): Promise<string | null>  // AAAA-MM-DD
+
+  // Cobrança de sessão não paga (D-05: a validade é regra nossa)
+  cancelarCobranca?(cobrancaId: string): Promise<boolean>
 
   // Webhook
   autenticarWebhook(req: Request, corpoBruto: string): boolean
@@ -102,7 +109,7 @@ type EventoPagamento =
   | { tipo: 'cobranca.falhou' | 'cobranca.vencida' | 'cobranca.cancelada'; eventoId: string; cobrancaId: string }
   | { tipo: 'cobranca.reembolsada'; eventoId: string; cobrancaId: string; valorCentavos: number; parcial: boolean }
   | { tipo: 'cobranca.contestada'; eventoId: string; cobrancaId: string }
-  | { tipo: 'assinatura.paga' | 'assinatura.falhou' | 'assinatura.cancelada'; eventoId: string; assinaturaId: string; cicloFim?: string }
+  | { tipo: 'assinatura.paga' | 'assinatura.falhou' | 'assinatura.cancelada'; eventoId: string; assinaturaId: string; cicloFim?: string; vencimento?: string }
   | { tipo: 'recebedor.situacao'; eventoId: string; recebedorId: string; situacao: SituacaoRecebedor }
 ```
 
@@ -178,6 +185,12 @@ CREATE TABLE webhook_eventos (
 - Todo `obterAssinatura`, Admin (MRR, cortesia) e `sqlTemCobrancaAberta` passam a
   ler `assinatura_id` / `cobranca_id`. A cortesia continua sendo "plano ≠ free e
   sem `assinatura_id`" (migration 047 usa o mesmo critério).
+
+### Migrations seguintes
+- **054 `plano_agendado`** — `psicologos.plano_agendado`, `plano_ciclo_agendado`,
+  `plano_agendado_vigencia` (troca de plano na renovação, §4.5).
+- **055 `wa_parcelas`** — `sessoes.wa_parcelas_perguntado_em` (pergunta de
+  parcelas no WhatsApp, §4.5b).
 
 ## 4. Fluxos no Asaas
 
@@ -396,14 +409,52 @@ assinar(plano, ciclo)
   `POST /v3/creditCard/tokenizeCreditCard` **no servidor** (o Asaas não tem
   tokenização no navegador documentada) → o número do cartão passa pela Audere
   (escopo PCI maior) e exige habilitação do Asaas em produção. Evitar.
-- Cancelamento: `DELETE /v3/subscriptions/{id}`. Troca de plano:
-  `PUT /v3/subscriptions/{id}` (valor/ciclo valem para as próximas cobranças) em
-  vez de cancelar e criar.
+- Cancelamento: `DELETE /v3/subscriptions/{id}`.
+- **Troca de plano** (RF-PG-42, `src/server/lib/trocaPlano.ts`, migration 054):
+  ```
+  calcularTroca(atual, novo, expiraEm)            // puro, testado
+    subir  → plano novo agora; acréscimo = Δpreço(ciclo atual) × fração restante
+    descer / trocar ciclo → plano atual até a renovação; destino em plano_agendado*
+  atualizarAssinaturaAsaas(sub, destino, acréscimo)
+    1. PUT /subscriptions/{id} { value, cycle, updatePendingPayments: false }
+    2. cobrança PENDING mais próxima: PUT /payments/{id}
+         value = preço do destino + acréscimos já somados nela + acréscimo
+       (sem cobrança gerada ainda → fatura avulsa da diferença)
+    3. devolve o vencimento dessa cobrança → plano_agendado_vigencia
+  webhook assinatura.paga com vencimento >= vigência → aplica plano_agendado
+  ```
+  O `PAYMENT_RECEIVED` do cartão chega ~30 dias após o `CONFIRMED`; o de um
+  ciclo anterior não pode antecipar a troca — daí a vigência por vencimento.
+- **Fatura em aberto:** `assinar()` no mesmo plano com status `inadimplente`
+  devolve a fatura PENDING/OVERDUE existente; `/planos` e o banner chamam
+  `faturaEmAberto` ("Pagar fatura").
+- **Data de renovação:** o webhook da cobrança paga grava `plano_expira_em` =
+  vencimento da próxima cobrança PENDING (fallback: `nextDueDate`, que pula de
+  ciclo quando a próxima cobrança é gerada).
 - Assinaturas Pagar.me existentes: seguem no adaptador `pagarme` até cancelar ou
   trocar de plano (RF-PG-44). `NEXT_PUBLIC_PAGARME_PUBLIC_KEY` continua no build
   até não haver mais checkout Pagar.me.
 - `/planos` deixa de ter formulário de cartão próprio quando o gateway padrão é
   Asaas: botão "Assinar" → fatura do Asaas → volta para `/planos?ok=1`.
+
+### 4.5b WhatsApp — crédito parcelado (D-03, migration 055)
+
+```
+paciente: CREDITO           → wa_parcelas_perguntado_em = now; pergunta 1–6 (com o valor de cada)
+paciente: "3" | "3x" | ...  → tratarRespostaParcelas: sessão com a pergunta < 24h e não paga
+                              → gerarCobrancaCartao(sessão, 'credito', 3) → installmentCount + split
+paciente: CREDITO 3         → direto (número na mesma mensagem)
+paciente: DEBITO            → "não aceitamos débito" (Asaas não tem débito online)
+```
+
+Templates Meta do modo Asaas: `audere_sessao_metodo_v2` (botões PIX/CREDITO) e
+`audere_checkout_v2` (sem "expira em 2h"; já com o parcelamento). As `_v1`
+continuam valendo para a Pagar.me (template aprovado é imutável). A pergunta
+de parcelas é texto livre (janela de 24h aberta pela resposta do paciente).
+
+Taxa do gateway no parcelado: cada webhook é de uma parcela; as parcelas do
+Asaas têm valor e taxa iguais → taxa total = taxa da parcela × nº de parcelas,
+gravada no 1º evento.
 
 ### 4.6 Modo mock
 
@@ -448,6 +499,7 @@ Atualizar `.env.example`, `k8s/aurencare-secrets.example.yaml`, `env.ts`
 | D-07 | Coexistência | coluna `gateway` por registro | sim (RF-PG-02) |
 | D-08 | Saldo para estornos PIX (o Asaas exige saldo na raiz ≥ valor do estorno) | (a) manter **reserva** fixa na raiz (ex.: maior valor de sessão × N) e não sacar abaixo dela; (b) estorno vira `reembolso_pendente` e o cron tenta quando houver saldo; (c) só (b) | **(a) + (b)**: reserva + fila; alerta no admin quando o saldo da raiz < reserva. Perguntar ao Asaas se vale igual em produção |
 | D-09 | Autorização de evento crítico nos estornos PIX via API | (a) autorizar manualmente no painel (token/SMS); (b) configuração do Asaas que dispense (whitelist de IP / ajuste de segurança) | **perguntar ao Asaas** (tasks Fase 0, [conta]); até lá (a) com rotina diária e `reembolso_solicitado` visível |
+| D-10 | Troca de plano no Asaas | (a) cancelar + criar (como na Pagar.me); (b) PUT na assinatura | ✅ **(b)**: subir na hora com a diferença proporcional na próxima fatura; descer/trocar ciclo na renovação (migration 054). Decidido pelo usuário em 04/11/2026 |
 | RN-06 | Quando o psicólogo entra no split | situação geral aprovada; ou assim que existir `walletId` | **`walletId`** (split para subconta pendente foi aceito e liquidado no sandbox); confirmar no piloto |
 
 ## 8. Testes
@@ -459,4 +511,10 @@ Atualizar `.env.example`, `k8s/aurencare-secrets.example.yaml`, `env.ts`
   endpoint de sandbox, PIX pago pelo "confirmar pagamento" do sandbox, cartão de
   teste à vista e parcelado, estorno total/parcial, assinatura, reenvio do mesmo
   webhook.
+- Banco real (`npm run test:pagamentos-db`, Postgres em docker na 55433):
+  wizard nos dois gateways, `assinar`, manutenção (cron), regra pura da troca
+  de plano e o fluxo assinar → agendar → webhook (inclui o RECEIVED atrasado).
+- E2E pelo Chrome (04 e 05/11/2026): onboarding PF e PJ, PIX com split,
+  crédito 3x pelo WhatsApp, estorno do parcelado, assinatura, troca de plano,
+  recusa → "Pagar fatura". Resultado em `tasks.md`.
 - Produção (spec §8): checklist manual com valores mínimos.

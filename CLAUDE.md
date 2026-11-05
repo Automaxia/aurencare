@@ -695,10 +695,13 @@ Modal abre automaticamente ao encerrar. Contém:
   (`412 action_forbidden`) — aguardando o suporte da Pagar.me. Sem isso o
   psicólogo não conclui o onboarding de recebimento e a taxa de 2,5% não sai.
   Detalhe em [`docs/INFRA.md`](./docs/INFRA.md) §2.
-- **Asaas como segundo gateway** (nov/2026) — Fases 1 e 2 prontas: camada
-  `pagamentos/`, migration 053, adaptador Asaas testado no sandbox. Desligado
-  (`PAYMENT_GATEWAY=pagarme`); virada em `docs/INFRA.md` §4c. Fase 3 (UI/WhatsApp
-  sem débito, parcelas) em `docs/asaas/tasks.md`.
+- **Asaas como segundo gateway** (nov/2026) — Fases 1–2 prontas e Fase 3 quase
+  toda: camada `pagamentos/`, migrations 053–055, WhatsApp sem débito e com
+  pergunta de parcelas, wizard PF/PJ, situação da subconta no Perfil, troca de
+  plano proporcional (`trocaPlano.ts`), "Pagar fatura". Testado ponta a ponta no
+  sandbox pelo Chrome. Desligado (`PAYMENT_GATEWAY=pagarme`); virada em
+  `docs/INFRA.md` §4c — antes, aprovar na Meta os templates `audere_*_v2` e
+  configurar a conta live. Pendências em `docs/asaas/tasks.md`.
 - **TURN da Cloudflare** — no código; faltam `CLOUDFLARE_TURN_*` no cluster
   (até lá, coturn).
 

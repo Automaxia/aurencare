@@ -113,18 +113,25 @@ Dono: **[conta]** = ação no painel/comercial do Asaas (dono da conta) · **[de
   nem sócio), `companyType` na PJ, aviso do e-mail de acesso do Asaas e marca
   Asaas (RF-PG-12). Celular pedido no próprio wizard quando falta (antes o erro
   só aparecia no último clique) — vale também para a Pagar.me.
-- ⏳ **P0 [dev]** Perfil › Recebimentos e `OnboardingBanner` mostram a situação
-  cadastral (RF-PG-13).
-- ⏳ **P0 [dev]** WhatsApp sem DÉBITO e **com a pergunta de parcelas** no CRÉDITO
-  (D-03: "em quantas vezes, de 1 a 6?"): `inbox.ts` (parser), `evolution.ts`
-  (textos) e templates Meta `audere_*` novos → **submeter à aprovação da Meta**
-  pelo `/admin/whatsapp` com antecedência.
+- ✅ **P0 [dev]** Perfil › Recebimentos (cartão `SituacaoAsaas`: situação, etapas
+  do KYC, "Atualizar situação") e `OnboardingBanner` com motivo
+  configurar/documentos/recusado (RF-PG-13). 05/11/2026.
+- ✅ **P0 [dev]** WhatsApp sem DÉBITO e com a pergunta de parcelas no CRÉDITO
+  (D-03, migration 055) — validado no E2E de 05/11.
+- ⏳ **P0 [conta]** **Submeter à Meta** `audere_sessao_metodo_v2` e
+  `audere_checkout_v2` pelo `/admin/whatsapp` — bloqueia a virada.
 - ⏳ **P1 [dev]** Estorno PIX (D-08/D-09): reserva mínima de saldo na raiz com
   alerta no admin; listar no admin as sessões com `reembolso_pendente_em` e os
   estornos aguardando autorização de evento crítico.
-- 🟡 **P0 [dev]** `/planos` no modo Asaas: botão → fatura do Asaas ✅; banner
-  "fatura em aberto" ✅. Falta: "Resolver" levar à fatura PENDENTE já existente
-  (hoje reassinar cancela e cria outra) e o retorno pós-pagamento.
+- ✅ **P0 [dev]** `/planos` no modo Asaas: fatura do Asaas, "Pagar fatura"
+  reabre a cobrança em aberto, "Renova em" com a data do Asaas, troca de plano
+  proporcional (D-10, migration 054).
+- ⏳ **P1 [dev]** Prévia da troca diz "Nada é cobrado agora" também no caso raro
+  de fatura avulsa da diferença (assinatura sem cobrança gerada, ex. anual).
+- ⏳ **P1 [produto]** E-mail único por subconta: decidir entre reaproveitar a
+  subconta existente ou usar alias (quem refaz o cadastro PF→PJ fica travado).
+- ⏳ **P2 [dev]** Banner "Cobrança pelo WhatsApp em ativação" do wizard está
+  desatualizado.
 - ✅ **P1 [dev]** Cron (`services/manutencaoPagamentos.ts`, in-process + rota
   `/api/cron/pagamentos`): PIX vencido @5min (D-05, `DELETE /payments`);
   `webhook_eventos` com erro @10min; estornos com `reembolso_pendente_em` @hora

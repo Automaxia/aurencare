@@ -49,7 +49,7 @@ Browser ── HTTPS (Cloudflare Full strict) ── Ingress nginx ── Servic
 
 > **DDL base: CLAUDE.md §11.** Aqui só o que importa para o design.
 
-- **52 migrations** em `src/server/db/migrations/NNN_*.sql`, aplicadas por
+- **55 migrations** em `src/server/db/migrations/NNN_*.sql`, aplicadas por
   `src/server/db/migrate.mjs` (idempotente, controla em `_migrations`).
 - Campos clínicos cifrados em repouso (AES-256-GCM): `sessoes.transcricao_texto`,
   `nota_clinica`, `resumo_ia`, além de documentos e chave PIX do onboarding — §5.
@@ -69,6 +69,13 @@ Browser ── HTTPS (Cloudflare Full strict) ── Ingress nginx ── Servic
 - Migration 051 — contas admin sempre no plano Pro, sem vencimento.
 - `psicologos.lembrete_*` / `pacientes.lembrete_*` (migration 052) — lembretes
   opcionais; no paciente NULL = segue o padrão do psicólogo (COALESCE no cron).
+- **Gateway neutro** (migration 053): `sessoes.gateway`/`cobranca_*`,
+  `psicologos.recebedor_*`/`assinatura_*`, `webhook_eventos` (idempotência).
+  Pagar.me e Asaas lado a lado — design em [asaas/sdd.md](./asaas/sdd.md).
+- `psicologos.plano_agendado*` (migration 054) — troca de plano agendada para a
+  renovação (descer de plano / trocar ciclo).
+- `sessoes.wa_parcelas_perguntado_em` (migration 055) — pergunta de parcelas no
+  crédito pelo WhatsApp (modo Asaas).
 
 ## 4. Fluxos-chave
 

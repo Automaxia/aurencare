@@ -1,6 +1,6 @@
 import 'server-only'
 import { db } from '@/server/db/pool'
-import { encrypt, tryDecrypt } from '@/server/lib/crypto'
+import { encrypt, tryDecrypt, decrypt } from '@/server/lib/crypto'
 import { isRecipientMock, type CampoRecusado } from '@/server/lib/pagarmeRecipient'
 import { gatewayPadrao, RecebedorErro, type RecebedorInput, type RecebedorCriado, type RecebedorRef, type SituacaoRecebedor, type Gateway } from '@/server/lib/pagamentos'
 import { traduzirRecusaAsaas } from '@/server/lib/pagamentos/asaas/erros'
@@ -295,6 +295,15 @@ export type OnboardingDetalhes = {
     titularNome: string | null
   }
   chavePix: { tipo: TipoChavePix; valorMasc: string } | null
+  /** Recebedor gravado: gateway, situação cadastral e as etapas do KYC (Asaas). */
+  recebedor: {
+    gateway: Gateway | null
+    situacao: SituacaoRecebedor | null
+    /** Asaas: status por etapa (`APPROVED` | `AWAITING_APPROVAL` | `PENDING` | `REJECTED`). */
+    etapas: { commercialInfo?: string; bankAccountInfo?: string; documentation?: string; general?: string } | null
+    /** E-mail de login — o Asaas manda o acesso à subconta para ele. */
+    email: string | null
+  }
 }
 
 /**
@@ -308,14 +317,16 @@ export async function lerOnboardingDetalhes(psicologoId: string): Promise<Onboar
             pgm_banco_codigo, pgm_banco_agencia, pgm_banco_agencia_dv,
             pgm_banco_conta, pgm_banco_conta_dv, pgm_banco_tipo, pgm_titular_nome,
             pgm_chave_pix_tipo, pgm_chave_pix_valor,
-            pgm_onboarding_em, pagarme_recipient_id
+            pgm_onboarding_em, pagarme_recipient_id,
+            recebedor_gateway, recebedor_situacao, recebedor_situacao_detalhe, email
        FROM psicologos WHERE id = $1 LIMIT 1`,
     [psicologoId],
   )
   const r = rows[0]
   if (!r) {
     return { completo: false, recipientInvalido: false, tipoPessoa: null, documentoMasc: null, razaoSocial: null, dataNascimento: null,
-      banco: { codigo: null, agencia: null, contaMasc: null, tipo: null, titularNome: null }, chavePix: null }
+      banco: { codigo: null, agencia: null, contaMasc: null, tipo: null, titularNome: null }, chavePix: null,
+      recebedor: { gateway: null, situacao: null, etapas: null, email: null } }
   }
 
   const docPlain = r.pgm_documento ? tryDecrypt(r.pgm_documento) : null
@@ -343,7 +354,31 @@ export async function lerOnboardingDetalhes(psicologoId: string): Promise<Onboar
       titularNome: r.pgm_titular_nome,
     },
     chavePix,
+    recebedor: {
+      gateway: (r.recebedor_gateway ?? (r.pagarme_recipient_id ? 'pagarme' : null)) as Gateway | null,
+      situacao: (r.recebedor_situacao ?? null) as SituacaoRecebedor | null,
+      etapas: r.recebedor_situacao_detalhe ?? null,
+      email: r.email ?? null,
+    },
   }
+}
+
+/**
+ * Consulta agora a situação da subconta no Asaas (botão "Atualizar situação"
+ * do Perfil) — a mesma leitura da conciliação do cron, só para esta conta.
+ * `null` = não há subconta Asaas com chave para consultar.
+ */
+export async function atualizarSituacaoDoPsicologo(psicologoId: string): Promise<SituacaoRecebedor | null> {
+  const { rows } = await db.query<{ recebedor_id: string | null; recebedor_api_key: string | null; recebedor_gateway: string | null }>(
+    `SELECT recebedor_id, recebedor_api_key, recebedor_gateway FROM psicologos WHERE id = $1 LIMIT 1`,
+    [psicologoId],
+  )
+  const r = rows[0]
+  if (r?.recebedor_gateway !== 'asaas' || !r.recebedor_id || !r.recebedor_api_key) return null
+  const { lerSituacao } = await import('@/server/lib/pagamentos/asaas/recebedor')
+  const st = await lerSituacao(decrypt(r.recebedor_api_key))
+  await atualizarSituacaoRecebedor('asaas', r.recebedor_id, st.situacao, st.detalhe as unknown as Record<string, unknown>)
+  return st.situacao
 }
 
 export type AtualizarChavePixResult =
