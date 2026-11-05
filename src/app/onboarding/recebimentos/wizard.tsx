@@ -297,7 +297,10 @@ export function Wizard({ nomePsicologa, inicial, gateway, precisaTelefone, email
     <div>
       {!asaas && <Stepper step={step} />}
 
-      <AvisoPagamentoBeta />
+      {/* Só na Pagar.me: lá a conta live ainda não cria recebedores, então a
+          cobrança pelo WhatsApp de fato não está liberada. No Asaas o cadastro
+          funciona e a cobrança sai na hora — o aviso seria falso. */}
+      {!asaas && <AvisoPagamentoBeta />}
 
       <h1 style={{ fontFamily: 'var(--font-display)', fontSize: 32, fontWeight: 400, color: 'var(--ink)', margin: '4px 0 8px' }}>
         {step === 1 ? 'Configurar recebimentos' : step === 2 ? 'Conta bancária' : 'Chave PIX'}

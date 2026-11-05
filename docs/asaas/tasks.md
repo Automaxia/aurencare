@@ -127,12 +127,12 @@ Dono: **[conta]** = ação no painel/comercial do Asaas (dono da conta) · **[de
 - ✅ **P0 [dev]** `/planos` no modo Asaas: fatura do Asaas, "Pagar fatura"
   reabre a cobrança em aberto, "Renova em" com a data do Asaas, troca de plano
   proporcional (D-10, migration 054).
-- ⏳ **P1 [dev]** Prévia da troca diz "Nada é cobrado agora" também no caso raro
-  de fatura avulsa da diferença (assinatura sem cobrança gerada, ex. anual).
+- ✅ **P1 [dev]** Prévia da troca avisa quando a diferença sai em fatura à parte
+  (próxima cobrança ainda não gerada, ex. anual) — `proximaCobrancaGerada`.
 - ⏳ **P1 [produto]** E-mail único por subconta: decidir entre reaproveitar a
   subconta existente ou usar alias (quem refaz o cadastro PF→PJ fica travado).
-- ⏳ **P2 [dev]** Banner "Cobrança pelo WhatsApp em ativação" do wizard está
-  desatualizado.
+- ✅ **P2 [dev]** Banner "Cobrança pelo WhatsApp em ativação" só no modo Pagar.me
+  (lá a live ainda não cria recebedor; no Asaas seria falso).
 - ✅ **P1 [dev]** Cron (`services/manutencaoPagamentos.ts`, in-process + rota
   `/api/cron/pagamentos`): PIX vencido @5min (D-05, `DELETE /payments`);
   `webhook_eventos` com erro @10min; estornos com `reembolso_pendente_em` @hora
@@ -144,7 +144,7 @@ Dono: **[conta]** = ação no painel/comercial do Asaas (dono da conta) · **[de
   05/11/2026.
 - ✅ **P1 [dev]** Financeiro e exportação contábil: rótulo "Taxas do gateway" e
   taxa real; "estorno pendente" na linha da cobrança.
-- ⏳ **P1 [dev]** `/privacidade` e termos: Asaas como operador de pagamento.
+- ✅ **P1 [dev]** `/privacidade`: Asaas como operador (pagamentos e contas de recebimento) e dados do KYC; atualizada em 05/11/2026.
 
 ### E2E local (04/11/2026) — achados corrigidos
 - Chave `$aact_…` chegava VAZIA ao Next (expansão de `$var` no `.env`) e o

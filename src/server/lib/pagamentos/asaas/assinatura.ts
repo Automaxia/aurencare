@@ -105,6 +105,16 @@ export async function atualizarAssinaturaAsaas(
   }
 }
 
+export async function proximaCobrancaGeradaAsaas(assinaturaId: string): Promise<boolean> {
+  try {
+    return !!(await proximaPendente(assinaturaId))
+  } catch (err) {
+    // Na dúvida, diz que sim: a prévia promete "na próxima fatura", que é o caso comum.
+    log.warn('asaas.assinatura', `sem leitura das cobranças de ${assinaturaId}: ${err instanceof Error ? err.message : err}`)
+    return true
+  }
+}
+
 /** Cobrança PENDING mais próxima (de hoje em diante) da assinatura. */
 async function proximaPendente(assinaturaId: string): Promise<any | null> {
   const hoje = hojeSP()

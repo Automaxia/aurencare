@@ -251,4 +251,9 @@ export interface GatewayPagamento {
   faturaEmAberto?(assinaturaId: string): Promise<string | null>
   /** Data (AAAA-MM-DD) da próxima cobrança, como o gateway registrou. */
   proximaCobranca?(assinaturaId: string): Promise<string | null>
+  /**
+   * A próxima cobrança já foi gerada (PENDING)? Sem ela, a diferença de um
+   * upgrade vira fatura avulsa em vez de entrar na próxima fatura.
+   */
+  proximaCobrancaGerada?(assinaturaId: string): Promise<boolean>
 }

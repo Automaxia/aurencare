@@ -271,6 +271,11 @@ export type SimulacaoTroca = TrocaPlano & {
   proximaCobranca: string | null
   /** Valor da assinatura a partir da próxima cobrança (centavos). */
   precoNovoCentavos: number
+  /**
+   * A diferença do upgrade sai numa fatura avulsa (a próxima cobrança ainda
+   * não foi gerada — ex.: plano anual). A tela não pode prometer "nada agora".
+   */
+  faturaAvulsa: boolean
 }
 
 /**
@@ -291,10 +296,13 @@ export async function simularTroca(psicologoId: string, plano: PlanoPago, ciclo:
   const troca = calcularTroca({
     planoAtual: r.plano, cicloAtual: r.plano_ciclo ?? 'mensal', planoNovo: plano, cicloNovo: ciclo, expiraEm: r.plano_expira_em,
   })
+  const faturaAvulsa = troca.acrescimoCentavos > 0 && !!g.proximaCobrancaGerada
+    && !(await g.proximaCobrancaGerada(r.assinatura_id))
   return {
     ...troca,
     proximaCobranca: r.plano_expira_em ? new Date(r.plano_expira_em).toISOString() : null,
     precoNovoCentavos: precoCentavos(plano, ciclo),
+    faturaAvulsa,
   }
 }
 

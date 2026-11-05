@@ -14,7 +14,7 @@ import { criarSubconta } from './recebedor'
 import { criarCobrancaAsaas, reembolsarAsaas, cancelarCobrancaAsaas } from './cobranca'
 import {
   criarAssinaturaAsaas, atualizarAssinaturaAsaas, cancelarAssinaturaAsaas,
-  faturaEmAbertoAsaas, proximaCobrancaAsaas,
+  faturaEmAbertoAsaas, proximaCobrancaAsaas, proximaCobrancaGeradaAsaas,
 } from './assinatura'
 import type { GatewayPagamento } from '../tipos'
 
@@ -106,5 +106,10 @@ export const asaasGateway: GatewayPagamento = {
   async proximaCobranca(id) {
     if (id.startsWith('mock_')) return null
     return proximaCobrancaAsaas(id)
+  },
+
+  async proximaCobrancaGerada(id) {
+    if (id.startsWith('mock_')) return true
+    return proximaCobrancaGeradaAsaas(id)
   },
 }

@@ -348,7 +348,13 @@ export function PlanosForm({ planos, atual, mock, beta, pre, gateway }: Props) {
               {sim.tipo === 'upgrade' ? (
                 <>
                   O {destino.nome} libera agora, com <strong>{destino.capSessoesIa} sessões com IA</strong> por mês.
-                  {sim.acrescimoCentavos > 0 ? (
+                  {sim.acrescimoCentavos > 0 && sim.faturaAvulsa ? (
+                    // Próxima cobrança ainda não gerada (ex.: anual): a diferença
+                    // sai numa fatura à parte, que abre ao confirmar.
+                    <> A diferença proporcional deste ciclo, <strong>{formatBRL(sim.acrescimoCentavos, true)}</strong>, sai
+                      numa <strong>fatura à parte</strong>, que abre ao confirmar. A partir de {venc},{' '}
+                      <strong>{formatBRL(sim.precoNovoCentavos, true)}</strong>/{porCiclo} no mesmo cartão.</>
+                  ) : sim.acrescimoCentavos > 0 ? (
                     <> A diferença proporcional deste ciclo, <strong>{formatBRL(sim.acrescimoCentavos, true)}</strong>, entra
                       na próxima fatura ({venc}) junto com o valor do plano, <strong>{formatBRL(sim.precoNovoCentavos, true)}</strong> —
                       total de <strong>{formatBRL(sim.acrescimoCentavos + sim.precoNovoCentavos, true)}</strong> no mesmo cartão. Nada é cobrado agora.</>
