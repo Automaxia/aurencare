@@ -25,6 +25,13 @@
 
 export type TemplateMeta = { name: string; params: string[] }
 
+/**
+ * Gateway Asaas = sem DÉBITO (RF-PG-20) → versões `_v2` dos templates.
+ * Lido direto do process.env: este arquivo é dado puro, sem `server-only`.
+ * ⚠️ As `_v2` precisam estar APROVADAS na Meta antes da virada para o Asaas.
+ */
+const semDebito = () => process.env.PAYMENT_GATEWAY === 'asaas'
+
 export type DefinicaoTemplate = {
   /** Corpo com {{1}}, {{2}}… — pode ter quebras de linha e *negrito*. */
   body: string
@@ -69,6 +76,17 @@ Como prefere pagar?
 • Responda *DEBITO* (à vista no débito)`,
     exemplo: ['sexta, 12/09 às 15:00', '150.00'],
     botoes: ['PIX', 'CREDITO', 'DEBITO'],
+  },
+
+  /** Asaas: sem débito. CREDITO pergunta as parcelas em seguida (janela aberta). */
+  audere_sessao_metodo_v2: {
+    body: `Sua sessão de {{1}} está reservada (R$ {{2}}).
+
+Como prefere pagar?
+• Responda *PIX* (1x via QR Code)
+• Responda *CREDITO* (até 6x sem juros no cartão)`,
+    exemplo: ['sexta, 12/09 às 15:00', '150.00'],
+    botoes: ['PIX', 'CREDITO'],
   },
 
   audere_sessao_agendada: {
@@ -119,6 +137,15 @@ Qualquer mudança, é só responder por aqui.`,
 
 ⏳ Expira em 2 horas.`,
     exemplo: ['no cartão de crédito (até 6x)', '150.00', 'https://payment-link.pagar.me/pl_abc123'],
+  },
+
+  /** Asaas: a fatura não expira em 2h e já sai no parcelamento escolhido. */
+  audere_checkout_v2: {
+    body: `Aqui está o link para pagar R$ {{2}} {{1}}:
+{{3}}
+
+Assim que o pagamento for aprovado, sua sessão é confirmada automaticamente.`,
+    exemplo: ['no cartão de crédito em 3x de R$ 50,00', '150,00', 'https://www.asaas.com/i/abc123'],
   },
 
   audere_pagamento_confirmado: {
@@ -223,7 +250,7 @@ export const WA_META = {
     t('audere_mensagem_psicologo', [psicologa, texto]),
 
   fluxo2_perguntarMetodo: (dataHora: string, valor: number) =>
-    t('audere_sessao_metodo', [dataHora, brl(valor)]),
+    t(semDebito() ? 'audere_sessao_metodo_v2' : 'audere_sessao_metodo', [dataHora, brl(valor)]),
 
   fluxo2_agendadaSemCobranca: (dataHora: string, online?: boolean) =>
     t('audere_sessao_agendada', [dataHora, 'Não é necessário pagamento.' + (online ? ' 📹 Você vai receber o link da sala de vídeo aqui no WhatsApp ~15 minutos antes do horário.' : '')]),
@@ -250,8 +277,15 @@ export const WA_META = {
   fluxo2_pix: (qrcodeUrl: string, valor: number) =>
     t('audere_pix', [brl(valor), qrcodeUrl]),
 
-  fluxo2_checkout: (url: string, metodo: 'credito' | 'debito', valor: number) =>
-    t('audere_checkout', [metodo === 'credito' ? 'no cartão de crédito (até 6x)' : 'no débito', brl(valor), url]),
+  fluxo2_checkout: (url: string, metodo: 'credito' | 'debito', valor: number, parcelas?: number) =>
+    semDebito()
+      ? t('audere_checkout_v2', [
+        parcelas && parcelas > 1
+          ? `no cartão de crédito em ${parcelas}x de R$ ${(Math.round(valor / parcelas * 100) / 100).toFixed(2).replace('.', ',')}`
+          : 'no cartão de crédito à vista',
+        // v2 usa vírgula decimal (as v1 seguem com ponto: template aprovado é imutável).
+        (Math.round(valor * 100) / 100).toFixed(2).replace('.', ','), url])
+      : t('audere_checkout', [metodo === 'credito' ? 'no cartão de crédito (até 6x)' : 'no débito', brl(valor), url]),
 
   fluxo2_confirmado: (dataHora: string, online?: boolean) =>
     t('audere_pagamento_confirmado', [dataHora, online ? '📹 Você vai receber o link da sala de vídeo aqui no WhatsApp ~15 minutos antes do horário.' : 'Até lá!']),

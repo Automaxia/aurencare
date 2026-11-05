@@ -83,8 +83,28 @@ export function NewSessionForm({ pacientes }: { pacientes: { id: string; nome: s
     }
   }
 
+  const nomePaciente = pacientes.find(p => p.id === pacienteId)?.nome ?? '—'
+  const { dia: diaResumo, hora: horaResumo } = (() => {
+    const iso = isoLocal(data, hora); if (!iso) return { dia: '—', hora: '—' }
+    const d = new Date(iso)
+    return {
+      dia: d.toLocaleDateString('pt-BR', { weekday: 'long', day: '2-digit', month: 'long', timeZone: TZ }),
+      hora: d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', timeZone: TZ }),
+    }
+  })()
+  const passos = gratuita
+    ? ['O paciente recebe a confirmação no WhatsApp, sem pedido de pagamento.', 'A sessão já entra na agenda como confirmada.']
+    : [
+      `O paciente recebe no WhatsApp a pergunta de como prefere pagar${modo === 'serie' ? ' — uma por sessão, perto da data' : ''}.`,
+      'Ele responde e o link (ou o QR do PIX) chega na hora.',
+      'A sessão confirma sozinha quando o pagamento entra.',
+    ]
+  if (modalidade === 'online') passos.push('O link da sala de vídeo vai ~15 minutos antes do horário.')
+  const nSessoes = modo === 'serie' ? quantidade : 1
+
   return (
-    <form onSubmit={onSubmit} className="card" style={{ display: 'grid', gap: 14, maxWidth: 560 }}>
+    <div className="form-split">
+    <form onSubmit={onSubmit} className="card" style={{ display: 'grid', gap: 14 }}>
       <div style={{ display: 'flex', gap: 8 }}>
         <ModoBtn ativo={modo === 'avulsa'} onClick={() => setModo('avulsa')}>Sessão avulsa</ModoBtn>
         <ModoBtn ativo={modo === 'serie'}  onClick={() => setModo('serie')}>Série recorrente</ModoBtn>
@@ -158,7 +178,9 @@ export function NewSessionForm({ pacientes }: { pacientes: { id: string; nome: s
             <option value="presencial">Presencial</option>
           </select>
         </Field>
-        <Field label={modo === 'serie' ? 'Valor por sessão (R$)' : 'Valor (R$)'}>
+        {/* Curto de propósito: "Valor por sessão (R$)" quebrava em 2 linhas e
+            desalinhava a coluna. O campo já mostra o "R$". */}
+        <Field label={modo === 'serie' ? 'Valor/sessão' : 'Valor'}>
           <ValorInput value={gratuita ? 0 : valor} onChange={v => setValor(v ?? 0)} disabled={gratuita} />
         </Field>
       </div>
@@ -217,6 +239,61 @@ export function NewSessionForm({ pacientes }: { pacientes: { id: string; nome: s
         input, select { width: 100%; }
       `}</style>
     </form>
+
+      <aside className="card resumo" aria-label="Resumo do agendamento">
+        <div className="field-lbl">{modo === 'serie' ? 'Primeira sessão' : 'Resumo'}</div>
+
+        <div className="quando">
+          <span className="hora">{horaResumo}</span>
+          <span className="dia">{diaResumo}</span>
+        </div>
+        <div className="quem">{nomePaciente}</div>
+
+        <div className="chips">
+          <span className="tag">{duracao} min</span>
+          <span className="tag">{modalidade === 'online' ? 'Online' : 'Presencial'}</span>
+          {modo === 'serie' && <span className="tag t-info">{quantidade}× {frequencia}</span>}
+          <span className={`tag ${gratuita ? 't-ok' : ''}`}>
+            {gratuita ? 'Gratuita' : nSessoes > 1 ? `${formatBRL(valor)}/sessão · ${formatBRL(valor * nSessoes)}` : formatBRL(valor)}
+          </span>
+        </div>
+
+        <div className="passos">
+          <div className="field-lbl">Ao agendar</div>
+          <ol>
+            {passos.map(t => <li key={t}>{t}</li>)}
+          </ol>
+        </div>
+
+        <style jsx>{`
+          .resumo { display: grid; gap: 10px; align-content: start; }
+          .quando { display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; margin-top: 2px; }
+          .hora { font-family: var(--font-display), Georgia, serif; font-size: 44px; line-height: 1; font-weight: 400; color: var(--ink); letter-spacing: -.01em; }
+          .dia { font-size: 13px; color: var(--ink-soft); }
+          .dia::first-letter { text-transform: uppercase; }
+          .quem { font-size: 14px; color: var(--ink); font-weight: 500; }
+          .chips { display: flex; gap: 6px; flex-wrap: wrap; }
+          /* .tag base é transparente; aqui as neutras ganham o fundo areia. */
+          .chips .tag:not(.t-ok):not(.t-info) { background: var(--surface); color: var(--ink-soft); }
+          .passos { border-top: 1px solid var(--border); padding-top: 14px; margin-top: 6px; display: grid; gap: 10px; }
+          ol { list-style: none; margin: 0; padding: 0; display: grid; gap: 0; }
+          li {
+            position: relative; padding: 0 0 12px 20px;
+            font-size: 12.5px; line-height: 1.5; color: var(--ink-soft);
+          }
+          li::before {
+            content: ''; position: absolute; left: 0; top: 5px;
+            width: 8px; height: 8px; border-radius: 50%;
+            background: var(--card); border: 1.5px solid var(--accent);
+          }
+          li:not(:last-child)::after {
+            content: ''; position: absolute; left: 3.5px; top: 15px; bottom: 1px;
+            width: 1px; background: rgba(106,78,200,.2);
+          }
+          li:last-child { padding-bottom: 0; }
+        `}</style>
+      </aside>
+    </div>
   )
 }
 

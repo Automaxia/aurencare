@@ -749,7 +749,7 @@ async function gerarCobranca(sessaoId: string, metodo: MetodoSessao, parcelas?: 
             pagarme_qrcode       = CASE WHEN $11 THEN $7 ELSE pagarme_qrcode END,
             pagarme_qrcode_url   = CASE WHEN $11 THEN $8 ELSE pagarme_qrcode_url END,
             pagarme_checkout_url = CASE WHEN $11 THEN $9 ELSE pagarme_checkout_url END,
-            comissao_centavos=$12, wa_metodo_escolhido=TRUE
+            comissao_centavos=$12, wa_metodo_escolhido=TRUE, wa_parcelas_perguntado_em=NULL
       WHERE id=$1`,
     [s.id, c.metodo, c.parcelas, c.gateway, c.cobrancaId, c.parcelamentoId ?? null,
      c.qrCode ?? null, c.qrCodeUrl ?? null, c.url ?? null, c.venceEm, legado, c.taxaAdmCentavos || null],
@@ -762,7 +762,7 @@ async function gerarCobranca(sessaoId: string, metodo: MetodoSessao, parcelas?: 
   } else {
     const url = c.url ?? ''
     const m = c.metodo === 'debito' ? 'debito' : 'credito'
-    await enviarWA(s.pacienteTelefone, WA_TEMPLATES.fluxo2_checkout(url, m, s.valor), { ...ctx, template: WA_META.fluxo2_checkout(url, m, s.valor) })
+    await enviarWA(s.pacienteTelefone, WA_TEMPLATES.fluxo2_checkout(url, m, s.valor, c.parcelas), { ...ctx, template: WA_META.fluxo2_checkout(url, m, s.valor, c.parcelas) })
   }
   return (await buscarSessao(s.id))!
 }
@@ -802,10 +802,15 @@ export async function marcarPagamentoConfirmado(
     log.warn('pagamento.webhook', `${r.gateway} cobrança ${r.cobrancaId} não encontrada em sessões`)
     return
   }
-  // Taxa real do gateway (RF-PG-27). Parcelado: o evento é de UMA parcela —
-  // não dá para tirar a taxa total dele; fica para a reconciliação.
-  const taxaGateway = !r.parcelamentoId && extra.valorCentavos != null && extra.liquidoCentavos != null
+  // Taxa real do gateway (RF-PG-27). Parcelado: o evento é de UMA parcela. O
+  // Asaas divide o total em parcelas iguais com a mesma taxa cada (sandbox:
+  // 3× R$ 100 → líquido 97,35 em todas), então taxa total = taxa da parcela ×
+  // nº de parcelas. Grava só no 1º evento (o UPDATE abaixo exige "não pago").
+  const taxaParcela = extra.valorCentavos != null && extra.liquidoCentavos != null
     ? extra.valorCentavos - extra.liquidoCentavos : null
+  const nParcelas = extra.parcelas ?? sessao.pagamentoParcelas ?? 1
+  const taxaGateway = taxaParcela == null ? null
+    : r.parcelamentoId ? taxaParcela * Math.max(1, nParcelas) : taxaParcela
 
   // Atômico: CONFIRMED e RECEIVED (ou duas parcelas) chegando juntos não podem
   // confirmar duas vezes nem mandar duas mensagens ao paciente.

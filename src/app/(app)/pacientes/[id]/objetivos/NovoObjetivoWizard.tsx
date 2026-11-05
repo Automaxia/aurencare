@@ -842,13 +842,11 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
     <label style={{ display: 'grid', gap: 4 }}>
       <span style={{ fontSize: 11, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '.06em' }}>{label}</span>
       {children}
+      {/* Só a largura e só dentro deste campo. Antes era :global(input), que
+          mudava TODO input da página enquanto o wizard estava aberto; a
+          aparência vem do padrão global (globals.css). */}
       <style jsx>{`
-        :global(input) {
-          width: 100%; padding: 11px 14px; border-radius: 10px;
-          border: 1px solid var(--border); background: white;
-          font-size: 14px; font-family: inherit; color: var(--ink); outline: none;
-        }
-        :global(input:focus) { border-color: var(--accent); }
+        label > :global(input) { width: 100%; }
       `}</style>
     </label>
   )

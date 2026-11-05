@@ -185,3 +185,25 @@ E2E no sandbox (sub_nk5o4fgyvj984j5r):
 - Essencial→Pro: fatura de 04/12 = 248,68 (159,90 + 88,78).
 - Descer agendado: 158,68.
 - "Manter Pro": volta a 248,68.
+
+## E2E pelo Chrome (05/11/2026) — 2ª rodada
+
+| Teste | Resultado |
+|---|---|
+| WhatsApp crédito parcelado (D-03, migration 055) | ✅ CREDITO → "em quantas vezes?" → "3" → fatura 3×100 com split por parcela (94,85 psicóloga · 2,50 plataforma) → pago → confirmada. DEBITO responde "não aceitamos débito". |
+| Templates `audere_sessao_metodo_v2` e `audere_checkout_v2` | 🟡 no catálogo; **submeter à Meta pelo `/admin/whatsapp` antes da virada** |
+| Estorno cartão parcelado | ✅ 3 parcelas REFUNDED, split cancelado, 3× PAYMENT_REFUNDED processados |
+| Estorno PIX com saldo | ⛔ não testável no sandbox: o PIX de teste sai do saldo da própria raiz (e exige autorização de evento crítico), então a raiz nunca fica com saldo ≥ estorno |
+| Cadastro PJ (Asaas) | ✅ após 2 correções (validação e envio do sócio, que no Asaas nem aparece, travavam todo PJ) |
+| Cartão recusado → "Pagar fatura" | ✅ reabre a renovação existente; pago → ativo na mesma assinatura |
+| Renovação automática no cartão salvo | ⏳ conferir em 05/11 (P3) |
+| Pagar.me pela tela | ⏳ não refeito (exige reiniciar o dev e o .env.local tem chave live); `test:split` verde |
+
+Corrigido nesta rodada:
+- Taxa do gateway no parcelado = taxa da parcela × nº de parcelas. Antes ficava vazia no Financeiro.
+- Layout: campos esticando ao lado de dica (`label { align-content: start }` global), altura do campo de data, CSS local do wizard e `:global(input)` do NovoObjetivoWizard.
+- Nova sessão em 2 colunas com resumo.
+
+Pendências:
+- **E-mail da subconta já em uso:** o Asaas recusa uma 2ª subconta com o mesmo e-mail. A psicóloga que refaz o cadastro (ex.: PF→PJ) fica travada. Decidir: reaproveitar a subconta existente ou usar alias.
+- Banner "Cobrança pelo WhatsApp em ativação" no wizard está desatualizado.

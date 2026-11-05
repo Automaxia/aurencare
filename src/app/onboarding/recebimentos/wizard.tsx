@@ -175,8 +175,9 @@ export function Wizard({ nomePsicologa, inicial, gateway, precisaTelefone, email
     if (endBairro.trim().length < 2) { setErro('Informe o bairro.'); setErroCampo('endBairro'); return false }
     if (endCidade.trim().length < 2) { setErro('Informe a cidade.'); setErroCampo('endCidade'); return false }
     if (!/^[A-Za-z]{2}$/.test(endUf.trim())) { setErro('UF deve ter 2 letras.'); setErroCampo('endUf'); return false }
-    // Sócio (só PJ)
-    if (tipoPessoa === 'PJ') {
+    // Sócio (só PJ na Pagar.me — no Asaas o campo nem aparece; validar aqui
+    // travava o envio em silêncio, com o erro num campo escondido).
+    if (tipoPessoa === 'PJ' && !asaas) {
       if (socioNome.trim().split(/\s+/).length < 2) { setErro('Informe o nome completo do sócio.'); setErroCampo('socioNome'); return false }
       if (socioCpf.replace(/\D/g, '').length !== 11) { setErro('CPF do sócio deve ter 11 dígitos.'); setErroCampo('socioCpf'); return false }
       if (!socioNascimento) { setErro('Informe a data de nascimento do sócio.'); setErroCampo('socioNascimento'); return false }
@@ -251,7 +252,9 @@ export function Wizard({ nomePsicologa, inicial, gateway, precisaTelefone, email
       },
       telefone: precisaTelefone ? telefone.replace(/\D/g, '') : null,
       tipoEmpresa: tipoPessoa === 'PJ' ? tipoEmpresa : null,
-      socio: tipoPessoa === 'PJ'
+      // Asaas não pede sócio (o campo nem aparece): mandar vazio quebrava o
+      // salvar (data '' numa coluna DATE).
+      socio: tipoPessoa === 'PJ' && !asaas
         ? {
             nome: socioNome.trim(),
             cpf: socioCpf.replace(/\D/g, ''),
@@ -367,7 +370,6 @@ export function Wizard({ nomePsicologa, inicial, gateway, precisaTelefone, email
                 <input
                   type="date" required value={dataNascimento}
                   onChange={e => setDataNascimento(e.target.value)}
-                  style={{ minHeight: 46, fontSize: 16 }}
                 />
               </Field>
               <Field
@@ -462,7 +464,6 @@ export function Wizard({ nomePsicologa, inicial, gateway, precisaTelefone, email
                     <input
                       type="date" required value={socioNascimento}
                       onChange={e => setSocioNascimento(e.target.value)}
-                      style={{ minHeight: 46, fontSize: 16 }}
                     />
                   </Field>
                   <Field label="Telefone (com DDD)" error={erroCampo === 'socioTelefone' ? erro : undefined}>
@@ -653,17 +654,9 @@ export function Wizard({ nomePsicologa, inicial, gateway, precisaTelefone, email
         )}
 
         <style jsx>{`
-          input, select {
-            width: 100%; padding: 9px 12px; border-radius: var(--field-radius);
-            border: 1px solid var(--field-border); background: var(--field-bg);
-            font-size: 13px; font-family: inherit; color: var(--ink); outline: none;
-            transition: border-color .15s var(--ease), box-shadow .15s var(--ease);
-          }
-          input:not([type=checkbox]):hover, select:hover { border-color: var(--field-border-hover); }
-          input:not([type=checkbox]):focus, select:focus { border-color: var(--accent); box-shadow: var(--field-ring); }
-          input:not([type=checkbox]):user-invalid, select:user-invalid { border-color: var(--rose); }
-          input:not([type=checkbox]):user-invalid:focus, select:user-invalid:focus { box-shadow: var(--field-ring-error); }
-          input[type=checkbox] { width: auto; padding: 0; }
+          /* Aparência (altura, padding, borda, foco) vem do padrão global em
+             globals.css — aqui só a largura cheia do formulário. */
+          input:not([type=checkbox]), select { width: 100%; }
         `}</style>
       </form>
 
@@ -730,7 +723,9 @@ function Dot({ active, done }: { active: boolean; done: boolean }) {
 
 function Field({ label, hint, error, children }: { label: string; hint?: string; error?: string | null; children: React.ReactNode }) {
   return (
-    <label style={{ display: 'grid', gap: 4 }}>
+    // alignContent 'start': sem isso, quando o vizinho de linha tem hint, a grade
+    // estica o input para igualar a altura (data e número ficavam mais altos).
+    <label style={{ display: 'grid', gap: 4, alignContent: 'start' }}>
       <span style={{ fontSize: 11, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '.06em' }}>{label}</span>
       {children}
       {hint && !error && <span style={{ fontSize: 11, color: 'var(--faint)' }}>{hint}</span>}

@@ -188,6 +188,22 @@ export async function configurarWebhookEvolution(): Promise<{ ok: boolean; url: 
   }
 }
 
+/** Gateway Asaas = sem DÉBITO no WhatsApp (RF-PG-20). */
+export const semDebito = () => env.paymentGateway === 'asaas'
+
+/** "1.234,56" — valor de parcela em texto. */
+export const brlTexto = (v: number) =>
+  (Math.round(v * 100) / 100).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+
+/** "no cartão de crédito em 3x de R$ 73,33" (Asaas, parcelamento já escolhido). */
+export const descricaoCartao = (metodo: 'credito' | 'debito', valor: number, parcelas?: number) =>
+  metodo === 'debito' ? 'no débito'
+    : parcelas && parcelas > 1 ? `no cartão de crédito em ${parcelas}x de R$ ${brlTexto(valor / parcelas)}`
+      : 'no cartão de crédito à vista'
+
+/** Texto dos métodos aceitos, para as respostas do inbox. */
+export const metodosTexto = () => semDebito() ? '*PIX* ou *CREDITO*' : '*PIX*, *CREDITO* ou *DEBITO*'
+
 /**
  * Templates de mensagem dos 6 fluxos. §10.
  */
@@ -200,13 +216,25 @@ ${link}
 
 Qualquer dúvida, é só responder por aqui.`,
 
+  /** Asaas não tem débito online (RF-PG-20): oferece só PIX e CRÉDITO. */
   fluxo2_perguntarMetodo: (dataHora: string, valor: number) =>
     `Sua sessão de ${dataHora} está reservada (R$ ${valor.toFixed(2)}).
 
 Como prefere pagar?
 • Responda *PIX* (1x via QR Code)
-• Responda *CREDITO* (até 6x no cartão)
-• Responda *DEBITO* (à vista no débito)`,
+• Responda *CREDITO* (até 6x no cartão)` +
+    (semDebito() ? '' : `
+• Responda *DEBITO* (à vista no débito)`),
+
+  /** Asaas: o parcelamento é escolhido antes de gerar a fatura (D-03). */
+  fluxo2_perguntarParcelas: (valor: number) =>
+    `Em quantas vezes no cartão? Responda com um número de *1 a 6* (sem juros):
+
+${[1, 2, 3, 4, 5, 6].map(n => `${n}x de R$ ${brlTexto(valor / n)}`).join('\n')}`,
+
+  /** Asaas: DÉBITO saiu do produto. */
+  fluxo2_semDebito: () =>
+    `No momento não aceitamos débito. 💜 Você pode pagar por *PIX* ou no *CREDITO* (até 6x sem juros) — é só responder aqui.`,
 
   /** Sessão sem cobrança (gratuita): confirma o agendamento sem pedir pagamento. */
   fluxo2_agendadaSemCobranca: (dataHora: string, online?: boolean) =>
@@ -272,8 +300,15 @@ ${qrcodeUrl}
 
 ⏳ Expira em 30 minutos. Após o pagamento, sua sessão será confirmada automaticamente.`,
 
-  fluxo2_checkout: (url: string, metodo: 'credito' | 'debito', valor: number) =>
-    `Aqui está o link para pagamento ${metodo === 'credito' ? 'no cartão de crédito (até 6x)' : 'no débito'} de R$ ${valor.toFixed(2)}:
+  fluxo2_checkout: (url: string, metodo: 'credito' | 'debito', valor: number, parcelas?: number) =>
+    semDebito()
+      // Asaas: a fatura já sai no parcelamento escolhido e não expira em 2h.
+      ? `Aqui está o link para pagar R$ ${brlTexto(valor)} ${descricaoCartao(metodo, valor, parcelas)}:
+
+${url}
+
+Assim que o pagamento for aprovado, sua sessão é confirmada automaticamente.`
+      : `Aqui está o link para pagamento ${metodo === 'credito' ? 'no cartão de crédito (até 6x)' : 'no débito'} de R$ ${valor.toFixed(2)}:
 
 ${url}
 

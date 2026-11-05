@@ -582,6 +582,9 @@ export async function salvarOnboarding(psicologoId: string, input: OnboardingInp
   const pagarme = gatewayPadrao().nome === 'pagarme'
   const v = validar(input, pagarme)
   if (v) return { ok: false, error: v.error, campo: v.campo }
+  // Sócio só existe na Pagar.me; no Asaas é ignorado (cliente antigo ou
+  // chamada direta mandando campos vazios não pode quebrar o salvar).
+  if (!pagarme) input = { ...input, socio: null }
 
   // Lê dados que viram default no Recipient (email, telefone, nome)
   const { rows } = await db.query<{ nome: string; email: string; telefone: string | null }>(
