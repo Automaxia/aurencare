@@ -50,55 +50,69 @@ Dono: **[conta]** = ação no painel/comercial do Asaas (dono da conta) · **[de
   D-08/D-09 novas.
 - ⏳ **P1 [dev]** Pendências do spike P3 e P5 (spike.md §10); P1, P2 e P4 feitas em 04/11.
 
-## Fase 1 — Camada de abstração (sem mudar comportamento)
+## Fase 1 — Camada de abstração (sem mudar comportamento) — ✅ 04/11/2026
 
-- ⏳ **P0 [dev]** `src/server/lib/pagamentos/tipos.ts` + `index.ts` (`gatewayPadrao`,
-  `gatewayDe`) — interface `GatewayPagamento` (sdd §2.1).
-- ⏳ **P0 [dev]** Mover `pagarme.ts`, `pagarmeRecipient.ts`, `pagarmeSubscription.ts`
-  para `pagamentos/pagarme/` implementando a interface. `split.ts` neutro com o
-  cálculo da taxa (`planos.ts` continua a fonte do 2,5%).
-- ⏳ **P0 [dev]** Migration **053** (sdd §3): colunas neutras + backfill +
-  `webhook_eventos`.
-- ⏳ **P0 [dev]** Serviços passam a usar a interface e as colunas neutras:
-  `sessoes.ts`, `onboardingPagamento.ts`, `assinatura.ts`, `inbox.ts`, `cron.ts`,
-  `confirmacaoSessao.ts`, `sessaoExclusao.ts`, `psicologo.ts`, `admin.ts`,
-  `financeiro.ts`, `visaoContabil.ts`, `exportacaoContabil*.ts`.
-- ⏳ **P1 [dev]** Unificar a tabela de taxas estimadas (hoje duplicada) em
-  `pagamentos/taxas.ts`; usar `taxa_gateway_centavos` quando houver.
-- ⏳ **P0 [dev]** Correções que valem para os dois gateways:
-  - [ ] estorno Pagar.me por charge (`DELETE /charges/{id}`; gravar o charge id);
-  - [ ] `marcarPagamentoCancelado` não sobrescreve `pago`;
-  - [ ] tratar `charge.refunded` / chargeback;
-  - [ ] gravar `pagamento_parcelas` real;
-  - [ ] página `/pagamento-ok` (ou trocar o `success_url`);
-  - [ ] webhook Pagar.me passa por `webhook_eventos`.
-- ⏳ **P0 [dev]** Testes unitários (sdd §8) e regressão: tudo continua na
-  Pagar.me com `PAYMENT_GATEWAY=pagarme`. Deploy desta fase sozinha.
+- ✅ **P0 [dev]** `src/server/lib/pagamentos/tipos.ts` + `index.ts` (`gatewayPadrao`,
+  `gatewayDe`, `nomeGateway`) — interface `GatewayPagamento`.
+- ✅ **P0 [dev]** Adaptador `pagamentos/pagarme.ts`. **Desvio do sdd:** os clientes
+  HTTP `pagarme.ts`, `pagarmeRecipient.ts` e `pagarmeSubscription.ts` ficaram onde
+  estavam (scripts antigos importam de lá); o adaptador só os envolve.
+  `pagamentos/split.ts` neutro (`planos.ts` continua a fonte do 2,5%).
+- ✅ **P0 [dev]** Migration **053** (`053_gateway_neutro.sql`): colunas neutras +
+  `cobranca_parcelamento_id` + `reembolso_pendente_em/motivo` + backfill +
+  `webhook_eventos`. Idempotente (testada rodando duas vezes).
+- ✅ **P0 [dev]** Serviços na interface e nas colunas neutras, com **dual-write** em
+  `pagarme_*` (pod antigo e novo convivem no rollout): `sessoes.ts`,
+  `onboardingPagamento.ts`, `assinatura.ts`, `inbox.ts`, `confirmacaoSessao.ts`,
+  `sessaoExclusao.ts`, `admin.ts`, `financeiro.ts`, `visaoContabil.ts`,
+  `exportacaoContabil.ts`, `agenda`, `/planos`. `psicologo.ts` e `cron.ts` não
+  precisaram mudar.
+- ✅ **P1 [dev]** Tabela única de taxas: `pagamentos/taxas.ts` (Pagar.me + Asaas),
+  usando `taxa_gateway_centavos` (real, do webhook) quando houver.
+- ✅ **P0 [dev]** Correções que valem para os dois gateways:
+  - [x] estorno Pagar.me por charge (`GET /orders/{id}` → `DELETE /charges/{id}`);
+  - [x] `marcarPagamentoCancelado` não sobrescreve `pago`/`reembolsado`/`contestado`;
+  - [x] `charge.refunded` → `reembolsado`; `charge.chargedback` → `contestado`;
+  - [x] `pagamento_parcelas` real (`last_transaction.installments`);
+  - [x] página `/pagamento-ok` (pública);
+  - [x] webhook Pagar.me passa por `webhook_eventos`;
+  - [x] confirmação atômica (CONFIRMED + RECEIVED juntos não mandam 2 mensagens).
+- ✅ **P0 [dev]** Testes: `npm run test:pagamentos` (unitário),
+  `npm run test:pagamentos-db` (Postgres de teste) e `npm run test:split`, que
+  já estava quebrado por um nome de constante antigo e foi corrigido.
+- ⏳ **P0** Deploy desta fase com `PAYMENT_GATEWAY=pagarme` e regressão manual
+  (cobrança PIX/cartão, webhook, cancelamento).
 
-## Fase 2 — Adaptador Asaas
+## Fase 2 — Adaptador Asaas — ✅ 04/11/2026 (desligado: `PAYMENT_GATEWAY=pagarme`)
 
-- ⏳ **P0 [dev]** `asaas/cliente.ts`: `access_token`, `User-Agent`, timeout 60 s em
-  cartão/assinatura, sem retry automático em criação (risco de duplicar), backoff
-  em 429, erros tipados.
-- ⏳ **P0 [dev]** `asaas/recebedor.ts`: `POST /v3/accounts` com `webhooks`, cifrar
-  `apiKey`, `situacaoRecebedor` via `GET /v3/myAccount/status`.
-- ⏳ **P0 [dev]** `asaas/cobranca.ts`: customer (busca + cache em
-  `dados_cadastro`), PIX + `pixQrCode`, crédito (`invoiceUrl`), split (D-01),
-  estorno.
-- ⏳ **P0 [dev]** `asaas/assinatura.ts`: criar (D-04), trocar plano por `PUT`,
-  cancelar.
-- ⏳ **P0 [dev]** `asaas/webhook.ts` + rota `/api/webhooks/asaas` (sdd §4.3).
-- ⏳ **P1 [dev]** `asaas/erros.ts`: tradução de erros para os campos do wizard.
-- ⏳ **P1 [dev]** `asaas/mock.ts` e `integrationStatus.asaas` em `env.ts`.
-- ⏳ **P1 [dev]** `scripts/asaas-webhook.ts` (`npm run asaas:webhook`): cria/atualiza
-  o webhook da conta raiz.
-- ⏳ **P0 [dev]** `npm run test:asaas` — integração no sandbox (sdd §8).
+- ✅ **P0 [dev]** `asaas/cliente.ts`: `access_token`, `User-Agent`, timeout 60 s,
+  retry só em GET (429/5xx com backoff), `AsaasErro` tipado.
+- ✅ **P0 [dev]** `asaas/recebedor.ts`: `POST /v3/accounts` com `webhooks`
+  (quando há token + URL https), idempotência por `?cpfCnpj=`, apiKey cifrada na
+  gravação, `lerSituacao` via `GET /v3/myAccount/status`.
+- ✅ **P0 [dev]** `asaas/cobranca.ts`: customer por `externalReference`
+  (`paciente:<id>`, `notificationDisabled`), PIX + `pixQrCode`, crédito à vista e
+  parcelado (`installmentCount`), split por PUT (D-01), estorno com `splitRefunds`.
+  Débito → crédito à vista.
+- ✅ **P0 [dev]** `asaas/assinatura.ts`: criar sem cartão (fatura, D-04), trocar
+  plano por `PUT`, cancelar.
+- ✅ **P0 [dev]** `asaas/webhook.ts` (puro) + rota `/api/webhooks/asaas` +
+  `services/eventosPagamento.ts` (dedupe + aplicação neutra).
+- ✅ **P1 [dev]** `asaas/erros.ts`: recusa → campo do wizard.
+- ✅ **P1 [dev]** Mock (`mock_asaas_*`) e `integrationStatus.asaas` em `env.ts`.
+- ✅ **P1 [dev]** `scripts/asaas-webhook.ts` (`npm run asaas:webhook`, simula por
+  padrão; `--aplicar` cria/atualiza só o webhook "Audere — cobranças").
+- ✅ **P0 [dev]** `npm run test:asaas` — adaptador real no sandbox, verde em
+  04/11/2026: PIX R$ 10 → raiz +0,25; 3× R$ 100 → raiz 7,50; estornos; assinatura.
+- ⏳ **P1 [dev]** Teste ponta a ponta do webhook na rota (app rodando + túnel) —
+  as peças (normalização, dedupe, serviços) estão cobertas pelos testes acima.
 
 ## Fase 3 — Produto (UI, textos, operação)
 
-- ⏳ **P0 [dev]** Wizard de recebimento no modo Asaas: tira banco/PIX, acrescenta
-  `companyType` (PJ) e e-mail de login; tela final com o aviso do e-mail do
-  Asaas e a marca Asaas (RF-PG-12).
+- ✅ **P0 [dev]** Wizard de recebimento no modo Asaas: 1 passo só (sem banco/PIX
+  nem sócio), `companyType` na PJ, aviso do e-mail de acesso do Asaas e marca
+  Asaas (RF-PG-12). Celular pedido no próprio wizard quando falta (antes o erro
+  só aparecia no último clique) — vale também para a Pagar.me.
 - ⏳ **P0 [dev]** Perfil › Recebimentos e `OnboardingBanner` mostram a situação
   cadastral (RF-PG-13).
 - ⏳ **P0 [dev]** WhatsApp sem DÉBITO e **com a pergunta de parcelas** no CRÉDITO
@@ -106,17 +120,29 @@ Dono: **[conta]** = ação no painel/comercial do Asaas (dono da conta) · **[de
   (textos) e templates Meta `audere_*` novos → **submeter à aprovação da Meta**
   pelo `/admin/whatsapp` com antecedência.
 - ⏳ **P1 [dev]** Estorno PIX (D-08/D-09): reserva mínima de saldo na raiz com
-  alerta no admin, `reembolso_pendente` (sem saldo / "tente novamente") e
-  `reembolso_solicitado` (aguardando autorização de evento crítico).
-- ⏳ **P0 [dev]** `/planos` no modo Asaas: botão → fatura do Asaas → retorno.
-- ⏳ **P1 [dev]** Cron: cancelar PIX vencido pela regra de 30 min (D-05);
-  reconciliar situação das subcontas pendentes (1×/dia); reprocessar
-  `webhook_eventos` com erro; reembolso pendente.
+  alerta no admin; listar no admin as sessões com `reembolso_pendente_em` e os
+  estornos aguardando autorização de evento crítico.
+- 🟡 **P0 [dev]** `/planos` no modo Asaas: botão → fatura do Asaas ✅; banner
+  "fatura em aberto" ✅. Falta: "Resolver" levar à fatura PENDENTE já existente
+  (hoje reassinar cancela e cria outra) e o retorno pós-pagamento.
+- ✅ **P1 [dev]** Cron (`services/manutencaoPagamentos.ts`, in-process + rota
+  `/api/cron/pagamentos`): PIX vencido @5min (D-05, `DELETE /payments`);
+  `webhook_eventos` com erro @10min; estornos com `reembolso_pendente_em` @hora
+  (D-08, alerta por e-mail ao admin após 24h); situação das subcontas 07h40/19h40.
+  Validado no E2E local de 04/11/2026.
 - ⏳ **P1 [dev]** `/admin`: subcontas por situação, cobranças sem split, eventos
   com erro, divergência de split.
-- ⏳ **P1 [dev]** Financeiro e exportação contábil: rótulo "Taxas do gateway"
-  (hoje "Taxas Pagar.me") e taxa real.
+- ✅ **P1 [dev]** Financeiro e exportação contábil: rótulo "Taxas do gateway" e
+  taxa real; "estorno pendente" na linha da cobrança.
 - ⏳ **P1 [dev]** `/privacidade` e termos: Asaas como operador de pagamento.
+
+### E2E local (04/11/2026) — achados corrigidos
+- Chave `$aact_…` chegava VAZIA ao Next (expansão de `$var` no `.env`) e o
+  adaptador caía em mock em silêncio → escapar `\$` no `.env.local`; `env.ts`
+  aceita as duas formas; em produção, Asaas padrão sem chave agora FALHA alto.
+- `gravarRecebedor`/`assinar`: "inconsistent types deduced for parameter" →
+  casts explícitos; o teste de banco agora roda o wizard e o `assinar` reais.
+- Card de paciente mostrava sessão cancelada como "próxima sessão".
 
 ## Fase 4 — Virada e limpeza
 
@@ -144,3 +170,18 @@ Dono: **[conta]** = ação no painel/comercial do Asaas (dono da conta) · **[de
 | Psicólogo não conclui KYC no Asaas (fluxo fora da Audere) | banner + lembrete por e-mail; situação visível no perfil |
 | `apiKey` da subconta perdida na criação | gravar na mesma transação; procedimento de recuperação documentado |
 | Asaas também travar algo na conta | é o motivo da camada de abstração: o adaptador Pagar.me continua vivo |
+
+## Troca de plano (04/11/2026) ✅
+
+Regra em `src/server/lib/trocaPlano.ts` (migration 054):
+- **Subir** vale na hora. A diferença proporcional aos dias que faltam no ciclo é somada na próxima cobrança PENDING (PUT `/payments/{id}`). Sem cobrança gerada ainda, abre uma fatura avulsa da diferença.
+- **Descer de plano ou trocar o ciclo** vale na renovação (`plano_agendado*`). O webhook só aplica quando o vencimento da cobrança paga é igual ou posterior a `plano_agendado_vigencia`, porque o RECEIVED de um ciclo anterior chega cerca de 30 dias depois.
+- **Escolher o plano atual** desfaz a troca agendada. Acréscimos já somados na cobrança são preservados.
+- **"Renova em"** usa o vencimento da próxima cobrança PENDING, porque `nextDueDate` da assinatura já aponta para a de depois.
+- **Fatura em aberto** ("Pagar fatura"): reabre a cobrança PENDING/OVERDUE e não cria outra assinatura.
+- **Pagar.me** continua como antes: cancela e cria, cobrando o plano novo cheio na hora.
+
+E2E no sandbox (sub_nk5o4fgyvj984j5r):
+- Essencial→Pro: fatura de 04/12 = 248,68 (159,90 + 88,78).
+- Descer agendado: 158,68.
+- "Manter Pro": volta a 248,68.

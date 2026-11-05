@@ -69,7 +69,7 @@ export function GasManager({ objetivoId, escalas, onChange }: {
           </div>
         </div>
         {!criando && (
-          <button type="button" className="btn primary" onClick={() => setCriando(true)} style={{ fontSize: 12, padding: '7px 12px', whiteSpace: 'nowrap' }}>
+          <button type="button" className="btn primary sm" onClick={() => setCriando(true)}>
             + Escala GAS
           </button>
         )}
@@ -120,8 +120,8 @@ function GasCard({ escala, onPausa, onRemover, onRegistrar }: {
           {atual != null && <span style={{ fontSize: 11, padding: '1px 8px', borderRadius: 999, background: 'var(--accent)', color: '#fff', fontWeight: 700 }}>atual {sinal(atual)}</span>}
         </div>
         <div style={{ display: 'flex', gap: 4 }}>
-          <button className="btn ghost" onClick={onPausa} style={{ fontSize: 11, padding: '3px 9px' }}>{escala.ativo ? 'Pausar' : 'Reativar'}</button>
-          <button className="btn ghost" onClick={onRemover} style={{ fontSize: 11, padding: '3px 8px', color: 'var(--rose)' }}>✕</button>
+          <button className="btn ghost xs" onClick={onPausa}>{escala.ativo ? 'Pausar' : 'Reativar'}</button>
+          <button className="btn ghost danger xs" onClick={onRemover}>✕</button>
         </div>
       </div>
 
@@ -159,7 +159,7 @@ function GasCard({ escala, onPausa, onRemover, onRegistrar }: {
             <span style={{ fontSize: 10.5, color: 'var(--muted)' }}>Data</span>
             <input type="date" value={data} onChange={e => setData(e.target.value)} style={{ ...inp, width: 150 }} />
           </label>
-          <button type="button" className="btn primary" onClick={reg} disabled={registrando} style={{ height: 36, fontSize: 12.5 }}>
+          <button type="button" className="btn primary" onClick={reg} disabled={registrando}>
             {registrando ? '…' : '+ Registrar andamento'}
           </button>
         </div>
@@ -253,8 +253,5 @@ function formatData(d: string): string {
   return new Date(d + 'T00:00:00').toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' })
 }
 
-const inp: React.CSSProperties = {
-  width: '100%', boxSizing: 'border-box', padding: '8px 11px', borderRadius: 8,
-  border: '1px solid var(--border)', background: 'white',
-  fontSize: 13, fontFamily: 'inherit', color: 'var(--ink)', outline: 'none',
-}
+// Altura/borda/foco vêm da base de campos em globals.css (--field-*).
+const inp: React.CSSProperties = { width: '100%' }

@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
-import { marcarPagamentoConfirmado, marcarPagamentoCancelado } from '@/server/services/sessoes'
+import { marcarPagamentoConfirmado, marcarPagamentoCancelado, marcarReembolsado, marcarContestado } from '@/server/services/sessoes'
+import { registrarEvento, concluirEvento } from '@/server/services/eventosPagamento'
 import { aplicarEventoAssinatura } from '@/server/services/assinatura'
 import { log } from '@/server/lib/log'
 import { env } from '@/server/lib/env'
@@ -8,6 +9,10 @@ import { verifyBasicAuth, verifyHubSignature } from '@/server/lib/webhookAuth'
 /**
  * Webhook Pagar.me. §10 Fluxo 2 (pagamento confirmado).
  * Eventos esperados: order.paid · order.canceled · order.payment_failed · charge.paid
+ *   · charge.refunded · charge.chargedback (antes ignorados — sdd §1, defeito 3)
+ *
+ * Idempotência: `webhook_eventos` (gateway='pagarme', id do hook) — o mesmo
+ * evento entregue duas vezes não tem efeito duplicado (RF-PG-50).
  *
  * Autenticidade: valida o HMAC do header X-Hub-Signature com PAGARME_WEBHOOK_SECRET.
  * Sem secret configurado, libera com aviso (não quebra ambiente não conectado).
@@ -63,6 +68,17 @@ export async function POST(req: Request) {
 
   log.info('pagarme.webhook', `evento: ${event} order/sub: ${orderId}`)
 
+  // `payload.id` é o id do hook (hook_...); sem ele, evento+recurso+data.
+  const eventoId = String(payload?.id ?? `${event}:${data?.id ?? orderId}:${payload?.created_at ?? ''}`)
+  try {
+    if ((await registrarEvento('pagarme', eventoId, event, payload)) === 'duplicado') {
+      return NextResponse.json({ ok: true, duplicado: true })
+    }
+  } catch (err) {
+    log.err('pagarme.webhook', 'falha ao registrar evento', err)
+    return NextResponse.json({ error: 'storage_failed' }, { status: 500 })
+  }
+
   // Eventos de ASSINATURA (mensalidade do psicólogo) — identificados pela
   // presença de um subscription_id. Roteamos antes da lógica de orders de sessão.
   const subId: string | undefined =
@@ -86,21 +102,36 @@ export async function POST(req: Request) {
       }
     } catch (err) {
       log.err('pagarme.webhook', 'falha ao processar assinatura', err)
+      await concluirEvento('pagarme', eventoId, err)
       return NextResponse.json({ error: 'processing_failed' }, { status: 500 })
     }
+    await concluirEvento('pagarme', eventoId)
     return NextResponse.json({ ok: true })
   }
 
+  const ref = { gateway: 'pagarme' as const, cobrancaId: orderId }
   try {
     if (event === 'order.paid' || event === 'charge.paid') {
-      await marcarPagamentoConfirmado(orderId)
+      // Parcelas reais e líquido: a transação do cartão traz `installments`
+      // (antes pagamento_parcelas ficava sempre 1 — defeito 4).
+      const tx = data?.last_transaction ?? data?.charges?.[0]?.last_transaction
+      const parcelas = Number(tx?.installments) || undefined
+      await marcarPagamentoConfirmado(ref, { parcelas })
     } else if (event === 'order.canceled' || event === 'order.payment_failed' || event === 'charge.payment_failed') {
-      await marcarPagamentoCancelado(orderId)
+      // Não sobrescreve sessão já paga (RF-PG-32) — a guarda está no serviço.
+      await marcarPagamentoCancelado(ref)
+    } else if (event === 'charge.refunded') {
+      const parcial = Number(data?.amount) > 0 && Number(data?.canceled_amount ?? data?.amount) < Number(data?.amount)
+      await marcarReembolsado(ref, parcial)
+    } else if (event === 'charge.chargedback') {
+      await marcarContestado(ref)
     }
   } catch (err) {
     log.err('pagarme.webhook', 'falha ao processar', err)
+    await concluirEvento('pagarme', eventoId, err)
     return NextResponse.json({ error: 'processing_failed' }, { status: 500 })
   }
+  await concluirEvento('pagarme', eventoId)
 
   return NextResponse.json({ ok: true })
 }

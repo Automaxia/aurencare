@@ -38,7 +38,7 @@ export function ResumoAnteriorModal({ sessaoId, onClose }: { sessaoId: string; o
               </div>
             )}
           </div>
-          <button className="btn ghost" onClick={onClose} aria-label="Fechar" style={{ padding: '3px 10px' }}>✕</button>
+          <button className="btn ghost sm" onClick={onClose} aria-label="Fechar">✕</button>
         </div>
 
         <div style={{ marginTop: 16 }}>

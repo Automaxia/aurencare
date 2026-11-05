@@ -7,16 +7,31 @@ import { salvarOnboardingAction } from './actions'
 import type { OnboardingInput, CampoErro, TipoChavePix, RascunhoOnboarding } from '@/server/services/onboardingPagamento'
 
 /**
- * Wizard pós-cadastro (2 passos) — coleta dados do Recipient Pagar.me.
+ * Wizard pós-cadastro — coleta os dados do recebedor no gateway padrão.
+ *  - Pagar.me: 3 passos (dados · conta bancária · chave PIX opcional).
+ *  - Asaas: 1 passo. Sem conta bancária nem PIX: o dinheiro cai na subconta
+ *    do Asaas e o saque é feito lá (o Asaas manda o e-mail de acesso).
  * Bloqueio soft: páginas funcionam, mas ações de cobrança ficam desabilitadas
- * até `pgm_onboarding_em` ser preenchido (ver service).
+ * até o recebedor existir (ver service).
  */
 
 type Props = {
   nomePsicologa: string
   /** Dados de uma tentativa anterior; `null` quando nunca enviou. */
   inicial?: RascunhoOnboarding | null
+  gateway: 'pagarme' | 'asaas'
+  /** Cadastro sem celular: pede no passo 1 (os dois gateways exigem). */
+  precisaTelefone: boolean
+  /** E-mail de login — o Asaas manda o acesso à subconta para ele. */
+  email: string
 }
+
+const TIPOS_EMPRESA: Array<{ key: 'MEI' | 'LIMITED' | 'INDIVIDUAL' | 'ASSOCIATION'; label: string }> = [
+  { key: 'MEI', label: 'MEI' },
+  { key: 'LIMITED', label: 'Limitada / SLU' },
+  { key: 'INDIVIDUAL', label: 'Empresário individual' },
+  { key: 'ASSOCIATION', label: 'Associação' },
+]
 
 // Top bancos brasileiros (Pagar.me aceita todos com código FEBRABAN).
 // Lista enxuta — se faltar algum, dá pra digitar manualmente.
@@ -60,9 +75,12 @@ const PASSO_DO_CAMPO: Record<string, 1 | 2 | 3> = {
   bancoCodigo: 2, bancoAgencia: 2, bancoConta: 2, bancoContaDv: 2, bancoTipo: 2,
   titularNome: 2, titularDocumento: 2,
   chavePixTipo: 3, chavePixValor: 3,
+  telefone: 1, tipoEmpresa: 1,
 }
 
-export function Wizard({ nomePsicologa, inicial }: Props) {
+export function Wizard({ nomePsicologa, inicial, gateway, precisaTelefone, email }: Props) {
+  const asaas = gateway === 'asaas'
+  const provedor = asaas ? 'Asaas' : 'Pagar.me'
   const i = inicial ?? null
   const reais = (c: number | null | undefined) => (c ? String(c / 100) : '')
   const router = useRouter()
@@ -92,6 +110,8 @@ export function Wizard({ nomePsicologa, inicial }: Props) {
   const [socioEmail, setSocioEmail] = useState(i?.socioEmail ?? '')
   const [socioTelefone, setSocioTelefone] = useState(i?.socioTelefone ?? '')
   const [socioRendaReais, setSocioRendaReais] = useState(reais(i?.socioRendaCentavos))
+  const [tipoEmpresa, setTipoEmpresa] = useState<typeof TIPOS_EMPRESA[number]['key']>('LIMITED')
+  const [telefone, setTelefone] = useState('')
 
   // Passo 2
   const [bancoCodigo, setBancoCodigo] = useState(i?.bancoCodigo ?? '')
@@ -124,6 +144,12 @@ export function Wizard({ nomePsicologa, inicial }: Props) {
   function validarPasso1(): boolean {
     setErro(null); setErroCampo(null)
     const docDigits = documento.replace(/\D/g, '')
+    if (precisaTelefone) {
+      const t = telefone.replace(/\D/g, '')
+      if (t.length !== 10 && t.length !== 11) {
+        setErro('Informe seu celular com DDD.'); setErroCampo('telefone'); return false
+      }
+    }
     if (tipoPessoa === 'PF' && docDigits.length !== 11) {
       setErro('CPF deve ter 11 dígitos.'); setErroCampo('documento'); return false
     }
@@ -197,13 +223,15 @@ export function Wizard({ nomePsicologa, inicial }: Props) {
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault()
     if (step === 1) {
-      if (validarPasso1()) setStep(2)
-      return
+      if (!validarPasso1()) return
+      // Asaas: um passo só — envia direto daqui.
+      if (!asaas) { setStep(2); return }
     }
     if (step === 2) {
       if (validarPasso2()) setStep(3)
       return
     }
+    // envio final: passo 3 (Pagar.me) ou passo 1 (Asaas)
     // step 3 — submit final (chave PIX opcional)
     setErro(null); setErroCampo(null); setEnviando(true)
     const input: OnboardingInput = {
@@ -221,6 +249,8 @@ export function Wizard({ nomePsicologa, inicial }: Props) {
         cidade: endCidade.trim(),
         uf: endUf.trim().toUpperCase(),
       },
+      telefone: precisaTelefone ? telefone.replace(/\D/g, '') : null,
+      tipoEmpresa: tipoPessoa === 'PJ' ? tipoEmpresa : null,
       socio: tipoPessoa === 'PJ'
         ? {
             nome: socioNome.trim(),
@@ -234,7 +264,7 @@ export function Wizard({ nomePsicologa, inicial }: Props) {
             ),
           }
         : null,
-      banco: {
+      banco: asaas ? null : {
         codigo: bancoCodigo,
         agencia: bancoAgencia.replace(/\D/g, ''),
         agenciaDv: bancoAgenciaDv.replace(/\D/g, '') || null,
@@ -244,7 +274,7 @@ export function Wizard({ nomePsicologa, inicial }: Props) {
         titularNome: titularNome.trim(),
         titularDocumento: titularDocumento.replace(/\D/g, ''),
       },
-      chavePix: usaChavePix && chavePixValor.trim()
+      chavePix: !asaas && usaChavePix && chavePixValor.trim()
         ? { tipo: chavePixTipo, valor: chavePixValor.trim() }
         : null,
     }
@@ -262,7 +292,7 @@ export function Wizard({ nomePsicologa, inicial }: Props) {
 
   return (
     <div>
-      <Stepper step={step} />
+      {!asaas && <Stepper step={step} />}
 
       <AvisoPagamentoBeta />
 
@@ -270,7 +300,9 @@ export function Wizard({ nomePsicologa, inicial }: Props) {
         {step === 1 ? 'Configurar recebimentos' : step === 2 ? 'Conta bancária' : 'Chave PIX'}
       </h1>
       <p style={{ color: 'var(--muted)', fontSize: 14, marginTop: 0, marginBottom: 24, lineHeight: 1.55 }}>
-        {step === 1 && 'Dados pra registrar você como recebedora no Pagar.me. O dinheiro das sessões cai direto na sua conta — Audere nunca toca o valor.'}
+        {step === 1 && (asaas
+          ? 'Dados pra abrir sua conta de recebimento no Asaas. O dinheiro das sessões cai direto nela — a Audere nunca toca o valor.'
+          : 'Dados pra registrar você como recebedora no Pagar.me. O dinheiro das sessões cai direto na sua conta — Audere nunca toca o valor.')}
         {step === 2 && 'Conta de destino dos repasses. Pagamentos PIX caem em 1 dia útil, cartão em até 30 dias.'}
         {step === 3 && 'Opcional. Se preencher, sua chave PIX fica registrada como preferência de recebimento e será usada como destino padrão em estornos para pacientes que pagaram via PIX.'}
       </p>
@@ -284,6 +316,28 @@ export function Wizard({ nomePsicologa, inicial }: Props) {
                 <PillBtn active={tipoPessoa === 'PJ'} onClick={() => setTipoPessoa('PJ')}>Pessoa jurídica</PillBtn>
               </div>
             </Field>
+
+            {tipoPessoa === 'PJ' && asaas && (
+              <Field label="Tipo de empresa" error={erroCampo === 'tipoEmpresa' ? erro : undefined}>
+                <select value={tipoEmpresa} onChange={e => setTipoEmpresa(e.target.value as typeof tipoEmpresa)}>
+                  {TIPOS_EMPRESA.map(t => <option key={t.key} value={t.key}>{t.label}</option>)}
+                </select>
+              </Field>
+            )}
+
+            {precisaTelefone && (
+              <Field
+                label="Celular (com DDD)"
+                hint={`O ${provedor} exige um celular. Fica salvo também no seu perfil.`}
+                error={erroCampo === 'telefone' ? erro : undefined}
+              >
+                <input
+                  inputMode="numeric" required autoComplete="tel-national" value={telefone}
+                  onChange={e => setTelefone(e.target.value.replace(/\D/g, '').slice(0, 11))}
+                  placeholder="61999998888"
+                />
+              </Field>
+            )}
 
             <Field
               label={tipoPessoa === 'PF' ? 'CPF' : 'CNPJ'}
@@ -329,7 +383,7 @@ export function Wizard({ nomePsicologa, inicial }: Props) {
               </Field>
             </div>
 
-            {/* Endereço — a Pagar.me exige para registrar o recebedor. */}
+            {/* Endereço — os dois gateways exigem para registrar o recebedor. */}
             <div style={{ borderTop: '1px solid var(--border)', paddingTop: 14, marginTop: 2 }}>
               <div style={{ fontSize: 13, color: 'var(--muted)', marginBottom: 10 }}>
                 {tipoPessoa === 'PF' ? 'Endereço residencial' : 'Endereço da sede'}
@@ -382,8 +436,8 @@ export function Wizard({ nomePsicologa, inicial }: Props) {
               </div>
             </div>
 
-            {/* Sócio administrador — a Pagar.me exige ao menos um para PJ. */}
-            {tipoPessoa === 'PJ' && (
+            {/* Sócio administrador — a Pagar.me exige ao menos um para PJ (o Asaas não). */}
+            {tipoPessoa === 'PJ' && !asaas && (
               <div style={{ borderTop: '1px solid var(--border)', paddingTop: 14 }}>
                 <div style={{ fontSize: 13, color: 'var(--muted)', marginBottom: 4 }}>Sócio administrador</div>
                 <div style={{ fontSize: 12, color: 'var(--faint)', marginBottom: 10 }}>
@@ -435,10 +489,27 @@ export function Wizard({ nomePsicologa, inicial }: Props) {
               </div>
             )}
 
+            {asaas && (
+              <div style={{
+                padding: '12px 14px', borderRadius: 8,
+                background: 'var(--surface)', fontSize: 12, color: 'var(--muted)', lineHeight: 1.55,
+              }}>
+                Ao concluir, o Asaas envia um e-mail para <strong>{email || 'o seu e-mail de login'}</strong> com
+                o acesso à sua conta. Por lá você envia os documentos e faz os saques — sem conta
+                bancária aqui. Você já pode cobrar enquanto a análise do Asaas acontece.
+              </div>
+            )}
+
             {erro && !erroCampo && <ErrorBanner>{erro}</ErrorBanner>}
 
             <Actions>
-              <button type="submit" className="btn primary">Continuar →</button>
+              {asaas
+                ? (
+                  <button type="submit" className="btn primary" disabled={enviando}>
+                    {enviando ? 'Cadastrando…' : 'Concluir cadastro'}
+                  </button>
+                )
+                : <button type="submit" className="btn primary">Continuar →</button>}
             </Actions>
           </>
         ) : step === 2 ? (
@@ -597,7 +668,7 @@ export function Wizard({ nomePsicologa, inicial }: Props) {
       </form>
 
       <p style={{ fontSize: 11, color: 'var(--faint)', textAlign: 'center', marginTop: 20, lineHeight: 1.6 }}>
-        Seus dados ficam criptografados em repouso. CPF/CNPJ usados apenas pra registro no Pagar.me.
+        Seus dados ficam criptografados em repouso. CPF/CNPJ usados apenas pra registro no {provedor}.
       </p>
     </div>
   )

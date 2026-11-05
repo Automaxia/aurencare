@@ -2,7 +2,7 @@ import { PageHeader } from '@/components/PageHeader'
 import { requirePsicologo } from '@/server/lib/auth'
 import { obterAssinatura } from '@/server/services/assinatura'
 import { PLANOS, BETA_LIBERADO } from '@/server/lib/planos'
-import { integrationStatus } from '@/server/lib/env'
+import { env, integrationStatus } from '@/server/lib/env'
 import Link from 'next/link'
 import { PlanosForm } from './form'
 
@@ -45,8 +45,11 @@ export default async function PlanosPage({ searchParams }: {
           usadas: info.usadas,
           restantes: info.restantes,
           cortesiaAte: info.cortesiaAte,
+          gateway: info.gateway,
+          agendado: info.agendado,
         }}
-        mock={!integrationStatus.pagarme}
+        mock={env.paymentGateway === 'asaas' ? !integrationStatus.asaas : !integrationStatus.pagarme}
+        gateway={env.paymentGateway}
         beta={BETA_LIBERADO}
         pre={pre}
       />

@@ -41,7 +41,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
         />
         <ToastProvider>
           {!onboarding.completo && <OnboardingBanner />}
-          {planoBanner && <PlanoUsoBanner motivo={planoBanner} cap={assinatura.cap} />}
+          {planoBanner && <PlanoUsoBanner motivo={planoBanner} cap={assinatura.cap} gateway={assinatura.gateway} />}
           <main className="app-content">{children}</main>
         </ToastProvider>
       </div>

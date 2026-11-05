@@ -185,10 +185,10 @@ export default async function InicioPage() {
               {proxima.modalidade === 'online' ? 'Online' : 'Presencial'} · {proxima.duracaoMin} min · {proxima.pagamentoStatus === 'pago' ? 'pagamento confirmado' : 'pagamento ' + proxima.pagamentoStatus}
             </div>
             <div className="next-tags">
-              {proxima.status === 'em_curso' && <span className="tag t-info" style={{ fontSize: 10 }}>● Em andamento agora</span>}
-              {proxima.status === 'confirmada' && <span className="tag t-ok" style={{ fontSize: 10 }}>Confirmada</span>}
-              {proxima.status === 'aguardando_pagamento' && <span className="tag t-warn" style={{ fontSize: 10 }}>Aguardando pagamento</span>}
-              {proxima.pagamentoStatus === 'pago' && <span className="tag t-ok" style={{ fontSize: 10 }}>{(proxima.pagamentoMetodo ?? 'pago').toUpperCase()} ✓</span>}
+              {proxima.status === 'em_curso' && <span className="tag t-info">● Em andamento agora</span>}
+              {proxima.status === 'confirmada' && <span className="tag t-ok">Confirmada</span>}
+              {proxima.status === 'aguardando_pagamento' && <span className="tag t-warn">Aguardando pagamento</span>}
+              {proxima.pagamentoStatus === 'pago' && <span className="tag t-ok">{(proxima.pagamentoMetodo ?? 'pago').toUpperCase()} ✓</span>}
             </div>
           </div>
           <button className="next-cta">
@@ -259,10 +259,10 @@ export default async function InicioPage() {
                         <span style={{ fontWeight: 300, fontSize: 11, color: 'var(--faint)' }}>· Sessão {s.numero}</span>
                       </div>
                       <div className="ag-sub">
-                        <span className={`tag t-${s.modalidade === 'online' ? 'info' : 'mute'}`} style={{ fontSize: 10 }}>
+                        <span className={`tag t-${s.modalidade === 'online' ? 'info' : 'mute'}`}>
                           {s.modalidade === 'online' ? 'Online' : 'Presencial'}
                         </span>
-                        {s.pagamentoStatus === 'pago' && <span className="tag t-ok" style={{ fontSize: 10 }}>pago</span>}
+                        {s.pagamentoStatus === 'pago' && <span className="tag t-ok">pago</span>}
                       </div>
                     </div>
                     <span className={`ag-st${lbl.klass ? ' ' + lbl.klass : ''}`}>{lbl.texto}</span>

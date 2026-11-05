@@ -44,6 +44,14 @@
   --field-radius:       8px;
   --field-ring:         0 0 0 3px rgba(106,78,200,.12);
   --field-ring-error:   0 0 0 3px rgba(196,96,122,.14);
+  --field-h:            38px;   /* = altura do .btn — input e botão lado a lado alinham */
+  --field-pad:          8px 12px;
+  --field-fs:           13px;
+
+  /* ── controles (botões) — alturas únicas do app ── */
+  --btn-h:    38px;
+  --btn-h-sm: 30px;
+  --btn-h-xs: 24px;
 
   /* ── sombras ── */
   --sh:    0 1px 3px rgba(26,24,37,.04), 0 4px 16px rgba(26,24,37,.04);
@@ -94,13 +102,20 @@ button { font-family: inherit; cursor: pointer; }
 
 /* ── Campos de formulário — base padronizada (referência: tela de login).
    Escopada a inputs de TEXTO; checkbox/radio/range/file/color/botões ficam de fora.
-   Forms com <style jsx> próprio sobrescrevem (mantêm padding/tamanho intencionais). ── */
-input:not([type=checkbox]):not([type=radio]):not([type=range]):not([type=file]):not([type=color]):not([type=submit]):not([type=button]):not([type=image]),
+   Especificidade (0,0,1) — só o nome do elemento; a lista de :not() vai dentro de
+   :where(). Empata com o preflight do Tailwind (`input { padding: 0 }`) e ganha
+   pela ordem; qualquer classe de componente (.search-box input, .mood-input…) ou
+   <style jsx> continua sobrescrevendo. (Com TUDO dentro de :where() a especificidade
+   ia a zero e o preflight zerava o padding dos campos.)
+   Altura única = var(--field-h) (a mesma do .btn), fonte 13px. ── */
+input:where(:not([type=checkbox]):not([type=radio]):not([type=range]):not([type=file]):not([type=color]):not([type=submit]):not([type=button]):not([type=image])),
 textarea,
 select {
+  box-sizing: border-box;
   font-family: inherit;
-  font-size: inherit;
-  padding: 10px 13px;
+  font-size: var(--field-fs);
+  line-height: 20px;
+  padding: var(--field-pad);
   border: 1px solid var(--field-border);
   border-radius: var(--field-radius);
   background: var(--field-bg);
@@ -108,14 +123,22 @@ select {
   outline: none;
   transition: border-color .15s var(--ease), box-shadow .15s var(--ease);
 }
-input:not([type=checkbox]):not([type=radio]):not([type=range]):not([type=file]):not([type=color]):not([type=submit]):not([type=button]):not([type=image]):hover,
-textarea:hover, select:hover { border-color: var(--field-border-hover); }
-input:not([type=checkbox]):not([type=radio]):not([type=range]):not([type=file]):not([type=color]):not([type=submit]):not([type=button]):not([type=image]):focus,
-textarea:focus, select:focus { border-color: var(--accent); box-shadow: var(--field-ring); }
+input:where(:not([type=checkbox]):not([type=radio]):not([type=range]):not([type=file]):not([type=color]):not([type=submit]):not([type=button]):not([type=image])), select { min-height: var(--field-h); }
+:where(select) { cursor: pointer; }
+:where(textarea) { line-height: 1.5; }
+:where(input:not([type=checkbox]):not([type=radio]):not([type=range]):not([type=file]):not([type=color]):not([type=submit]):not([type=button]):not([type=image]), textarea, select):hover { border-color: var(--field-border-hover); }
+:where(input:not([type=checkbox]):not([type=radio]):not([type=range]):not([type=file]):not([type=color]):not([type=submit]):not([type=button]):not([type=image]), textarea, select):focus { border-color: var(--accent); box-shadow: var(--field-ring); }
 /* Validação de obrigatório/formato — só após interação/tentativa de envio. */
-input:not([type=checkbox]):not([type=radio]):not([type=range]):not([type=file]):not([type=color]):not([type=submit]):not([type=button]):not([type=image]):user-invalid,
-textarea:user-invalid, select:user-invalid { border-color: var(--rose); }
-input:user-invalid:focus, textarea:user-invalid:focus, select:user-invalid:focus { box-shadow: var(--field-ring-error); }
+:where(input:not([type=checkbox]):not([type=radio]):not([type=range]):not([type=file]):not([type=color]):not([type=submit]):not([type=button]):not([type=image]), textarea, select):user-invalid { border-color: var(--rose); }
+:where(input, textarea, select):user-invalid:focus { box-shadow: var(--field-ring-error); }
+
+/* Label de formulário — padrão único (uppercase pequena, acima do campo). */
+.field { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.field-lbl {
+  font-size: 11px; letter-spacing: .06em; text-transform: uppercase;
+  color: var(--muted); font-weight: 500;
+}
+.field-hint { font-size: 11.5px; color: var(--faint); line-height: 1.45; }
 ::placeholder { color: var(--muted); opacity: 1; }
 
 /* Forms de autenticação (login/cadastro/recuperar/redefinir) — tamanho único,
@@ -282,6 +305,25 @@ html.sigilo-on :is(.sigilo, .pts-name, .pts-av, .pb-name, .sess-pill span) {
 .app-shell[data-collapsed="true"] { grid-template-columns: var(--sc) 1fr; }
 .app-main { display: flex; flex-direction: column; min-width: 0; }
 .app-content { padding: 28px 32px 64px; max-width: 1240px; width: 100%; margin: 0 auto; }
+
+/* Cabeçalho de página (components/PageHeader) — igual em todas as telas.
+   Título Cormorant 28px · subtítulo 13px muted · ações à direita, alinhadas
+   à base do bloco de título, todas na altura do .btn. */
+.page-h {
+  display: flex; align-items: flex-end; justify-content: space-between;
+  flex-wrap: wrap; gap: 12px 16px; margin-bottom: 24px;
+}
+.page-h-txt { min-width: 0; }
+.page-h-pilar {
+  font-size: 11px; letter-spacing: .14em; text-transform: uppercase;
+  font-weight: 600; color: var(--accent); margin-bottom: 6px;
+}
+.page-h-title { margin: 0; font-size: 28px; line-height: 1.15; }
+.page-h-sub { margin: 6px 0 0; color: var(--muted); font-size: 13px; }
+.page-h-cfp { margin-top: 12px; }
+.page-h-actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+/* Ações embrulhadas em span/div pela página também alinham pelo centro. */
+.page-h-actions > span, .page-h-actions > div { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 
 /* ────────────────────────────────────────────────────────────────────────
    SIDEBAR — alinhado ao mockup v12.5
@@ -617,21 +659,39 @@ html.sigilo-on :is(.sigilo, .pts-name, .pts-av, .pb-name, .sess-pill span) {
   color: var(--faint); font-weight: 500;
 }
 
+/* ── Botões — padrão único do app ──
+   Altura fixa por tamanho (38 / 30 / 24), padding só horizontal, texto numa
+   linha. <a>/<Link> com .btn ficam idênticos a <button>.
+   Tamanhos:  .btn (38)  ·  .btn.sm (30)  ·  .btn.xs (24 — ações de linha / ícone)
+   Variações: .primary · .sage · .ghost · .danger · .ghost.danger · .block */
 .btn {
-  display: inline-flex; align-items: center; gap: 6px;
-  padding: 8px 14px; border-radius: var(--rsm); border: 1px solid var(--border);
+  display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+  box-sizing: border-box; min-height: var(--btn-h); padding: 0 14px;
+  border-radius: var(--rsm); border: 1px solid var(--border);
   background: var(--card); color: var(--ink-soft);
-  font-weight: 500; font-size: 13px;
-  transition: background .12s var(--ease), transform .12s var(--ease);
+  font-family: inherit; font-weight: 500; font-size: 13px; line-height: 1.2;
+  white-space: nowrap; text-decoration: none; vertical-align: middle;
+  cursor: pointer; user-select: none;
+  transition: background .12s var(--ease), color .12s var(--ease), transform .12s var(--ease);
 }
 .btn:hover { background: var(--surface); }
+.btn:focus-visible { outline: none; box-shadow: var(--field-ring); }
+.btn:disabled, .btn[aria-disabled="true"] { opacity: .55; cursor: not-allowed; }
 .btn.primary { background: var(--accent); color: white; border-color: transparent; }
 .btn.primary:hover { background: #5a40b0; }
 .btn.ghost { background: transparent; border-color: transparent; color: var(--muted); }
 .btn.ghost:hover { color: var(--ink); background: rgba(0,0,0,.03); }
 .btn.sage { background: var(--sage); color: white; border-color: transparent; }
 .btn.sage:hover { background: #4a8a78; }
-.btn.sm { padding: 4px 10px; font-size: 12px; }
+.btn.danger { background: var(--rose); color: white; border-color: transparent; }
+.btn.danger:hover { background: #b0526b; }
+.btn.ghost.danger { background: transparent; color: var(--rose); }
+.btn.ghost.danger:hover { background: var(--rose-lo); color: #a8475f; }
+.btn.sm { min-height: var(--btn-h-sm); padding: 0 11px; font-size: 12px; border-radius: 8px; gap: 5px; }
+.btn.xs { min-height: var(--btn-h-xs); padding: 0 8px; font-size: 11px; border-radius: 6px; gap: 4px; }
+.btn.block { display: flex; width: 100%; }
+/* A landing tem o próprio .btn (pill grande) — não herda a altura do app. */
+.lp .btn, .cine .btn { min-height: 0; line-height: inherit; }
 
 /* ── Sistema de TAGS (alinhado ao mockup v12.5) ──
    .tag.t-info  = roxo (em andamento, neutro destacado)
@@ -643,7 +703,10 @@ html.sigilo-on :is(.sigilo, .pts-name, .pts-av, .pb-name, .sess-pill span) {
   display: inline-flex; align-items: center; gap: 4px;
   padding: 2px 8px; border-radius: 999px;
   font-size: 11px; font-weight: 500; line-height: 1.4;
+  white-space: nowrap; flex-shrink: 0;
 }
+/* Tag compacta (selos tipo "demonstração" ao lado do nome) — o único tamanho menor. */
+.tag.sm { font-size: 10px; padding: 1px 7px; letter-spacing: .02em; }
 .tag.t-info  { background: var(--accent-md); color: #4a3299; }
 .tag.t-ok    { background: rgba( 90,158,138,.13); color: #3a6e60; }
 .tag.t-warn  { background: rgba(176,125, 64,.13); color: #7a5520; }
@@ -1120,7 +1183,7 @@ a.pip:hover .pip-d { transform: scale(1.25); transition: transform .15s ease; }
   transition: border-color .15s;
 }
 .mood-input::placeholder { color: var(--faint); font-style: italic; }
-.mood-input:focus { border-bottom-color: var(--accent); }
+.mood-input:focus { border-bottom-color: var(--accent); box-shadow: none; }
 .intensity-row { display: flex; flex-direction: column; align-items: center; gap: 2px; margin-top: 6px; }
 .intensity-dots { display: flex; gap: 4px; }
 .intensity-dots button {
@@ -1704,8 +1767,12 @@ a.pip:hover .pip-d { transform: scale(1.25); transition: transform .15s ease; }
 }
 .ptc-row .k { color: var(--faint); }
 .ptc-row .v { font-size: 12.5px; font-weight: 500; color: var(--ink-soft); }
-.ptc-actions { display: flex; gap: 6px; margin-top: 13px; }
-.ptc-actions .btn { flex: 1; justify-content: center; }
+/* 3 ações em colunas IGUAIS — mesma largura e altura, seja <a>, <Link> ou <button>. */
+.ptc-actions {
+  display: grid; grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 6px; margin-top: 13px;
+}
+.ptc-actions .btn { width: 100%; min-width: 0; padding: 0 8px; overflow: hidden; text-overflow: ellipsis; }
 .ptc-dot {
   width: 7px; height: 7px; border-radius: 50%; display: inline-block;
 }
@@ -1718,9 +1785,12 @@ a.pip:hover .pip-d { transform: scale(1.25); transition: transform .15s ease; }
 }
 .search-box input {
   border: none; outline: none; font-family: inherit;
+  padding: 0; min-height: 0; border-radius: 0; box-shadow: none;
   font-size: 13px; color: var(--ink-soft); background: transparent; width: 150px;
 }
 .search-box input::placeholder { color: var(--faint); }
+.search-box input:focus { box-shadow: none; }
+.search-box:focus-within { border-color: var(--accent); box-shadow: var(--field-ring); }
 
 /* ────────────────────────────────────────────────────────────────────────
    VIDEO CALL — sala paciente + embutido no Modo Presença

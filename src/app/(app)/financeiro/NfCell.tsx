@@ -153,8 +153,7 @@ function Popover({ sessaoId, status, numero, onClose }: {
           <button
             type="button"
             onClick={onClose}
-            className="btn ghost"
-            style={{ padding: '6px 12px', fontSize: 12 }}
+            className="btn ghost sm"
             disabled={salvando}
           >
             Cancelar
@@ -162,8 +161,7 @@ function Popover({ sessaoId, status, numero, onClose }: {
           <button
             type="button"
             onClick={salvar}
-            className="btn primary"
-            style={{ padding: '6px 12px', fontSize: 12 }}
+            className="btn primary sm"
             disabled={salvando}
           >
             {salvando ? '…' : 'Salvar'}

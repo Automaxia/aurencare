@@ -2,7 +2,7 @@ import 'server-only'
 import { db } from '@/server/db/pool'
 import { enviarWA, WA_TEMPLATES } from '@/server/lib/evolution'
 import { WA_META } from '@/server/lib/whatsapp/templatesMeta'
-import { criarOrderPix, criarCheckoutCartao, reembolsar } from '@/server/lib/pagarme'
+import { gatewayPadrao, gatewayDe, type Gateway, type MetodoSessao } from '@/server/lib/pagamentos'
 import { publish } from '@/server/lib/sse'
 import { encrypt, decrypt, tryDecrypt } from '@/server/lib/crypto'
 import { log } from '@/server/lib/log'
@@ -42,13 +42,17 @@ export type Sessao = {
   duracaoMin: number
   modalidade: string
   status: SessaoStatus
-  pagamentoStatus: 'pendente' | 'pago' | 'reembolsado' | 'falhou'
+  pagamentoStatus: 'pendente' | 'pago' | 'reembolsado' | 'falhou' | 'contestado' | 'isento'
   pagamentoMetodo: 'pix' | 'credito' | 'debito' | null
   pagamentoParcelas: number
-  pagarmeOrderId: string | null
-  pagarmeQrcode: string | null
-  pagarmeQrcodeUrl: string | null
-  pagarmeCheckoutUrl: string | null
+  /** Gateway onde a cobrança nasceu (RF-PG-02). null = sem cobrança pela plataforma. */
+  gateway: Gateway | null
+  /** order (pagarme) | pay_... (asaas). */
+  cobrancaId: string | null
+  cobrancaParcelamentoId: string | null
+  cobrancaQrcode: string | null
+  cobrancaQrcodeUrl: string | null
+  cobrancaUrl: string | null
   valor: number
   assinada: boolean
   assinaturaTimestamp: string | null
@@ -82,8 +86,14 @@ function rowToSessao(r: any): Sessao {
     numero: r.numero, dataHora: r.data_hora, duracaoMin: r.duracao_min, modalidade: r.modalidade,
     status: r.status, pagamentoStatus: r.pagamento_status, pagamentoMetodo: r.pagamento_metodo,
     pagamentoParcelas: r.pagamento_parcelas,
-    pagarmeOrderId: r.pagarme_order_id, pagarmeQrcode: r.pagarme_qrcode,
-    pagarmeQrcodeUrl: r.pagarme_qrcode_url, pagarmeCheckoutUrl: r.pagarme_checkout_url,
+    // Colunas neutras (053) com fallback para as legadas: linha gravada por um
+    // pod antigo durante o rollout só tem `pagarme_*`.
+    gateway: (r.gateway ?? (r.pagarme_order_id ? 'pagarme' : null)) as Gateway | null,
+    cobrancaId: r.cobranca_id ?? r.pagarme_order_id ?? null,
+    cobrancaParcelamentoId: r.cobranca_parcelamento_id ?? null,
+    cobrancaQrcode: r.cobranca_qrcode ?? r.pagarme_qrcode ?? null,
+    cobrancaQrcodeUrl: r.cobranca_qrcode_url ?? r.pagarme_qrcode_url ?? null,
+    cobrancaUrl: r.cobranca_url ?? r.pagarme_checkout_url ?? null,
     valor: parseFloat(r.valor),
     assinada: r.assinada, assinaturaTimestamp: r.assinatura_timestamp,
     resumoEditadoEm: r.resumo_editado_em ?? null,
@@ -391,7 +401,7 @@ export async function excluirSessao(psicologoId: string, sessaoId: string): Prom
   // Cobrança ativa (PIX/checkout gerado, ainda pendente): deletar a linha
   // orfaniza a cobrança — se o paciente pagar depois, o webhook não acha a
   // sessão e o dinheiro entra sem reembolso. Bloqueia; o certo é cancelar.
-  if (s.pagarmeOrderId && s.pagamentoStatus === 'pendente') return { ok: false, motivo: 'cobranca' }
+  if (s.cobrancaId && s.pagamentoStatus === 'pendente') return { ok: false, motivo: 'cobranca' }
 
   // DELETE + renumeração na MESMA transação: um buraco temporário na sequência
   // (ou um shift sem o delete) nunca fica visível pra outra requisição.
@@ -687,94 +697,126 @@ export async function criarSerie(input: CriarSerieInput): Promise<CriarSerieResu
   return { serieId, sessoesIds, datas }
 }
 
-// ── Métodos de pagamento (Pagar.me) ───────────────────────────────────────
+// ── Métodos de pagamento (gateway padrão: PAYMENT_GATEWAY) ────────────────
 export async function gerarCobrancaPix(sessaoId: string): Promise<Sessao> {
-  const s = await buscarSessao(sessaoId)
-  if (!s) throw new Error('sessao_nao_encontrada')
-  const onb = await garantirRecipientAtivo(s.psicologoId)
-  if (!onb.completo) throw new Error('recebimento_nao_configurado')
-  // A Pagar.me exige CPF do pagador no PIX. Sem ele a order até é criada, mas a
-  // charge é reprovada e volta SEM qr_code — o paciente receberia um link vazio.
-  // Falhar aqui, com erro nomeado, é melhor que cobrar e não gerar o QR.
-  if (!s.pacienteCpf) throw new Error('cpf_paciente_ausente')
-  // Cadastro antigo pode ter CPF digitado errado (a validação no salvar é nova).
-  // Um CPF inválido chega à Pagar.me, reprova a charge e volta sem QR — o mesmo
-  // beco sem saída do CPF ausente, só que com mensagem genérica.
-  if (!validarCpf(s.pacienteCpf)) throw new Error('cpf_paciente_invalido')
-
-  const order = await criarOrderPix({
-    sessaoId: s.id,
-    valorCentavos: Math.round(s.valor * 100),
-    pacienteNome: s.pacienteNome,
-    pacienteEmail: s.pacienteEmail,
-    pacienteTelefone: s.pacienteTelefone,
-    pacienteDocumento: s.pacienteCpf,
-    // Split: o líquido cai direto na conta do psicólogo; a taxa administrativa da
-    // plataforma e a taxa da Pagar.me saem na própria liquidação.
-    recipientPsicologo: onb.recipientId,
-  })
-
-  await db.query(
-    `UPDATE sessoes
-        SET status='aguardando_pagamento', pagamento_metodo='pix', pagamento_parcelas=1,
-            pagarme_order_id=$2, pagarme_qrcode=$3, pagarme_qrcode_url=$4,
-            comissao_centavos=$5, wa_metodo_escolhido=TRUE
-      WHERE id=$1`,
-    [s.id, order.orderId, order.qrCode ?? null, order.qrCodeUrl ?? null, order.taxaAdmCentavos || null],
-  )
-
-  const pixUrl = order.qrCodeUrl ?? order.qrCode ?? ''
-  await enviarWA(s.pacienteTelefone, WA_TEMPLATES.fluxo2_pix(pixUrl, s.valor), { psicologoId: s.psicologoId, pacienteId: s.pacienteId, template: WA_META.fluxo2_pix(pixUrl, s.valor) })
-  return (await buscarSessao(s.id))!
+  return gerarCobranca(sessaoId, 'pix')
 }
 
-export async function gerarCobrancaCartao(sessaoId: string, metodo: 'credito' | 'debito'): Promise<Sessao> {
+export async function gerarCobrancaCartao(sessaoId: string, metodo: 'credito' | 'debito', parcelas?: number): Promise<Sessao> {
+  return gerarCobranca(sessaoId, metodo, parcelas)
+}
+
+/**
+ * Cria a cobrança no gateway PADRÃO e manda ao paciente pelo WhatsApp.
+ * A cobrança guarda o gateway em que nasceu: webhook e estorno usam esse,
+ * mesmo que o padrão mude depois (RF-PG-02).
+ */
+async function gerarCobranca(sessaoId: string, metodo: MetodoSessao, parcelas?: number): Promise<Sessao> {
   const s = await buscarSessao(sessaoId)
   if (!s) throw new Error('sessao_nao_encontrada')
   const onb = await garantirRecipientAtivo(s.psicologoId)
   if (!onb.completo) throw new Error('recebimento_nao_configurado')
+  const gateway = gatewayPadrao()
+  // PIX exige CPF do pagador nos dois gateways (Pagar.me reprova a charge sem
+  // ele e volta sem QR; Asaas recusa o customer). No Asaas o cartão também
+  // passa pelo customer, então vale para os dois métodos lá.
+  if (metodo === 'pix' || gateway.nome === 'asaas') {
+    if (!s.pacienteCpf) throw new Error('cpf_paciente_ausente')
+    // Cadastro antigo pode ter CPF digitado errado (a validação no salvar é nova).
+    if (!validarCpf(s.pacienteCpf)) throw new Error('cpf_paciente_invalido')
+  }
 
-  const order = await criarCheckoutCartao({
+  const c = await gateway.criarCobrancaSessao({
     sessaoId: s.id,
     valorCentavos: Math.round(s.valor * 100),
     metodo,
-    pacienteNome: s.pacienteNome,
-    pacienteEmail: s.pacienteEmail,
+    parcelas,
+    dataSessao: s.dataHora,
+    paciente: { id: s.pacienteId, nome: s.pacienteNome, email: s.pacienteEmail, telefone: s.pacienteTelefone, cpf: s.pacienteCpf },
     // Split: o líquido cai direto na conta do psicólogo; a taxa administrativa da
-    // plataforma e a taxa da Pagar.me saem na própria liquidação.
-    recipientPsicologo: onb.recipientId,
+    // plataforma e a do gateway saem na própria liquidação.
+    recebedor: onb.recebedor,
   })
 
+  // Pagar.me: também grava nas colunas legadas (pod antigo no rollout ainda lê de lá).
+  const legado = c.gateway === 'pagarme'
   await db.query(
     `UPDATE sessoes
-        SET status='aguardando_pagamento', pagamento_metodo=$2,
-            pagarme_order_id=$3, pagarme_checkout_url=$4,
-            comissao_centavos=$5, wa_metodo_escolhido=TRUE
+        SET status='aguardando_pagamento', pagamento_metodo=$2, pagamento_parcelas=$3,
+            gateway=$4, cobranca_id=$5, cobranca_parcelamento_id=$6,
+            cobranca_qrcode=$7, cobranca_qrcode_url=$8, cobranca_url=$9, cobranca_vence_em=$10,
+            pagarme_order_id     = CASE WHEN $11 THEN $5 ELSE pagarme_order_id END,
+            pagarme_qrcode       = CASE WHEN $11 THEN $7 ELSE pagarme_qrcode END,
+            pagarme_qrcode_url   = CASE WHEN $11 THEN $8 ELSE pagarme_qrcode_url END,
+            pagarme_checkout_url = CASE WHEN $11 THEN $9 ELSE pagarme_checkout_url END,
+            comissao_centavos=$12, wa_metodo_escolhido=TRUE
       WHERE id=$1`,
-    [s.id, metodo, order.orderId, order.checkoutUrl ?? null, order.taxaAdmCentavos || null],
+    [s.id, c.metodo, c.parcelas, c.gateway, c.cobrancaId, c.parcelamentoId ?? null,
+     c.qrCode ?? null, c.qrCodeUrl ?? null, c.url ?? null, c.venceEm, legado, c.taxaAdmCentavos || null],
   )
 
-  await enviarWA(s.pacienteTelefone, WA_TEMPLATES.fluxo2_checkout(order.checkoutUrl ?? '', metodo, s.valor), { psicologoId: s.psicologoId, pacienteId: s.pacienteId, template: WA_META.fluxo2_checkout(order.checkoutUrl ?? '', metodo, s.valor) })
+  const ctx = { psicologoId: s.psicologoId, pacienteId: s.pacienteId }
+  if (c.metodo === 'pix') {
+    const pixUrl = c.qrCodeUrl ?? c.qrCode ?? ''
+    await enviarWA(s.pacienteTelefone, WA_TEMPLATES.fluxo2_pix(pixUrl, s.valor), { ...ctx, template: WA_META.fluxo2_pix(pixUrl, s.valor) })
+  } else {
+    const url = c.url ?? ''
+    const m = c.metodo === 'debito' ? 'debito' : 'credito'
+    await enviarWA(s.pacienteTelefone, WA_TEMPLATES.fluxo2_checkout(url, m, s.valor), { ...ctx, template: WA_META.fluxo2_checkout(url, m, s.valor) })
+  }
   return (await buscarSessao(s.id))!
 }
 
-// ── Webhook handlers ──────────────────────────────────────────────────────
-export async function marcarPagamentoConfirmado(pagarmeOrderId: string): Promise<void> {
-  const { rows } = await db.query(
-    `${SELECT_SESSAO_BASE} WHERE s.pagarme_order_id = $1 LIMIT 1`,
-    [pagarmeOrderId],
-  )
+// ── Webhook handlers (neutros: Pagar.me e Asaas) ──────────────────────────
+/** Como o webhook identifica a cobrança. */
+export type RefCobranca = {
+  gateway: Gateway
+  cobrancaId: string
+  /** Asaas parcelado: cada parcela tem seu pay_...; o installment amarra todas. */
+  parcelamentoId?: string | null
+  /** Asaas: externalReference `sessao:<id>` — último recurso. */
+  sessaoId?: string | null
+}
+
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+
+/** WHERE que acha a sessão de uma cobrança ($1 gateway, $2 cobrança, $3 parcelamento, $4 sessão). */
+const WHERE_COBRANCA = `(
+       (s.cobranca_id = $2 AND COALESCE(s.gateway, 'pagarme') = $1)
+    OR ($1 = 'pagarme' AND s.pagarme_order_id = $2)
+    OR ($3::text IS NOT NULL AND s.cobranca_parcelamento_id = $3 AND s.gateway = $1)
+    OR ($4::uuid IS NOT NULL AND s.id = $4 AND s.gateway = $1)
+  )`
+function paramsCobranca(ref: RefCobranca): unknown[] {
+  return [ref.gateway, ref.cobrancaId, ref.parcelamentoId ?? null, ref.sessaoId && UUID.test(ref.sessaoId) ? ref.sessaoId : null]
+}
+
+export async function marcarPagamentoConfirmado(
+  ref: RefCobranca | string,
+  extra: { liquidoCentavos?: number; valorCentavos?: number; parcelas?: number } = {},
+): Promise<void> {
+  const r = typeof ref === 'string' ? { gateway: 'pagarme' as const, cobrancaId: ref } : ref
+  const { rows } = await db.query(`${SELECT_SESSAO_BASE} WHERE ${WHERE_COBRANCA} LIMIT 1`, paramsCobranca(r))
   const sessao = rows[0] ? rowToSessao(rows[0]) : null
   if (!sessao) {
-    log.warn('pagarme.webhook', `order ${pagarmeOrderId} não encontrado em sessões`)
+    log.warn('pagamento.webhook', `${r.gateway} cobrança ${r.cobrancaId} não encontrada em sessões`)
     return
   }
-  if (sessao.pagamentoStatus === 'pago') return
+  // Taxa real do gateway (RF-PG-27). Parcelado: o evento é de UMA parcela —
+  // não dá para tirar a taxa total dele; fica para a reconciliação.
+  const taxaGateway = !r.parcelamentoId && extra.valorCentavos != null && extra.liquidoCentavos != null
+    ? extra.valorCentavos - extra.liquidoCentavos : null
 
-  await db.query(
-    `UPDATE sessoes SET pagamento_status='pago', status='confirmada', pago_em = NOW() WHERE id = $1`,
-    [sessao.id],
+  // Atômico: CONFIRMED e RECEIVED (ou duas parcelas) chegando juntos não podem
+  // confirmar duas vezes nem mandar duas mensagens ao paciente.
+  const { rowCount } = await db.query(
+    `UPDATE sessoes SET pagamento_status='pago', status='confirmada', pago_em = NOW(),
+            taxa_gateway_centavos = COALESCE($2, taxa_gateway_centavos),
+            pagamento_parcelas = COALESCE($3, pagamento_parcelas)
+      WHERE id = $1 AND pagamento_status IS DISTINCT FROM 'pago'`,
+    [sessao.id, taxaGateway, extra.parcelas ?? null],
   )
+  if (!rowCount) return
   publish({ type: 'sessao.confirmada', sessaoId: sessao.id, pacienteId: sessao.pacienteId })
   publish({ type: 'pagamento.recebido', sessaoId: sessao.id, valor: sessao.valor })
 
@@ -797,15 +839,46 @@ export async function marcarPagamentoConfirmado(pagarmeOrderId: string): Promise
     ) : Promise.resolve(),
   ])
 
-  log.ok('pagarme.webhook', `sessão ${sessao.id} confirmada`)
+  log.ok('pagamento.webhook', `sessão ${sessao.id} confirmada (${r.gateway})`)
 }
 
-export async function marcarPagamentoCancelado(pagarmeOrderId: string): Promise<void> {
-  await db.query(
-    `UPDATE sessoes SET pagamento_status='falhou' WHERE pagarme_order_id = $1`,
-    [pagarmeOrderId],
+/**
+ * Falha/expiração/cancelamento da cobrança. NUNCA sobrescreve uma sessão já
+ * paga, estornada ou contestada (RF-PG-32) — `order.canceled` depois do
+ * pagamento marcava `falhou` em cima de `pago`.
+ */
+export async function marcarPagamentoCancelado(ref: RefCobranca | string): Promise<void> {
+  const r = typeof ref === 'string' ? { gateway: 'pagarme' as const, cobrancaId: ref } : ref
+  const { rowCount } = await db.query(
+    `UPDATE sessoes s SET pagamento_status='falhou'
+      WHERE ${WHERE_COBRANCA}
+        AND COALESCE(s.pagamento_status, 'pendente') NOT IN ('pago', 'reembolsado', 'contestado', 'isento')`,
+    paramsCobranca(r),
   )
-  log.info('pagarme.webhook', `order ${pagarmeOrderId} cancelado / expirado`)
+  log.info('pagamento.webhook', `${r.gateway} cobrança ${r.cobrancaId} cancelada/expirada (${rowCount ?? 0} sessão)`)
+}
+
+/** Estorno confirmado pelo gateway (RF-PG-31). Parcial não muda o status. */
+export async function marcarReembolsado(ref: RefCobranca, parcial: boolean): Promise<void> {
+  if (parcial) {
+    log.warn('pagamento.webhook', `${ref.gateway} cobrança ${ref.cobrancaId}: estorno PARCIAL — status mantido`)
+    return
+  }
+  const { rowCount } = await db.query(
+    `UPDATE sessoes s SET pagamento_status='reembolsado', reembolso_pendente_em = NULL, reembolso_motivo = NULL
+      WHERE ${WHERE_COBRANCA}`,
+    paramsCobranca(ref),
+  )
+  log.ok('pagamento.webhook', `${ref.gateway} cobrança ${ref.cobrancaId} estornada (${rowCount ?? 0} sessão)`)
+}
+
+/** Chargeback/contestação: status `contestado` + alerta. */
+export async function marcarContestado(ref: RefCobranca): Promise<void> {
+  const { rowCount } = await db.query(
+    `UPDATE sessoes s SET pagamento_status='contestado' WHERE ${WHERE_COBRANCA}`,
+    paramsCobranca(ref),
+  )
+  log.err('pagamento.webhook', `CONTESTAÇÃO ${ref.gateway} cobrança ${ref.cobrancaId} (${rowCount ?? 0} sessão) — acompanhar no painel do gateway`, undefined)
 }
 
 // ── Cancelamento com regra de reembolso (Fluxo 5) ─────────────────────────
@@ -816,13 +889,33 @@ export async function cancelarSessao(sessaoId: string): Promise<{ reembolsada: b
   const horasAteSessao = (+new Date(s.dataHora) - Date.now()) / (1000 * 60 * 60)
   let reembolsada = false
 
-  if (s.pagamentoStatus === 'pago' && horasAteSessao > 24 && s.pagarmeOrderId) {
-    reembolsada = await reembolsar(s.pagarmeOrderId)
+  let pendente: string | null = null
+  if (s.pagamentoStatus === 'pago' && horasAteSessao > 24 && s.cobrancaId) {
+    // Sempre no gateway de ORIGEM da cobrança (RF-PG-02), não no padrão.
+    const r = await gatewayDe(s.gateway).reembolsar({ cobrancaId: s.cobrancaId, parcelamentoId: s.cobrancaParcelamentoId })
+    if (r.status === 'estornado' || r.status === 'solicitado') {
+      reembolsada = true
+      // Asaas PIX: aceito, mas só sai depois de autorizar o evento crítico no
+      // painel (D-09). O saldo já foi debitado; o webhook PAYMENT_REFUNDED fecha.
+      if (r.status === 'solicitado') log.warn('sessao.cancelar', `estorno da sessão ${s.id} aguardando AUTORIZAÇÃO no painel do ${s.gateway} (evento crítico)`)
+    } else if (r.status === 'pendente') {
+      // Sem saldo na raiz / "tente novamente" (D-08): o paciente tem direito —
+      // avisa como reembolsado e o cron repete (reembolso_pendente_em).
+      reembolsada = true
+      pendente = r.motivo
+      log.err('sessao.cancelar', `estorno da sessão ${s.id} ADIADO (${r.motivo}) — fica para o cron`, undefined)
+    } else {
+      log.err('sessao.cancelar', `estorno da sessão ${s.id} FALHOU: ${r.motivo}`, undefined)
+    }
   }
 
   await db.query(
-    `UPDATE sessoes SET status='cancelada', pagamento_status = CASE WHEN $2::boolean THEN 'reembolsado' ELSE pagamento_status END WHERE id=$1`,
-    [s.id, reembolsada],
+    `UPDATE sessoes SET status='cancelada',
+            pagamento_status = CASE WHEN $2::boolean AND $3::text IS NULL THEN 'reembolsado' ELSE pagamento_status END,
+            reembolso_pendente_em = CASE WHEN $3::text IS NOT NULL THEN NOW() ELSE reembolso_pendente_em END,
+            reembolso_motivo = COALESCE($3, reembolso_motivo)
+      WHERE id=$1`,
+    [s.id, reembolsada, pendente],
   )
 
   const { rows: psisC } = await db.query<{ nome: string; email: string }>(
@@ -997,7 +1090,7 @@ export type InterromperSessaoResult =
  */
 function statusAntesDeIniciar(s: Sessao): SessaoStatus {
   if (s.pagamentoStatus === 'pago') return 'confirmada'
-  if (s.pagarmeOrderId && s.pagamentoStatus === 'pendente') return 'aguardando_pagamento'
+  if (s.cobrancaId && s.pagamentoStatus === 'pendente') return 'aguardando_pagamento'
   return 'agendada'
 }
 

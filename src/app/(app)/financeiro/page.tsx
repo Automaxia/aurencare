@@ -92,7 +92,7 @@ export default async function FinanceiroPage({ searchParams }: { searchParams: S
       {/* Linha 1 — visão geral */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 12, marginBottom: 16 }}>
         <Kpi label={`Recebido (${labelPeriodoCurto(periodo)})`} value={formatBRL(f.totaisMes.recebido)} color="sage" />
-        <Kpi label="Líquido estimado"     value={formatBRL(f.liquidoEstimado)} hint={f.taxaAdmPlataforma > 0 ? 'Bruto − taxas Pagar.me − taxa administrativa' : 'Bruto − taxas Pagar.me'} />
+        <Kpi label="Líquido estimado"     value={formatBRL(f.liquidoEstimado)} hint={f.taxaAdmPlataforma > 0 ? 'Bruto − taxas do gateway − taxa administrativa' : 'Bruto − taxas do gateway'} />
         <Kpi label="Previsão de recebimento" value={formatBRL(f.aReceber30d)} hint="Próximos 30 dias" />
         <Kpi label="Pendente"             value={formatBRL(f.totaisMes.pendente)} color="amber" />
       </div>
@@ -189,6 +189,11 @@ export default async function FinanceiroPage({ searchParams }: { searchParams: S
                       <span className={`badge ${pagamentoColor(c.pagamentoStatus)}`}>
                         {labelPagamento(c.pagamentoStatus)}
                       </span>
+                      {c.estornoPendente && (
+                        <div style={{ fontSize: 11, color: 'var(--amber)', marginTop: 3 }} title="A sessão foi cancelada com direito a reembolso; o estorno será repetido automaticamente.">
+                          estorno pendente
+                        </div>
+                      )}
                     </Td>
                     <Td>
                       <NfCell

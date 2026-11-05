@@ -6,7 +6,7 @@ import Link from 'next/link'
  * - assinatura inadimplente (cobrança recorrente falhou).
  * Soft block — a psicóloga navega normalmente; só o registro com IA bloqueia.
  */
-export function PlanoUsoBanner({ motivo, cap }: { motivo: 'limite' | 'inadimplente'; cap: number }) {
+export function PlanoUsoBanner({ motivo, cap, gateway }: { motivo: 'limite' | 'inadimplente'; cap: number; gateway?: 'pagarme' | 'asaas' | null }) {
   const inadimplente = motivo === 'inadimplente'
   return (
     <div style={{
@@ -20,14 +20,17 @@ export function PlanoUsoBanner({ motivo, cap }: { motivo: 'limite' | 'inadimplen
         <span style={{ fontSize: 16 }}>●</span>
         <span>
           {inadimplente ? (
-            <><strong>Pagamento da assinatura pendente.</strong> Atualize seu cartão para manter o registro com IA ativo.</>
+            gateway === 'asaas'
+              // Asaas: não há cartão salvo na Audere — o plano ativa quando a fatura é paga.
+              ? <><strong>Fatura da assinatura em aberto.</strong> Pague a fatura para ativar o registro com IA do seu plano.</>
+              : <><strong>Pagamento da assinatura pendente.</strong> Atualize seu cartão para manter o registro com IA ativo.</>
           ) : (
             <><strong>Limite de {cap} sessões com IA atingido este mês.</strong> Agenda e prontuário seguem normais; faça upgrade para continuar gravando com IA.</>
           )}
         </span>
       </div>
       <Link href="/planos" className="btn primary sm" style={{ whiteSpace: 'nowrap' }}>
-        {inadimplente ? 'Resolver →' : 'Ver planos →'}
+        {inadimplente ? (gateway === 'asaas' ? 'Pagar fatura →' : 'Resolver →') : 'Ver planos →'}
       </Link>
     </div>
   )

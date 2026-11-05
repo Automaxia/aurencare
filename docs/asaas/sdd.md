@@ -7,6 +7,9 @@
 > (docs.asaas.com, lida em 04/11/2026). Itens marcados **[validar]** não estão
 > confirmados na documentação e precisam de teste no sandbox (tasks.md, Fase 0).
 >
+> **Fases 1 e 2 implementadas em 04/11/2026** (os dois gateways lado a lado,
+> `PAYMENT_GATEWAY=pagarme`). Procedimento de virada em `docs/INFRA.md` §4c.
+>
 > **Spike da Fase 0 feito em 04/11/2026** — respostas reais em [spike.md](./spike.md).
 > Os itens validados viraram **[spike ✅]**; o que ainda depende de teste manual ou de
 > tempo está marcado **[spike ⏳]**.
@@ -54,7 +57,8 @@ src/server/lib/pagamentos/
   tipos.ts          ← DTOs neutros + interface GatewayPagamento
   index.ts          ← gatewayPadrao() e gatewayDe(nome)
   split.ts          ← cálculo da taxa administrativa (neutro, testável)
-  pagarme/          ← adaptador: move pagarme.ts, pagarmeRecipient.ts, pagarmeSubscription.ts
+  pagarme.ts        ← adaptador (os clientes lib/pagarme*.ts ficaram no lugar — scripts importam de lá)
+  taxas.ts          ← taxa do gateway (real ou estimada), fonte única
   asaas/
     cliente.ts      ← fetch com access_token, timeout, retry seguro, erros tipados
     recebedor.ts    ← subconta (POST /v3/accounts) e situação cadastral
@@ -62,7 +66,9 @@ src/server/lib/pagamentos/
     assinatura.ts   ← subscription
     webhook.ts      ← autenticação + normalização de eventos
     erros.ts        ← tradução de erros para campos do wizard
-    mock.ts         ← respostas mock (sem chave)
+    situacao.ts     ← snapshot → situação neutra (puro)
+    ref.ts          ← externalReference sessao:/paciente:/psicologo: (puro)
+    index.ts        ← adaptador + modo mock (sem chave)
 ```
 
 ### 2.1 Interface
@@ -353,8 +359,10 @@ Resultado do spike **[spike ✅]**:
 - Estorno PIX aceito fica **`AWAITING_CRITICAL_ACTION_AUTHORIZATION`**: o saldo
   sai na hora (raiz e subconta), mas o dinheiro só volta ao paciente — e
   `PAYMENT_REFUNDED` só chega — depois de alguém autorizar o evento crítico no
-  painel (token/SMS) → D-09. Proposta: novo `pagamento_status`
-  `reembolso_solicitado` até o webhook.
+  painel (token/SMS) → D-09. **Implementado:** `solicitado` grava `reembolsado`
+  (o saldo já saiu) com aviso no log; sem saldo/"tente novamente" mantém `pago`
+  e marca `reembolso_pendente_em` + `reembolso_motivo` para o cron (Fase 3).
+  Não criamos status novos — o Financeiro e os filtros continuam valendo.
 - **Cartão parcelado:** `POST /v3/installments/{id}/refund` → todas as parcelas
   `REFUNDED`, split `CANCELLED`, `PAYMENT_REFUNDED` por parcela, sem depender de
   saldo nem de autorização (antes do crédito).

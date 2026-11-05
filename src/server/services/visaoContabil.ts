@@ -1,5 +1,6 @@
 import 'server-only'
 import { db } from '@/server/db/pool'
+import { taxaGatewayReais } from '@/server/lib/pagamentos/taxas'
 import {
   lerPerfilTributario, LIMITE_ISENCAO_CARNE_LEAO_2026,
   type PerfilTributario, type RegimeTributario,
@@ -26,7 +27,7 @@ export type ResumoMes = {
   recebidoBruto: number
   taxasEstimadas: number
   taxaAdmPlataforma: number // taxa administrativa da Audere no split (real, não estimada)
-  liquidoEstimado: number    // após taxas Pagar.me E taxa administrativa da plataforma
+  liquidoEstimado: number    // após taxas do gateway E taxa administrativa da plataforma
   recebidoPorMetodo: { pix: number; credito: number; debito: number }
   cobrancasCount: number     // pagas no mês
   cobrancasNfPendente: number
@@ -150,9 +151,11 @@ async function resumirMes(psicologoId: string, ano: number, mesIdx0: number): Pr
   const { rows } = await db.query<{
     valor: any; pagamento_status: string; pagamento_metodo: string | null;
     pagamento_parcelas: number; nf_status: string | null; comissao_centavos: number | null;
+    gateway: string | null; taxa_gateway_centavos: number | null;
   }>(
     `SELECT valor, pagamento_status, pagamento_metodo, pagamento_parcelas, nf_status,
-            comissao_centavos
+            comissao_centavos, taxa_gateway_centavos,
+            COALESCE(gateway, CASE WHEN pagarme_order_id IS NOT NULL THEN 'pagarme' END) AS gateway
        FROM sessoes
       WHERE psicologo_id = $1
         AND data_hora BETWEEN $2 AND $3`,
@@ -165,7 +168,7 @@ async function resumirMes(psicologoId: string, ano: number, mesIdx0: number): Pr
   const taxasEstimadas = pagas.reduce((a, r) => {
     const valor = parseFloat(r.valor ?? 0)
     const parcelas = parseInt(String(r.pagamento_parcelas ?? 1), 10) || 1
-    return a + valor * taxaPagarMe(r.pagamento_metodo, parcelas)
+    return a + taxaGatewayReais({ gateway: r.gateway, metodo: r.pagamento_metodo, parcelas, valor, taxaRealCentavos: r.taxa_gateway_centavos })
   }, 0)
 
   // Taxa administrativa da plataforma (split) — sai na liquidação, então reduz o LÍQUIDO.
@@ -192,12 +195,6 @@ async function resumirMes(psicologoId: string, ano: number, mesIdx0: number): Pr
   }
 }
 
-function taxaPagarMe(metodo: string | null, parcelas: number): number {
-  if (metodo === 'pix')     return 0.0099
-  if (metodo === 'debito')  return 0.0199
-  if (metodo === 'credito') return parcelas > 1 ? 0.0499 : 0.0399
-  return 0
-}
 
 function calcularImposto(
   regime: RegimeTributario | null,

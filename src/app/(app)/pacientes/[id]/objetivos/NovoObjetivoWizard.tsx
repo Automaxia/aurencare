@@ -294,8 +294,7 @@ function CopilotoObjetivos({ sugestoes, carregando, erro, onPedir, onAplicar }: 
           </div>
         </div>
         {!sugestoes?.length && (
-          <button type="button" className="btn ghost" onClick={onPedir} disabled={carregando}
-            style={{ whiteSpace: 'nowrap', fontSize: 12.5, display: 'inline-flex', alignItems: 'center', gap: 5 }}>
+          <button type="button" className="btn ghost" onClick={onPedir} disabled={carregando}>
             {carregando ? 'Pensando…' : <><Sparkles size={13} /> Sugerir metas</>}
           </button>
         )}
@@ -309,8 +308,8 @@ function CopilotoObjetivos({ sugestoes, carregando, erro, onPedir, onAplicar }: 
             <div key={i} style={{ padding: 14, borderRadius: 10, background: 'var(--card)', border: '1px solid var(--border)', display: 'grid', gap: 7 }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10, alignItems: 'flex-start' }}>
                 <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--ink)', lineHeight: 1.3 }}>{s.titulo}</div>
-                <button type="button" className="btn primary" onClick={() => onAplicar(s)}
-                  style={{ flex: 'none', fontSize: 12, padding: '7px 12px', whiteSpace: 'nowrap' }}>
+                <button type="button" className="btn primary sm" onClick={() => onAplicar(s)}
+                  style={{ flex: 'none' }}>
                   Usar esta meta →
                 </button>
               </div>

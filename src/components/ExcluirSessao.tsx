@@ -54,13 +54,9 @@ export function ExcluirSessao({
         <button
           type="button"
           onClick={e => { e.preventDefault(); e.stopPropagation(); setErro(null); setConfirmando(true) }}
-          className="btn ghost"
+          className={`btn ghost danger${variante === 'inline' ? ' sm' : ''}`}
           title="Excluir sessão vazia"
           aria-label="Excluir sessão"
-          style={{
-            color: 'var(--rose)', fontSize: 12.5, padding: variante === 'inline' ? '4px 7px' : '5px 10px',
-            display: 'inline-flex', alignItems: 'center', gap: 6,
-          }}
         >
           <Trash2 size={14} />{variante === 'bloco' && ' Excluir sessão'}
         </button>
@@ -79,9 +75,9 @@ export function ExcluirSessao({
       </span>
       <div style={{ display: 'flex', gap: 8 }}>
         <button type="button" onClick={e => { e.preventDefault(); setConfirmando(false) }}
-          disabled={excluindo} className="btn ghost" style={{ fontSize: 12.5 }}>Não</button>
+          disabled={excluindo} className={`btn ghost${variante === 'inline' ? ' sm' : ''}`}>Não</button>
         <button type="button" onClick={e => { e.preventDefault(); excluir() }}
-          disabled={excluindo} className="btn primary" style={{ background: 'var(--rose)', fontSize: 12.5 }}>
+          disabled={excluindo} className={`btn danger${variante === 'inline' ? ' sm' : ''}`}>
           {excluindo ? 'Excluindo…' : 'Sim, excluir'}
         </button>
       </div>

@@ -434,7 +434,11 @@ async function processarComandoPagamento(opts: { telefone: string; cmd: string }
         // vez de deixar o paciente esperando o cadastro ser completado.
         const detalhe = motivo === 'cpf_paciente_invalido' ? 'com CPF inválido' : 'sem CPF'
         log.err('wa.inbox', `PIX bloqueado: paciente ${paciente.id} ${detalhe} no cadastro (a Pagar.me exige CPF do pagador). Corrigir em /pacientes/${paciente.id}.`, undefined)
-        await enviarERegistrar(telefone, 'Para gerar o PIX preciso de um dado que ainda falta no seu cadastro. Já avisei quem te atende. Se preferir seguir agora, responda CREDITO ou DEBITO.')
+        // No Asaas o cartão também exige CPF (o pagador é um customer) — oferecer
+        // CREDITO ali só faria o paciente falhar de novo.
+        await enviarERegistrar(telefone, env.paymentGateway === 'asaas'
+          ? 'Para gerar a cobrança preciso de um dado que ainda falta no seu cadastro. Já avisei quem te atende para completar e te enviar em seguida.'
+          : 'Para gerar o PIX preciso de um dado que ainda falta no seu cadastro. Já avisei quem te atende. Se preferir seguir agora, responda CREDITO ou DEBITO.')
       } else {
         log.err('wa.inbox', 'falha ao gerar cobrança', err)
         await enviarERegistrar(telefone, 'Tivemos um problema ao gerar a cobrança. Avisei quem te atende.')

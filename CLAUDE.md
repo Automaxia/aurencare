@@ -41,7 +41,9 @@ Storage:     S3-compatible (áudio temporário)
 WhatsApp:    Cloud API (Meta) — número próprio +55 61 94758-1770 — com fallback
              Evolution API (Baileys, instância compartilhada c/ Habilita) via
              WHATSAPP_PROVIDER. Ver src/server/lib/whatsapp/ e docs/INFRA.md §4b.
-Pagamentos:  Pagar.me (sessões: PIX/crédito/débito · assinatura: cartão recorrente)
+Pagamentos:  Pagar.me + Asaas lado a lado (src/server/lib/pagamentos/) — PAYMENT_GATEWAY
+             escolhe onde nascem as NOVAS cobranças; o resto segue no gateway de
+             origem (coluna `gateway`). Hoje: pagarme. Ver docs/asaas/ e INFRA §4c.
 IA:          OpenAI primário + Anthropic fallback · roteamento por tier: fast
              (gpt-4o-mini p/ chamadas ao vivo/mecânicas/temas) · strong (gpt-4o
              p/ resumo, risco, longitudinal, chat clínico). Fallback pro Anthropic
@@ -693,6 +695,10 @@ Modal abre automaticamente ao encerrar. Contém:
   (`412 action_forbidden`) — aguardando o suporte da Pagar.me. Sem isso o
   psicólogo não conclui o onboarding de recebimento e a taxa de 2,5% não sai.
   Detalhe em [`docs/INFRA.md`](./docs/INFRA.md) §2.
+- **Asaas como segundo gateway** (nov/2026) — Fases 1 e 2 prontas: camada
+  `pagamentos/`, migration 053, adaptador Asaas testado no sandbox. Desligado
+  (`PAYMENT_GATEWAY=pagarme`); virada em `docs/INFRA.md` §4c. Fase 3 (UI/WhatsApp
+  sem débito, parcelas) em `docs/asaas/tasks.md`.
 - **TURN da Cloudflare** — no código; faltam `CLOUDFLARE_TURN_*` no cluster
   (até lá, coturn).
 

@@ -55,7 +55,7 @@ export function MarcosProgresso({ objetivoId, notas, onChange }: {
             style={inp}
           />
         </label>
-        <button type="button" className="btn primary" onClick={adicionar} disabled={salvando || texto.trim().length < 2} style={{ height: 36 }}>
+        <button type="button" className="btn primary" onClick={adicionar} disabled={salvando || texto.trim().length < 2}>
           {salvando ? '…' : '+ Marco'}
         </button>
       </div>
@@ -69,7 +69,7 @@ export function MarcosProgresso({ objetivoId, notas, onChange }: {
                 {formatData(n.marcoEm)}
               </span>
               <span style={{ flex: 1, fontSize: 12.5, color: 'var(--ink-soft)', lineHeight: 1.45 }}>{n.texto}</span>
-              <button onClick={() => remover(n.id)} className="btn ghost" style={{ flex: 'none', padding: '1px 7px', fontSize: 11, color: 'var(--rose)' }}>×</button>
+              <button onClick={() => remover(n.id)} className="btn ghost danger xs" style={{ flex: 'none' }}>×</button>
             </li>
           ))}
         </ul>
@@ -82,8 +82,5 @@ function formatData(d: string): string {
   return new Date(d + 'T00:00:00').toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' })
 }
 
-const inp: React.CSSProperties = {
-  width: '100%', boxSizing: 'border-box', padding: '8px 11px', borderRadius: 8,
-  border: '1px solid var(--border)', background: 'white',
-  fontSize: 13, fontFamily: 'inherit', color: 'var(--ink)', outline: 'none',
-}
+// Altura/borda/foco vêm da base de campos em globals.css (--field-*).
+const inp: React.CSSProperties = { width: '100%' }

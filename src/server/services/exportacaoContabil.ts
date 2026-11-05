@@ -1,5 +1,6 @@
 import 'server-only'
 import { db } from '@/server/db/pool'
+import { taxaGatewayReais } from '@/server/lib/pagamentos/taxas'
 import { lerPerfilTributario, REGIME_LABELS, type RegimeTributario } from './perfilTributario'
 import { lerVisaoContabil } from './visaoContabil'
 
@@ -81,13 +82,14 @@ export async function coletarExportacaoMensal(
   const { rows: sessoes } = await db.query<{
     id: string; numero: number; data_hora: string;
     valor: any; pagamento_status: string; pagamento_metodo: string | null;
-    pagamento_parcelas: number; pago_em: string | null;
+    pagamento_parcelas: number; pago_em: string | null; gateway: string | null; taxa_gateway_centavos: number | null;
     nf_status: string | null; nf_numero: string | null; nf_emitida_em: string | null;
     pac_nome: string; pac_telefone: string; pac_condicoes: any;
   }>(
     `SELECT s.id, s.numero, s.data_hora,
             s.valor, s.pagamento_status, s.pagamento_metodo,
-            s.pagamento_parcelas, s.pago_em,
+            s.pagamento_parcelas, s.pago_em, s.taxa_gateway_centavos,
+            COALESCE(s.gateway, CASE WHEN s.pagarme_order_id IS NOT NULL THEN 'pagarme' END) AS gateway,
             s.nf_status, s.nf_numero, s.nf_emitida_em,
             p.nome AS pac_nome, p.telefone AS pac_telefone, p.condicoes AS pac_condicoes
        FROM sessoes s JOIN pacientes p ON p.id = s.paciente_id
@@ -102,8 +104,7 @@ export async function coletarExportacaoMensal(
     const dt = new Date(s.data_hora)
     const valor = parseFloat(s.valor ?? 0)
     const parcelas = parseInt(String(s.pagamento_parcelas ?? 1), 10) || 1
-    const tx = taxaPagarMe(s.pagamento_metodo, parcelas)
-    const taxa = Math.round(valor * tx * 100) / 100
+    const taxa = taxaGatewayReais({ gateway: s.gateway, metodo: s.pagamento_metodo, parcelas, valor, taxaRealCentavos: s.taxa_gateway_centavos })
     return {
       data: dt.toLocaleDateString('en-CA', { timeZone: 'America/Sao_Paulo' }),
       hora: dt.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', timeZone: 'America/Sao_Paulo' }),
@@ -218,13 +219,6 @@ export function montarCsv(d: ExportacaoMensal): string {
 }
 
 // ─── Helpers ─────────────────────────────────────────────────────────
-
-function taxaPagarMe(metodo: string | null, parcelas: number): number {
-  if (metodo === 'pix')     return 0.0099
-  if (metodo === 'debito')  return 0.0199
-  if (metodo === 'credito') return parcelas > 1 ? 0.0499 : 0.0399
-  return 0
-}
 
 function round2(n: number): number { return Math.round(n * 100) / 100 }
 

@@ -67,7 +67,7 @@ export default async function AdminPage() {
       {/* BLOCO 0 — FATURAMENTO (a pergunta "a Audere já fatura?") */}
       <Section
         title="Faturamento"
-        hint={`${mesNome} · Pagar.me em ${fat.ambientePagarme === 'live' ? 'produção' : 'sandbox (cobranças de teste)'}`}
+        hint={`${mesNome} · ${fat.gatewayPadrao} em ${fat.ambientePagarme === 'live' ? 'produção' : 'sandbox (cobranças de teste)'}`}
       >
         <div className="card" style={{ padding: '18px 20px', marginBottom: 12, display: 'flex', flexWrap: 'wrap', alignItems: 'baseline', gap: '6px 22px' }}>
           <div>

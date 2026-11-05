@@ -2,7 +2,7 @@ import 'server-only'
 import { db } from '@/server/db/pool'
 import { log } from '@/server/lib/log'
 import { precoCentavos } from '@/server/lib/planos'
-import { ambientePagarme } from '@/server/lib/pagarmeRecipient'
+import { gatewayPadrao, nomeGateway } from '@/server/lib/pagamentos'
 import { TZ } from '@/lib/formatters'
 
 /**
@@ -58,8 +58,8 @@ export async function obterCockpitProduto(): Promise<CockpitProduto> {
         -- prova de receita: a cortesia do beta (migration 047) põe a base
         -- inteira em 'essencial'/'ativo' sem um centavo cobrado, e sem este
         -- filtro o MRR abaixo viraria ficção.
-        (SELECT count(*) FROM psicologos WHERE plano IS NOT NULL AND plano <> 'free' AND plano_status = 'ativo' AND pagarme_subscription_id IS NOT NULL) AS pagantes,
-        (SELECT count(*) FROM psicologos WHERE plano <> 'free' AND pagarme_subscription_id IS NULL AND plano_expira_em > NOW()) AS cortesia,
+        (SELECT count(*) FROM psicologos WHERE plano IS NOT NULL AND plano <> 'free' AND plano_status = 'ativo' AND COALESCE(assinatura_id, pagarme_subscription_id) IS NOT NULL) AS pagantes,
+        (SELECT count(*) FROM psicologos WHERE plano <> 'free' AND COALESCE(assinatura_id, pagarme_subscription_id) IS NULL AND plano_expira_em > NOW()) AS cortesia,
         (SELECT count(*) FROM pacientes WHERE status = 'ativo')                                  AS pacientes_ativos,
         (SELECT count(DISTINCT psicologo_id) FROM pacientes)                                     AS com_pacientes,
         (SELECT count(DISTINCT psicologo_id) FROM sessoes WHERE status = 'concluida')            AS com_sessao,
@@ -76,8 +76,8 @@ export async function obterCockpitProduto(): Promise<CockpitProduto> {
         (SELECT count(*) FROM palavras_chave)                                                    AS temas_identificados,
         (SELECT count(*) FROM prontuarios_ia)                                                    AS consultas_memoria,
         (SELECT COALESCE(SUM(sessoes_ia),0) FROM uso_mensal)                                     AS sessoes_com_ia,
-        (SELECT count(*) FROM psicologos WHERE plano = 'essencial' AND plano_status = 'ativo' AND pagarme_subscription_id IS NOT NULL) AS pag_essencial,
-        (SELECT count(*) FROM psicologos WHERE plano = 'pro' AND plano_status = 'ativo' AND pagarme_subscription_id IS NOT NULL)       AS pag_pro,
+        (SELECT count(*) FROM psicologos WHERE plano = 'essencial' AND plano_status = 'ativo' AND COALESCE(assinatura_id, pagarme_subscription_id) IS NOT NULL) AS pag_essencial,
+        (SELECT count(*) FROM psicologos WHERE plano = 'pro' AND plano_status = 'ativo' AND COALESCE(assinatura_id, pagarme_subscription_id) IS NOT NULL)       AS pag_pro,
         (SELECT COALESCE(AVG(valor),0)::float FROM sessoes WHERE pagamento_status = 'pago' AND valor IS NOT NULL) AS valor_medio_sessao
     `),
     db.query<{ t: string }>(`SELECT COALESCE(SUM(tokens_entrada + tokens_saida),0) AS t FROM api_custos WHERE provider = 'anthropic' AND created_at >= date_trunc('month', NOW())`),
@@ -113,7 +113,9 @@ export async function obterCockpitProduto(): Promise<CockpitProduto> {
  */
 export type LinhaSessoes = { n: number; valorCentavos: number }
 export type Faturamento = {
+  /** Ambiente do gateway PADRÃO (nome mantido por compatibilidade). */
   ambientePagarme: 'sandbox' | 'live'
+  gatewayPadrao: string
   mrrCentavos: number
   pagantes: { essencial: number; pro: number }
   cortesia: { n: number; vencePrimeiro: string | null; venceUltimo: string | null; potencialMrrCentavos: number }
@@ -126,7 +128,7 @@ export async function obterFaturamento(): Promise<Faturamento> {
   const [{ rows: planos }, { rows: sess }] = await Promise.all([
     db.query<any>(`
       SELECT
-        (pagarme_subscription_id IS NOT NULL AND plano_status = 'ativo') AS pagante,
+        (COALESCE(assinatura_id, pagarme_subscription_id) IS NOT NULL AND plano_status = 'ativo') AS pagante,
         COALESCE(plano, 'free') AS plano, COALESCE(plano_ciclo, 'mensal') AS ciclo,
         count(*)::int AS n, min(plano_expira_em) AS vence_primeiro, max(plano_expira_em) AS vence_ultimo
       FROM psicologos
@@ -135,7 +137,7 @@ export async function obterFaturamento(): Promise<Faturamento> {
     db.query<any>(`
       WITH s AS (
         SELECT valor, pagamento_status, comissao_centavos, status,
-               pagarme_order_id IS NOT NULL AS plataforma,
+               COALESCE(cobranca_id, pagarme_order_id) IS NOT NULL AS plataforma,
                data_hora >= (date_trunc('month', NOW() AT TIME ZONE '${TZ}') AT TIME ZONE '${TZ}')
                  AND data_hora < ((date_trunc('month', NOW() AT TIME ZONE '${TZ}') + INTERVAL '1 month') AT TIME ZONE '${TZ}') AS no_mes
           FROM sessoes
@@ -183,7 +185,8 @@ export async function obterFaturamento(): Promise<Faturamento> {
   const x = sess[0]
   const c = (v: any) => Math.round(Number(v) * 100)
   return {
-    ambientePagarme: ambientePagarme(),
+    ambientePagarme: gatewayPadrao().ambiente(),
+    gatewayPadrao: nomeGateway(gatewayPadrao().nome),
     mrrCentavos, pagantes, free,
     cortesia: { ...cortesia, potencialMrrCentavos: potencial },
     mes: {
@@ -222,7 +225,7 @@ export type UsuarioAdmin = {
 export async function listarUsuariosAdmin(): Promise<UsuarioAdmin[]> {
   const { rows } = await db.query<any>(`
     SELECT p.id, p.nome, p.email, p.telefone, p.crp, p.role, p.status, p.plano, p.plano_status, p.created_at,
-           p.pagarme_subscription_id IS NOT NULL AS tem_assinatura, p.plano_expira_em,
+           COALESCE(p.assinatura_id, p.pagarme_subscription_id) IS NOT NULL AS tem_assinatura, p.plano_expira_em,
            p.ultimo_login_em, p.login_count, p.ultimo_acesso_em,
            (SELECT count(*) FROM pacientes pa WHERE pa.psicologo_id = p.id AND pa.status = 'ativo') AS pacientes,
            (SELECT count(*) FROM sessoes s  WHERE s.psicologo_id  = p.id)                            AS sessoes

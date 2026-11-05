@@ -43,7 +43,7 @@ export function PatientRow({ p }: { p: PatientCardData }) {
           whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
         }}>
           <Sigilo>{p.nome}</Sigilo>
-          {p.demo && <span className="tag t-info" style={{ fontSize: 9, marginLeft: 6 }}>demonstração</span>}
+          {p.demo && <span className="tag t-info sm" style={{ marginLeft: 6 }}>demonstração</span>}
         </div>
         <div style={{ fontSize: 11, color: 'var(--faint)', marginTop: 2 }}>
           {formatarTelefone(p.telefone)} · desde {p.desdeMes} · {p.sessoesTotais} sessõe{p.sessoesTotais === 1 ? '' : 's'}
@@ -82,7 +82,6 @@ export function PatientRow({ p }: { p: PatientCardData }) {
             window.location.assign(p.principalCta.href)
           }}
           className="btn ghost sm"
-          style={{ padding: '5px 12px', whiteSpace: 'nowrap' }}
         >
           {p.principalCta.label}
         </button>

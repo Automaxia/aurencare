@@ -34,7 +34,7 @@ import { join } from 'node:path'
 
 // ── Configuração ─────────────────────────────────────────────────────────
 const BASE = (process.env.ASAAS_API_URL || '').replace(/\/$/, '')
-const CHAVE_RAIZ = process.env.ASAAS_API_KEY || ''
+const CHAVE_RAIZ = (process.env.ASAAS_API_KEY || '').replace(/^\\\$/, '$') // aceita "\$aact_" (escape p/ o Next)
 const PORTA = Number(process.env.ASAAS_SPIKE_PORT || 4799)
 const ESPERA_REENVIO_S = Number(process.env.ASAAS_SPIKE_WAIT_S || 240)
 const EMAIL_BASE = process.env.ASAAS_SPIKE_EMAIL || 'spike.asaas@audere.ia.br'

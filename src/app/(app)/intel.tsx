@@ -20,7 +20,7 @@ export function IntelSection({ espacando, novos }: { espacando: Pac[]; novos: Pa
       <button
         onClick={() => setOpen(o => !o)}
         className="btn ghost"
-        style={{ padding: '8px 0', fontSize: 13, color: 'var(--muted)' }}
+        style={{ padding: 0, minHeight: 0, color: 'var(--muted)' }}
       >
         {open ? '↑' : '↓'} Observações
         {!vazio && <span style={{ marginLeft: 6, color: 'var(--amber)' }}>· {espacando.length + novos.length}</span>}
