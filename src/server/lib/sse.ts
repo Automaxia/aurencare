@@ -5,12 +5,17 @@ import 'server-only'
  * sessão começa, etc. Para produção, trocar por Redis pub/sub.
  */
 
+/**
+ * Todo evento leva o `psicologoId` dono: a rota /api/eventos só entrega à
+ * própria psicóloga. Antes o bus mandava tudo para todos os conectados —
+ * ids e valores das sessões de outras contas chegavam a qualquer logado.
+ */
 export type SseEvent =
-  | { type: 'sessao.confirmada';  sessaoId: string; pacienteId: string }
-  | { type: 'sessao.iniciada';    sessaoId: string }
-  | { type: 'sessao.encerrada';   sessaoId: string }
-  | { type: 'pagamento.recebido'; sessaoId: string; valor: number }
-  | { type: 'paciente.consentiu'; pacienteId: string }
+  | { type: 'sessao.confirmada';  psicologoId: string; sessaoId: string; pacienteId: string }
+  | { type: 'sessao.iniciada';    psicologoId: string; sessaoId: string }
+  | { type: 'sessao.encerrada';   psicologoId: string; sessaoId: string }
+  | { type: 'pagamento.recebido'; psicologoId: string; sessaoId: string; valor: number }
+  | { type: 'paciente.consentiu'; psicologoId: string; pacienteId: string }
   | { type: 'ping' }
 
 type Subscriber = (e: SseEvent) => void

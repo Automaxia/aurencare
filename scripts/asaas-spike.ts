@@ -26,7 +26,7 @@
  *    que não forem criados por este script (nome começa com "audere-spike").
  */
 import { createServer, type IncomingMessage } from 'node:http'
-import { spawn, type ChildProcess } from 'node:child_process'
+import { spawn, spawnSync, type ChildProcess } from 'node:child_process'
 import { randomBytes } from 'node:crypto'
 import { mkdirSync, readFileSync, writeFileSync, existsSync } from 'node:fs'
 import { tmpdir } from 'node:os'
@@ -702,6 +702,17 @@ const ETAPAS: Record<string, () => Promise<void>> = {
 let estadoD03: { inst: string; primeira: string } | undefined
 
 // ── Main ────────────────────────────────────────────────────────────────
+/**
+ * Encerra o túnel E os filhos. No Windows o ngrok sobe via `shell: true`:
+ * `kill()` derrubava só o cmd.exe intermediário e o ngrok ficava órfão
+ * (achado em 05/11/2026). `taskkill /T` leva a árvore inteira.
+ */
+function encerrarTunel() {
+  if (!tunel?.pid) return
+  if (process.platform === 'win32') spawnSync('taskkill', ['/pid', String(tunel.pid), '/T', '/F'], { stdio: 'ignore' })
+  else tunel.kill()
+}
+
 async function main() {
   const args = process.argv.slice(2)
   const semWebhook = args.includes('--sem-webhook')
@@ -723,7 +734,7 @@ async function main() {
     if (ehUrlSpike()) await esperar(5000) // eventos atrasados
   } finally {
     await removerWebhookRaiz().catch(() => {})
-    tunel?.kill()
+    encerrarTunel()
     const saida = { em: new Date().toISOString(), base: BASE, resultados, entregas: entregas.map(e => ({ ...e })) }
     writeFileSync(ARQ_RESULT, JSON.stringify(saida, null, 2))
     writeFileSync(ARQ_LOG, JSON.stringify(log, null, 2))

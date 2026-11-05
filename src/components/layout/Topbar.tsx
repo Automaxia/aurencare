@@ -1,7 +1,7 @@
 'use client'
 
 import Link from 'next/link'
-import { usePathname } from 'next/navigation'
+import { usePathname, useRouter } from 'next/navigation'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Bell, X, FileText, CreditCard, Hand } from 'lucide-react'
 import { mundoFromPath } from '@/lib/nav'
@@ -127,6 +127,8 @@ export function Topbar({ initialSessaoAtiva, initialPendencias }: Props) {
   }, [pathname])
 
   // Atualiza ao receber eventos do SSE
+  const router = useRouter()
+  const refreshTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   useEffect(() => {
     if (typeof window === 'undefined' || typeof EventSource === 'undefined') return
     const es = new EventSource('/api/eventos')
@@ -147,13 +149,25 @@ export function Topbar({ initialSessaoAtiva, initialPendencias }: Props) {
             setSessaoAtiva(json.sessaoAtiva ?? null)
             setPendencias(json.pendencias ?? [])
           }
+          /*
+           * A página por baixo (Agenda, Início, Financeiro, ficha do paciente)
+           * também mostra o status da sessão: sem isto o pagamento confirmava e
+           * a agenda seguia "aguardando pagamento" até recarregar. refresh()
+           * re-renderiza os server components e preserva o estado do cliente;
+           * debounce porque confirmação e pagamento chegam juntos.
+           */
+          if (refreshTimer.current) clearTimeout(refreshTimer.current)
+          refreshTimer.current = setTimeout(() => router.refresh(), 600)
         }
       } catch { /* */ }
     }
 
     es.onerror = () => { /* silencioso — reconnects automaticamente */ }
-    return () => es.close()
-  }, [])
+    return () => {
+      es.close()
+      if (refreshTimer.current) clearTimeout(refreshTimer.current)
+    }
+  }, [router])
 
   return (
     <header className="topbar">

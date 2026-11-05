@@ -1,4 +1,5 @@
 import { subscribe } from '@/server/lib/sse'
+import { requirePsicologo } from '@/server/lib/auth'
 
 /**
  * SSE — Server-Sent Events para o painel.
@@ -8,6 +9,7 @@ export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
 
 export async function GET(req: Request) {
+  const user = await requirePsicologo()
   let closed = false
   let cleanup = () => {}
 
@@ -25,7 +27,8 @@ export async function GET(req: Request) {
       }
 
       const heartbeat = setInterval(() => send({ type: 'ping' }), 25_000)
-      const unsub = subscribe(e => send(e))
+      // Só os eventos da própria psicóloga (o bus é compartilhado no processo).
+      const unsub = subscribe(e => { if (e.type === 'ping' || e.psicologoId === user.id) send(e) })
 
       cleanup = () => {
         if (closed) return

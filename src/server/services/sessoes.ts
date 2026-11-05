@@ -822,8 +822,8 @@ export async function marcarPagamentoConfirmado(
     [sessao.id, taxaGateway, extra.parcelas ?? null],
   )
   if (!rowCount) return
-  publish({ type: 'sessao.confirmada', sessaoId: sessao.id, pacienteId: sessao.pacienteId })
-  publish({ type: 'pagamento.recebido', sessaoId: sessao.id, valor: sessao.valor })
+  publish({ type: 'sessao.confirmada', psicologoId: sessao.psicologoId, sessaoId: sessao.id, pacienteId: sessao.pacienteId })
+  publish({ type: 'pagamento.recebido', psicologoId: sessao.psicologoId, sessaoId: sessao.id, valor: sessao.valor })
 
   // Notificação ao paciente nos dois canais — falhas isoladas não bloqueiam.
   const { rows: psis } = await db.query<{ nome: string; email: string }>(
@@ -1013,7 +1013,7 @@ export async function iniciarSessao(psicologoId: string, sessaoId: string): Prom
     [sessaoId, psicologoId],
   )
   if (!rowCount) throw new Error('sessao_nao_encontrada')
-  publish({ type: 'sessao.iniciada', sessaoId })
+  publish({ type: 'sessao.iniciada', psicologoId, sessaoId })
 }
 
 export type GateRegistroResult =
@@ -1081,7 +1081,7 @@ export async function encerrarSessao(psicologoId: string, sessaoId: string, opts
     `UPDATE sessoes SET ${patches.join(', ')} WHERE id=$1 AND psicologo_id=$2`, params,
   )
   if (!rowCount) throw new Error('sessao_nao_encontrada')
-  publish({ type: 'sessao.encerrada', sessaoId })
+  publish({ type: 'sessao.encerrada', psicologoId, sessaoId })
 }
 
 export type InterromperSessaoResult =
@@ -1153,7 +1153,7 @@ export async function interromperSessao(
   if (!rows[0] || Number(rows[0].n) === 0) return { ok: false, motivo: 'nao_iniciada' }
   if (rows[0].contabilizada) await decrementarSessaoIa(psicologoId)
 
-  publish({ type: 'sessao.encerrada', sessaoId })
+  publish({ type: 'sessao.encerrada', psicologoId, sessaoId })
   log.info('sessao.interromper', `sessão ${sessaoId} interrompida (${origem}) → ${destino}`)
   return { ok: true, status: destino }
 }
