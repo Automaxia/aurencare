@@ -53,6 +53,21 @@ export const env = {
   // Sem ele não há como dividir: a cobrança sai sem split e o valor inteiro cai
   // na conta-mãe (ver `montarSplitSessao` em pagarme.ts).
   pagarmeRecipientPlataforma: process.env.PAGARME_RECIPIENT_PLATAFORMA,
+  /*
+   * Gateway para NOVAS cobranças/recebedores/assinaturas (RF-PG-01). O que já
+   * existe segue no gateway de origem (coluna `gateway`). Trocar é só esta env:
+   * se a Pagar.me cair, `asaas` e rollout — sem código novo.
+   */
+  paymentGateway:      ((process.env.PAYMENT_GATEWAY || 'pagarme').trim().toLowerCase() === 'asaas' ? 'asaas' : 'pagarme') as 'pagarme' | 'asaas',
+  // Asaas: ambiente pela URL (api-sandbox.asaas.com/v3 | api.asaas.com/v3), não pelo prefixo da chave.
+  asaasUrl:            (process.env.ASAAS_API_URL || 'https://api-sandbox.asaas.com/v3').replace(/\/$/, ''),
+  // Chaves do Asaas começam com "$aact_". O Next expande "$var" nos arquivos
+  // .env (a chave chegava VAZIA e o adaptador caía em mock), então no .env.local
+  // ela vai escapada como "\$aact_…" — e o `node --env-file` dos scripts lê a
+  // barra literal. Aceita as duas formas. (Secret do k8s não expande: vem cru.)
+  asaasKey:            process.env.ASAAS_API_KEY?.replace(/^\\\$/, '$') || undefined,
+  // Token que NÓS geramos (32–255 chars) e o Asaas devolve no header asaas-access-token. Não é a API key.
+  asaasWebhookToken:   process.env.ASAAS_WEBHOOK_TOKEN,
   assemblyKey:         process.env.ASSEMBLYAI_API_KEY,
   resendKey:           process.env.RESEND_API_KEY,
   emailFrom:           process.env.EMAIL_FROM || 'Audere <onboarding@aurencare.ia.br>',
@@ -67,6 +82,7 @@ export const integrationStatus = {
   evolution: isConfigured(env.evolutionUrl) && isConfigured(env.evolutionKey),
   meta:      isConfigured(env.metaToken) && isConfigured(env.metaPhoneNumberId),
   pagarme:   isConfigured(env.pagarmeKey),
+  asaas:     isConfigured(env.asaasKey),
   assembly:  isConfigured(env.assemblyKey),
   resend:    isConfigured(env.resendKey),
 }

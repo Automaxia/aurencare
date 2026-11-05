@@ -23,7 +23,7 @@ const brl = (c: number) => `R$ ${(c / 100).toFixed(2)}`
 async function main() {
   // import dinâmico: a env da plataforma precisa existir ANTES de env.ts ser lido
   const { montarSplitSessao } = await import('@/server/lib/pagarme')
-  const { COMISSAO_SESSAO_PCT } = await import('@/server/lib/planos')
+  const { TAXA_ADM_SESSAO_PCT: COMISSAO_SESSAO_PCT } = await import('@/server/lib/planos')
 
   console.log(`Comissão configurada: ${(COMISSAO_SESSAO_PCT * 100).toFixed(1)}%\n`)
 

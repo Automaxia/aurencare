@@ -114,7 +114,5 @@ export function GerirCobranca({ sessaoId, valor, pagamentoStatus, dataHora, paci
 }
 
 const cap: React.CSSProperties = { fontSize: 11, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '.05em' }
-const inp: React.CSSProperties = {
-  width: '100%', boxSizing: 'border-box', padding: '9px 12px', borderRadius: 8,
-  border: '1px solid var(--border)', background: 'white', fontSize: 14, fontFamily: 'inherit', color: 'var(--ink)', outline: 'none',
-}
+// Altura/borda/foco vêm da base de campos em globals.css (--field-*).
+const inp: React.CSSProperties = { width: '100%' }

@@ -159,7 +159,7 @@ export function SortableGrid({ defaultOrder, labels, children }: Props) {
               </div>
               <div style={{ borderTop: '1px solid var(--border)', padding: '8px 14px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
                 <span style={{ fontSize: 11, color: 'var(--muted)' }}>{ativos} de {defaultOrder.length} ativos</span>
-                <button type="button" onClick={restaurarPadrao} className="btn ghost sm" style={{ fontSize: 12 }}>Restaurar padrão</button>
+                <button type="button" onClick={restaurarPadrao} className="btn ghost sm">Restaurar padrão</button>
               </div>
             </div>
           </>

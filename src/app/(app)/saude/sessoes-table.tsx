@@ -128,7 +128,7 @@ export function SessoesTable({ sessoes }: { sessoes: SessaoRow[] }) {
                       {STATUS_LABEL[s.status] ?? s.status}
                     </span>
                     {s.status === 'concluida' && !s.assinada && (
-                      <span className="tag t-warn" style={{ marginLeft: 6, fontSize: 10 }}>registrar</span>
+                      <span className="tag t-warn" style={{ marginLeft: 6 }}>registrar</span>
                     )}
                   </Td>
                   <Td>

@@ -101,16 +101,8 @@ export function DadosCadastroForm({ pacienteId, initial }: { pacienteId: string;
         .dc-contato { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
         .dc-contato > input { flex: 1 1 160px; min-width: 0; }
         .dc-contato > button { flex: 0 0 auto; }
-        input {
-          width: 100%; padding: 8px 12px; border-radius: var(--field-radius);
-          border: 1px solid var(--field-border); background: var(--field-bg);
-          font-size: 13px; font-family: inherit; color: var(--ink); outline: none;
-          transition: border-color .15s var(--ease), box-shadow .15s var(--ease);
-        }
-        input:hover { border-color: var(--field-border-hover); }
-        input:focus { border-color: var(--accent); box-shadow: var(--field-ring); }
-        input:user-invalid { border-color: var(--rose); }
-        input:user-invalid:focus { box-shadow: var(--field-ring-error); }
+        /* altura/borda/foco: base de campos em globals.css */
+        input { width: 100%; }
       `}</style>
     </div>
   )
@@ -118,7 +110,7 @@ export function DadosCadastroForm({ pacienteId, initial }: { pacienteId: string;
 
 function Campo({ label, hint, children }: { label: string; hint?: string; children: React.ReactNode }) {
   return (
-    <label style={{ display: 'grid', gap: 4 }}>
+    <label className="field">
       <span style={{ fontSize: 11, color: 'var(--muted)' }}>
         {label}
         {hint && <span style={{ color: 'var(--faint)' }}> · {hint}</span>}

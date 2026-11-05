@@ -280,6 +280,48 @@ Checklist do go-live:
 - [ ] Teste real de ponta a ponta: assinar um plano em `/planos` com cartão
       próprio e cancelar em seguida.
 
+## 🟡 4c. Asaas — segundo gateway, **pronto em código (04/11/2026), desligado**
+
+Os dois gateways rodam lado a lado atrás de `src/server/lib/pagamentos/`
+(docs/asaas/). `PAYMENT_GATEWAY` escolhe onde nascem as **novas** cobranças,
+subcontas e assinaturas. O que já existe segue no gateway de origem (coluna
+`gateway`): webhook, estorno e cancelamento da Pagar.me continuam funcionando
+depois da troca. Hoje: `pagarme`.
+
+**Virar para o Asaas** (ex.: a Pagar.me parar de responder):
+
+1. Secrets no cluster: `ASAAS_API_URL=https://api.asaas.com/v3`,
+   `ASAAS_API_KEY` (conta raiz), `ASAAS_WEBHOOK_TOKEN` (`openssl rand -hex 24`).
+2. Webhook da raiz: `npm run asaas:webhook -- --url https://app.audere.ia.br/api/webhooks/asaas`
+   (simula) e depois `--aplicar`, com as envs de produção carregadas.
+3. `PAYMENT_GATEWAY=asaas` no secret + `kubectl rollout restart`. Voltar é
+   o mesmo passo com `pagarme`.
+
+O que acontece na virada:
+- Psicólogo com o wizard de recebimento já preenchido ganha a **subconta Asaas
+  automaticamente** na próxima cobrança (`garantirRecipientAtivo` recria com os
+  dados guardados). Leva 10–30 s uma vez por psicólogo, e **o Asaas manda a ele
+  um e-mail de ativação**, então avise antes. Sem os dados preenchidos, ele
+  continua indo para o wizard.
+- Split já sai com a subconta pendente (RN-06): o Asaas aceita, e só o saque
+  depende da aprovação.
+- **Débito** vira crédito à vista na fatura do Asaas (não existe débito lá). O
+  texto do WhatsApp só muda na Fase 3.
+- Crédito sai **à vista** até a Fase 3 trazer a pergunta "em quantas vezes".
+  O adaptador já aceita `parcelas`.
+- `/planos` deixa de ter formulário de cartão: o botão leva à fatura do Asaas,
+  e o plano ativa no webhook da 1ª cobrança paga.
+- Estorno PIX: exige **saldo na raiz ≥ valor** (D-08) e fica aguardando
+  **autorização do evento crítico** no painel (D-09). Quem não tiver saldo fica
+  com `reembolso_pendente_em` (o cron que repete é Fase 3).
+
+Pré-requisitos de conta antes de virar em produção: cadastro da raiz completo,
+chave PIX, split habilitado em *Integrações › Segurança*, homologação fora do
+período de avaliação (docs/asaas/tasks.md Fase 0/4).
+
+Testes: `npm run test:pagamentos` (unitário), `npm run test:asaas` (sandbox,
+adaptador real) e `npm run test:pagamentos-db` (Postgres de teste, ver cabeçalho).
+
 ## 🟢 4b. WhatsApp — Cloud API (Meta) — ✅ LIGADA (11/09/2026)
 
 **Por quê:** a instância Evolution `Automaxia` é o número 61 98644-4584,

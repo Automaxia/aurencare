@@ -177,16 +177,8 @@ export function TributarioForm({ inicial }: Props) {
       </div>
 
       <style jsx>{`
-        input {
-          width: 100%; padding: 9px 12px; border-radius: var(--field-radius);
-          border: 1px solid var(--field-border); background: var(--field-bg);
-          font-size: 13px; font-family: inherit; color: var(--ink); outline: none;
-          transition: border-color .15s var(--ease), box-shadow .15s var(--ease);
-        }
-        input:not([type=radio]):not([type=checkbox]):hover { border-color: var(--field-border-hover); }
-        input:not([type=radio]):not([type=checkbox]):focus { border-color: var(--accent); box-shadow: var(--field-ring); }
-        input:not([type=radio]):not([type=checkbox]):user-invalid { border-color: var(--rose); }
-        input:not([type=radio]):not([type=checkbox]):user-invalid:focus { box-shadow: var(--field-ring-error); }
+        /* altura/borda/foco: base de campos em globals.css */
+        input { width: 100%; }
         input[type=radio], input[type=checkbox] { width: auto; padding: 0; }
       `}</style>
     </form>
@@ -195,7 +187,7 @@ export function TributarioForm({ inicial }: Props) {
 
 function Field({ label, hint, error, children }: { label: string; hint?: string; error?: string | null; children: React.ReactNode }) {
   return (
-    <label style={{ display: 'grid', gap: 4 }}>
+    <label className="field">
       <span style={{
         fontSize: 11, color: 'var(--muted)',
         textTransform: 'uppercase', letterSpacing: '.06em',

@@ -118,7 +118,7 @@ export default async function VisaoContabilPage() {
                   ant={v.mesAnterior.recebidoBruto}
                 />
                 <LinhaComp
-                  rotulo="Taxas Pagar.me"
+                  rotulo="Taxas do gateway"
                   atual={v.mesAtual.taxasEstimadas}
                   ant={v.mesAnterior.taxasEstimadas}
                   inverter

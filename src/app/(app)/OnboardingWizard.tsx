@@ -75,7 +75,7 @@ export function OnboardingWizard({ status, nome, demoId }: { status: OnboardingS
               </div>
 
               {isAtual && (
-                <Link href={p.href} className="btn primary" style={{ flex: 'none', fontSize: 12.5, padding: '8px 14px', whiteSpace: 'nowrap' }}>
+                <Link href={p.href} className="btn primary" style={{ flex: 'none' }}>
                   {p.cta} →
                 </Link>
               )}

@@ -9,7 +9,7 @@ import { Footer } from '../lancamento/v2/sections-close'
  * Texto operacional, alinhado ao que o produto faz de fato (ver CLAUDE.md §2
  * e §14). Mudou o tratamento, muda aqui — e o "Atualizada em" abaixo.
  */
-const ATUALIZADA_EM = '11 de setembro de 2026'
+const ATUALIZADA_EM = '5 de novembro de 2026'
 const CONTATO = 'contato@automaxia.com.br'
 
 export default function PrivacidadePage() {
@@ -43,7 +43,7 @@ export default function PrivacidadePage() {
 
           <h2>2. Quais dados tratamos</h2>
           <ul>
-            <li><strong>Do(a) psicólogo(a):</strong> nome, CRP, e-mail, telefone, CPF, dados de cobrança e de recebimento (via Pagar.me), preferências de uso.</li>
+            <li><strong>Do(a) psicólogo(a):</strong> nome, CRP, e-mail, telefone, CPF, dados de cobrança e de recebimento (via Pagar.me ou Asaas — inclusive os dados cadastrais exigidos para abrir a conta de recebimento, como CPF/CNPJ, endereço e faturamento estimado), preferências de uso.</li>
             <li><strong>Do paciente:</strong> nome, telefone (WhatsApp), e-mail (opcional), agenda de sessões, status de pagamento, histórico das conversas por WhatsApp com a plataforma e registro do consentimento (data e hora).</li>
             <li><strong>Dados clínicos:</strong> transcrições de sessão, resumos, notas, temas recorrentes, objetivos terapêuticos e demais anotações produzidas ou revisadas pelo(a) psicólogo(a). São <strong>dados sensíveis</strong> e recebem a proteção descrita na seção 6.</li>
             <li><strong>Técnicos:</strong> registros de acesso (data, hora, IP), identificadores de sessão e métricas de uso necessárias à segurança e ao funcionamento do serviço.</li>
@@ -86,7 +86,7 @@ export default function PrivacidadePage() {
 
           <h2>7. Com quem compartilhamos</h2>
           <p>
-            Apenas com operadores necessários ao serviço: Meta (WhatsApp), Pagar.me (pagamentos), Resend (e-mail),
+            Apenas com operadores necessários ao serviço: Meta (WhatsApp), Pagar.me e Asaas (pagamentos e contas de recebimento), Resend (e-mail),
             provedores de IA citados acima e a infraestrutura de hospedagem. Cada um trata os dados sob contrato e
             somente para a finalidade contratada. Não vendemos dados pessoais.
           </p>

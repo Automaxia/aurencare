@@ -197,7 +197,7 @@ export function SessaoBlock({ sessao, className, style, children }: {
             {erro && <div style={{ color: 'var(--rose)', fontSize: 12, marginBottom: 8 }}>{erro}</div>}
 
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, marginTop: 8, flexWrap: 'wrap' }}>
-              <button onClick={() => router.push(`/sessao/${sessao.id}`)} className="btn primary" style={{ background: 'var(--sage)' }}>
+              <button onClick={() => router.push(`/sessao/${sessao.id}`)} className="btn sage">
                 Ir para a sessão →
               </button>
               <div style={{ display: 'flex', gap: 8 }}>
@@ -218,7 +218,7 @@ export function SessaoBlock({ sessao, className, style, children }: {
                       pode ser remarcada e a cota de IA é estornada. Nada é enviado ao paciente.
                     </p>
                     <button onClick={() => { setErroAcao(null); setConfirmandoAcao('destravar') }} disabled={processando}
-                      className="btn ghost" style={{ fontSize: 12.5 }}>
+                      className="btn ghost">
                       Destravar sessão
                     </button>
                   </>
@@ -228,8 +228,8 @@ export function SessaoBlock({ sessao, className, style, children }: {
                       Destravar? O que tiver sido transcrito é descartado.
                     </span>
                     <div style={{ display: 'flex', gap: 8, marginLeft: 'auto' }}>
-                      <button onClick={() => setConfirmandoAcao(null)} disabled={processando} className="btn ghost" style={{ fontSize: 12.5 }}>Não</button>
-                      <button onClick={destravar} disabled={processando} className="btn primary" style={{ fontSize: 12.5 }}>
+                      <button onClick={() => setConfirmandoAcao(null)} disabled={processando} className="btn ghost">Não</button>
+                      <button onClick={destravar} disabled={processando} className="btn primary">
                         {processando ? 'Destravando…' : 'Sim, destravar'}
                       </button>
                     </div>
@@ -245,13 +245,13 @@ export function SessaoBlock({ sessao, className, style, children }: {
                   <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
                     {podeCancelar && (
                       <button onClick={() => { setErroAcao(null); setConfirmandoAcao('cancelar') }} disabled={processando}
-                        className="btn ghost" style={{ fontSize: 12.5, color: 'var(--rose)' }}>
+                        className="btn ghost danger">
                         Cancelar sessão
                       </button>
                     )}
                     {podeNoShow && (
                       <button onClick={alternarNoShow} disabled={processando}
-                        className="btn ghost" style={{ fontSize: 12.5 }}>
+                        className="btn ghost">
                         {processando ? 'Salvando…' : ehNoShow ? 'Desfazer sem comparecimento' : 'Sem comparecimento'}
                       </button>
                     )}
@@ -263,8 +263,8 @@ export function SessaoBlock({ sessao, className, style, children }: {
                       {sessao.pagamentoStatus === 'pago' && ' Se faltam mais de 24h, o valor é reembolsado.'}
                     </span>
                     <div style={{ display: 'flex', gap: 8, marginLeft: 'auto' }}>
-                      <button onClick={() => setConfirmandoAcao(null)} disabled={processando} className="btn ghost" style={{ fontSize: 12.5 }}>Voltar</button>
-                      <button onClick={cancelar} disabled={processando} className="btn primary" style={{ background: 'var(--rose)', fontSize: 12.5 }}>
+                      <button onClick={() => setConfirmandoAcao(null)} disabled={processando} className="btn ghost">Voltar</button>
+                      <button onClick={cancelar} disabled={processando} className="btn danger">
                         {processando ? 'Cancelando…' : 'Sim, cancelar'}
                       </button>
                     </div>
@@ -308,7 +308,5 @@ function Info({ k, v }: { k: string; v: string }) {
 }
 
 const cap: React.CSSProperties = { fontSize: 11, color: 'var(--muted)' }
-const inp: React.CSSProperties = {
-  width: '100%', boxSizing: 'border-box', padding: '9px 11px', borderRadius: 8,
-  border: '1px solid var(--border)', background: 'white', fontSize: 14, fontFamily: 'inherit', color: 'var(--ink)', outline: 'none',
-}
+// Altura/borda/foco vêm da base de campos em globals.css (--field-*).
+const inp: React.CSSProperties = { width: '100%' }

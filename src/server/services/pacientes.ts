@@ -104,7 +104,8 @@ export async function listarPacientes(
     const ses = sessoes.filter(s => s.paciente_id === p.id).map(s => ({
       id: s.id as string, dataHora: s.data_hora, status: s.status, assinada: s.assinada,
     }))
-    const futuras = ses.filter(s => +new Date(s.dataHora) > Date.now())
+    // Cancelada não é "próxima sessão" (o card mostrava a sessão cancelada e o CTA abria ela).
+    const futuras = ses.filter(s => +new Date(s.dataHora) > Date.now() && s.status !== 'cancelada')
                        .sort((a, b) => +new Date(a.dataHora) - +new Date(b.dataHora))
     const passadas = ses.filter(s => +new Date(s.dataHora) <= Date.now())
     // Mais recente concluída e não assinada → alvo do "Assinar →".

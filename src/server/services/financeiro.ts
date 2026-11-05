@@ -1,15 +1,7 @@
 import 'server-only'
 import { db } from '@/server/db/pool'
+import { taxaGatewayReais } from '@/server/lib/pagamentos/taxas'
 
-/**
- * Taxas estimadas Pagar.me (tabela padrão maio 2026).
- * Valores reais variam por contrato — usados como estimativa visual no painel.
- * Exibidos como "estimado" na UI; o líquido real chega via webhook.
- */
-const TAXA_PIX        = 0.0099    // ~1%
-const TAXA_DEBITO     = 0.0199    // ~2%
-const TAXA_CREDITO_1X = 0.0399    // ~4%
-const TAXA_CREDITO_PARC = 0.0499  // ~5% em parcelado
 
 /**
  * Janela de liquidação (cai na conta) em dias úteis aproximados após pagamento.
@@ -32,9 +24,17 @@ export type Cobranca = {
   pagamentoStatus: string
   pagamentoMetodo: string | null
   pagamentoParcelas: number
+  /** id da cobrança no gateway (nome do campo mantido por compatibilidade da UI). */
   pagarmeOrderId: string | null
   pagarmeCheckoutUrl: string | null
-  /** Taxa estimada da Pagar.me (centavos). 0 se ainda não pago. */
+  gateway: string | null
+  /**
+   * Estorno pedido mas ainda não feito (D-08: sem saldo na conta raiz). A
+   * sessão continua `pago` até o estorno sair — a tela avisa para não parecer
+   * dinheiro garantido.
+   */
+  estornoPendente: boolean
+  /** Taxa do gateway (centavos): real quando o gateway informou, senão estimada. 0 se ainda não pago. */
   taxaEstimada: number
   /**
    * Taxa administrativa da plataforma nesta cobrança (R$), do split. Diferente da taxa:
@@ -66,7 +66,7 @@ export type Financeiro = {
   totaisMes: { recebido: number; pendente: number; reembolsado: number }
   /** Recebido bruto separado por método (período). */
   recebidoPorMetodo: { pix: number; credito: number; debito: number }
-  /** Taxas Pagar.me estimadas no período. */
+  /** Taxas do gateway no período (reais quando houver, senão estimadas). */
   taxasEstimadas: number
   /** Taxa administrativa da plataforma no período (real, do split). */
   taxaAdmPlataforma: number
@@ -118,7 +118,10 @@ export async function lerFinanceiro(
   // (ago/2026); só o schema segue legado.
   const { rows } = await db.query<any>(
     `SELECT s.id, s.data_hora, s.valor, s.pagamento_status, s.pagamento_metodo,
-            s.pagamento_parcelas, s.pagarme_order_id, s.pagarme_checkout_url,
+            s.pagamento_parcelas, COALESCE(s.cobranca_id, s.pagarme_order_id) AS cobranca_id,
+            COALESCE(s.cobranca_url, s.pagarme_checkout_url) AS cobranca_url,
+            COALESCE(s.gateway, CASE WHEN s.pagarme_order_id IS NOT NULL THEN 'pagarme' END) AS gateway,
+            s.taxa_gateway_centavos, s.reembolso_pendente_em,
             s.pago_em, s.comissao_centavos,
             s.confirmacao_resposta, s.confirmacao_janela_expira_em,
             s.confirmacao_enviada_em,
@@ -146,9 +149,12 @@ export async function lerFinanceiro(
       pagamentoStatus: r.pagamento_status,
       pagamentoMetodo: metodo,
       pagamentoParcelas: parcelas,
-      pagarmeOrderId: r.pagarme_order_id,
-      pagarmeCheckoutUrl: r.pagarme_checkout_url,
-      taxaEstimada: pago ? Math.round(valor * taxaDe(metodo, parcelas) * 100) / 100 : 0,
+      pagarmeOrderId: r.cobranca_id,
+      pagarmeCheckoutUrl: r.cobranca_url,
+      gateway: r.gateway ?? null,
+      estornoPendente: pago && !!r.reembolso_pendente_em,
+      // Taxa REAL do gateway quando o webhook informou o líquido (RF-PG-27); senão estimada.
+      taxaEstimada: pago ? taxaGatewayReais({ gateway: r.gateway, metodo, parcelas, valor, taxaRealCentavos: r.taxa_gateway_centavos }) : 0,
       // Real (do split), não estimada. NULL = cobrança anterior ao split.
       taxaAdmPlataforma: pago && r.comissao_centavos ? Number(r.comissao_centavos) / 100 : 0,
       caiEm: pago ? prevLiquidacao(baseLiquidacao, metodo) : null,
@@ -211,16 +217,6 @@ export async function lerFinanceiro(
   }
 }
 
-/**
- * Taxa estimada Pagar.me. PIX/débito não têm parcelas — crédito 2+ vezes
- * cai na faixa "parcelado".
- */
-function taxaDe(metodo: string | null, parcelas: number): number {
-  if (metodo === 'pix') return TAXA_PIX
-  if (metodo === 'debito') return TAXA_DEBITO
-  if (metodo === 'credito') return parcelas > 1 ? TAXA_CREDITO_PARC : TAXA_CREDITO_1X
-  return 0
-}
 
 /**
  * Previsão de liquidação (ISO). Recebe pago_em real do webhook quando

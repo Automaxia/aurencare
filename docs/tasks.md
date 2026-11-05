@@ -2,7 +2,8 @@
 
 > Acompanhamento de trabalho. Requisitos em [spec.md](./spec.md); design em [sdd.md](./sdd.md).
 > Pendências de infra/operação (com comandos) em [INFRA.md](./INFRA.md).
-> Última atualização: 23/10/2026.
+> Migração de gateway para o Asaas: [asaas/spec.md](./asaas/spec.md) · [asaas/sdd.md](./asaas/sdd.md) · [asaas/tasks.md](./asaas/tasks.md).
+> Última atualização: 05/11/2026.
 
 Legenda status: ✅ concluído · 🔄 em andamento · ⏳ pendente · 🔮 futuro
 Legenda prioridade: **P0** crítico (segurança/risco) · **P1** importante · **P2** desejável
@@ -16,7 +17,14 @@ Legenda prioridade: **P0** crítico (segurança/risco) · **P1** importante · *
   O secret `KUBE_CONFIG` expirou em ago/2026 **e de novo em 23/10/2026** e
   derrubou a esteira (falha na etapa de migration, com o build passando —
   parecia publicado sem estar); renovado nas duas vezes. Ver INFRA.md.
-- ✅ Job de migrations (`migrate.mjs` em JS puro) — **52 migrations** aplicadas.
+- ✅ Job de migrations (`migrate.mjs` em JS puro) — **52 migrations** em produção;
+  053–055 (gateway neutro, troca de plano, parcelas no WhatsApp) entram no próximo
+  deploy de `main`.
+- 🔄 **Asaas como segundo gateway** (nov/2026) — Fases 1–2 prontas; Fase 3 quase
+  toda (WhatsApp com parcelas, wizard PJ/PF, situação da subconta, troca de plano
+  proporcional, "Pagar fatura"). Desligado (`PAYMENT_GATEWAY=pagarme`). Bloqueia a
+  virada: templates `_v2` aprovados na Meta + conta live. Ver
+  [asaas/tasks.md](./asaas/tasks.md).
 - ✅ **WhatsApp Cloud API (Meta)** em produção desde 11/09/2026 — número próprio
   +55 61 94758-1770, 17 templates aprovados; Evolution vira fallback
   (`WHATSAPP_PROVIDER`). Ver INFRA.md §4b.

@@ -37,14 +37,14 @@ export function DemoControl({ demoId, variant = 'header' }: { demoId: string | n
     // No onboarding, oferecer ABRIR; nas demais áreas, remover.
     if (variant === 'onboarding') {
       return (
-        <Link href={`/pacientes/${demoId}`} className="btn ghost sm" style={{ whiteSpace: 'nowrap' }}>
+        <Link href={`/pacientes/${demoId}`} className="btn ghost sm">
           Abrir Maria Joana →
         </Link>
       )
     }
     return (
       <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
-        <button className="btn ghost sm" onClick={remover} disabled={busy} title="Remover paciente de demonstração" style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}>
+        <button className="btn ghost" onClick={remover} disabled={busy} title="Remover paciente de demonstração">
           {busy ? 'Removendo…' : <><Trash2 size={13} /> Remover demonstração</>}
         </button>
       </span>
@@ -56,9 +56,11 @@ export function DemoControl({ demoId, variant = 'header' }: { demoId: string | n
   // Destaque "discreto-mas-com-talento": tinta de accent + sage, borda viva e
   // brilho leve no hover — chama o olho sem competir com o botão primário.
   const btnStyle: React.CSSProperties = {
-    display: 'inline-flex', alignItems: 'center', gap: 7,
-    padding: variant === 'empty' ? '10px 18px' : '8px 14px',
-    fontSize: variant === 'empty' ? 14 : 12.5, fontWeight: 600,
+    // Mesma altura do .btn (38px) pra alinhar com "+ Novo paciente" no cabeçalho.
+    display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 7,
+    boxSizing: 'border-box', minHeight: variant === 'empty' ? 44 : 'var(--btn-h)',
+    padding: variant === 'empty' ? '0 18px' : '0 14px', lineHeight: 1.2,
+    fontFamily: 'inherit', fontSize: variant === 'empty' ? 14 : 13, fontWeight: 600,
     borderRadius: 10, cursor: busy ? 'default' : 'pointer',
     color: 'var(--accent)',
     border: '1px solid rgba(106,78,200,.32)',

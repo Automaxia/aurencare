@@ -20,6 +20,12 @@ const LABELS: Record<string, string> = {
   '/planos':               'Planos',
   '/perfil':               'Minha conta',
   '/perfil/recebimentos':  'Recebimentos',
+  '/conversas':            'Conversas',
+  '/admin':                'Administração',
+  '/admin/pagamentos':     'Operação de pagamentos',
+  '/admin/custos':         'Economia da plataforma',
+  '/admin/leads':          'Lista de espera',
+  '/admin/whatsapp':       'Diagnóstico WhatsApp',
 }
 
 /** Subpáginas dentro de um paciente. */

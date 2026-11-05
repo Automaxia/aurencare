@@ -64,12 +64,13 @@ export async function enviarConfirmacaoPosSessao(sessaoId: string): Promise<Envi
     psicologa_nome: string;
     confirmacao_enviada_em: string | null;
     valor: string | null; pagamento_status: string | null;
-    pagarme_order_id: string | null;
+    cobranca_id: string | null;
   }>(
     `SELECT s.id, s.data_hora, s.numero,
             p.nome AS paciente_nome, p.telefone AS paciente_telefone,
             ps.nome AS psicologa_nome,
-            s.confirmacao_enviada_em, s.valor, s.pagamento_status, s.pagarme_order_id
+            s.confirmacao_enviada_em, s.valor, s.pagamento_status,
+            COALESCE(s.cobranca_id, s.pagarme_order_id) AS cobranca_id
        FROM sessoes s
        JOIN pacientes p ON p.id = s.paciente_id
        JOIN psicologos ps ON ps.id = s.psicologo_id
@@ -84,12 +85,12 @@ export async function enviarConfirmacaoPosSessao(sessaoId: string): Promise<Envi
     return { ok: false, razao: 'ja_enviada' }
   }
 
-  // Só vale para sessão COBRADA PELA PLATAFORMA (pedido Pagar.me pago). É a
+  // Só vale para sessão COBRADA PELA PLATAFORMA (cobrança do gateway paga). É a
   // prova de prestação do serviço contra contestação/chargeback; em sessão
   // gratuita ou paga por fora não há dinheiro passando pela plataforma, então
   // a pergunta só incomodaria o paciente. Nesses casos o "obrigada" do Fluxo 6
   // (ao assinar) é a única mensagem de fim de sessão.
-  if (!s.pagarme_order_id || s.pagamento_status !== 'pago') {
+  if (!s.cobranca_id || s.pagamento_status !== 'pago') {
     return { ok: false, razao: 'sem_cobranca_plataforma' }
   }
 

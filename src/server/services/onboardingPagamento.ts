@@ -1,7 +1,9 @@
 import 'server-only'
 import { db } from '@/server/db/pool'
-import { encrypt, tryDecrypt } from '@/server/lib/crypto'
-import { criarRecipient, isRecipientMock, ambientePagarme, type RecipientInput, PagarmeRecipientError, type CampoRecusado } from '@/server/lib/pagarmeRecipient'
+import { encrypt, tryDecrypt, decrypt } from '@/server/lib/crypto'
+import { isRecipientMock, type CampoRecusado } from '@/server/lib/pagarmeRecipient'
+import { gatewayPadrao, RecebedorErro, type RecebedorInput, type RecebedorCriado, type RecebedorRef, type SituacaoRecebedor, type Gateway } from '@/server/lib/pagamentos'
+import { traduzirRecusaAsaas } from '@/server/lib/pagamentos/asaas/erros'
 import { log } from '@/server/lib/log'
 import { redis } from '@/server/lib/redis'
 import { cpfCnpjValido, validarCpf, validarCnpj } from '@/lib/documento'
@@ -20,6 +22,13 @@ export type OnboardingStatus = {
    * que o dinheiro caia na conta dele em vez da conta-mãe da plataforma.
    */
   recipientInvalido: boolean
+  /**
+   * Destino do split no gateway PADRÃO (`PAYMENT_GATEWAY`). null quando o
+   * recebedor gravado é de outro gateway/ambiente, sintético ou recusado.
+   */
+  recebedor: RecebedorRef | null
+  /** Situação cadastral (Asaas: KYC da subconta). */
+  situacao: SituacaoRecebedor | null
 }
 
 export type TipoChavePix = 'cpf' | 'cnpj' | 'email' | 'celular' | 'aleatoria'
@@ -55,7 +64,15 @@ export type OnboardingInput = {
   endereco: EnderecoOnboarding
   /** Obrigatório quando PJ. */
   socio?: SocioOnboarding | null
-  banco: {
+  /** PJ no Asaas (`companyType`). Ignorado na Pagar.me. */
+  tipoEmpresa?: 'MEI' | 'LIMITED' | 'INDIVIDUAL' | 'ASSOCIATION' | null
+  /**
+   * Celular da psicóloga, quando o cadastro ainda não tem (os dois gateways
+   * exigem). Pedido no próprio wizard — antes o erro só aparecia no fim.
+   */
+  telefone?: string | null
+  /** Obrigatório na Pagar.me (repasse por TED). O Asaas não usa: saque é na conta dele. */
+  banco?: {
     codigo: string
     agencia: string
     agenciaDv?: string | null
@@ -64,7 +81,7 @@ export type OnboardingInput = {
     tipo: 'corrente' | 'poupanca'
     titularNome: string
     titularDocumento: string
-  }
+  } | null
   /** Chave PIX opcional — usada como preferência de recebimento. */
   chavePix?: {
     tipo: TipoChavePix
@@ -79,35 +96,95 @@ export type CampoErro =
   | 'chavePixTipo' | 'chavePixValor'
   | 'endCep' | 'endLogradouro' | 'endNumero' | 'endBairro' | 'endCidade' | 'endUf'
   | 'socioNome' | 'socioCpf' | 'socioNascimento' | 'socioEmail' | 'socioTelefone'
+  | 'telefone' | 'tipoEmpresa'
 
 export type SalvarResult =
   | { ok: true; recipientId: string }
   | { ok: false; error: string; campo?: CampoErro }
 
 export async function lerStatusOnboarding(psicologoId: string): Promise<OnboardingStatus> {
-  const { rows } = await db.query<{ pagarme_recipient_id: string | null; pgm_onboarding_em: string | null; pgm_ambiente: string | null }>(
-    `SELECT pagarme_recipient_id, pgm_onboarding_em, pgm_ambiente
+  const { rows } = await db.query<{
+    recebedor_gateway: string | null; recebedor_id: string | null; recebedor_wallet_id: string | null
+    recebedor_api_key: string | null; recebedor_situacao: string | null; recebedor_ambiente: string | null
+    pagarme_recipient_id: string | null; pgm_onboarding_em: string | null; pgm_ambiente: string | null
+  }>(
+    `SELECT recebedor_gateway, recebedor_id, recebedor_wallet_id, recebedor_api_key,
+            recebedor_situacao, recebedor_ambiente,
+            pagarme_recipient_id, pgm_onboarding_em, pgm_ambiente
        FROM psicologos WHERE id = $1 LIMIT 1`,
     [psicologoId],
   )
   const r = rows[0]
+  const g = gatewayPadrao()
   /*
-   * Recipient de OUTRO ambiente é tão inútil quanto um `mock_rcp_*`: os IDs são
-   * `re_<hash>` nos dois, mas o do sandbox não existe na produção. Ao virar a
-   * chave para live, quem não refizer o onboarding continuaria constando como
-   * "configurado" e a Pagar.me recusaria a ORDER INTEIRA — o paciente não
-   * receberia cobrança nenhuma.
-   * `pgm_ambiente` nulo é cadastro anterior à migration 048: só existiu sandbox.
+   * O recebedor só vale no gateway E no ambiente em que foi criado. Os IDs não
+   * dizem de onde vieram (`re_<hash>` no sandbox e na live da Pagar.me), e um
+   * recebedor de outro gateway/ambiente derrubaria a cobrança inteira no split.
+   * Trocar `PAYMENT_GATEWAY` ou a chave → quem não tiver recebedor no novo cai
+   * em `garantirRecipientAtivo`, que recria a partir dos dados já preenchidos.
+   *
+   * Linha sem `recebedor_*` (pod antigo gravou só `pagarme_*` durante o
+   * rollout): lê das colunas legadas. `pgm_ambiente` nulo = antes da 048 = sandbox.
    */
-  const ambienteGravado = (r?.pgm_ambiente ?? 'sandbox') as 'sandbox' | 'live'
-  const outroAmbiente = !!r?.pagarme_recipient_id && ambienteGravado !== ambientePagarme()
-  const invalido = isRecipientMock(r?.pagarme_recipient_id) || outroAmbiente
+  const gateway = (r?.recebedor_gateway ?? (r?.pagarme_recipient_id ? 'pagarme' : null)) as Gateway | null
+  const id = r?.recebedor_id ?? r?.pagarme_recipient_id ?? null
+  const ambiente = r?.recebedor_ambiente ?? r?.pgm_ambiente ?? 'sandbox'
+  const walletId = r?.recebedor_wallet_id ?? (gateway === 'pagarme' ? id : null)
+  const situacao = (r?.recebedor_situacao ?? null) as SituacaoRecebedor | null
+
+  const valido = !!id && gateway === g.nome && ambiente === g.ambiente()
+    && g.recebedorUtilizavel(id) && !!walletId && situacao !== 'recusado'
   return {
-    completo: !!r?.pgm_onboarding_em && !invalido,
-    recipientId: invalido ? null : (r?.pagarme_recipient_id ?? null),
+    completo: !!r?.pgm_onboarding_em && valido,
+    recipientId: valido ? id : null,
     concluidoEm: r?.pgm_onboarding_em ?? null,
-    recipientInvalido: !!r?.pgm_onboarding_em && invalido,
+    recipientInvalido: !!r?.pgm_onboarding_em && !valido,
+    recebedor: valido ? { gateway: g.nome, id: id!, walletId, apiKeyCifrada: r?.recebedor_api_key ?? null } : null,
+    situacao,
   }
+}
+
+/**
+ * Grava o recebedor recém-criado (colunas neutras) e marca o onboarding como
+ * concluído. Pagar.me: mantém `pagarme_recipient_id`/`pgm_ambiente` (dual-write
+ * — pod antigo durante o rollout ainda lê de lá).
+ */
+async function gravarRecebedor(psicologoId: string, c: RecebedorCriado): Promise<void> {
+  await db.query(
+    `UPDATE psicologos SET
+        -- Casts explícitos em todo parâmetro reusado: sem eles o Postgres deduz
+        -- varchar na atribuição e text na comparação e recusa o UPDATE
+        -- ("inconsistent types deduced for parameter $2").
+        recebedor_api_key = CASE WHEN $5::text IS NOT NULL THEN $5::text
+                                 WHEN recebedor_id = $3::text THEN recebedor_api_key END,
+        recebedor_gateway = $2::text, recebedor_id = $3::text, recebedor_wallet_id = $4::text,
+        recebedor_situacao = $6::text, recebedor_situacao_detalhe = $7::jsonb, recebedor_ambiente = $8::text,
+        pagarme_recipient_id = CASE WHEN $2::text = 'pagarme' THEN $3::text ELSE pagarme_recipient_id END,
+        pgm_ambiente         = CASE WHEN $2::text = 'pagarme' THEN $8::text ELSE pgm_ambiente END,
+        recebedor_email = $9::text,
+        pgm_onboarding_em = NOW()
+      WHERE id = $1`,
+    [psicologoId, c.gateway, c.id, c.walletId, c.apiKey ? encrypt(c.apiKey) : null,
+     c.situacao, c.situacaoDetalhe ? JSON.stringify(c.situacaoDetalhe) : null, c.ambiente,
+     c.emailUsado ?? null],
+  )
+}
+
+/**
+ * Situação cadastral vinda do webhook (Asaas `ACCOUNT_STATUS_*`). Grava o
+ * snapshot — o nome do evento chega fora de ordem e não serve de estado.
+ */
+export async function atualizarSituacaoRecebedor(
+  gateway: Gateway, recebedorId: string, situacao: SituacaoRecebedor, detalhe: Record<string, unknown>,
+): Promise<boolean> {
+  const { rowCount } = await db.query(
+    `UPDATE psicologos SET recebedor_situacao = $3, recebedor_situacao_detalhe = $4::jsonb
+      WHERE recebedor_gateway = $1 AND recebedor_id = $2`,
+    [gateway, recebedorId, situacao, JSON.stringify(detalhe)],
+  )
+  if (!rowCount) log.warn('onboardingPagamento', `situação de recebedor ${gateway}/${recebedorId} sem psicólogo correspondente`)
+  else log.info('onboardingPagamento', `recebedor ${gateway}/${recebedorId} → ${situacao}`)
+  return !!rowCount
 }
 
 /**
@@ -164,7 +241,7 @@ export async function garantirRecipientAtivo(psicologoId: string): Promise<Onboa
   }
 
   try {
-    const criado = await criarRecipient({
+    const criado = await gatewayPadrao().criarRecebedor({
       tipoPessoa: d.tipoPessoa,
       documento: d.documento,
       razaoSocial: d.razaoSocial,
@@ -187,16 +264,12 @@ export async function garantirRecipientAtivo(psicologoId: string): Promise<Onboa
         titularNome: d.titularNome, titularDocumento: d.titularDocumento,
       },
     })
-    await db.query(
-      `UPDATE psicologos SET pagarme_recipient_id = $2, pgm_ambiente = $3, pgm_onboarding_em = NOW()
-        WHERE id = $1`,
-      [psicologoId, criado.recipientId, ambientePagarme()],
-    )
-    log.ok('onboardingPagamento', `recebedor recriado p/ psicologo=${psicologoId} → ${criado.recipientId} (${ambientePagarme()})`)
+    await gravarRecebedor(psicologoId, criado)
+    log.ok('onboardingPagamento', `recebedor recriado p/ psicologo=${psicologoId} → ${criado.gateway}/${criado.id} (${criado.ambiente})`)
     return await lerStatusOnboarding(psicologoId)
   } catch (err) {
-    const motivo = err instanceof PagarmeRecipientError
-      ? String((err.detalhe as any)?.message ?? err.message)
+    const motivo = err instanceof RecebedorErro
+      ? String(err.mensagemGeral ?? (err.detalhe as any)?.message ?? err.message)
       : err instanceof Error ? err.message : String(err)
     log.warn('onboardingPagamento', `não recriou recebedor de ${psicologoId}: ${motivo}`)
     if (r) await r.set(chaveFreio, '1', { EX: 3600 }).catch(() => { /* freio é best-effort */ })
@@ -224,6 +297,15 @@ export type OnboardingDetalhes = {
     titularNome: string | null
   }
   chavePix: { tipo: TipoChavePix; valorMasc: string } | null
+  /** Recebedor gravado: gateway, situação cadastral e as etapas do KYC (Asaas). */
+  recebedor: {
+    gateway: Gateway | null
+    situacao: SituacaoRecebedor | null
+    /** Asaas: status por etapa (`APPROVED` | `AWAITING_APPROVAL` | `PENDING` | `REJECTED`). */
+    etapas: { commercialInfo?: string; bankAccountInfo?: string; documentation?: string; general?: string } | null
+    /** E-mail de login — o Asaas manda o acesso à subconta para ele. */
+    email: string | null
+  }
 }
 
 /**
@@ -237,14 +319,16 @@ export async function lerOnboardingDetalhes(psicologoId: string): Promise<Onboar
             pgm_banco_codigo, pgm_banco_agencia, pgm_banco_agencia_dv,
             pgm_banco_conta, pgm_banco_conta_dv, pgm_banco_tipo, pgm_titular_nome,
             pgm_chave_pix_tipo, pgm_chave_pix_valor,
-            pgm_onboarding_em, pagarme_recipient_id
+            pgm_onboarding_em, pagarme_recipient_id,
+            recebedor_gateway, recebedor_situacao, recebedor_situacao_detalhe, email, recebedor_email
        FROM psicologos WHERE id = $1 LIMIT 1`,
     [psicologoId],
   )
   const r = rows[0]
   if (!r) {
     return { completo: false, recipientInvalido: false, tipoPessoa: null, documentoMasc: null, razaoSocial: null, dataNascimento: null,
-      banco: { codigo: null, agencia: null, contaMasc: null, tipo: null, titularNome: null }, chavePix: null }
+      banco: { codigo: null, agencia: null, contaMasc: null, tipo: null, titularNome: null }, chavePix: null,
+      recebedor: { gateway: null, situacao: null, etapas: null, email: null } }
   }
 
   const docPlain = r.pgm_documento ? tryDecrypt(r.pgm_documento) : null
@@ -272,7 +356,32 @@ export async function lerOnboardingDetalhes(psicologoId: string): Promise<Onboar
       titularNome: r.pgm_titular_nome,
     },
     chavePix,
+    recebedor: {
+      gateway: (r.recebedor_gateway ?? (r.pagarme_recipient_id ? 'pagarme' : null)) as Gateway | null,
+      situacao: (r.recebedor_situacao ?? null) as SituacaoRecebedor | null,
+      etapas: r.recebedor_situacao_detalhe ?? null,
+      // Alias quando a subconta foi aberta com e-mail alternativo (migration 056).
+      email: r.recebedor_email ?? r.email ?? null,
+    },
   }
+}
+
+/**
+ * Consulta agora a situação da subconta no Asaas (botão "Atualizar situação"
+ * do Perfil) — a mesma leitura da conciliação do cron, só para esta conta.
+ * `null` = não há subconta Asaas com chave para consultar.
+ */
+export async function atualizarSituacaoDoPsicologo(psicologoId: string): Promise<SituacaoRecebedor | null> {
+  const { rows } = await db.query<{ recebedor_id: string | null; recebedor_api_key: string | null; recebedor_gateway: string | null }>(
+    `SELECT recebedor_id, recebedor_api_key, recebedor_gateway FROM psicologos WHERE id = $1 LIMIT 1`,
+    [psicologoId],
+  )
+  const r = rows[0]
+  if (r?.recebedor_gateway !== 'asaas' || !r.recebedor_id || !r.recebedor_api_key) return null
+  const { lerSituacao } = await import('@/server/lib/pagamentos/asaas/recebedor')
+  const st = await lerSituacao(decrypt(r.recebedor_api_key))
+  await atualizarSituacaoRecebedor('asaas', r.recebedor_id, st.situacao, st.detalhe as unknown as Record<string, unknown>)
+  return st.situacao
 }
 
 export type AtualizarChavePixResult =
@@ -507,8 +616,13 @@ export async function lerRascunhoOnboarding(psicologoId: string): Promise<Rascun
 }
 
 export async function salvarOnboarding(psicologoId: string, input: OnboardingInput): Promise<SalvarResult> {
-  const v = validar(input)
+  // Conta bancária e sócio administrador (PJ) só a Pagar.me exige.
+  const pagarme = gatewayPadrao().nome === 'pagarme'
+  const v = validar(input, pagarme)
   if (v) return { ok: false, error: v.error, campo: v.campo }
+  // Sócio só existe na Pagar.me; no Asaas é ignorado (cliente antigo ou
+  // chamada direta mandando campos vazios não pode quebrar o salvar).
+  if (!pagarme) input = { ...input, socio: null }
 
   // Lê dados que viram default no Recipient (email, telefone, nome)
   const { rows } = await db.query<{ nome: string; email: string; telefone: string | null }>(
@@ -517,10 +631,19 @@ export async function salvarOnboarding(psicologoId: string, input: OnboardingInp
   )
   const psi = rows[0]
   if (!psi) return { ok: false, error: 'Psicóloga não encontrada.' }
-  if (!psi.telefone) return { ok: false, error: 'Telefone faltando no cadastro. Atualize no Perfil antes.' }
+  if (!psi.telefone) {
+    // Telefone veio no wizard: grava no cadastro (só tapa buraco, nunca troca).
+    const tel = (input.telefone ?? '').replace(/\D/g, '')
+    if (tel.length !== 10 && tel.length !== 11) {
+      return { ok: false, error: 'Informe seu celular com DDD — o provedor de pagamentos exige.', campo: 'telefone' }
+    }
+    await db.query(`UPDATE psicologos SET telefone = $2 WHERE id = $1 AND (telefone IS NULL OR telefone = '')`, [psicologoId, tel])
+    psi.telefone = tel
+  }
 
   const docNum = input.documento.replace(/\D/g, '')
-  const titularDocNum = input.banco.titularDocumento.replace(/\D/g, '')
+  const banco = input.banco ?? null
+  const titularDocNum = banco ? banco.titularDocumento.replace(/\D/g, '') : null
 
   const enderecoLimpo = {
     cep: input.endereco.cep.replace(/\D/g, ''),
@@ -533,7 +656,7 @@ export async function salvarOnboarding(psicologoId: string, input: OnboardingInp
   }
   const socioCpfNum = input.socio ? input.socio.cpf.replace(/\D/g, '') : null
 
-  const recipientInput: RecipientInput = {
+  const recipientInput: RecebedorInput = {
     tipoPessoa: input.tipoPessoa,
     documento: docNum,
     razaoSocial: input.razaoSocial.trim(),
@@ -555,16 +678,19 @@ export async function salvarOnboarding(psicologoId: string, input: OnboardingInp
           endereco: enderecoLimpo,
         }
       : null,
-    banco: {
-      codigo: input.banco.codigo,
-      agencia: input.banco.agencia.replace(/\D/g, ''),
-      agenciaDv: input.banco.agenciaDv?.replace(/\D/g, '') || null,
-      conta: input.banco.conta.replace(/\D/g, ''),
-      contaDv: input.banco.contaDv.replace(/\D/g, ''),
-      tipo: input.banco.tipo,
-      titularNome: input.banco.titularNome.trim(),
-      titularDocumento: titularDocNum,
-    },
+    tipoEmpresa: input.tipoPessoa === 'PJ' ? (input.tipoEmpresa ?? null) : null,
+    banco: banco
+      ? {
+          codigo: banco.codigo,
+          agencia: banco.agencia.replace(/\D/g, ''),
+          agenciaDv: banco.agenciaDv?.replace(/\D/g, '') || null,
+          conta: banco.conta.replace(/\D/g, ''),
+          contaDv: banco.contaDv.replace(/\D/g, ''),
+          tipo: banco.tipo,
+          titularNome: banco.titularNome.trim(),
+          titularDocumento: titularDocNum!,
+        }
+      : null,
   }
 
   /*
@@ -591,14 +717,14 @@ export async function salvarOnboarding(psicologoId: string, input: OnboardingInp
          pgm_razao_social = $4,
          pgm_data_nascimento = $5,
          pgm_renda_centavos = $6,
-         pgm_banco_codigo = $7,
-         pgm_banco_agencia = $8,
-         pgm_banco_agencia_dv = $9,
-         pgm_banco_conta = $10,
-         pgm_banco_conta_dv = $11,
-         pgm_banco_tipo = $12,
-         pgm_titular_nome = $13,
-         pgm_titular_documento = $14,
+         pgm_banco_codigo = CASE WHEN $31::boolean THEN $7 ELSE pgm_banco_codigo END,
+         pgm_banco_agencia = CASE WHEN $31::boolean THEN $8 ELSE pgm_banco_agencia END,
+         pgm_banco_agencia_dv = CASE WHEN $31::boolean THEN $9 ELSE pgm_banco_agencia_dv END,
+         pgm_banco_conta = CASE WHEN $31::boolean THEN $10 ELSE pgm_banco_conta END,
+         pgm_banco_conta_dv = CASE WHEN $31::boolean THEN $11 ELSE pgm_banco_conta_dv END,
+         pgm_banco_tipo = CASE WHEN $31::boolean THEN $12 ELSE pgm_banco_tipo END,
+         pgm_titular_nome = CASE WHEN $31::boolean THEN $13 ELSE pgm_titular_nome END,
+         pgm_titular_documento = CASE WHEN $31::boolean THEN $14 ELSE pgm_titular_documento END,
          pgm_chave_pix_tipo = $15,
          pgm_chave_pix_valor = $16,
          pgm_end_cep = $17,
@@ -621,12 +747,13 @@ export async function salvarOnboarding(psicologoId: string, input: OnboardingInp
          -- CNPJ e $30 vem null, então nada muda.
          cpf = COALESCE(cpf, $30)
        WHERE id = $1`,
+      // $31: veio conta bancária? Sem ela (Asaas) as colunas pgm_banco_* ficam como estão.
       [
         psicologoId, input.tipoPessoa,
         encrypt(docNum), input.razaoSocial.trim(), input.dataNascimento, input.rendaCentavos,
-        input.banco.codigo, input.banco.agencia.replace(/\D/g, ''), input.banco.agenciaDv?.replace(/\D/g, '') || null,
-        input.banco.conta.replace(/\D/g, ''), input.banco.contaDv.replace(/\D/g, ''),
-        input.banco.tipo, input.banco.titularNome.trim(), encrypt(titularDocNum),
+        banco?.codigo ?? null, banco?.agencia.replace(/\D/g, '') ?? null, banco?.agenciaDv?.replace(/\D/g, '') || null,
+        banco?.conta.replace(/\D/g, '') ?? null, banco?.contaDv.replace(/\D/g, '') ?? null,
+        banco?.tipo ?? null, banco?.titularNome.trim() ?? null, titularDocNum ? encrypt(titularDocNum) : null,
         chavePixTipo, chavePixValor,
         enderecoLimpo.cep, enderecoLimpo.logradouro, enderecoLimpo.numero, enderecoLimpo.complemento,
         enderecoLimpo.bairro, enderecoLimpo.cidade, enderecoLimpo.uf,
@@ -637,6 +764,7 @@ export async function salvarOnboarding(psicologoId: string, input: OnboardingInp
         input.socio?.telefone.replace(/\D/g, '') ?? null,
         input.socio?.rendaMensalCentavos ?? null,
         input.tipoPessoa === 'PF' ? encrypt(docNum) : null,
+        !!banco,
       ],
     )
     log.ok('onboardingPagamento', `rascunho salvo psicologo=${psicologoId}`)
@@ -645,37 +773,40 @@ export async function salvarOnboarding(psicologoId: string, input: OnboardingInp
     return { ok: false, error: 'Não conseguimos salvar seus dados agora. Tente novamente.' }
   }
 
-  let recipientId: string
+  let criado: RecebedorCriado
   try {
-    const r = await criarRecipient(recipientInput)
-    recipientId = r.recipientId
+    criado = await gatewayPadrao().criarRecebedor(recipientInput)
   } catch (err) {
-    if (err instanceof PagarmeRecipientError) {
-      const t = traduzirRecusa(err.campos, err.status, err.mensagemGeral)
-      log.err('onboardingPagamento', `pagar.me recusou — campo=${t.campo ?? 'desconhecido'}`, err.detalhe)
+    if (err instanceof RecebedorErro) {
+      const t = err.gateway === 'asaas'
+        ? traduzirRecusaAsaas(err.campos.flatMap(c => c.mensagens), err.status)
+        : traduzirRecusa(err.campos, err.status, err.mensagemGeral)
+      log.err('onboardingPagamento', `${err.gateway} recusou — campo=${t.campo ?? 'desconhecido'}`, err.detalhe)
       return { ok: false, error: t.error, campo: t.campo }
     }
-    log.err('onboardingPagamento', 'pagar.me recusou', err)
-    return { ok: false, error: 'Não foi possível registrar seus dados no Pagar.me. Tente novamente em alguns minutos.' }
+    log.err('onboardingPagamento', `${gatewayPadrao().nome} recusou`, err)
+    return { ok: false, error: 'Não foi possível registrar seus dados no provedor de pagamentos. Tente novamente em alguns minutos.' }
   }
+  const recipientId = criado.id
 
   // Recebedor criado: agora sim o onboarding está completo.
   try {
-    await db.query(
-      // `pgm_ambiente` anda junto do recipient: o ID sozinho não diz se veio do
-      // sandbox ou da produção, e o do sandbox não existe na live.
-      `UPDATE psicologos SET pagarme_recipient_id = $2, pgm_ambiente = $3, pgm_onboarding_em = NOW() WHERE id = $1`,
-      [psicologoId, recipientId, ambientePagarme()],
-    )
+    // Gateway e ambiente andam junto do id (o id sozinho não diz de onde veio).
+    // Asaas: a apiKey da subconta só vem AGORA — cifrada nesta mesma escrita.
+    await gravarRecebedor(psicologoId, criado)
   } catch (err) {
-    log.err('onboardingPagamento', 'recebedor criado mas não gravado', err)
+    // Asaas: sem a gravação a apiKey se perde (recuperar exige whitelist de IP,
+    // spike §1). O id fica no log; numa nova tentativa a subconta é reaproveitada
+    // pelo CPF/CNPJ — sem apiKey, mas com o walletId que o split precisa.
+    log.err('onboardingPagamento', `recebedor ${criado.gateway}/${criado.id} (wallet ${criado.walletId}) criado mas NÃO gravado`, err)
     return { ok: false, error: 'Recebedor criado, mas não conseguimos salvar seus dados. Suporte foi notificado.' }
   }
   log.ok('onboardingPagamento', `concluído psicologo=${psicologoId} recipient=${recipientId}`)
   return { ok: true, recipientId }
 }
 
-function validar(input: OnboardingInput): { error: string; campo: CampoErro } | null {
+function validar(input: OnboardingInput, exigeBanco = true): { error: string; campo: CampoErro } | null {
+  // exigeBanco = Pagar.me: também é ela que exige o sócio administrador na PJ.
   if (input.tipoPessoa !== 'PF' && input.tipoPessoa !== 'PJ')
     return { error: 'Escolha PF ou PJ.', campo: 'tipoPessoa' }
 
@@ -720,7 +851,7 @@ function validar(input: OnboardingInput): { error: string; campo: CampoErro } | 
     return { error: 'UF deve ter 2 letras (ex.: DF).', campo: 'endUf' }
 
   // Sócio administrador — a Pagar.me exige ao menos um para PJ.
-  if (input.tipoPessoa === 'PJ') {
+  if (input.tipoPessoa === 'PJ' && exigeBanco) {
     const s = input.socio
     if (!s) return { error: 'Informe o sócio administrador da empresa.', campo: 'socioNome' }
     if (s.nome.trim().split(/\s+/).length < 2)
@@ -739,6 +870,10 @@ function validar(input: OnboardingInput): { error: string; campo: CampoErro } | 
       return { error: 'Telefone do sócio inválido (com DDD).', campo: 'socioTelefone' }
   }
 
+  if (input.tipoPessoa === 'PJ' && input.tipoEmpresa && !['MEI', 'LIMITED', 'INDIVIDUAL', 'ASSOCIATION'].includes(input.tipoEmpresa))
+    return { error: 'Escolha o tipo de empresa.', campo: 'tipoEmpresa' }
+
+  if (!input.banco) return exigeBanco ? { error: 'Escolha o banco.', campo: 'bancoCodigo' } : validarChavePix(input)
   if (!input.banco.codigo || !/^\d{2,4}$/.test(input.banco.codigo))
     return { error: 'Escolha o banco.', campo: 'bancoCodigo' }
   if (!input.banco.agencia.replace(/\D/g, ''))
@@ -757,6 +892,10 @@ function validar(input: OnboardingInput): { error: string; campo: CampoErro } | 
   if (!cpfCnpjValido(titDoc))
     return { error: 'Documento do titular inválido.', campo: 'titularDocumento' }
 
+  return validarChavePix(input)
+}
+
+function validarChavePix(input: OnboardingInput): { error: string; campo: CampoErro } | null {
   if (input.chavePix) {
     const tipos: TipoChavePix[] = ['cpf', 'cnpj', 'email', 'celular', 'aleatoria']
     if (!tipos.includes(input.chavePix.tipo))

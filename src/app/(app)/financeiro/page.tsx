@@ -45,7 +45,7 @@ export default async function FinanceiroPage({ searchParams }: { searchParams: S
   resumoFrases.push(f.totaisMes.recebido > 0
     ? `Você recebeu ${formatBRL(f.totaisMes.recebido)} neste período.`
     : 'Nenhum valor recebido neste período.')
-  if (f.totaisMes.pendente > 0) resumoFrases.push(`Existem ${formatBRL(f.totaisMes.pendente)} pendentes de confirmação.`)
+  if (f.totaisMes.pendente > 0) resumoFrases.push(`${formatBRL(f.totaisMes.pendente)} aguardando pagamento.`)
 
   const filtradas = f.cobrancas.filter(c => {
     if (busca && !c.pacienteNome.toLowerCase().includes(busca)) return false
@@ -92,7 +92,7 @@ export default async function FinanceiroPage({ searchParams }: { searchParams: S
       {/* Linha 1 — visão geral */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 12, marginBottom: 16 }}>
         <Kpi label={`Recebido (${labelPeriodoCurto(periodo)})`} value={formatBRL(f.totaisMes.recebido)} color="sage" />
-        <Kpi label="Líquido estimado"     value={formatBRL(f.liquidoEstimado)} hint={f.taxaAdmPlataforma > 0 ? 'Bruto − taxas Pagar.me − taxa administrativa' : 'Bruto − taxas Pagar.me'} />
+        <Kpi label="Líquido estimado"     value={formatBRL(f.liquidoEstimado)} hint={f.taxaAdmPlataforma > 0 ? 'Bruto − taxas do gateway − taxa administrativa' : 'Bruto − taxas do gateway'} />
         <Kpi label="Previsão de recebimento" value={formatBRL(f.aReceber30d)} hint="Próximos 30 dias" />
         <Kpi label="Pendente"             value={formatBRL(f.totaisMes.pendente)} color="amber" />
       </div>
@@ -166,7 +166,7 @@ export default async function FinanceiroPage({ searchParams }: { searchParams: S
             <thead>
               <tr style={{ background: 'var(--surface)', textAlign: 'left' }}>
                 <Th>Sessão</Th><Th>Paciente</Th><Th>Método</Th><Th>Valor</Th>
-                <Th>Status</Th><Th>NF</Th><Th>Confirmação</Th><Th>Cai em</Th><Th>Ações</Th>
+                <Th>Status</Th><Th>NF</Th><Th title="Depois da sessão o paciente recebe no WhatsApp: a sessão aconteceu? Sem resposta no prazo, vale como confirmada.">Sessão realizada?</Th><Th>Cai em</Th><Th>Ações</Th>
               </tr>
             </thead>
             <tbody>
@@ -189,6 +189,11 @@ export default async function FinanceiroPage({ searchParams }: { searchParams: S
                       <span className={`badge ${pagamentoColor(c.pagamentoStatus)}`}>
                         {labelPagamento(c.pagamentoStatus)}
                       </span>
+                      {c.estornoPendente && (
+                        <div style={{ fontSize: 11, color: 'var(--amber)', marginTop: 3 }} title="A sessão foi cancelada com direito a reembolso; o estorno será repetido automaticamente.">
+                          estorno pendente
+                        </div>
+                      )}
                     </Td>
                     <Td>
                       <NfCell
@@ -246,17 +251,19 @@ function Kpi({ label, value, color, hint }: {
 function ConfirmBadge({ status }: { status: StatusConfirmacao }) {
   if (!status) return <span style={{ color: 'var(--faint)', fontSize: 12 }}>—</span>
   const map = {
-    aguardando: { label: 'Aguardando', color: 'amber' },
-    sim:        { label: 'Confirmado', color: 'sage' },
-    silencio:   { label: 'Confirmação automática', color: 'muted' },
-    contestou:  { label: 'Contestado', color: 'rose' },
+    // Confirmação PÓS-SESSÃO pelo paciente (Fluxo 7), não pagamento — os
+    // rótulos dizem de quem é a resposta para não confundir com a cobrança.
+    aguardando: { label: 'Aguardando paciente', color: 'amber' },
+    sim:        { label: 'Paciente confirmou', color: 'sage' },
+    silencio:   { label: 'Sem resposta (vale)', color: 'muted' },
+    contestou:  { label: 'Paciente contestou', color: 'rose' },
   } as const
   const m = map[status]
   return <span className={`badge ${m.color}`}>{m.label}</span>
 }
 
-function Th({ children }: { children: React.ReactNode }) {
-  return <th style={{ padding: '10px 14px', fontWeight: 500, fontSize: 11, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '.06em' }}>{children}</th>
+function Th({ children, title }: { children: React.ReactNode; title?: string }) {
+  return <th title={title} style={{ padding: '10px 14px', fontWeight: 500, fontSize: 11, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '.06em' }}>{children}</th>
 }
 function Td({ children, style }: { children: React.ReactNode; style?: React.CSSProperties }) {
   return <td style={{ padding: '10px 14px', ...style }}>{children}</td>

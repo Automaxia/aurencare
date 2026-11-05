@@ -93,16 +93,8 @@ export function PatientProfileForm({ pacienteId, initial }: { pacienteId: string
       </div>
 
       <style jsx>{`
-        input, textarea {
-          width: 100%; padding: 8px 12px; border-radius: var(--field-radius);
-          border: 1px solid var(--field-border); background: var(--field-bg);
-          font-size: 13px; font-family: inherit; color: var(--ink); outline: none;
-          transition: border-color .15s var(--ease), box-shadow .15s var(--ease);
-        }
-        input:hover, textarea:hover { border-color: var(--field-border-hover); }
-        input:focus, textarea:focus { border-color: var(--accent); box-shadow: var(--field-ring); }
-        input:user-invalid, textarea:user-invalid { border-color: var(--rose); }
-        input:user-invalid:focus, textarea:user-invalid:focus { box-shadow: var(--field-ring-error); }
+        /* altura/borda/foco: base de campos em globals.css */
+        input, textarea { width: 100%; }
         textarea { resize: vertical; }
       `}</style>
     </div>
@@ -111,8 +103,8 @@ export function PatientProfileForm({ pacienteId, initial }: { pacienteId: string
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
-    <label style={{ display: 'grid', gap: 4 }}>
-      <span style={{ fontSize: 11, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '.06em' }}>{label}</span>
+    <label className="field">
+      <span className="field-lbl">{label}</span>
       {children}
     </label>
   )

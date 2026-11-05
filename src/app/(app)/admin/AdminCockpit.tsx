@@ -135,8 +135,7 @@ export function AdminCockpit({ usuarios, adminId }: { usuarios: UsuarioAdmin[]; 
                 <Fragment key={u.id}>
                   <tr style={{ borderTop: '1px solid var(--border)' }}>
                     <td style={{ ...td, textAlign: 'center' }}>
-                      <button onClick={() => toggleExpand(u)} className="btn ghost sm" title="Histórico de acessos"
-                        style={{ padding: '2px 6px', color: 'var(--muted)' }}>{aberto ? '▾' : '▸'}</button>
+                      <button onClick={() => toggleExpand(u)} className="btn ghost xs" title="Histórico de acessos">{aberto ? '▾' : '▸'}</button>
                     </td>
                     <td style={td}>
                       <div style={{ fontWeight: 500, color: 'var(--ink-soft)' }}>

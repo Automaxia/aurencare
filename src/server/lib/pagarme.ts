@@ -241,18 +241,35 @@ export async function criarCheckoutCartao(opts: {
 
 /**
  * Reembolso (Fluxo 5).
+ *
+ * Na v5 o estorno é por CHARGE (`DELETE /charges/{charge_id}`), não por order:
+ * o antigo `DELETE /orders/{id}` não estornava nada (docs/asaas/sdd.md §1,
+ * defeito 1). Como o charge id não era gravado, buscamos na order — vale para
+ * as cobranças antigas também. `valorCentavos` ausente = estorno total.
  */
-export async function reembolsar(orderId: string): Promise<boolean> {
+export async function reembolsar(orderId: string, valorCentavos?: number): Promise<boolean> {
   if (orderId.startsWith('mock_')) {
     log.warn('pagarme', `[mock] reembolso de ${orderId}`)
     return true
   }
   try {
-    await axios.delete(`${BASE}/orders/${orderId}`, { auth: auth(), timeout: 10_000 })
-    log.ok('pagarme', `reembolso emitido para ${orderId}`)
+    const { data: order } = await axios.get(`${BASE}/orders/${orderId}`, { auth: auth(), timeout: 10_000 })
+    const charges: any[] = (order?.charges ?? []).filter((c: any) => c?.status === 'paid' || c?.status === 'overpaid')
+    if (!charges.length) {
+      log.err('pagarme', `reembolso de ${orderId}: nenhuma charge paga na order`, order?.charges?.map((c: any) => c?.status))
+      return false
+    }
+    for (const c of charges) {
+      await axios.delete(`${BASE}/charges/${c.id}`, {
+        auth: auth(), timeout: 15_000,
+        data: valorCentavos ? { amount: valorCentavos } : undefined,
+      })
+    }
+    log.ok('pagarme', `reembolso emitido para ${orderId} (${charges.map(c => c.id).join(', ')})`)
     return true
   } catch (err) {
-    log.err('pagarme', `falha no reembolso de ${orderId}`, err instanceof Error ? err.message : err)
+    const detalhe = axios.isAxiosError(err) ? JSON.stringify(err.response?.data ?? err.message) : err
+    log.err('pagarme', `falha no reembolso de ${orderId}`, detalhe)
     return false
   }
 }

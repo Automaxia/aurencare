@@ -48,7 +48,7 @@ export function PatientCard({ p }: { p: PatientCardData }) {
             <div>
               <div className="ptc-name" style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
                 <Sigilo>{p.nome}</Sigilo>
-                {p.demo && <span className="tag t-info" style={{ fontSize: 9 }}>demonstração</span>}
+                {p.demo && <span className="tag t-info sm">demonstração</span>}
               </div>
               <div className="ptc-meta">
                 {p.sessoesTotais > 0
@@ -58,7 +58,7 @@ export function PatientCard({ p }: { p: PatientCardData }) {
             </div>
           </div>
           {p.badgeLabel && p.badgeKlass
-            ? <span className={`tag t-${p.badgeKlass}`} style={{ fontSize: 10 }}>{p.badgeLabel}</span>
+            ? <span className={`tag t-${p.badgeKlass}`}>{p.badgeLabel}</span>
             : p.proximaHoje
               ? <span className="ptc-dot" style={{ background: 'var(--sage)' }} title="Sessão hoje" />
               : null}

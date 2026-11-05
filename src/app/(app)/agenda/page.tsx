@@ -71,7 +71,7 @@ function paraBloco(s: Sessao) {
       status: s.status,
       temRegistro: !sessaoVazia(s),
       pagamentoStatus: s.pagamentoStatus,
-      temCobrancaAberta: !!s.pagarmeOrderId && s.pagamentoStatus === 'pendente',
+      temCobrancaAberta: !!s.cobrancaId && s.pagamentoStatus === 'pendente',
     }),
     temAnotacaoViva: temAnotacaoViva(s.indicadores),
   }

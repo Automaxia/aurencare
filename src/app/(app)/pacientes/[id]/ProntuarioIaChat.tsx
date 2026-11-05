@@ -298,7 +298,7 @@ export function ProntuarioIaChat({ pacienteId }: { pacienteId: string }) {
           type="submit"
           disabled={pensando || !entrada.trim()}
           className="btn primary"
-          style={{ alignSelf: 'flex-end', padding: '10px 18px' }}
+          style={{ alignSelf: 'flex-end', minHeight: 44, padding: '0 18px' }}
         >
           {pensando ? '…' : 'Enviar'}
         </button>

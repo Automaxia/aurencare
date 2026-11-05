@@ -137,7 +137,7 @@ export function PostSessionModal(p: Props) {
           ) : cobranca.estado === 'ok' ? (
             <span style={{ color: 'var(--sage)' }}>cobrança reenviada ao paciente ✓</span>
           ) : (
-            <button className="btn ghost" style={{ padding: 0, color: cobranca.estado === 'erro' ? 'var(--rose)' : 'var(--amber)' }}
+            <button className="btn ghost" style={{ padding: 0, minHeight: 0, color: cobranca.estado === 'erro' ? 'var(--rose)' : 'var(--amber)' }}
               onClick={reenviarCobranca} disabled={cobranca.estado === 'enviando'}>
               {cobranca.estado === 'enviando'
                 ? 'reenviando…'
@@ -152,7 +152,7 @@ export function PostSessionModal(p: Props) {
           <div style={{ background: 'var(--amber-lo, rgba(176,125,64,.10))', borderRadius: 10, padding: '10px 14px', marginBottom: 12, fontSize: 12, color: 'var(--amber)', lineHeight: 1.5 }}>
             O rascunho automático não apareceu agora — pode ter demorado mais que o normal pra gerar. Tente carregar o laudo, ou escreva o resumo manualmente abaixo e assine normalmente.
             <div style={{ marginTop: 8 }}>
-              <button className="btn ghost" style={{ padding: '4px 10px', fontSize: 12, color: 'var(--amber)' }}
+              <button className="btn ghost sm" style={{ color: 'var(--amber)' }}
                 onClick={carregarLaudo} disabled={carregandoLaudo}>
                 {carregandoLaudo ? 'Carregando…' : '↻ Tentar carregar o laudo gerado'}
               </button>

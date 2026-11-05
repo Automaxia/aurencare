@@ -163,7 +163,7 @@ export default async function PacientePerfilPage({ params, searchParams }: {
         title={<Sigilo>{p.nome}</Sigilo>}
         subtitle={sub.join(' · ')}
         actions={
-          <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+          <>
             <ImportarSessao pacienteId={p.id} />
             <ExportarProntuario pacienteId={p.id} sessoesAssinadas={sessoesAssinadas} />
             <AcoesPaciente
@@ -171,7 +171,7 @@ export default async function PacientePerfilPage({ params, searchParams }: {
               inicial={{ nome: p.nome, telefone: p.telefone, email: p.email, status: arquivado ? 'inativo' : 'ativo' }}
               totalSessoes={totalSessoes}
             />
-          </div>
+          </>
         }
       />
 

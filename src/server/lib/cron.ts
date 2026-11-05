@@ -10,6 +10,9 @@ import { liberarSilenciosos } from '@/server/services/confirmacaoSessao'
 import { interromperSessao } from '@/server/services/sessoes'
 import { rebaixarCortesiasInativas } from '@/server/services/assinatura'
 import { sqlLembreteAtivo } from '@/server/services/lembretes'
+import {
+  cancelarPixVencidos, reprocessarWebhooks, repetirEstornosPendentes, reconciliarSubcontas,
+} from '@/server/services/manutencaoPagamentos'
 import { env } from './env'
 import { log } from './log'
 import { formatDateTimeBR } from '@/lib/formatters'
@@ -43,7 +46,14 @@ export function startCron() {
     rebaixarCortesiasInativas().catch(err => log.err('cron', 'rebaixar cortesias inativas falhou', err))
   }, { timezone: 'America/Sao_Paulo' })
 
-  log.ok('cron', 'agendamentos registrados (24h@18h · 2h@30min · 15min@5min · liberar@5min · perguntar-metodo@30min · destravar@15min · cortesia-inativa@04h10)')
+  // Pagamentos (docs/asaas Fase 3): PIX vencido @5min · webhooks com erro @10min ·
+  // estornos pendentes @hora · situação das subcontas 2×/dia. Cada um nunca lança.
+  cron.schedule('*/5 * * * *', () => { void cancelarPixVencidos().catch(err => log.err('cron', 'pix vencido', err)) }, { timezone: 'America/Sao_Paulo' })
+  cron.schedule('*/10 * * * *', () => { void reprocessarWebhooks().catch(err => log.err('cron', 'webhooks', err)) }, { timezone: 'America/Sao_Paulo' })
+  cron.schedule('20 * * * *', () => { void repetirEstornosPendentes().catch(err => log.err('cron', 'estornos', err)) }, { timezone: 'America/Sao_Paulo' })
+  cron.schedule('40 7,19 * * *', () => { void reconciliarSubcontas().catch(err => log.err('cron', 'subcontas', err)) }, { timezone: 'America/Sao_Paulo' })
+
+  log.ok('cron', 'agendamentos registrados (24h@18h · 2h@30min · 15min@5min · liberar@5min · perguntar-metodo@30min · destravar@15min · cortesia-inativa@04h10 · pix@5min · webhooks@10min · estornos@hora · subcontas@07h40/19h40)')
 }
 
 /** Horas em 'em_curso' após as quais a sessão é considerada abandonada. */

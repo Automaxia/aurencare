@@ -164,7 +164,12 @@ Premissa adicional adotada neste produto:
   gerada e roteamento por telefone (blindado contra número duplicado em
   instância compartilhada). Inclui **áudio** (transcrição de voz recebida).
 
-### 3.9 Pagamentos (Pagar.me)
+### 3.9 Pagamentos (Pagar.me · Asaas)
+> Dois gateways lado a lado; `PAYMENT_GATEWAY` escolhe onde nascem as novas
+> cobranças. No modo **Asaas** não há débito (PIX ou crédito em até 6x, com as
+> parcelas perguntadas no WhatsApp), o recebimento é uma subconta Asaas e a troca
+> de plano é proporcional. Requisitos completos em [asaas/spec.md](./asaas/spec.md)
+> (RF-PG-*).
 - RF-70 PIX (QR, expira 30min), crédito (até 6x), débito. O PIX exige **CPF do
   pagador** (`customer.document`) — sem ele a Pagar.me reprova a charge e devolve
   a order sem QR.

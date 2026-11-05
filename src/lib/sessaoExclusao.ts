@@ -72,7 +72,8 @@ export function sqlTemRegistro(alias = ''): string {
 
 export function sqlTemCobrancaAberta(alias = ''): string {
   const c = alias ? `${alias}.` : ''
-  return `(${c}pagarme_order_id IS NOT NULL AND COALESCE(${c}pagamento_status, '') = 'pendente')`
+  // cobranca_id (053) cobre os dois gateways; pagarme_order_id cobre linha gravada por pod antigo.
+  return `(COALESCE(${c}cobranca_id, ${c}pagarme_order_id) IS NOT NULL AND COALESCE(${c}pagamento_status, '') = 'pendente')`
 }
 
 /**

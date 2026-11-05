@@ -283,7 +283,7 @@ function ObjetivoCard({ o, valores, observacao, gas, notas, onStatus, onDelete, 
         </div>
       )}
 
-      <button onClick={toggle} className="btn ghost sm" style={{ marginTop: 14, padding: '4px 10px', fontSize: 11 }}>
+      <button onClick={toggle} className="btn ghost sm" style={{ marginTop: 14 }}>
         {expandido ? '▲ Fechar histórico' : '▼ Registrar / ver histórico'}
       </button>
 
@@ -450,7 +450,7 @@ function EvolucaoPanel({ evolucao, onMudou }: { evolucao: EvolucaoObjetivo; onMu
             placeholder={objetivo.metricaTipo === 'gas' ? '-2 a +2' : ''}
           />
           <Inp label="Nota (opcional)" value={nota} onChange={setNota} placeholder="" />
-          <button type="button" className="btn primary" onClick={adicionar} disabled={salvando} style={{ height: 36 }}>
+          <button type="button" className="btn primary" onClick={adicionar} disabled={salvando}>
             {salvando ? '…' : '+ Registrar'}
           </button>
         </div>
@@ -488,7 +488,7 @@ function EvolucaoPanel({ evolucao, onMudou }: { evolucao: EvolucaoObjetivo; onMu
                   )}
                   {m.nota && <span style={{ color: 'var(--muted)', flex: 1 }}>{m.nota}</span>}
                   {!m.nota && <span style={{ flex: 1 }} />}
-                  <button onClick={() => remover(m.id)} className="btn ghost" style={{ padding: '2px 8px', fontSize: 11, color: 'var(--rose)' }}>×</button>
+                  <button onClick={() => remover(m.id)} className="btn ghost danger xs">×</button>
                 </li>
               )
             })}
@@ -516,11 +516,6 @@ function Inp({ label, value, onChange, placeholder }: { label: string; value: st
       <input
         value={value} onChange={e => onChange(e.target.value)} placeholder={placeholder}
         inputMode="decimal"
-        style={{
-          padding: '9px 12px', borderRadius: 8,
-          border: '1px solid var(--border)', background: 'white',
-          fontSize: 13, fontFamily: 'inherit', color: 'var(--ink)', outline: 'none',
-        }}
       />
     </label>
   )

@@ -83,7 +83,7 @@ function TScoreCard({ serie, k }: { serie: Ponto[]; k: number }) {
     <div style={cardStyle}>
       <div style={headRow}>
         <span style={cardTitle}>Pontuação de Progresso <span style={{ color: 'var(--muted)', fontWeight: 400 }}>(T-Score)</span></span>
-        <button type="button" className="btn ghost" onClick={() => setExplica(true)} style={{ fontSize: 11.5, padding: '3px 10px', display: 'inline-flex', alignItems: 'center', gap: 5 }}>
+        <button type="button" className="btn ghost sm" onClick={() => setExplica(true)}>
           <span style={{ width: 15, height: 15, borderRadius: '50%', border: '1.5px solid currentColor', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, fontWeight: 700 }}>?</span>
           Entenda o T-Score
         </button>
@@ -214,7 +214,7 @@ function ExplicaTScore({ onClose }: { onClose: () => void }) {
       <div className="card" onClick={e => e.stopPropagation()} style={{ maxWidth: 460, width: '100%', padding: 22 }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
           <h3 style={{ margin: 0, fontSize: 17 }}>O que é o T-Score</h3>
-          <button className="btn ghost" onClick={onClose} aria-label="Fechar" style={{ padding: '2px 9px' }}>✕</button>
+          <button className="btn ghost sm" onClick={onClose} aria-label="Fechar">✕</button>
         </div>
         <p style={{ fontSize: 13.5, color: 'var(--ink-soft)', lineHeight: 1.6, margin: '0 0 12px' }}>
           O T-Score resume <strong>todas as metas GAS deste objetivo</strong> num único número, pra você ver o progresso geral de relance.

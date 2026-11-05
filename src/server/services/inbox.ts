@@ -1,7 +1,7 @@
 import 'server-only'
 import { randomUUID } from 'node:crypto'
 import { db } from '@/server/db/pool'
-import { enviarWA, WA_TEMPLATES } from '@/server/lib/evolution'
+import { enviarWA, WA_TEMPLATES, semDebito, metodosTexto } from '@/server/lib/evolution'
 import { log } from '@/server/lib/log'
 import { gerarCobrancaPix, gerarCobrancaCartao, cancelarSessao, buscarSessao } from './sessoes'
 import { criarOuObterSala } from './salaVideo'
@@ -52,6 +52,9 @@ export async function processarMensagemRecebida(msg: Inbound): Promise<void> {
   //    Aceita a palavra exata ("PIX") OU frases naturais ("quero pagar via
   //    pix", "pode ser no crédito") — ver detectarComandoPagamento.
   // ──────────────────────────────────────────────────────────────────
+  // Asaas: resposta à pergunta de parcelas ("3", "3x", "em 3 vezes").
+  if (semDebito() && (await tratarRespostaParcelas(tel, cmd))) return
+
   const cmdPagamento = detectarComandoPagamento(cmd)
   if (cmdPagamento) {
     const exato = ['PIX', 'CREDITO', 'CRÉDITO', 'DEBITO', 'DÉBITO', 'CONFIRMAR', 'CANCELAR'].includes(cmdUpper)
@@ -59,7 +62,7 @@ export async function processarMensagemRecebida(msg: Inbound): Promise<void> {
     // o remetente já é paciente — evita sequestrar o onboarding de um lead novo
     // que por acaso mencione "pix" na saudação.
     if (exato || (await buscarPacientePorTelefone(tel))) {
-      return processarComandoPagamento({ telefone: tel, cmd: cmdPagamento })
+      return processarComandoPagamento({ telefone: tel, cmd: cmdPagamento, texto: cmd })
     }
   }
 
@@ -355,12 +358,12 @@ async function responderPagamentoFAQ(tel: string, paciente: { id: string; nome: 
     return
   }
   if (pend && pend.status === 'aguardando_pagamento') {
-    await enviarERegistrar(tel, `${nome}, ainda tem um pagamentinho em aberto da sua sessão de ${formatDateTimeBR(pend.data_hora)}. 💜\nSe o link tiver expirado, é só responder *PIX*, *CREDITO* ou *DEBITO* que eu gero outro pra você na hora.`)
+    await enviarERegistrar(tel, `${nome}, ainda tem um pagamentinho em aberto da sua sessão de ${formatDateTimeBR(pend.data_hora)}. 💜\nSe o link tiver expirado, é só responder ${metodosTexto()} que eu gero outro pra você na hora.`)
     return
   }
   await enviarERegistrar(tel,
     `Sobre pagamento 💜\n\n` +
-    `Quando ${psi} marca uma sessão, você recebe aqui o pedidinho — é só responder *PIX*, *CREDITO* ou *DEBITO* e o link chega na hora. A sessão confirma sozinha assim que o pagamento entra. 🤗\n\n` +
+    `Quando ${psi} marca uma sessão, você recebe aqui o pedidinho — é só responder ${metodosTexto()} e o link chega na hora. A sessão confirma sozinha assim que o pagamento entra. 🤗\n\n` +
     `Por enquanto está tudo em dia, ${nome} — nada pendente. 🌿`)
 }
 
@@ -369,7 +372,7 @@ async function responderPagamentoFAQ(tel: string, paciente: { id: string; nome: 
 // Comandos clássicos de pagamento (mantém fluxo existente)
 // ──────────────────────────────────────────────────────────────────
 
-async function processarComandoPagamento(opts: { telefone: string; cmd: string }) {
+async function processarComandoPagamento(opts: { telefone: string; cmd: string; texto?: string }) {
   const { telefone, cmd } = opts
   // Mesmo desempate por relacionamento mais ativo (WhatsApp compartilhado no beta).
   const paciente = await buscarPacientePorTelefone(telefone)
@@ -414,9 +417,27 @@ async function processarComandoPagamento(opts: { telefone: string; cmd: string }
       await enviarERegistrar(telefone, 'Não encontrei uma sessão aguardando pagamento. Avisei quem te atende.')
       return
     }
+    const ehCredito = cmd === 'CREDITO' || cmd === 'CRÉDITO'
+    if (semDebito() && !ehCredito && cmd !== 'PIX') {
+      // Asaas não tem débito online (RF-PG-20).
+      await enviarERegistrar(telefone, WA_TEMPLATES.fluxo2_semDebito())
+      return
+    }
+    if (semDebito() && ehCredito) {
+      // Asaas: as parcelas são escolhidas ANTES da fatura (D-03). "CREDITO 3"
+      // já vem com o número; senão pergunta e espera a resposta.
+      const n = parcelasNoTexto(opts.texto ?? '')
+      if (n == null) {
+        const { rows: [v] } = await db.query<{ valor: string }>(
+          `UPDATE sessoes SET wa_parcelas_perguntado_em = NOW() WHERE id = $1 RETURNING valor`, [sessao.id])
+        await enviarERegistrar(telefone, WA_TEMPLATES.fluxo2_perguntarParcelas(parseFloat(v?.valor ?? '0')))
+        return
+      }
+      return gerarCreditoParcelado(telefone, sessao.id, n)
+    }
     try {
       if (cmd === 'PIX')                                    await gerarCobrancaPix(sessao.id)
-      else if (cmd === 'CREDITO' || cmd === 'CRÉDITO')      await gerarCobrancaCartao(sessao.id, 'credito')
+      else if (ehCredito)                                   await gerarCobrancaCartao(sessao.id, 'credito')
       else                                                  await gerarCobrancaCartao(sessao.id, 'debito')
     } catch (err) {
       const motivo = err instanceof Error ? err.message : ''
@@ -434,7 +455,11 @@ async function processarComandoPagamento(opts: { telefone: string; cmd: string }
         // vez de deixar o paciente esperando o cadastro ser completado.
         const detalhe = motivo === 'cpf_paciente_invalido' ? 'com CPF inválido' : 'sem CPF'
         log.err('wa.inbox', `PIX bloqueado: paciente ${paciente.id} ${detalhe} no cadastro (a Pagar.me exige CPF do pagador). Corrigir em /pacientes/${paciente.id}.`, undefined)
-        await enviarERegistrar(telefone, 'Para gerar o PIX preciso de um dado que ainda falta no seu cadastro. Já avisei quem te atende. Se preferir seguir agora, responda CREDITO ou DEBITO.')
+        // No Asaas o cartão também exige CPF (o pagador é um customer) — oferecer
+        // CREDITO ali só faria o paciente falhar de novo.
+        await enviarERegistrar(telefone, env.paymentGateway === 'asaas'
+          ? 'Para gerar a cobrança preciso de um dado que ainda falta no seu cadastro. Já avisei quem te atende para completar e te enviar em seguida.'
+          : 'Para gerar o PIX preciso de um dado que ainda falta no seu cadastro. Já avisei quem te atende. Se preferir seguir agora, responda CREDITO ou DEBITO.')
       } else {
         log.err('wa.inbox', 'falha ao gerar cobrança', err)
         await enviarERegistrar(telefone, 'Tivemos um problema ao gerar a cobrança. Avisei quem te atende.')
@@ -492,6 +517,64 @@ function limparNome(input: string): string | null {
   ])
   if (NAO_NOME.has(norm)) return null
   return s.split(' ').map(w => w[0]?.toUpperCase() + w.slice(1).toLowerCase()).join(' ')
+}
+
+/**
+ * Número de parcelas numa mensagem: "3", "3x", "em 3 vezes", "credito 3x",
+ * "três vezes". `null` = não citou número. Fora de 1–6 volta o número mesmo
+ * (quem chama responde "de 1 a 6").
+ */
+export function parcelasNoTexto(texto: string): number | null {
+  const t = texto.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase()
+  const dig = t.match(/(?:^|\s|x)(\d{1,2})\s*(?:x|vez|vezes|parcela|parcelas)?(?=\s|$|[.!])/)
+  if (dig) return parseInt(dig[1], 10)
+  const extenso: Record<string, number> = { um: 1, uma: 1, duas: 2, dois: 2, tres: 3, quatro: 4, cinco: 5, seis: 6 }
+  const m = t.match(/\b(uma|um|duas|dois|tres|quatro|cinco|seis)\s+(?:vez|vezes|parcela|parcelas)\b/)
+  if (m) return extenso[m[1]]
+  if (/\ba vista\b/.test(t)) return 1
+  return null
+}
+
+/**
+ * Resposta à pergunta de parcelas (Asaas). Só consome a mensagem quando ela é
+ * SÓ o número ("3", "3x", "em 3 vezes") e há sessão do paciente com a pergunta
+ * feita nas últimas 24h e ainda sem pagar — um "2" solto noutra conversa passa.
+ */
+async function tratarRespostaParcelas(tel: string, texto: string): Promise<boolean> {
+  const limpo = texto.trim().toLowerCase()
+  if (!/^(em\s+)?(\d{1,2}|uma|um|duas|dois|tr[eê]s|quatro|cinco|seis)\s*(x|vez|vezes|parcelas?)?[.!]?$|^[àa] vista[.!]?$/.test(limpo)) return false
+  const n = parcelasNoTexto(texto)
+  if (n == null) return false
+  const paciente = await buscarPacientePorTelefone(tel).catch(() => null)
+  if (!paciente) return false
+  const { rows: [s] } = await db.query<{ id: string }>(
+    `SELECT id FROM sessoes
+      WHERE paciente_id = $1
+        AND wa_parcelas_perguntado_em > NOW() - INTERVAL '24 hours'
+        AND status IN ('aguardando_metodo','aguardando_pagamento')
+        AND pagamento_status IN ('pendente','falhou')
+      ORDER BY wa_parcelas_perguntado_em DESC LIMIT 1`,
+    [paciente.id],
+  )
+  if (!s) return false
+  await gerarCreditoParcelado(tel, s.id, n)
+  return true
+}
+
+async function gerarCreditoParcelado(telefone: string, sessaoId: string, n: number) {
+  if (n < 1 || n > 6) {
+    await enviarERegistrar(telefone, 'Consigo parcelar de *1 a 6* vezes. 💜 Responda só o número, por exemplo *3*.')
+    return
+  }
+  try {
+    await gerarCobrancaCartao(sessaoId, 'credito', n)
+  } catch (err) {
+    const motivo = err instanceof Error ? err.message : ''
+    log.err('wa.inbox', `falha ao gerar cobrança no crédito ${n}x sessao=${sessaoId}`, err)
+    await enviarERegistrar(telefone, motivo === 'cpf_paciente_ausente' || motivo === 'cpf_paciente_invalido'
+      ? 'Para gerar a cobrança preciso de um dado que ainda falta no seu cadastro. Já avisei quem te atende para completar e te enviar em seguida.'
+      : 'Tivemos um problema ao gerar a cobrança. Avisei quem te atende.')
+  }
 }
 
 /**

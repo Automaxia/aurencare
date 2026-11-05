@@ -164,10 +164,10 @@ export default async function PacientesPage({ searchParams }: { searchParams: { 
         title="Pacientes"
         subtitle={`${all.length} ${all.length === 1 ? 'paciente' : 'pacientes'}`}
         actions={
-          <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+          <>
             <DemoControl demoId={demoId} />
             <Link className="btn primary" href="/pacientes/novo">+ Novo paciente</Link>
-          </div>
+          </>
         }
       />
 

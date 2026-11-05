@@ -121,9 +121,6 @@ export function ImportarSessao({ pacienteId }: { pacienteId: string }) {
   )
 }
 
-const inp: React.CSSProperties = {
-  width: '100%', boxSizing: 'border-box', padding: '10px 12px', borderRadius: 8,
-  border: '1px solid var(--border)', background: 'white', fontSize: 13, fontFamily: 'inherit',
-  color: 'var(--ink)', outline: 'none', resize: 'vertical',
-}
+// Altura/borda/foco vêm da base de campos em globals.css (--field-*).
+const inp: React.CSSProperties = { width: '100%', resize: 'vertical' }
 const lbl: React.CSSProperties = { fontSize: 11, color: 'var(--muted)' }

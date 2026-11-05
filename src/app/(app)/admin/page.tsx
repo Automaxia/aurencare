@@ -57,9 +57,10 @@ export default async function AdminPage() {
         subtitle="Cockpit de produto — o Audere está gerando valor?"
         actions={
           <span style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-            <Link href="/admin/whatsapp" className="btn ghost">Diagnóstico WhatsApp →</Link>
-            <Link href="/admin/leads" className="btn ghost">Lista de espera →</Link>
-            <Link href="/admin/custos" className="btn ghost">Economia da plataforma →</Link>
+            <Link href="/admin/pagamentos" className="btn">Operação de pagamentos →</Link>
+            <Link href="/admin/whatsapp" className="btn">Diagnóstico WhatsApp →</Link>
+            <Link href="/admin/leads" className="btn">Lista de espera →</Link>
+            <Link href="/admin/custos" className="btn">Economia da plataforma →</Link>
           </span>
         }
       />
@@ -67,7 +68,7 @@ export default async function AdminPage() {
       {/* BLOCO 0 — FATURAMENTO (a pergunta "a Audere já fatura?") */}
       <Section
         title="Faturamento"
-        hint={`${mesNome} · Pagar.me em ${fat.ambientePagarme === 'live' ? 'produção' : 'sandbox (cobranças de teste)'}`}
+        hint={`${mesNome} · ${fat.gatewayPadrao} em ${fat.ambientePagarme === 'live' ? 'produção' : 'sandbox (cobranças de teste)'}`}
       >
         <div className="card" style={{ padding: '18px 20px', marginBottom: 12, display: 'flex', flexWrap: 'wrap', alignItems: 'baseline', gap: '6px 22px' }}>
           <div>
