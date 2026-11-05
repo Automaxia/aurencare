@@ -168,6 +168,8 @@ Dono: **[conta]** = ação no painel/comercial do Asaas (dono da conta) · **[de
 - ⏳ **P0 [dev]** `PAYMENT_GATEWAY=asaas`.
 - ⏳ **P1** Convidar os 5 psicólogos com `mock_rcp_*` (e quem nunca operou na
   Pagar.me) a refazer o onboarding (RF-PG-15).
+- 🟡 **P0 [conta]** Perguntas ao Asaas (P5) redigidas em
+  [`perguntas-asaas.md`](./perguntas-asaas.md) — falta enviar ao gerente de contas.
 - ⏳ **P1** Acompanhar 30 dias: confirmações, split, estornos, renovações.
 - 🔮 **P2 [dev]** Quando não houver mais cobrança/assinatura Pagar.me aberta:
   remover adaptador Pagar.me, colunas `pagarme_*`, `NEXT_PUBLIC_PAGARME_PUBLIC_KEY`
