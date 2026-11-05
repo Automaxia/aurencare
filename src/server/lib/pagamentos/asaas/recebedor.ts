@@ -5,7 +5,7 @@ import 'server-only'
  */
 import { env } from '../../env'
 import { log } from '../../log'
-import { asaas, AsaasErro, ambienteAsaas } from './cliente'
+import { asaas, AsaasErro, ambienteAsaas, limiteAvaliacaoBaas } from './cliente'
 import { RecebedorErro, type RecebedorInput, type RecebedorCriado, type SituacaoRecebedor } from '../tipos'
 import { situacaoDeStatus, type StatusConta } from './situacao'
 export { situacaoDeStatus }
@@ -85,6 +85,11 @@ export async function criarSubconta(input: RecebedorInput): Promise<RecebedorCri
         if (agora) return agora
         // Não é o documento → é o e-mail: tenta o próximo alias.
         if (err.tem(/e-?mail/i) && tentativa < 5) continue
+      }
+      if (limiteAvaliacaoBaas(err)) {
+        // Conta inteira bloqueada para novas subcontas até a homologação BaaS:
+        // ninguém mais conclui o cadastro de recebimento. Precisa de humano.
+        log.err('asaas.recebedor', 'ALERTA: limite do período de avaliação do BaaS atingido — nenhuma subconta nova até a homologação regulatória', undefined)
       }
       throw traduzirErro(err)
     }

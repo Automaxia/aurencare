@@ -45,3 +45,34 @@ planos. Usamos a API v3.
 7. **`nextDueDate` da assinatura.** Observamos que, gerada a próxima cobrança
    (PENDING), o `nextDueDate` passa a apontar para o ciclo seguinte. Esse é o
    comportamento esperado? Qual campo usar como "data da próxima cobrança"?
+
+## Respostas (05/11/2026)
+
+Sucesso de Integrações (integracoes@asaas.com.br):
+
+1. **Estorno PIX:** em produção é igual ao sandbox. A raiz precisa de saldo para a
+   parte dela; com `splitRefunds` (id do split + valor) a parte do psicólogo sai
+   da subconta, se ela tiver saldo. → D-08 (o adaptador já manda `splitRefunds`).
+2. **Evento crítico:** sem endpoint para o token, sem autorização em lote e sem
+   webhook — o status volta na hora da chamada. **Whitelist de IP** dispensa a
+   autorização manual para os IPs homologados. → D-09.
+3. **E-mail:** alias `+audere2` aceito, desde que o provedor entregue. Migração
+   PF→PJ foi para o comercial.
+6. **Renovação:** automática no `dueDate`, nas primeiras horas do dia; recusa tem
+   retentativas nos dias seguintes. (No sandbox não debitou — limitação dele.)
+7. **`nextDueDate`:** comportamento esperado; a data da fatura em aberto é o
+   `dueDate` da cobrança PENDING (`GET /payments?subscription=`) — como já fazemos.
+
+Gerente de contas (WhatsApp):
+
+- Período de avaliação começa na 1ª subconta em produção: 10 subcontas, R$ 2.000
+  por subconta (conta inclusive as cobranças com split da raiz; no teto o split é
+  bloqueado), 60 dias.
+- A **homologação BaaS pode ser pedida antes da 1ª subconta**; aprovada antes, não
+  há período de avaliação. Requisitos: PJ ativa, cadastro 100% aprovado, site/app,
+  alinhamento com o gerente.
+- Split vem desligado: habilitar em *Integrações › Segurança*.
+- Criar subconta tem taxa (Configurações › Taxas).
+- O sandbox também aplica o limite: em 05/11 criar subconta passou a devolver 403
+  `baas_trial_limit_child_account_creation_reached` (o `test:asaas` usa as
+  subcontas do spike nesse caso).

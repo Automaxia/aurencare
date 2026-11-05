@@ -384,6 +384,64 @@ export async function atualizarSituacaoDoPsicologo(psicologoId: string): Promise
   return st.situacao
 }
 
+/** apiKey (decifrada) da subconta Asaas do psicólogo, ou null se não houver. */
+async function chaveSubcontaAsaas(psicologoId: string): Promise<string | null> {
+  const { rows } = await db.query<{ recebedor_api_key: string | null; recebedor_gateway: string | null }>(
+    `SELECT recebedor_api_key, recebedor_gateway FROM psicologos WHERE id = $1 LIMIT 1`,
+    [psicologoId],
+  )
+  const r = rows[0]
+  if (r?.recebedor_gateway !== 'asaas' || !r.recebedor_api_key) return null
+  return decrypt(r.recebedor_api_key)
+}
+
+/**
+ * Documentos pendentes da subconta, lidos na hora (o link de envio do Asaas
+ * expira e é regerado — não se guarda). null = sem subconta Asaas com chave.
+ */
+export async function documentosDoPsicologo(psicologoId: string) {
+  const chave = await chaveSubcontaAsaas(psicologoId)
+  if (!chave) return null
+  const { listarDocumentos } = await import('@/server/lib/pagamentos/asaas/documentos')
+  return listarDocumentos(chave)
+}
+
+export type EnviarDocumentoResult = { ok: true } | { ok: false; error: string }
+
+/**
+ * Upload de um documento da subconta. O grupo e o tipo vêm da consulta ao
+ * Asaas, nunca do navegador: só aceita grupo que pede arquivo (sem link
+ * externo) e ainda não aprovado.
+ */
+export async function enviarDocumentoDoPsicologo(psicologoId: string, grupoId: string, arquivo: File): Promise<EnviarDocumentoResult> {
+  const chave = await chaveSubcontaAsaas(psicologoId)
+  if (!chave) return { ok: false, error: 'Não há conta de recebimento no Asaas.' }
+  const { listarDocumentos, enviarDocumento, DOCUMENTO_TIPOS_ARQUIVO, DOCUMENTO_MAX_BYTES } = await import('@/server/lib/pagamentos/asaas/documentos')
+
+  if (!(DOCUMENTO_TIPOS_ARQUIVO as readonly string[]).includes(arquivo.type))
+    return { ok: false, error: 'Envie um PDF, JPG ou PNG.' }
+  if (arquivo.size === 0) return { ok: false, error: 'O arquivo está vazio.' }
+  if (arquivo.size > DOCUMENTO_MAX_BYTES) return { ok: false, error: 'O arquivo passa de 3,8 MB. Envie uma versão menor.' }
+
+  const { grupos } = await listarDocumentos(chave)
+  const grupo = grupos.find(g => g.id === grupoId)
+  if (!grupo) return { ok: false, error: 'Esse documento não está mais pendente. Atualize a página.' }
+  if (grupo.onboardingUrl) return { ok: false, error: 'Esse documento é enviado pelo link do Asaas.' }
+  if (grupo.status === 'APPROVED' || grupo.status === 'IGNORED') return { ok: false, error: 'Esse documento já foi aceito.' }
+
+  try {
+    await enviarDocumento(chave, grupo, arquivo)
+  } catch (err) {
+    const { AsaasErro } = await import('@/server/lib/pagamentos/asaas/cliente')
+    if (err instanceof AsaasErro && err.status < 500) return { ok: false, error: err.descricao }
+    log.err('onboarding.documentos', `falha ao enviar documento ${grupo.tipo}`, err)
+    return { ok: false, error: 'Não foi possível enviar agora. Tente de novo em alguns minutos.' }
+  }
+  // A situação geral muda (documentos → em análise); falha aqui não desfaz o envio.
+  await atualizarSituacaoDoPsicologo(psicologoId).catch(err => log.warn('onboarding.documentos', `situação não atualizada: ${(err as Error).message}`))
+  return { ok: true }
+}
+
 export type AtualizarChavePixResult =
   | { ok: true }
   | { ok: false; error: string; campo?: 'chavePixTipo' | 'chavePixValor' }

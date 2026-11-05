@@ -118,15 +118,14 @@ Dono: **[conta]** = ação no painel/comercial do Asaas (dono da conta) · **[de
   configurar/documentos/recusado (RF-PG-13). 05/11/2026.
 - ✅ **P0 [dev]** WhatsApp sem DÉBITO e com a pergunta de parcelas no CRÉDITO
   (D-03, migration 055) — validado no E2E de 05/11.
-- 🟡 **P0 [conta]** `audere_sessao_metodo_v2` e `audere_checkout_v2` **submetidos
-  à Meta em 05/11/2026** (WhatsApp Manager, Utilidade, pt_BR) — "Em análise".
-  Conferir a aprovação antes da virada. (As variáveis do checkout_v2 foram
+- ✅ **P0 [conta]** `audere_sessao_metodo_v2` e `audere_checkout_v2` **aprovados
+  pela Meta em 05/11/2026** (WhatsApp Manager, Utilidade, pt_BR). (As variáveis do checkout_v2 foram
   reordenadas para {{1}} valor · {{2}} forma · {{3}} link: a Meta recusa fora
   de ordem.)
 - ✅ **P1 [dev]** Estorno PIX (D-08): `/admin/pagamentos` mostra o saldo da raiz ×
   reserva (`ASAAS_RESERVA_ESTORNO`, padrão R$ 500, ou a soma da fila se maior),
-  com alerta, e lista os estornos na fila. ⏳ Falta: estornos aguardando
-  autorização de evento crítico (D-09) — depende da resposta do Asaas (P5).
+  com alerta, e lista os estornos na fila. D-09: resolvido pela whitelist de IP
+  (resposta do Asaas, 05/11) — sem endpoint nem webhook para evento crítico.
 - ✅ **P0 [dev]** `/planos` no modo Asaas: fatura do Asaas, "Pagar fatura"
   reabre a cobrança em aberto, "Renova em" com a data do Asaas, troca de plano
   proporcional (D-10, migration 054).
@@ -168,8 +167,22 @@ Dono: **[conta]** = ação no painel/comercial do Asaas (dono da conta) · **[de
 - ⏳ **P0 [dev]** `PAYMENT_GATEWAY=asaas`.
 - ⏳ **P1** Convidar os 5 psicólogos com `mock_rcp_*` (e quem nunca operou na
   Pagar.me) a refazer o onboarding (RF-PG-15).
-- 🟡 **P0 [conta]** Perguntas ao Asaas (P5) redigidas em
-  [`perguntas-asaas.md`](./perguntas-asaas.md) — falta enviar ao gerente de contas.
+- ✅ **P0 [conta]** Perguntas ao Asaas (P5) enviadas em 05/11/2026 — respostas em
+  [`perguntas-asaas.md`](./perguntas-asaas.md) §Respostas. Comercial/contas ainda
+  vai responder: migração PF→PJ, homologação e liberação do split.
+- ⏳ **P0 [conta]** Conta live (Automaxia, 8174901-2): reenviar os **documentos de
+  identificação** (recusados por legibilidade) → cadastro 100% aprovado.
+- ⏳ **P0 [conta]** **Homologação BaaS antes da 1ª subconta** (aprovada antes, não
+  há período de avaliação — o teto de R$ 2.000/subconta conta as cobranças com
+  split da raiz e bloqueia o split ao atingir). Nenhuma subconta em produção até lá.
+- ⏳ **P0 [conta]** Habilitar o split em *Integrações › Segurança* (vem desligado).
+- ⏳ **P0 [conta]** Pedir **whitelist de IP** com o IP de saída do cluster: dispensa
+  a autorização manual de evento crítico nos estornos PIX (D-09) e libera gerar
+  apiKey de subconta.
+- ✅ **P0 [dev]** Botão **"Enviar documentos"** no Perfil (RF-PG-13): lista os
+  documentos pedidos (`/myAccount/documents` com a apiKey da subconta), abre o
+  `onboardingUrl` (identificação + selfie, só por link) ou faz upload dos demais.
+  Bloqueio `baas_trial_limit_*` vira mensagem clara + ALERTA no log.
 - ⏳ **P1** Acompanhar 30 dias: confirmações, split, estornos, renovações.
 - 🔮 **P2 [dev]** Quando não houver mais cobrança/assinatura Pagar.me aberta:
   remover adaptador Pagar.me, colunas `pagarme_*`, `NEXT_PUBLIC_PAGARME_PUBLIC_KEY`

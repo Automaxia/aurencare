@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { atualizarSituacaoAction } from './actions'
+import { DocumentosAsaas } from './DocumentosAsaas'
 
 type Situacao = 'pendente' | 'em_analise' | 'aprovado' | 'recusado'
 type Etapas = { commercialInfo?: string; bankAccountInfo?: string; documentation?: string; general?: string } | null
@@ -19,7 +20,7 @@ const SITUACAO: Record<Situacao, { rotulo: string; tag: string; texto: string }>
   },
   pendente: {
     rotulo: 'Aguardando documentos', tag: 't-warn',
-    texto: 'Falta enviar documentos no Asaas. Você já pode cobrar, mas só consegue sacar depois da aprovação.',
+    texto: 'Falta enviar documentos ao Asaas — use o botão abaixo. Você já pode cobrar, mas só consegue sacar depois da aprovação.',
   },
   recusado: {
     rotulo: 'Recusada', tag: 't-alert',
@@ -81,12 +82,14 @@ export function SituacaoAsaas({ situacao, etapas, email }: { situacao: Situacao 
         </div>
       )}
 
+      {situacao !== 'aprovado' && <DocumentosAsaas email={email} />}
+
       <div style={{
         padding: '10px 12px', borderRadius: 8, background: 'rgba(106,78,200,.06)',
         fontSize: 12, color: 'var(--ink-soft)', lineHeight: 1.6,
       }}>
-        O acesso à sua conta chega por e-mail{email ? <> em <strong>{email}</strong></> : ''}. Por lá você envia
-        os documentos, cadastra a conta bancária para saque e faz os saques — a Audere não guarda dados bancários.
+        O acesso à sua conta chega por e-mail{email ? <> em <strong>{email}</strong></> : ''}. Por lá você
+        cadastra a conta bancária para saque e faz os saques — a Audere não guarda dados bancários.
       </div>
 
       <div style={{ display: 'flex', alignItems: 'center', gap: 12, justifyContent: 'flex-end' }}>

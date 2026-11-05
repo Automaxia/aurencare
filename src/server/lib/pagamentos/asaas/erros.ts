@@ -24,6 +24,14 @@ const TABELA: [RegExp, CampoWizard | null][] = [
 ]
 
 export function traduzirRecusaAsaas(descricoes: string[], status: number | null): { error: string; campo?: CampoWizard } {
+  // Limite do período de avaliação do BaaS: bloqueio da conta da Audere, não
+  // dos dados do psicólogo (que já ficaram salvos como rascunho).
+  if (descricoes.some(d => /teste controlado|homologa[çc][ãa]o regulat/i.test(d))) {
+    return {
+      error: 'Seus dados foram salvos, mas a abertura de novas contas de recebimento está temporariamente pausada '
+        + 'enquanto a Audere conclui a liberação junto ao Asaas. Avisaremos você para concluir — não precisa preencher de novo.',
+    }
+  }
   for (const d of descricoes) {
     for (const [re, campo] of TABELA) {
       if (!re.test(d)) continue
