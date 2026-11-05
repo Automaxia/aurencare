@@ -183,6 +183,9 @@ Dono: **[conta]** = ação no painel/comercial do Asaas (dono da conta) · **[de
   documentos pedidos (`/myAccount/documents` com a apiKey da subconta), abre o
   `onboardingUrl` (identificação + selfie, só por link) ou faz upload dos demais.
   Bloqueio `baas_trial_limit_*` vira mensagem clara + ALERTA no log.
+- ✅ **P0 [dev]** Trava `ASAAS_SUBCONTAS_LIBERADAS` (padrão desligada): em produção
+  nenhuma subconta é criada até a homologação BaaS — protege o período de
+  avaliação mesmo se `PAYMENT_GATEWAY=asaas` for ligado antes da hora.
 - ⏳ **P1** Acompanhar 30 dias: confirmações, split, estornos, renovações.
 - 🔮 **P2 [dev]** Quando não houver mais cobrança/assinatura Pagar.me aberta:
   remover adaptador Pagar.me, colunas `pagarme_*`, `NEXT_PUBLIC_PAGARME_PUBLIC_KEY`

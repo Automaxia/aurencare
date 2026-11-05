@@ -68,6 +68,9 @@ export const env = {
   asaasKey:            process.env.ASAAS_API_KEY?.replace(/^\\\$/, '$') || undefined,
   // Token que NÓS geramos (32–255 chars) e o Asaas devolve no header asaas-access-token. Não é a API key.
   asaasWebhookToken:   process.env.ASAAS_WEBHOOK_TOKEN,
+  // Trava de produção: a 1ª subconta live inicia o período de avaliação do BaaS
+  // (10 subcontas, R$ 2.000 cada, 60 dias). Só ligar com a homologação aprovada.
+  asaasSubcontasLiberadas: (process.env.ASAAS_SUBCONTAS_LIBERADAS ?? '').trim().toLowerCase() === 'true',
   assemblyKey:         process.env.ASSEMBLYAI_API_KEY,
   resendKey:           process.env.RESEND_API_KEY,
   emailFrom:           process.env.EMAIL_FROM || 'Audere <onboarding@aurencare.ia.br>',

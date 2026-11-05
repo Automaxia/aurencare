@@ -39,6 +39,14 @@ export async function criarSubconta(input: RecebedorInput): Promise<RecebedorCri
     return existente
   }
 
+  // Trava antes de qualquer POST: reaproveitar (acima) é permitido, criar não.
+  if (!subcontaPermitida(ambienteAsaas(), env.asaasSubcontasLiberadas)) {
+    log.err('asaas.recebedor', 'ALERTA: tentativa de criar subconta em produção com ASAAS_SUBCONTAS_LIBERADAS desligado — bloqueada (homologação BaaS pendente)', undefined)
+    throw new RecebedorErro('asaas',
+      [{ caminho: 'subcontas_bloqueadas', mensagens: ['Criação de subcontas pausada até a homologação regulatória do BaaS (ASAAS_SUBCONTAS_LIBERADAS).'] }],
+      null, 403, 'subcontas_bloqueadas')
+  }
+
   const tel = input.telefone.replace(/\D/g, '')
   const corpo: Record<string, unknown> = {
     name: input.razaoSocial.trim(),
@@ -94,6 +102,15 @@ export async function criarSubconta(input: RecebedorInput): Promise<RecebedorCri
       throw traduzirErro(err)
     }
   }
+}
+
+/**
+ * Criar subconta é permitido? No sandbox sempre; em produção só com
+ * `ASAAS_SUBCONTAS_LIBERADAS=true` — a 1ª subconta live inicia o período de
+ * avaliação do BaaS, então liga-se só depois da homologação aprovada.
+ */
+export function subcontaPermitida(ambiente: 'sandbox' | 'live', liberadas: boolean): boolean {
+  return ambiente === 'sandbox' || liberadas
 }
 
 /** Recusa do Asaas → `RecebedorErro` (o wizard traduz e volta ao campo). */

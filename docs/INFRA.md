@@ -296,6 +296,11 @@ depois da troca. Hoje: `pagarme`.
    (simula) e depois `--aplicar`, com as envs de produção carregadas.
 3. `PAYMENT_GATEWAY=asaas` no secret + `kubectl rollout restart`. Voltar é
    o mesmo passo com `pagarme`.
+4. `ASAAS_SUBCONTAS_LIBERADAS=true` **só com a homologação BaaS aprovada**. Sem
+   ela, criar subconta em produção é bloqueado no código (ALERTA no log; o
+   psicólogo vê "abertura de contas pausada" e os dados ficam salvos): a 1ª
+   subconta live iniciaria o período de avaliação (10 subcontas, R$ 2.000 cada —
+   contando as cobranças com split —, 60 dias). Sandbox não tem a trava.
 
 O que acontece na virada:
 - Psicólogo com o wizard de recebimento já preenchido ganha a **subconta Asaas

@@ -117,6 +117,14 @@ async function main() {
   const tBaas = traduzirRecusaAsaas([corpoBaas.message], 403)
   ok('limite BaaS → mensagem de pausa, sem campo', /pausada/.test(tBaas.error) && !tBaas.campo, tBaas.error.slice(0, 60))
 
+  console.log('── trava de subconta em produção ──')
+  const { subcontaPermitida } = await import('@/server/lib/pagamentos/asaas/recebedor')
+  ok('sandbox → cria sempre', subcontaPermitida('sandbox', false))
+  ok('live sem ASAAS_SUBCONTAS_LIBERADAS → bloqueia', !subcontaPermitida('live', false))
+  ok('live com ASAAS_SUBCONTAS_LIBERADAS=true → cria', subcontaPermitida('live', true))
+  const tTrava = traduzirRecusaAsaas(['Criação de subcontas pausada até a homologação regulatória do BaaS (ASAAS_SUBCONTAS_LIBERADAS).'], 403)
+  ok('trava → mesma mensagem de pausa ao psicólogo', /pausada/.test(tTrava.error) && !tTrava.campo)
+
   console.log(falhou ? '\n✗ FALHOU' : '\n✓ TUDO OK')
   process.exit(falhou ? 1 : 0)
 }
