@@ -106,6 +106,25 @@ async function main() {
   ok('Pagar.me PIX = 0,99%', taxaGatewayReais({ gateway: 'pagarme', metodo: 'pix', valor: 200 }) === 1.98)
   ok('sem gateway (legado) = tabela Pagar.me', taxaGatewayReais({ gateway: null, metodo: 'credito', parcelas: 3, valor: 100 }) === 4.99)
 
+  console.log('── erros do Asaas ──')
+  const { errosDoCorpo, AsaasErro, limiteAvaliacaoBaas } = await import('@/server/lib/pagamentos/asaas/cliente')
+  const { traduzirRecusaAsaas } = await import('@/server/lib/pagamentos/asaas/erros')
+  const corpoBaas = { code: 'baas_trial_limit_child_account_creation_reached', message: 'O limite de uso do teste controlado para criação de subcontas foi atingido ou expirou o período permitido. Para continuar operando, é necessário concluir a homologação regulatória.' }
+  const eBaas = new AsaasErro(403, errosDoCorpo(corpoBaas), '/accounts', corpoBaas)
+  ok('corpo {code,message} vira erro com descrição', eBaas.erros[0]?.code === corpoBaas.code && eBaas.descricao === corpoBaas.message)
+  ok('limite BaaS reconhecido', limiteAvaliacaoBaas(eBaas))
+  ok('corpo {errors} segue igual', errosDoCorpo({ errors: [{ code: 'x', description: 'y' }] })[0].description === 'y')
+  const tBaas = traduzirRecusaAsaas([corpoBaas.message], 403)
+  ok('limite BaaS → mensagem de pausa, sem campo', /pausada/.test(tBaas.error) && !tBaas.campo, tBaas.error.slice(0, 60))
+
+  console.log('── trava de subconta em produção ──')
+  const { subcontaPermitida } = await import('@/server/lib/pagamentos/asaas/recebedor')
+  ok('sandbox → cria sempre', subcontaPermitida('sandbox', false))
+  ok('live sem ASAAS_SUBCONTAS_LIBERADAS → bloqueia', !subcontaPermitida('live', false))
+  ok('live com ASAAS_SUBCONTAS_LIBERADAS=true → cria', subcontaPermitida('live', true))
+  const tTrava = traduzirRecusaAsaas(['Criação de subcontas pausada até a homologação regulatória do BaaS (ASAAS_SUBCONTAS_LIBERADAS).'], 403)
+  ok('trava → mesma mensagem de pausa ao psicólogo', /pausada/.test(tTrava.error) && !tTrava.campo)
+
   console.log(falhou ? '\n✗ FALHOU' : '\n✓ TUDO OK')
   process.exit(falhou ? 1 : 0)
 }

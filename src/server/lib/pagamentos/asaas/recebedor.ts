@@ -5,7 +5,7 @@ import 'server-only'
  */
 import { env } from '../../env'
 import { log } from '../../log'
-import { asaas, AsaasErro, ambienteAsaas } from './cliente'
+import { asaas, AsaasErro, ambienteAsaas, limiteAvaliacaoBaas } from './cliente'
 import { RecebedorErro, type RecebedorInput, type RecebedorCriado, type SituacaoRecebedor } from '../tipos'
 import { situacaoDeStatus, type StatusConta } from './situacao'
 export { situacaoDeStatus }
@@ -37,6 +37,14 @@ export async function criarSubconta(input: RecebedorInput): Promise<RecebedorCri
   if (existente) {
     log.warn('asaas.recebedor', `subconta já existia para o documento (${existente.id}) — reaproveitando sem apiKey`)
     return existente
+  }
+
+  // Trava antes de qualquer POST: reaproveitar (acima) é permitido, criar não.
+  if (!subcontaPermitida(ambienteAsaas(), env.asaasSubcontasLiberadas)) {
+    log.err('asaas.recebedor', 'ALERTA: tentativa de criar subconta em produção com ASAAS_SUBCONTAS_LIBERADAS desligado — bloqueada (homologação BaaS pendente)', undefined)
+    throw new RecebedorErro('asaas',
+      [{ caminho: 'subcontas_bloqueadas', mensagens: ['Criação de subcontas pausada até a homologação regulatória do BaaS (ASAAS_SUBCONTAS_LIBERADAS).'] }],
+      null, 403, 'subcontas_bloqueadas')
   }
 
   const tel = input.telefone.replace(/\D/g, '')
@@ -86,9 +94,23 @@ export async function criarSubconta(input: RecebedorInput): Promise<RecebedorCri
         // Não é o documento → é o e-mail: tenta o próximo alias.
         if (err.tem(/e-?mail/i) && tentativa < 5) continue
       }
+      if (limiteAvaliacaoBaas(err)) {
+        // Conta inteira bloqueada para novas subcontas até a homologação BaaS:
+        // ninguém mais conclui o cadastro de recebimento. Precisa de humano.
+        log.err('asaas.recebedor', 'ALERTA: limite do período de avaliação do BaaS atingido — nenhuma subconta nova até a homologação regulatória', undefined)
+      }
       throw traduzirErro(err)
     }
   }
+}
+
+/**
+ * Criar subconta é permitido? No sandbox sempre; em produção só com
+ * `ASAAS_SUBCONTAS_LIBERADAS=true` — a 1ª subconta live inicia o período de
+ * avaliação do BaaS, então liga-se só depois da homologação aprovada.
+ */
+export function subcontaPermitida(ambiente: 'sandbox' | 'live', liberadas: boolean): boolean {
+  return ambiente === 'sandbox' || liberadas
 }
 
 /** Recusa do Asaas → `RecebedorErro` (o wizard traduz e volta ao campo). */

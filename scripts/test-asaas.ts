@@ -50,12 +50,37 @@ async function main() {
 
   console.log('\n── subconta PF ──')
   const cpfPsi = gerarCpf()
-  const rec = await g.criarRecebedor({
-    tipoPessoa: 'PF', documento: cpfPsi, razaoSocial: `Psicóloga Teste ${t}`,
+  /*
+   * O sandbox também tem o limite do período de avaliação do BaaS (10
+   * subcontas). Atingido, usa as subcontas que o spike já criou
+   * (%TEMP%/audere-asaas-spike/estado.json) e pula só os casos de criação.
+   */
+  const dadosPF = {
+    tipoPessoa: 'PF' as const, documento: cpfPsi, razaoSocial: `Psicóloga Teste ${t}`,
     email: `spike.asaas+teste-${t}@audere.ia.br`, telefone: '11987654321',
     dataNascimento: '1990-05-10', rendaCentavos: 800000,
     endereco: { cep: '01310100', logradouro: 'Av. Paulista', numero: '1000', complemento: 'Sala 1', bairro: 'Bela Vista', cidade: 'São Paulo', uf: 'SP' },
-  })
+  }
+  let rec: Awaited<ReturnType<typeof g.criarRecebedor>> | null = null
+  try {
+    rec = await g.criarRecebedor(dadosPF)
+  } catch (e: any) {
+    const bloqueio = (e?.campos ?? []).some((c: any) => /baas_trial_limit/.test(c.caminho))
+    if (!bloqueio) throw e
+    ok('limite BaaS → erro legível (code + message do Asaas)', /homologa/i.test(e.campos[0]?.mensagens?.[0] ?? ''))
+  }
+  if (!rec) {
+    const fs = await import('node:fs'); const path = await import('node:path'); const os = await import('node:os')
+    const arq = path.join(os.tmpdir(), 'audere-asaas-spike', 'estado.json')
+    if (!fs.existsSync(arq)) { console.error('Sandbox no limite BaaS e sem subcontas do spike — peça ao suporte do Asaas para liberar.'); process.exit(1) }
+    console.log('⚠ sandbox no limite do período de avaliação BaaS — usando as subcontas do spike (casos de criação pulados)')
+    const est = JSON.parse(fs.readFileSync(arq, 'utf8'))
+    return testesComSubcontas(
+      { gateway: 'asaas', ambiente: 'sandbox', id: est.subPF.id, walletId: est.subPF.walletId, apiKey: est.subPF.apiKey, situacao: 'pendente' },
+      { gateway: 'asaas', ambiente: 'sandbox', id: est.subPJ.id, walletId: est.subPJ.walletId, apiKey: est.subPJ.apiKey, situacao: 'pendente' },
+      t,
+    )
+  }
   ok('criarRecebedor → id + walletId + apiKey', !!rec.id && !!rec.walletId && !!rec.apiKey && rec.gateway === 'asaas', `id=${rec.id} situacao=${rec.situacao}`)
   const de_novo = await g.criarRecebedor({
     tipoPessoa: 'PF', documento: cpfPsi, razaoSocial: `Psicóloga Teste ${t}`, email: `spike.asaas+teste2-${t}@audere.ia.br`,
@@ -73,6 +98,33 @@ async function main() {
   })
   ok('e-mail já usado → 2ª subconta com alias +audere2', outra.id !== rec.id && !!outra.walletId
     && outra.emailUsado === `spike.asaas+teste-${t}+audere2@audere.ia.br`, `id=${outra.id} email=${outra.emailUsado}`)
+  await esperar(15_000) // o Asaas pede ~15 s após criar antes de ler documentos
+  return testesComSubcontas(rec, outra, t)
+}
+
+type Sub = { gateway: 'asaas'; ambiente: 'sandbox' | 'live'; id: string; walletId: string | null; apiKey: string | null; situacao: string }
+
+/** Tudo o que depende de subcontas já existentes: `rec` (vai ser aprovada) e `outra` (fica pendente). */
+async function testesComSubcontas(rec: Sub, outra: Sub, t: string) {
+  const { asaasGateway: g } = await import('@/server/lib/pagamentos/asaas')
+  const { asaas } = await import('@/server/lib/pagamentos/asaas/cliente')
+  const { lerSituacao } = await import('@/server/lib/pagamentos/asaas/recebedor')
+  const { garantirCustomer } = await import('@/server/lib/pagamentos/asaas/cobranca')
+  const saldo = async (chave?: string) => Number((await asaas('GET', '/finance/balance', undefined, { chave })).balance)
+
+  // Documentos da subconta (botão "Enviar documentos" do Perfil). A 2ª subconta
+  // fica sem aprovar: o grupo de identificação aparece e não aceita upload.
+  const { listarDocumentos, enviarDocumento } = await import('@/server/lib/pagamentos/asaas/documentos')
+  const docs = await listarDocumentos(outra.apiKey!)
+  const ident = docs.grupos.find(d => d.tipo === 'IDENTIFICATION')
+  ok('listarDocumentos → grupo de identificação pendente', !!ident && ident.status !== 'APPROVED',
+    docs.grupos.map(d => `${d.tipo}:${d.status}:${d.onboardingUrl ? 'link' : 'sem-link'}`).join(' '))
+  if (ident) {
+    let recusou = ''
+    try { await enviarDocumento(outra.apiKey!, ident, new File([new Uint8Array([37, 80, 68, 70])], 'x.pdf', { type: 'application/pdf' })) }
+    catch (e) { recusou = (e as Error).message }
+    ok('identificação não aceita upload pela API (vai pelo link)', /não pode ser enviado via API/i.test(recusou), recusou.slice(0, 90))
+  }
 
   // Aprovação no sandbox (retenta: logo após criar pode dar 500 — spike §2)
   for (let i = 0; i < 5; i++) {

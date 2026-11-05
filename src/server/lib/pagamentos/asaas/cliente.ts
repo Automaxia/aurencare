@@ -28,6 +28,22 @@ export class AsaasErro extends Error {
   tem(re: RegExp): boolean { return this.erros.some(e => re.test(e.description) || re.test(e.code)) }
 }
 
+/**
+ * Erros do corpo da resposta. O formato usual é `{ errors: [{code, description}] }`,
+ * mas alguns bloqueios de conta vêm como `{ code, message }` — ex.: o limite do
+ * período de avaliação do BaaS (`baas_trial_limit_child_account_creation_reached`).
+ */
+export function errosDoCorpo(body: any): AsaasErroItem[] {
+  if (Array.isArray(body?.errors)) return body.errors
+  if (typeof body?.message === 'string') return [{ code: String(body.code ?? 'erro'), description: body.message }]
+  return []
+}
+
+/** Bloqueio do período de avaliação do BaaS (só cai com a homologação aprovada). */
+export function limiteAvaliacaoBaas(err: unknown): boolean {
+  return err instanceof AsaasErro && err.tem(/baas_trial_limit|teste controlado|homologa[çc][ãa]o regulat/i)
+}
+
 type Opcoes = { chave?: string; timeoutMs?: number; rotulo?: string }
 
 export function ambienteAsaas(): 'sandbox' | 'live' {
@@ -60,7 +76,7 @@ export async function asaas<T = any>(metodo: 'GET' | 'POST' | 'PUT' | 'DELETE', 
     let body: any = null
     try { body = texto ? JSON.parse(texto) : null } catch { body = texto }
     if (r.ok) return body as T
-    const erro = new AsaasErro(r.status, Array.isArray(body?.errors) ? body.errors : [], caminho.split('?')[0], body)
+    const erro = new AsaasErro(r.status, errosDoCorpo(body), caminho.split('?')[0], body)
     // 429 = limite de requisições (25 mil / 12 h): nunca repetir na hora.
     if ((r.status === 429 || r.status >= 500) && i + 1 < tentativas) {
       ultimo = erro
