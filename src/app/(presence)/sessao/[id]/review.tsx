@@ -7,6 +7,8 @@ import { Pencil, Sparkles } from 'lucide-react'
 import { CfpBadge } from '@/components/brand/CfpBadge'
 import { Markdown } from '@/components/Markdown'
 import type { Sessao } from '@/server/services/sessoes'
+import { CorrigirSessao } from '@/components/CorrigirSessao'
+import { sessaoVazia } from '@/lib/sessaoExclusao'
 
 const STATUS_LABEL: Record<string, string> = {
   concluida: 'Concluída',
@@ -208,6 +210,7 @@ export function SessionReview({ sessao }: { sessao: Sessao }) {
             ? <span style={{ fontSize: 12, color: 'var(--sage)' }}>✓ Assinada</span>
             : sessao.status === 'concluida' && <span style={{ fontSize: 12, color: 'var(--amber)' }}>⚠ Registro pendente</span>}
           <Link href={`/pacientes/${sessao.pacienteId}/evolucao`} className="btn ghost">Ver evolução</Link>
+          {sessao.status !== 'em_curso' && !sessaoVazia(sessao) && <CorrigirSessao sessaoId={sessao.id} />}
           <Link href={`/pacientes/${sessao.pacienteId}`} className="btn ghost">← Paciente</Link>
         </div>
       </div>
