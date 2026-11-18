@@ -44,6 +44,17 @@ const WIDGET_LABELS: Record<string, string> = {
   topicos: 'Tópicos em aberto',
   nota: 'Nota rápida',
 }
+/**
+ * Marcações de segmento persistidas em indicadores.marcacoes. `idx` é a posição
+ * do turno na transcrição salva ("P: …\nC: …", uma linha por turno). O TEXTO não
+ * vai aqui: `indicadores` não é cifrado; o trecho é remontado da transcrição
+ * (AES) na revisão e no resumo.
+ */
+type Marcacao = { idx: number; mark: TurnMark; who: 'psicologo' | 'paciente'; ts: string }
+function extrairMarcacoes(turnos: Turno[]): Marcacao[] {
+  return turnos.flatMap((t, i) => t.mark ? [{ idx: i, mark: t.mark, who: t.who, ts: t.ts }] : [])
+}
+
 const OBS_INTERVAL_TURNS = 5  // gera observação a cada N turnos novos
 const TOM_BATCH_SIZE = 5      // classifica o tom em lotes de N turnos (1 chamada IA)
 const TOM_BATCH_MS = 3500     // …ou ao fim deste intervalo, o que vier primeiro
@@ -115,6 +126,53 @@ export function PresenceClient(props: Props) {
     const id = setInterval(() => setTempo(t => t + 1), 1000)
     return () => clearInterval(id)
   }, [sessaoIniciada])
+
+  // ── Rascunho da sessão na aba ────────────────────────────────────────────
+  // Sair da tela (ex.: ir em Objetivos preencher a GAS) desmontava tudo: a
+  // transcrição, a checagem de humor, o risco e a nota zeravam. Guardamos um
+  // rascunho em sessionStorage (só esta aba; some ao fechar) e restauramos ao
+  // voltar. Limpo ao encerrar ou descartar a sessão.
+  const rascunhoKey = `audere:sessao:${props.sessaoId}:rascunho`
+  const [rascunhoPronto, setRascunhoPronto] = useState(false)
+  useEffect(() => {
+    try {
+      const raw = sessionStorage.getItem(rascunhoKey)
+      if (raw && props.status === 'em_curso') {
+        const r = JSON.parse(raw)
+        if (Array.isArray(r.turnos)) setTurnos(r.turnos)
+        if (r.humor) setHumor({ ...initialHumor, ...r.humor })
+        if (r.risco) setRisco(r.risco)
+        if (typeof r.notaRapida === 'string') setNotaRapida(r.notaRapida)
+        if (typeof r.tempo === 'number') {
+          // o cronômetro segue contando o tempo em que a tela ficou fora
+          const fora = r.savedAt ? Math.max(0, Math.round((Date.now() - r.savedAt) / 1000)) : 0
+          setTempo(r.tempo + fora)
+        }
+      } else if (raw) {
+        sessionStorage.removeItem(rascunhoKey)
+      }
+    } catch { /* storage indisponível/corrompido: segue do zero */ }
+    setRascunhoPronto(true)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+  useEffect(() => {
+    if (!rascunhoPronto || !sessaoIniciada) return
+    try {
+      sessionStorage.setItem(rascunhoKey, JSON.stringify({
+        turnos, humor, risco, notaRapida, tempo: tempoSegundos, savedAt: Date.now(),
+      }))
+    } catch { /* cota cheia/privado: sem rascunho */ }
+  }, [rascunhoPronto, sessaoIniciada, turnos, humor, risco, notaRapida, tempoSegundos, rascunhoKey])
+  function limparRascunho() {
+    try { sessionStorage.removeItem(rascunhoKey) } catch { /* */ }
+  }
+  // Avisa antes de sair da página com registro ativo (a chamada e a escuta param).
+  useEffect(() => {
+    if (!recording && !chamada) return
+    const h = (e: BeforeUnloadEvent) => { e.preventDefault(); e.returnValue = '' }
+    window.addEventListener('beforeunload', h)
+    return () => window.removeEventListener('beforeunload', h)
+  }, [recording, chamada])
 
   // limpa o timer do lote de tom ao desmontar (evita flush após sair da tela)
   useEffect(() => () => { if (tomTimerRef.current) clearTimeout(tomTimerRef.current) }, [])
@@ -399,6 +457,7 @@ export function PresenceClient(props: Props) {
       setConfirmandoInterromper(false)
       return
     }
+    limparRascunho()
     // Sai do Modo Presença — não há pós-sessão pra mostrar.
     window.location.href = `/pacientes/${props.pacienteId}`
   }
@@ -412,6 +471,7 @@ export function PresenceClient(props: Props) {
     const indicadores = {
       ritmo: { psicologo: pctPsic, paciente: pctPac },
       humor, risco, notaRapida,
+      marcacoes: extrairMarcacoes(turnos),
     }
     // Métricas de silêncio (Tarefa 2a): pega do stream AssemblyAI que rodou
     // (remoto na sessão online, sala no presencial). Só o que tem áudio real.
@@ -426,6 +486,7 @@ export function PresenceClient(props: Props) {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ transcricao, indicadores, transcricaoStats }),
     }).catch(() => null)
+    if (res && res.ok) limparRascunho()
     const json = res && res.ok ? await res.json().catch(() => ({} as any)) : {}
     setResumoIA(json.resumo ?? null)
     setLimitePlano(json.limitePlano === true)
@@ -452,10 +513,16 @@ export function PresenceClient(props: Props) {
 
   function aplicarSugestaoMarcacao() {
     if (!sugestaoTurnos) return
-    setTurnos(prev => prev.map((t, i) => {
+    const novos = turnos.map((t, i) => {
       const sug = sugestaoTurnos.find(s => s.idx === i)
       return sug ? { ...t, mark: t.mark ?? sug.mark } : t
-    }))
+    })
+    setTurnos(novos)
+    // A sessão já foi encerrada/salva: grava as marcações sugeridas aceitas.
+    fetch(`/api/sessao/${props.sessaoId}/marcacoes`, {
+      method: 'PUT', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ marcacoes: extrairMarcacoes(novos) }),
+    }).catch(() => {})
   }
   function aplicarSugestaoRisco() {
     if (!sugestaoRisco) return
@@ -615,6 +682,13 @@ export function PresenceClient(props: Props) {
           <button className="btn primary" onClick={encerrar} disabled={encerrando || interrompendo}>
             {encerrando ? 'Encerrando · gerando laudo…' : 'Encerrar'}
           </button>
+          <a
+            className="btn ghost" href={`/pacientes/${props.pacienteId}/objetivos`}
+            target="_blank" rel="noopener noreferrer"
+            title="Abre Objetivos e Progresso (GAS) em outra aba — a sessão, a chamada e o registro continuam aqui"
+          >
+            Objetivos ↗
+          </a>
           <a className="btn ghost" href={`/pacientes/${props.pacienteId}`}>← Voltar ao paciente</a>
         </div>
       </div>

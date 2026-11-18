@@ -59,7 +59,7 @@ export async function POST(req: Request, { params }: { params: { id: string } })
       return NextResponse.json({ ok: true, resumo: null, limitePlano: true })
     }
     try {
-      const resumo = await gerarResumoCurto(transcricao, { numero: sessao.numero, pacienteNome: sessao.pacienteNome, psicologoId: sessao.psicologoId, sessaoId: sessao.id, pacienteId: sessao.pacienteId })
+      const resumo = await gerarResumoCurto(transcricao, { numero: sessao.numero, pacienteNome: sessao.pacienteNome, psicologoId: sessao.psicologoId, sessaoId: sessao.id, pacienteId: sessao.pacienteId, indicadores })
       if (iaIndisponivel(resumo)) {
         log.warn('encerrar', `IA indisponível ao gerar resumo curto sessao=${params.id}`)
         return NextResponse.json({ ok: true, resumo: null, iaIndisponivel: true })

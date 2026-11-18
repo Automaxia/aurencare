@@ -1,5 +1,6 @@
 import 'server-only'
 import { chat } from './llm'
+import { contextoSessaoXml } from './contextoSessao'
 
 /**
  * COMPAT: o acesso ao LLM mora agora em `llm.ts` (multi-provedor — OpenAI
@@ -89,7 +90,7 @@ Does NOT: make DSM/ICD diagnostic determinations, prescribe treatment changes. A
  */
 export async function gerarLaudoFormal(
   transcricao: string,
-  contexto: { numero: number; pacienteNome: string; psicologoId: string; sessaoId: string; pacienteId: string },
+  contexto: { numero: number; pacienteNome: string; psicologoId: string; sessaoId: string; pacienteId: string; indicadores?: any },
   historico: { numero: number; resumo: string }[] = [],
 ): Promise<string> {
   // Laudos anteriores (cronológico) alimentam a seção "Avaliação do Progresso".
@@ -101,7 +102,7 @@ ${historico.map(h => `  <session numero="${h.numero}">\n${h.resumo.slice(0, 3_00
 Use os laudos acima APENAS para a seção "Avaliação do Progresso" (comparar o que mudou/persistiu/emergiu). Não os copie nas outras seções.\n\n`
     : ''
 
-  const user = `${anteriores}<session>
+  const user = `${anteriores}${contextoSessaoXml(transcricao, contexto.indicadores)}<session>
   <transcript>
 ${transcricao.slice(0, 40_000)}
   </transcript>
@@ -167,9 +168,9 @@ REGRAS DE ESTILO (todos os campos):
  */
 export async function gerarResumoCurto(
   transcricao: string,
-  contexto: { numero: number; pacienteNome: string; psicologoId: string; sessaoId: string; pacienteId: string },
+  contexto: { numero: number; pacienteNome: string; psicologoId: string; sessaoId: string; pacienteId: string; indicadores?: any },
 ): Promise<string> {
-  const user = `<session numero="${contexto.numero}">
+  const user = `${contextoSessaoXml(transcricao, contexto.indicadores)}<session numero="${contexto.numero}">
   <transcript>
 ${transcricao.slice(0, 40_000)}
   </transcript>
