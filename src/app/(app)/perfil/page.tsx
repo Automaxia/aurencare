@@ -6,6 +6,9 @@ import Link from 'next/link'
 import { PerfilForm } from './form'
 import { LembretesForm } from './LembretesForm'
 import { lerLembretesPadrao } from '@/server/services/lembretes'
+import { ModeloResumoForm } from './ModeloResumoForm'
+import { lerModeloResumo, PLANO_MODELO_RESUMO } from '@/server/services/modeloResumo'
+import { obterAssinatura } from '@/server/services/assinatura'
 
 export const dynamic = 'force-dynamic'
 
@@ -13,7 +16,9 @@ export default async function PerfilPage() {
   const user = await requirePsicologo()
   const perfil = await obterPerfil(user.id)
   if (!perfil) redirect('/')
-  const lembretes = await lerLembretesPadrao(user.id)
+  const [lembretes, modeloResumo, assinatura] = await Promise.all([
+    lerLembretesPadrao(user.id), lerModeloResumo(user.id), obterAssinatura(user.id),
+  ])
 
   return (
     <div>
@@ -41,6 +46,11 @@ export default async function PerfilPage() {
         waConectado={perfil.waConectado}
       />
       {lembretes && <LembretesForm initial={lembretes} />}
+      <ModeloResumoForm
+        initial={modeloResumo.texto ?? ''}
+        atualizadoEm={modeloResumo.atualizadoEm}
+        liberado={assinatura.plano === PLANO_MODELO_RESUMO}
+      />
     </div>
   )
 }

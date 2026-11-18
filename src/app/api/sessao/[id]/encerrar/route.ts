@@ -6,6 +6,7 @@ import { enviarConfirmacaoPosSessao } from '@/server/services/confirmacaoSessao'
 import { registrarCustoAssemblyEstimado } from '@/server/services/custos'
 import { log } from '@/server/lib/log'
 import { checarCotaIaSessao } from '@/server/services/sessoes'
+import { modeloResumoAtivo } from '@/server/services/modeloResumo'
 
 export const runtime = 'nodejs'
 
@@ -59,7 +60,7 @@ export async function POST(req: Request, { params }: { params: { id: string } })
       return NextResponse.json({ ok: true, resumo: null, limitePlano: true })
     }
     try {
-      const resumo = await gerarResumoCurto(transcricao, { numero: sessao.numero, pacienteNome: sessao.pacienteNome, psicologoId: sessao.psicologoId, sessaoId: sessao.id, pacienteId: sessao.pacienteId, indicadores })
+      const resumo = await gerarResumoCurto(transcricao, { numero: sessao.numero, pacienteNome: sessao.pacienteNome, psicologoId: sessao.psicologoId, sessaoId: sessao.id, pacienteId: sessao.pacienteId, indicadores, modeloResumo: await modeloResumoAtivo(sessao.psicologoId) })
       if (iaIndisponivel(resumo)) {
         log.warn('encerrar', `IA indisponível ao gerar resumo curto sessao=${params.id}`)
         return NextResponse.json({ ok: true, resumo: null, iaIndisponivel: true })
