@@ -16,15 +16,17 @@ type Props = {
   pctPsic: number
   pctPac: number
   counts: Record<TurnMark, number>
-  armed: TurnMark | null
-  setArmed: (m: TurnMark | null) => void
+  /** Marca agora as falas dos últimos segundos com este tipo. */
+  onMarcar: (m: TurnMark) => void
+  /** Confirmação curta da última marcação (some sozinha). */
+  aviso?: string | null
 }
 
 /**
  * Widget combinado: Ritmo da conversa + Marcar segmento (com contadores).
  * Mockup v12.5 — combina os dois antigos num único card.
  */
-export function RhythmWidget({ pctPsic, pctPac, counts, armed, setArmed }: Props) {
+export function RhythmWidget({ pctPsic, pctPac, counts, onMarcar, aviso }: Props) {
   return (
     <div className="talk-card" data-widget-id="ritmo">
       <WidgetGrip />
@@ -42,19 +44,20 @@ export function RhythmWidget({ pctPsic, pctPac, counts, armed, setArmed }: Props
       </div>
 
       <div className="seg-tags">
-        <div className="sec-lbl-sm"><span>Marcar segmento</span></div>
+        <div className="sec-lbl-sm" title="Marca as falas dos últimos 45 segundos"><span>Marcar segmento · últimos 45s</span></div>
         {(Object.keys(MARK_LABEL) as TurnMark[]).map(m => (
           <button
             key={m}
             type="button"
-            className={`seg-btn${armed === m ? ' armed' : ''}`}
+            className="seg-btn"
             data-color={MARK_COLOR[m]}
-            onClick={() => setArmed(armed === m ? null : m)}
+            onClick={() => onMarcar(m)}
           >
             <span className="seg-lbl">{MARK_LABEL[m]}</span>
             <span className="seg-cnt">{counts[m]}</span>
           </button>
         ))}
+        {aviso && <div style={{ fontSize: 11, color: 'var(--sage)', marginTop: 4 }} role="status">✓ {aviso}</div>}
       </div>
     </div>
   )

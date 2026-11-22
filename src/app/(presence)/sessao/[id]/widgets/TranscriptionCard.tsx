@@ -13,14 +13,15 @@ export type Turno = {
   ts: string
   mark: TurnMark | null
   tone?: TurnTone
+  /** Rótulo da diarização ('A', 'B'…) quando a IA separou os falantes num áudio único. */
+  falante?: string
 }
 
 type Props = {
   turnos: Turno[]
   interim?: string
-  armed: TurnMark | null
-  setArmed: (m: TurnMark | null) => void
-  onMark: (turnoId: string) => void
+  /** Remove a marcação de uma fala (clique no selo). */
+  onUnmark: (turnoId: string) => void
   onToggleWho?: (turnoId: string) => void
   recording: boolean
 }
@@ -46,7 +47,7 @@ const TONE_DESC: Record<NonNullable<TurnTone>, string> = {
   acolhedor: 'acolhedor, validador (geralmente da psicóloga)',
 }
 
-export function TranscriptionCard({ turnos, interim, armed: _armed, setArmed: _setArmed, onMark, onToggleWho, recording }: Props) {
+export function TranscriptionCard({ turnos, interim, onUnmark, onToggleWho, recording }: Props) {
   const [legendaTons, setLegendaTons] = useState(false)
   // #5: mais recente no topo (ordena por timestamp desc — robusto a chegada fora de ordem).
   const ordenados = [...turnos].sort((a, b) => +new Date(b.ts) - +new Date(a.ts))
@@ -114,11 +115,17 @@ export function TranscriptionCard({ turnos, interim, armed: _armed, setArmed: _s
             {ordenados.map(t => (
               <div
                 key={t.id}
-                className={`turn armable${t.who === 'psicologo' ? ' psic' : ''}`}
+                className={`turn${t.who === 'psicologo' ? ' psic' : ''}`}
                 data-mark={t.mark ?? undefined}
-                onClick={() => onMark(t.id)}
               >
-                {t.mark && <div className="mark-chip">{MARK_LABEL[t.mark]}</div>}
+                {t.mark && (
+                  <button
+                    type="button" className="mark-chip" onClick={() => onUnmark(t.id)}
+                    title="Remover marcação" style={{ cursor: 'pointer', border: 'none' }}
+                  >
+                    {MARK_LABEL[t.mark]} ✕
+                  </button>
+                )}
                 <div className="turn-top">
                   <button
                     type="button" className="t-sp"

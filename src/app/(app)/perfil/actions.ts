@@ -7,6 +7,7 @@ import { normalizarAbordagem } from '@/server/services/temas'
 import { apenasDigitos, validarCpf } from '@/lib/documento'
 import { normalizarTelefone, validarTelefone } from '@/lib/telefone'
 import { salvarLembretesPadrao, type LembretesPadrao } from '@/server/services/lembretes'
+import { salvarModeloResumo } from '@/server/services/modeloResumo'
 
 export type SalvarInput = {
   nome: string
@@ -94,4 +95,11 @@ export async function salvarLembretesPadraoAction(v: LembretesPadrao): Promise<{
   await salvarLembretesPadrao(user.id, v)
   revalidatePath('/perfil')
   return { ok: true }
+}
+
+export async function salvarModeloResumoAction(texto: string | null): Promise<{ ok: true } | { ok: false; erro: string }> {
+  const user = await requirePsicologo()
+  const r = await salvarModeloResumo(user.id, texto)
+  if (r.ok) revalidatePath('/perfil')
+  return r
 }

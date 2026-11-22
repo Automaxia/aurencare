@@ -37,6 +37,7 @@ export async function POST(_req: Request, { params }: { params: { id: string } }
     const laudo = await gerarLaudoFormal(transcricao, {
       numero: sessao.numero, pacienteNome: sessao.pacienteNome,
       psicologoId: sessao.psicologoId, sessaoId: sessao.id, pacienteId: sessao.pacienteId,
+      indicadores: sessao.indicadores,
     }, historico)
     if (iaIndisponivel(laudo)) {
       return NextResponse.json({ ok: false, iaIndisponivel: true }, { status: 503 })

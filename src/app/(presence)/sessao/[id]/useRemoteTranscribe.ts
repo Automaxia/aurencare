@@ -184,11 +184,22 @@ export function useRemoteTranscribe({ sessaoId, stream, enabled, onFinal, onInte
       const first = await fetchToken()
       if (cancelled || !first) return
 
+      // AudioContext na taxa NATIVA do dispositivo (sem forçar 16 kHz) e
+      // reamostragem pra 16 kHz em JS. Forçar sampleRate quebra no Firefox:
+      // createMediaStreamSource de um mic a 48 kHz num contexto a 16 kHz lança
+      // NotSupportedError (fala da psicóloga não era transcrita) e o grafo de
+      // áudio extra a 16 kHz degradava o áudio da chamada ao iniciar o registro.
       const Ctx: typeof AudioContext = (window.AudioContext || (window as any).webkitAudioContext)
-      ctx = new Ctx({ sampleRate: SAMPLE_RATE } as AudioContextOptions)
-      const realRate = ctx.sampleRate
-
-      source = ctx.createMediaStreamSource(stream!)
+      try {
+        ctx = new Ctx()
+        source = ctx.createMediaStreamSource(stream!)
+      } catch (err: any) {
+        if (!cancelled) setError(err?.message ?? 'falha ao capturar o áudio')
+        try { ctx?.close() } catch { /* */ }
+        return
+      }
+      const inputRate = ctx.sampleRate
+      const realRate = SAMPLE_RATE
       processor = ctx.createScriptProcessor(FRAME_SIZE, 1, 1)
       source.connect(processor)
       const muteGain = ctx.createGain()
@@ -216,7 +227,7 @@ export function useRemoteTranscribe({ sessaoId, stream, enabled, onFinal, onInte
         if (!audioStartWall) audioStartWall = now
         statsRef.current.audioMs = now - audioStartWall
         const input = e.inputBuffer.getChannelData(0)
-        const pcm = floatToPcm16(input)
+        const pcm = floatToPcm16(downsample(input, inputRate, SAMPLE_RATE))
         try { ws.send(pcm.buffer) } catch { /* */ }
       }
     }
@@ -240,6 +251,22 @@ export function useRemoteTranscribe({ sessaoId, stream, enabled, onFinal, onInte
   const getStats = (): TranscribeStats => ({ ...statsRef.current })
 
   return { active, error, getStats }
+}
+
+/** Reamostra (média por janela) de `from` Hz pra `to` Hz. Sem-op se iguais. */
+function downsample(input: Float32Array, from: number, to: number): Float32Array {
+  if (from === to) return input
+  const ratio = from / to
+  const outLen = Math.floor(input.length / ratio)
+  const out = new Float32Array(outLen)
+  for (let i = 0; i < outLen; i++) {
+    const start = Math.floor(i * ratio)
+    const end = Math.min(input.length, Math.floor((i + 1) * ratio))
+    let sum = 0
+    for (let j = start; j < end; j++) sum += input[j]
+    out[i] = end > start ? sum / (end - start) : 0
+  }
+  return out
 }
 
 function floatToPcm16(input: Float32Array): Int16Array {
