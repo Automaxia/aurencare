@@ -7,6 +7,8 @@ import { Pencil, Sparkles } from 'lucide-react'
 import { CfpBadge } from '@/components/brand/CfpBadge'
 import { Markdown } from '@/components/Markdown'
 import type { Sessao } from '@/server/services/sessoes'
+import { CorrigirSessao } from '@/components/CorrigirSessao'
+import { sessaoVazia } from '@/lib/sessaoExclusao'
 
 const STATUS_LABEL: Record<string, string> = {
   concluida: 'Concluída',
@@ -40,7 +42,11 @@ export function SessionReview({ sessao }: { sessao: Sessao }) {
   const ind = (sessao.indicadores && typeof sessao.indicadores === 'object') ? sessao.indicadores : {}
   // Guarda: indicadores é JSONB livre; só aceita notaRapida se for string.
   const notaRapida: string = typeof ind?.notaRapida === 'string' ? ind.notaRapida : ''
-  const turnos = parseTranscriptionToTurns(sessao.transcricao ?? '')
+  const turnos = aplicarMarcacoes(parseTranscriptionToTurns(sessao.transcricao ?? ''), ind?.marcacoes)
+  // Uma caixa por marcação: o turno marcado + o anterior e o seguinte (contexto).
+  const trechosMarcados = turnos.flatMap((t, i) => t.mark
+    ? [{ idx: i, mark: t.mark, linhas: turnos.slice(Math.max(0, i - 1), i + 2).map((x, k) => ({ ...x, alvo: Math.max(0, i - 1) + k === i })) }]
+    : [])
 
   // Assinatura inline — resolve a pendência "Registrar" (sessão concluída e não
   // assinada). Antes a revisão era só leitura e não havia como resolver.
@@ -204,6 +210,7 @@ export function SessionReview({ sessao }: { sessao: Sessao }) {
             ? <span style={{ fontSize: 12, color: 'var(--sage)' }}>✓ Assinada</span>
             : sessao.status === 'concluida' && <span style={{ fontSize: 12, color: 'var(--amber)' }}>⚠ Registro pendente</span>}
           <Link href={`/pacientes/${sessao.pacienteId}/evolucao`} className="btn ghost">Ver evolução</Link>
+          {sessao.status !== 'em_curso' && !sessaoVazia(sessao) && <CorrigirSessao sessaoId={sessao.id} />}
           <Link href={`/pacientes/${sessao.pacienteId}`} className="btn ghost">← Paciente</Link>
         </div>
       </div>
@@ -356,6 +363,32 @@ export function SessionReview({ sessao }: { sessao: Sessao }) {
             </div>
           </Section>
 
+          {trechosMarcados.length > 0 && (
+            <Section title={`Trechos marcados (${trechosMarcados.length})`}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                {trechosMarcados.map(tm => (
+                  <div
+                    key={tm.idx}
+                    style={{
+                      borderRadius: 10, padding: '10px 12px',
+                      background: `var(--${MARK_COLOR[tm.mark]}-lo)`,
+                      boxShadow: `inset 3px 0 0 var(--${MARK_COLOR[tm.mark]})`,
+                    }}
+                  >
+                    <div style={{ fontSize: 11, fontWeight: 500, color: `var(--${MARK_COLOR[tm.mark]})`, marginBottom: 6, textTransform: 'uppercase', letterSpacing: '.05em' }}>
+                      {MARK_LABEL[tm.mark]}
+                    </div>
+                    {tm.linhas.map((l, k) => (
+                      <div key={k} style={{ fontSize: 13, lineHeight: 1.5, opacity: l.alvo ? 1 : 0.6, fontWeight: l.alvo ? 500 : 400 }}>
+                        <span className="who" data-who={l.who}>{l.who === 'psicologo' ? 'P' : 'C'}:</span>{' '}{l.texto}
+                      </div>
+                    ))}
+                  </div>
+                ))}
+              </div>
+            </Section>
+          )}
+
           <Section
             title="Transcrição"
             actions={turnos.length > 0 ? (
@@ -426,6 +459,9 @@ export function SessionReview({ sessao }: { sessao: Sessao }) {
                 <Row label="Predominante" value={momentoLabel(ind.humor.predominante)} />
                 <Row label="Início" value={momentoLabel(ind.humor.inicio)} />
                 <Row label="Fim" value={momentoLabel(ind.humor.fim)} />
+                {typeof ind.humor.freq === 'number' && <Row label="Frequência" value={escalaLabel('freq', ind.humor.freq)} />}
+                {typeof ind.humor.int === 'number' && <Row label="Intensidade" value={escalaLabel('int', ind.humor.int)} />}
+                {typeof ind.humor.dur === 'number' && <Row label="Duração" value={escalaLabel('dur', ind.humor.dur)} />}
               </>
             )}
             {ind?.risco && (
@@ -515,6 +551,29 @@ function momentoLabel(m: any): string {
  * Marcações foram persistidas em indicadores quando salvas — mas não vinculadas
  * por linha. Para versão completa, persistir como JSON estruturado em coluna própria.
  */
+/** Aplica indicadores.marcacoes ([{ idx, mark }]) aos turnos re-parseados. */
+function aplicarMarcacoes<T extends { mark: string | null }>(turnos: T[], marcacoes: unknown): T[] {
+  if (!Array.isArray(marcacoes)) return turnos
+  const porIdx = new Map<number, string>()
+  for (const m of marcacoes) {
+    if (m && Number.isInteger(m.idx) && typeof m.mark === 'string' && MARK_LABEL[m.mark]) porIdx.set(m.idx, m.mark)
+  }
+  return turnos.map((t, i) => porIdx.has(i) ? { ...t, mark: porIdx.get(i)! } : t)
+}
+
+const ESCALAS_FID = {
+  freq: [[0, 'Nunca'], [20, 'Algumas vezes'], [40, 'Diariamente'], [60, 'Muitas vezes ao dia'], [85, 'O tempo todo']],
+  int:  [[0, 'Nenhum'], [25, 'Leve'], [50, 'Moderado'], [75, 'Forte'], [90, 'Extremo']],
+  dur:  [[0, 'Sem humor'], [15, '1h ou menos'], [35, '2–4 horas'], [55, '8–12 horas'], [75, '1–2 dias'], [90, '7 dias']],
+} as const
+/** Rótulo da escala F/I/D (0–100) — mesmo mapeamento do HumorCheck. */
+function escalaLabel(key: keyof typeof ESCALAS_FID, v: unknown): string {
+  if (typeof v !== 'number') return '—'
+  let out: string = ESCALAS_FID[key][0][1]
+  for (const [n, l] of ESCALAS_FID[key]) if (v >= n) out = l
+  return out
+}
+
 function parseTranscriptionToTurns(raw: string): Array<{ who: 'psicologo' | 'paciente'; texto: string; mark: string | null }> {
   if (!raw) return []
   return raw.split('\n').filter(Boolean).map(line => {

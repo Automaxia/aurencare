@@ -1093,7 +1093,7 @@ export type InterromperSessaoResult =
  * precisa voltar pro estado de espera FIEL ao que já foi pago/cobrado — senão
  * uma sessão paga voltaria como 'agendada' e sumiria da fila de confirmadas.
  */
-function statusAntesDeIniciar(s: Sessao): SessaoStatus {
+export function statusAntesDeIniciar(s: Sessao): SessaoStatus {
   if (s.pagamentoStatus === 'pago') return 'confirmada'
   if (s.cobrancaId && s.pagamentoStatus === 'pendente') return 'aguardando_pagamento'
   return 'agendada'

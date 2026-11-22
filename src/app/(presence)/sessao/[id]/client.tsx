@@ -44,6 +44,18 @@ const WIDGET_LABELS: Record<string, string> = {
   topicos: 'Tópicos em aberto',
   nota: 'Nota rápida',
 }
+/**
+ * Marcações de segmento persistidas em indicadores.marcacoes. `idx` é a posição
+ * do turno na transcrição salva ("P: …\nC: …", uma linha por turno). O TEXTO não
+ * vai aqui: `indicadores` não é cifrado; o trecho é remontado da transcrição
+ * (AES) na revisão e no resumo.
+ */
+type Marcacao = { idx: number; mark: TurnMark; who: 'psicologo' | 'paciente'; ts: string }
+function extrairMarcacoes(turnos: Turno[]): Marcacao[] {
+  return turnos.flatMap((t, i) => t.mark ? [{ idx: i, mark: t.mark, who: t.who, ts: t.ts }] : [])
+}
+
+const MARCA_JANELA_MS = 45_000  // "Marcar segmento" pega as falas deste intervalo
 const OBS_INTERVAL_TURNS = 5  // gera observação a cada N turnos novos
 const TOM_BATCH_SIZE = 5      // classifica o tom em lotes de N turnos (1 chamada IA)
 const TOM_BATCH_MS = 3500     // …ou ao fim deste intervalo, o que vier primeiro
@@ -55,7 +67,12 @@ export function PresenceClient(props: Props) {
   const presencial = props.modalidade === 'presencial'
   const [turnos, setTurnos] = useState<Turno[]>([])
   const [interim, setInterim] = useState('')
-  const [armed, setArmed] = useState<TurnMark | null>(null)
+  const [avisoMarca, setAvisoMarca] = useState<string | null>(null)
+  useEffect(() => {
+    if (!avisoMarca) return
+    const t = setTimeout(() => setAvisoMarca(null), 3000)
+    return () => clearTimeout(t)
+  }, [avisoMarca])
   const [tempoSegundos, setTempo] = useState(0)
   // A sessão clínica só "começa" quando o psicólogo aperta Iniciar sessão.
   // Ao reentrar numa sessão já em curso, já vem iniciada.
@@ -97,6 +114,13 @@ export function PresenceClient(props: Props) {
   // Presencial: mic único da sala + mapa rótulo-da-AssemblyAI ('A'/'B') → papel.
   const [salaMicStream, setSalaMicStream] = useState<MediaStream | null>(null)
   const mapaFalanteRef = useRef<Record<string, 'psicologo' | 'paciente'>>({})
+  // Rótulos de falante já vistos na diarização (A, B…) — alimentam o menu "quem é quem".
+  const [falantes, setFalantes] = useState<string[]>([])
+  // Chamada externa (Zoom/Meet/…): áudio compartilhado da aba/sistema = lado do paciente.
+  const [externaStream, setExternaStream] = useState<MediaStream | null>(null)
+  const [erroExterna, setErroExterna] = useState<string | null>(null)
+  // Últimos finais do paciente — dedupe do eco do alto-falante no mic da psicóloga.
+  const recentRemoteRef = useRef<Array<{ texto: string; ts: number }>>([])
   // idioma do reconhecimento de fala da psicóloga (Web Speech). A AssemblyAI
   // (paciente/tablet) detecta o idioma automaticamente.
   const [idioma, setIdioma] = useState('pt-BR')
@@ -116,6 +140,58 @@ export function PresenceClient(props: Props) {
     return () => clearInterval(id)
   }, [sessaoIniciada])
 
+  // ── Rascunho da sessão na aba ────────────────────────────────────────────
+  // Sair da tela (ex.: ir em Objetivos preencher a GAS) desmontava tudo: a
+  // transcrição, a checagem de humor, o risco e a nota zeravam. Guardamos um
+  // rascunho em sessionStorage (só esta aba; some ao fechar) e restauramos ao
+  // voltar. Limpo ao encerrar ou descartar a sessão.
+  const rascunhoKey = `audere:sessao:${props.sessaoId}:rascunho`
+  const [rascunhoPronto, setRascunhoPronto] = useState(false)
+  useEffect(() => {
+    try {
+      const raw = sessionStorage.getItem(rascunhoKey)
+      if (raw && props.status === 'em_curso') {
+        const r = JSON.parse(raw)
+        if (Array.isArray(r.turnos)) {
+          setTurnos(r.turnos)
+          const labels = new Set<string>()
+          for (const t of r.turnos as Turno[]) if (t.falante) { mapaFalanteRef.current[t.falante] = t.who; labels.add(t.falante) }
+          setFalantes([...labels].sort())
+        }
+        if (r.humor) setHumor({ ...initialHumor, ...r.humor })
+        if (r.risco) setRisco(r.risco)
+        if (typeof r.notaRapida === 'string') setNotaRapida(r.notaRapida)
+        if (typeof r.tempo === 'number') {
+          // o cronômetro segue contando o tempo em que a tela ficou fora
+          const fora = r.savedAt ? Math.max(0, Math.round((Date.now() - r.savedAt) / 1000)) : 0
+          setTempo(r.tempo + fora)
+        }
+      } else if (raw) {
+        sessionStorage.removeItem(rascunhoKey)
+      }
+    } catch { /* storage indisponível/corrompido: segue do zero */ }
+    setRascunhoPronto(true)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+  useEffect(() => {
+    if (!rascunhoPronto || !sessaoIniciada) return
+    try {
+      sessionStorage.setItem(rascunhoKey, JSON.stringify({
+        turnos, humor, risco, notaRapida, tempo: tempoSegundos, savedAt: Date.now(),
+      }))
+    } catch { /* cota cheia/privado: sem rascunho */ }
+  }, [rascunhoPronto, sessaoIniciada, turnos, humor, risco, notaRapida, tempoSegundos, rascunhoKey])
+  function limparRascunho() {
+    try { sessionStorage.removeItem(rascunhoKey) } catch { /* */ }
+  }
+  // Avisa antes de sair da página com registro ativo (a chamada e a escuta param).
+  useEffect(() => {
+    if (!recording && !chamada) return
+    const h = (e: BeforeUnloadEvent) => { e.preventDefault(); e.returnValue = '' }
+    window.addEventListener('beforeunload', h)
+    return () => window.removeEventListener('beforeunload', h)
+  }, [recording, chamada])
+
   // limpa o timer do lote de tom ao desmontar (evita flush após sair da tela)
   useEffect(() => () => { if (tomTimerRef.current) clearTimeout(tomTimerRef.current) }, [])
 
@@ -126,6 +202,11 @@ export function PresenceClient(props: Props) {
   function addPsicologoTurn(texto: string, ts: string) {
     const id = crypto.randomUUID()
     const tsMs = Date.parse(ts) || Date.now()
+    // Eco do paciente: sem fone, a voz dele sai no alto-falante e o mic da
+    // psicóloga capta (comum com Zoom/Meet, cujo áudio o navegador não cancela).
+    const remotos = recentRemoteRef.current.filter(r => tsMs - r.ts < 8000)
+    recentRemoteRef.current = remotos
+    if (remotos.some(r => similarity(r.texto, texto) >= 0.7)) { setInterim(''); return }
     const win = recentLocalRef.current.filter(r => tsMs - r.ts < 6000)
     win.push({ id, texto, ts: tsMs })
     recentLocalRef.current = win.slice(-8)
@@ -190,6 +271,7 @@ export function PresenceClient(props: Props) {
       if (ehEcoDaPsicologa) { setPacienteInterim(''); return }
 
       const id = crypto.randomUUID()
+      recentRemoteRef.current = [...recentRemoteRef.current.filter(r => tsMs - r.ts < 8000), { texto, ts: tsMs }].slice(-8)
       setTurnos(prev => [...prev, { id, who: 'paciente', texto, ts, mark: null, tone: null }])
       setPacienteInterim('')
       enqueueTom(id, texto, 'paciente')
@@ -239,7 +321,8 @@ export function PresenceClient(props: Props) {
   function addTurnoDiarizado(texto: string, ts: string, speaker?: string) {
     const who = papelDoFalante(speaker)
     const id = crypto.randomUUID()
-    setTurnos(prev => [...prev, { id, who, texto, ts, mark: null, tone: null }])
+    if (speaker) setFalantes(prev => prev.includes(speaker) ? prev : [...prev, speaker].sort())
+    setTurnos(prev => [...prev, { id, who, texto, ts, mark: null, tone: null, falante: speaker }])
     setInterim('')
     enqueueTom(id, texto, who)
   }
@@ -253,6 +336,19 @@ export function PresenceClient(props: Props) {
     onFinal: addTurnoDiarizado,
     onInterim: setInterim,
   })
+
+  /**
+   * "Quem é quem" (diarização): a IA separa Falante A/B e o psicólogo escolhe no
+   * menu quem é cada um — aplica à transcrição inteira e às próximas falas. Numa
+   * sessão 1:1, escolher um define o outro automaticamente.
+   */
+  function definirPapelFalante(label: string, papel: 'psicologo' | 'paciente') {
+    const mapa = mapaFalanteRef.current
+    mapa[label] = papel
+    const outros = falantes.filter(f => f !== label)
+    if (outros.length === 1) mapa[outros[0]] = papel === 'psicologo' ? 'paciente' : 'psicologo'
+    setTurnos(prev => prev.map(t => t.falante && mapa[t.falante] ? { ...t, who: mapa[t.falante] } : t))
+  }
 
   // Troca global psicólogo↔paciente (presencial): inverte o mapa de rótulos e
   // reclassifica os turnos já transcritos. Corrige a heurística quando erra.
@@ -296,9 +392,21 @@ export function PresenceClient(props: Props) {
     } catch { /* */ }
   }
 
-  function marcarTurno(id: string) {
-    if (!armed) return
-    setTurnos(prev => prev.map(t => t.id === id ? { ...t, mark: armed } : t))
+  /**
+   * "Marcar segmento": marca NA HORA as falas dos últimos MARCA_JANELA_MS (no
+   * mínimo a última fala). Antes o botão só "armava" e era preciso clicar numa
+   * fala depois — ninguém descobria, e nada era marcado.
+   */
+  function marcarAgora(mark: TurnMark) {
+    if (turnos.length === 0) { setAvisoMarca('Ainda não há falas para marcar.'); return }
+    const fim = Math.max(...turnos.map(t => Date.parse(t.ts) || 0))
+    const ids = new Set(turnos.filter(t => fim - (Date.parse(t.ts) || 0) <= MARCA_JANELA_MS).map(t => t.id))
+    setTurnos(prev => prev.map(t => ids.has(t.id) ? { ...t, mark } : t))
+    setAvisoMarca(`${ids.size} ${ids.size === 1 ? 'fala marcada' : 'falas marcadas'} (últimos ${MARCA_JANELA_MS / 1000}s)`)
+  }
+  // Clique no selo de uma fala marcada remove a marcação.
+  function desmarcarTurno(id: string) {
+    setTurnos(prev => prev.map(t => t.id === id ? { ...t, mark: null } : t))
   }
   function alternarFalante(id: string) {
     setTurnos(prev => prev.map(t => t.id === id
@@ -399,6 +507,7 @@ export function PresenceClient(props: Props) {
       setConfirmandoInterromper(false)
       return
     }
+    limparRascunho()
     // Sai do Modo Presença — não há pós-sessão pra mostrar.
     window.location.href = `/pacientes/${props.pacienteId}`
   }
@@ -412,6 +521,7 @@ export function PresenceClient(props: Props) {
     const indicadores = {
       ritmo: { psicologo: pctPsic, paciente: pctPac },
       humor, risco, notaRapida,
+      marcacoes: extrairMarcacoes(turnos),
     }
     // Métricas de silêncio (Tarefa 2a): pega do stream AssemblyAI que rodou
     // (remoto na sessão online, sala no presencial). Só o que tem áudio real.
@@ -426,6 +536,7 @@ export function PresenceClient(props: Props) {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ transcricao, indicadores, transcricaoStats }),
     }).catch(() => null)
+    if (res && res.ok) limparRascunho()
     const json = res && res.ok ? await res.json().catch(() => ({} as any)) : {}
     setResumoIA(json.resumo ?? null)
     setLimitePlano(json.limitePlano === true)
@@ -452,15 +563,65 @@ export function PresenceClient(props: Props) {
 
   function aplicarSugestaoMarcacao() {
     if (!sugestaoTurnos) return
-    setTurnos(prev => prev.map((t, i) => {
+    const novos = turnos.map((t, i) => {
       const sug = sugestaoTurnos.find(s => s.idx === i)
       return sug ? { ...t, mark: t.mark ?? sug.mark } : t
-    }))
+    })
+    setTurnos(novos)
+    // A sessão já foi encerrada/salva: grava as marcações sugeridas aceitas.
+    fetch(`/api/sessao/${props.sessaoId}/marcacoes`, {
+      method: 'PUT', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ marcacoes: extrairMarcacoes(novos) }),
+    }).catch(() => {})
   }
   function aplicarSugestaoRisco() {
     if (!sugestaoRisco) return
     setRisco({ autolesao: sugestaoRisco.autolesao, ideacao: sugestaoRisco.ideacao, plano: sugestaoRisco.plano })
   }
+
+  /**
+   * Chamada por outro app (Zoom, Meet, Teams…): o psicólogo compartilha a aba
+   * (ou a tela, com áudio do sistema) e o áudio dela vira o canal do paciente,
+   * no mesmo caminho da chamada do Audere (AssemblyAI). A fala da psicóloga
+   * segue pelo microfone local. Chrome/Edge: áudio de aba em todos os sistemas;
+   * áudio da tela inteira no Windows (e macOS recente). Firefox/Safari não
+   * compartilham áudio.
+   */
+  async function iniciarChamadaExterna() {
+    setErroExterna(null)
+    const md = navigator.mediaDevices as MediaDevices & { getDisplayMedia?: MediaDevices['getDisplayMedia'] }
+    if (!md?.getDisplayMedia) { setErroExterna('Este navegador não compartilha áudio. Use o Chrome ou o Edge.'); return }
+    let s: MediaStream
+    try {
+      s = await md.getDisplayMedia({
+        video: true,
+        audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false },
+        // dicas do Chrome: oferecer áudio do sistema e não listar esta aba
+        systemAudio: 'include', selfBrowserSurface: 'exclude', preferCurrentTab: false,
+      } as DisplayMediaStreamOptions)
+    } catch {
+      return   // cancelou o seletor
+    }
+    const audio = s.getAudioTracks()
+    if (audio.length === 0) {
+      s.getTracks().forEach(t => t.stop())
+      setErroExterna('Nenhum áudio foi compartilhado. Escolha a aba da chamada e ative "Compartilhar áudio da aba" (ou "Compartilhar áudio do sistema").')
+      return
+    }
+    // Só o áudio interessa; o vídeo fica desligado (não é gravado nem enviado).
+    s.getVideoTracks().forEach(t => { t.enabled = false })
+    audio[0].addEventListener('ended', () => pararChamadaExterna(s))
+    setExternaStream(s)
+    setRemoteStream(new MediaStream(audio))
+  }
+
+  function pararChamadaExterna(s: MediaStream | null = externaStream) {
+    s?.getTracks().forEach(t => t.stop())
+    setExternaStream(null)
+    setRemoteStream(null)
+  }
+  // Solta a captura ao sair da tela.
+  useEffect(() => () => { externaStream?.getTracks().forEach(t => t.stop()) }, [externaStream])
 
   async function iniciarChamada() {
     if (iniciandoChamada || chamada) { setMostrarModalSala(true); return }
@@ -495,7 +656,7 @@ export function PresenceClient(props: Props) {
 
   const widgets = [
     <LiveInsight key="live-insight" text={obsViva} loading={obsLoading} erro={obsErro} numeroTurnos={turnos.length} />,
-    <RhythmWidget key="ritmo" pctPsic={pctPsic} pctPac={pctPac} counts={counts} armed={armed} setArmed={setArmed} />,
+    <RhythmWidget key="ritmo" pctPsic={pctPsic} pctPac={pctPac} counts={counts} onMarcar={marcarAgora} aviso={avisoMarca} />,
     <div key="temas" className="themes-card" data-widget-id="temas">
       <WidgetGrip />
       <div className="themes-head"><span className="ttl">Temas desta sessão</span><span className="sub">ao vivo</span></div>
@@ -570,7 +731,19 @@ export function PresenceClient(props: Props) {
           ) : (
             <button className="btn ghost" onClick={() => setRecording(false)}>⏸</button>
           )}
-          {!presencial && (
+          {!presencial && !chamada && (
+            externaStream ? (
+              <button className="btn primary" onClick={() => pararChamadaExterna()} title="Parar de transcrever o áudio da chamada externa">
+                ■ Parar Zoom/Meet
+              </button>
+            ) : (
+              <button className="btn ghost" onClick={iniciarChamadaExterna}
+                title="A chamada é por Zoom, Meet ou outro app? Compartilhe a aba (ou a tela com áudio) para o Audere transcrever o paciente">
+                Zoom/Meet
+              </button>
+            )
+          )}
+          {!presencial && !externaStream && (
             <button
               className={`btn${chamada ? ' primary' : ' ghost'}`}
               onClick={iniciarChamada}
@@ -581,7 +754,7 @@ export function PresenceClient(props: Props) {
               {chamada ? 'Sala online' : iniciandoChamada ? 'Abrindo…' : 'Chamada online'}
             </button>
           )}
-          {presencial && recording && (
+          {presencial && recording && falantes.length < 2 && (
             <button className="btn ghost" onClick={trocarFalantesPresencial} title="Inverter quem é psicólogo e quem é paciente" style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
               <ArrowLeftRight size={14} /> Trocar P↔C
             </button>
@@ -615,9 +788,46 @@ export function PresenceClient(props: Props) {
           <button className="btn primary" onClick={encerrar} disabled={encerrando || interrompendo}>
             {encerrando ? 'Encerrando · gerando laudo…' : 'Encerrar'}
           </button>
+          <a
+            className="btn ghost" href={`/pacientes/${props.pacienteId}/objetivos`}
+            target="_blank" rel="noopener noreferrer"
+            title="Abre Objetivos e Progresso (GAS) em outra aba — a sessão, a chamada e o registro continuam aqui"
+          >
+            Objetivos ↗
+          </a>
           <a className="btn ghost" href={`/pacientes/${props.pacienteId}`}>← Voltar ao paciente</a>
         </div>
       </div>
+
+      {presencial && falantes.length >= 2 && (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 14, flexWrap: 'wrap', padding: '8px 16px', fontSize: 12, background: 'var(--surface)', borderBottom: '1px solid var(--border)' }}>
+          <span style={{ color: 'var(--muted)' }}>Quem é quem? A Audere separou as vozes — escolha e vale para a transcrição inteira:</span>
+          {falantes.map(f => (
+            <label key={f} style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+              <strong>Falante {f}</strong>
+              <select
+                value={mapaFalanteRef.current[f] ?? 'paciente'}
+                onChange={e => definirPapelFalante(f, e.target.value as 'psicologo' | 'paciente')}
+                style={{ fontSize: 12, padding: '4px 6px', borderRadius: 6, border: '1px solid var(--border)', background: 'var(--card)' }}
+              >
+                <option value="psicologo">Psicóloga</option>
+                <option value="paciente">Paciente</option>
+              </select>
+            </label>
+          ))}
+        </div>
+      )}
+
+      {externaStream && (
+        <div style={{ background: 'rgba(90,158,138,.10)', color: '#2a6456', padding: '8px 16px', fontSize: 12 }}>
+          Transcrevendo o áudio compartilhado da chamada como fala do paciente{recording ? '' : ' — clique em "Iniciar registro" para começar'}. Sua fala vem do seu microfone. Use fone de ouvido para a voz do paciente não vazar no seu microfone.
+        </div>
+      )}
+      {erroExterna && (
+        <div style={{ background: 'rgba(176,125,64,.10)', color: 'var(--amber)', padding: '8px 16px', fontSize: 12 }}>
+          {erroExterna}
+        </div>
+      )}
 
       {erroInterromper && (
         <div style={{ background: 'var(--rose-lo)', color: 'var(--rose)', padding: '10px 16px', fontSize: 12 }}>
@@ -672,8 +882,7 @@ export function PresenceClient(props: Props) {
         <TranscriptionCard
           turnos={turnos}
           interim={pacienteInterim || interim}
-          armed={armed} setArmed={setArmed}
-          onMark={marcarTurno}
+          onUnmark={desmarcarTurno}
           onToggleWho={alternarFalante}
           recording={recording}
         />
