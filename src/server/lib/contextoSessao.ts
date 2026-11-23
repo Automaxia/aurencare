@@ -3,6 +3,7 @@
  * pelo psicólogo) que acompanha a transcrição nos prompts de resumo/laudo.
  * Sem isso, o que o psicólogo registrou nos widgets ficava fora do resumo.
  */
+import { falasDoTrecho } from '@/lib/trechoMarcado'
 
 const EMO: Record<number, string> = {
   [-5]: 'Extremamente desagradável', [-4]: 'Muito desagradável', [-3]: 'Desagradável',
@@ -57,7 +58,8 @@ export function contextoSessaoXml(transcricao: string, indicadores: any): string
       .filter((m: any) => Number.isInteger(m?.idx) && MARK[m?.mark] && linhas[m.idx])
       .slice(0, 30)
       .map((m: any) => {
-        const ctx = linhas.slice(Math.max(0, m.idx - 1), m.idx + 2).join('\n')
+        // Falas escolhidas pelo psicólogo na revisão (ou o padrão anterior/marcada/seguinte).
+        const ctx = falasDoTrecho(m, linhas.length).map(i => linhas[i]).join('\n')
         return `    <segment tipo="${MARK[m.mark]}">\n${esc(ctx.slice(0, 1_500))}\n    </segment>`
       })
     if (trechos.length) partes.push(`  <marked_segments registrado_pelo="psicologo">\n${trechos.join('\n')}\n  </marked_segments>`)
