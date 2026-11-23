@@ -59,14 +59,16 @@ async function main() {
   console.log('\n1. Guardas')
   {
     const errada = await sessao(ana, 1, 3, { ...registro(), pagamento_status: 'pago' })
-    let r = await transferirRegistro(psi, errada, { pacienteId: luiza }, aud('Ana Souza', 'curto'))
+    let r = await transferirRegistro(psi, errada, { pacienteId: luiza }, aud('Luíza Lima', 'curto'))
     checa('exige motivo', !r.ok)
-    r = await transferirRegistro(psi, errada, { pacienteId: luiza }, aud('Luiza'))
-    checa('exige o nome do paciente da sessão', !r.ok)
+    r = await transferirRegistro(psi, errada, { pacienteId: luiza }, aud('Ana Souza'))
+    checa('transferir exige o nome do paciente de destino (não o da origem)', !r.ok)
+    r = await arquivarSessao(psi, errada, aud('Luíza Lima'))
+    checa('excluir exige o nome do paciente da sessão', !r.ok)
     r = await arquivarSessao(psi, errada, aud('Ana Souza'))
     checa('não exclui sessão paga', !r.ok)
     const vazia = await sessao(ana, 2, 4)
-    r = await transferirRegistro(psi, vazia, { pacienteId: luiza }, aud('Ana Souza'))
+    r = await transferirRegistro(psi, vazia, { pacienteId: luiza }, aud('Luíza Lima'))
     checa('não transfere sessão vazia', !r.ok)
     const { rows } = await db.query(`SELECT count(*)::int AS n FROM sessoes_correcoes_log WHERE psicologo_id = $1`, [psi])
     checa('nenhuma tentativa barrada gera log', rows[0].n === 0, `n=${rows[0].n}`)
@@ -75,7 +77,7 @@ async function main() {
   console.log('\n2. Transferir criando sessão nova (paga fica na Ana)')
   {
     const { rows: [orig] } = await db.query(`SELECT id FROM sessoes WHERE paciente_id = $1 AND numero = 1`, [ana])
-    const r = await transferirRegistro(psi, orig.id, { pacienteId: luiza }, aud('  ana  SOUZA '))
+    const r = await transferirRegistro(psi, orig.id, { pacienteId: luiza }, aud('  luiza  LIMA '))
     checa('transferiu', r.ok, r.ok ? '' : r.erro)
     if (r.ok) {
       const { rows: [o] } = await db.query(`SELECT * FROM sessoes WHERE id = $1`, [orig.id])
@@ -99,11 +101,11 @@ async function main() {
   {
     const errada = await sessao(ana, 3, 10, registro())
     const alvo = await sessao(luiza, 2, 10)
-    const r = await transferirRegistro(psi, errada, { pacienteId: luiza, sessaoId: alvo }, aud('Ana Souza'))
+    const r = await transferirRegistro(psi, errada, { pacienteId: luiza, sessaoId: alvo }, aud('Luíza Lima'))
     checa('transferiu pra sessão escolhida', r.ok && r.sessaoDestinoId === alvo, r.ok ? '' : r.erro)
     const ocupada = await sessao(luiza, 3, 12, registro())
     const outra = await sessao(ana, 4, 12, registro())
-    const r2 = await transferirRegistro(psi, outra, { pacienteId: luiza, sessaoId: ocupada }, aud('Ana Souza'))
+    const r2 = await transferirRegistro(psi, outra, { pacienteId: luiza, sessaoId: ocupada }, aud('Luíza Lima'))
     checa('recusa destino que já tem registro', !r2.ok)
   }
 
