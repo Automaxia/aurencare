@@ -72,15 +72,20 @@ export async function contextoCorrecao(psicologoId: string, sessaoId: string): P
   return { sessao: base.s, psicologoNome: base.psicologoNome, crp: base.crp, destinos: [...porPaciente.values()] }
 }
 
-/** Confirmação digitada = nome do paciente da sessão (sem caixa/acentos/espaços extras). */
+/** Confirmação digitada = nome do paciente que a ação afeta (sem caixa/acentos/espaços extras):
+ *  na transferência, o paciente de destino; na exclusão, o paciente da sessão. */
 function confere(digitado: string, esperado: string): boolean {
   const n = (x: string) => x.normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/\s+/g, ' ').trim().toLowerCase()
   return n(digitado) === n(esperado) && n(esperado).length > 0
 }
 
-function validarAuditoria(a: Auditoria, pacienteNome: string): string | null {
+function validarMotivo(a: Auditoria): string | null {
   if (a.motivo.trim().length < 10) return 'Descreva o motivo da correção (mínimo de 10 caracteres).'
-  if (!confere(a.confirmacao, pacienteNome)) return `Para confirmar, digite exatamente o nome do paciente da sessão: ${pacienteNome}.`
+  return null
+}
+
+function validarConfirmacao(a: Auditoria, nomeEsperado: string, papel: string): string | null {
+  if (!confere(a.confirmacao, nomeEsperado)) return `Para confirmar, digite exatamente o nome do ${papel}: ${nomeEsperado}.`
   return null
 }
 
@@ -121,13 +126,16 @@ export async function transferirRegistro(
   if (s.status === 'em_curso') return { ok: false, erro: 'A sessão está em curso. Encerre antes de corrigir.' }
   if (sessaoVazia(s)) return { ok: false, erro: 'Esta sessão não tem registro clínico para transferir.' }
   if (destino.pacienteId === s.pacienteId) return { ok: false, erro: 'Escolha um paciente diferente.' }
-  const erro = validarAuditoria(a, s.pacienteNome)
-  if (erro) return { ok: false, erro }
+  const erroMotivo = validarMotivo(a)
+  if (erroMotivo) return { ok: false, erro: erroMotivo }
 
   const { rows: pac } = await db.query<{ nome: string }>(
     `SELECT nome FROM pacientes WHERE id = $1 AND psicologo_id = $2 AND status = 'ativo'`,
     [destino.pacienteId, psicologoId])
   if (!pac[0]) return { ok: false, erro: 'Paciente de destino não encontrado.' }
+  // Confirma com o nome de quem vai receber o registro — é a escolha que o psicólogo está fazendo.
+  const erro = validarConfirmacao(a, pac[0].nome, 'paciente que vai receber a sessão')
+  if (erro) return { ok: false, erro }
 
   const termo = termoCorrecao('transferir_registro', {
     psicologoNome: base.psicologoNome, crp: base.crp, pacienteOrigem: s.pacienteNome,
@@ -213,7 +221,7 @@ export async function arquivarSessao(psicologoId: string, sessaoId: string, a: A
   // Dinheiro preso na sessão não some junto com ela: o financeiro perderia a linha.
   if (s.pagamentoStatus === 'pago') return { ok: false, erro: 'Sessão paga: cancele/reembolse no Financeiro antes, ou transfira o registro para o paciente certo.' }
   if (s.cobrancaId && s.pagamentoStatus === 'pendente') return { ok: false, erro: 'Há uma cobrança ativa nesta sessão. Cancele a cobrança antes de excluir.' }
-  const erro = validarAuditoria(a, s.pacienteNome)
+  const erro = validarMotivo(a) ?? validarConfirmacao(a, s.pacienteNome, 'paciente da sessão')
   if (erro) return { ok: false, erro }
 
   const termo = termoCorrecao('excluir', {
