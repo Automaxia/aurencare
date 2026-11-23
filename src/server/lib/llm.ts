@@ -147,10 +147,10 @@ async function chamarAnthropic(
 
 function chamarProvider(
   provider: LlmProvider, tier: ModelTier, system: string, messages: ChatMessage[],
-  maxTokens: number, cache: boolean, scope: string,
+  maxTokens: number, cache: boolean, scope: string, timeoutOverrideMs?: number,
 ): Promise<ChamadaResult> {
   const modelo = MODELS[provider][tier]
-  const timeoutMs = timeoutParaTokens(maxTokens)
+  const timeoutMs = timeoutOverrideMs ?? timeoutParaTokens(maxTokens)
   return provider === 'openai'
     ? chamarOpenAi(modelo, system, messages, maxTokens, timeoutMs)
     : chamarAnthropic(modelo, system, messages, maxTokens, cache, scope, timeoutMs)
@@ -168,6 +168,8 @@ export async function chat(
     /** Obrigatório: de quem é o gasto. Custo sem psicólogo é bloqueado (ver custos.ts). */
     psicologoId: string
     maxTokens?: number; scope?: string; model?: ModelTier; cache?: boolean
+    /** Timeout por provedor (ms). Omitido = proporcional a maxTokens, até 30 s. */
+    timeoutMs?: number
     sessaoId?: string | null; pacienteId?: string | null; escopoRecalculo?: number | null
   },
 ): Promise<string> {
@@ -186,7 +188,7 @@ export async function chat(
   for (const provider of disponiveis) {
     try {
       const t0 = Date.now()
-      const r = await chamarProvider(provider, tier, systemPrompt, messages, maxTokens, cache, scope)
+      const r = await chamarProvider(provider, tier, systemPrompt, messages, maxTokens, cache, scope, opts.timeoutMs)
       const latenciaMs = Date.now() - t0
       // Registra custo (tokens reais) + latência. Best-effort, não bloqueia a resposta.
       import('@/server/services/custos').then(m => m.registrarCustoLlm({

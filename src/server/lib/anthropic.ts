@@ -182,8 +182,12 @@ ${transcricao.slice(0, 40_000)}
 
 Gere o registro da sessão #${contexto.numero} de ${contexto.pacienteNome}, ${pedido}. Rascunho para revisão e assinatura do psicólogo.`
   return chat(modelo ? promptModeloPersonalizado(modelo) : SESSION_NOTE_PROMPT, [{ role: 'user', content: user }], {
-    // Modelo personalizado pode pedir mais seções/extensão que os 6 campos.
-    maxTokens: modelo ? 1_800 : 1_100, scope: modelo ? 'resumo.curto.personalizado' : 'resumo.curto', model: 'fast',
+    // Modelo personalizado pode pedir bem mais seções/extensão que os 6 campos:
+    // mais saída e mais tempo por provedor (o padrão, ~24 s, estourava em modelos
+    // complexos e o rascunho não aparecia). Se passar dos 60 s do nginx, o servidor
+    // segue, salva, e o "tentar de novo" do pós-sessão encontra o rascunho.
+    maxTokens: modelo ? 3_000 : 1_100, timeoutMs: modelo ? 45_000 : undefined,
+    scope: modelo ? 'resumo.curto.personalizado' : 'resumo.curto', model: 'fast',
     psicologoId: contexto.psicologoId, sessaoId: contexto.sessaoId, pacienteId: contexto.pacienteId,
   })
 }
