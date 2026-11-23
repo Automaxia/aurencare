@@ -15,7 +15,8 @@ type Contexto = {
 /**
  * "Corrigir sessão" — para sessão COM registro clínico (a vazia usa ExcluirSessao).
  * Etapa 1: escolhe a ação (transferir pra outro paciente / excluir) + motivo.
- * Etapa 2: lê o termo, marca o aceite e digita o nome do paciente da sessão.
+ * Etapa 2: lê o termo, marca o aceite e digita o nome do paciente afetado
+ *   (transferir: o paciente que recebe a sessão; excluir: o paciente da sessão).
  * Tudo é revalidado e registrado em log no servidor (services/correcaoSessao.ts).
  */
 export function CorrigirSessao({ sessaoId }: { sessaoId: string }) {
@@ -49,7 +50,8 @@ export function CorrigirSessao({ sessaoId }: { sessaoId: string }) {
   const destino = ctx?.destinos.find(d => d.id === destinoPaciente)
   const etapa1Ok = motivo.trim().length >= 10 && (acao === 'excluir' || !!destinoPaciente)
   const norm = (x: string) => x.normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/\s+/g, ' ').trim().toLowerCase()
-  const confirmacaoOk = !!ctx && norm(confirmacao) === norm(ctx.sessao.pacienteNome)
+  const nomeConfirmacao = acao === 'transferir_registro' ? destino?.nome ?? '' : ctx?.sessao.pacienteNome ?? ''
+  const confirmacaoOk = !!ctx && !!nomeConfirmacao && norm(confirmacao) === norm(nomeConfirmacao)
   const termo = ctx ? termoCorrecao(acao, {
     psicologoNome: ctx.psicologoNome, crp: ctx.crp,
     pacienteOrigem: ctx.sessao.pacienteNome, pacienteDestino: destino?.nome,
@@ -167,7 +169,12 @@ export function CorrigirSessao({ sessaoId }: { sessaoId: string }) {
                   <input type="checkbox" checked={aceite} onChange={e => setAceite(e.target.checked)} />
                   <span>Li e aceito o termo acima.</span>
                 </label>
-                <span style={lbl}>Para confirmar, digite o nome do paciente desta sessão: <strong style={{ textTransform: 'none' }}>{ctx.sessao.pacienteNome}</strong></span>
+                <span style={lbl}>
+                  {acao === 'transferir_registro'
+                    ? 'Para confirmar, digite o nome do paciente que vai receber esta sessão: '
+                    : 'Para confirmar, digite o nome do paciente desta sessão: '}
+                  <strong style={{ textTransform: 'none' }}>{nomeConfirmacao}</strong>
+                </span>
                 <input style={campo} value={confirmacao} onChange={e => setConfirmacao(e.target.value)} autoComplete="off" />
 
                 {erro && <p style={{ color: 'var(--rose)', fontSize: 12.5, marginTop: 10 }}>{erro}</p>}
