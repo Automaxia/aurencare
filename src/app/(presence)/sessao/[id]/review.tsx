@@ -9,6 +9,7 @@ import { Markdown } from '@/components/Markdown'
 import type { Sessao } from '@/server/services/sessoes'
 import { CorrigirSessao } from '@/components/CorrigirSessao'
 import { sessaoVazia } from '@/lib/sessaoExclusao'
+import { falasDoTrecho, falasPadrao, FALAS_MAX } from '@/lib/trechoMarcado'
 
 const STATUS_LABEL: Record<string, string> = {
   concluida: 'Concluída',
@@ -43,10 +44,62 @@ export function SessionReview({ sessao }: { sessao: Sessao }) {
   // Guarda: indicadores é JSONB livre; só aceita notaRapida se for string.
   const notaRapida: string = typeof ind?.notaRapida === 'string' ? ind.notaRapida : ''
   const turnos = aplicarMarcacoes(parseTranscriptionToTurns(sessao.transcricao ?? ''), ind?.marcacoes)
-  // Uma caixa por marcação: o turno marcado + o anterior e o seguinte (contexto).
+  const marcacoesSalvas: any[] = Array.isArray(ind?.marcacoes) ? ind.marcacoes : []
+  // Falas de cada destaque (por idx da fala marcada). Padrão: anterior + marcada +
+  // seguinte; o psicólogo pode escolher exatamente quais entram ("Ajustar falas").
+  const [falasPorIdx, setFalasPorIdx] = useState<Record<number, number[]>>(() => {
+    const out: Record<number, number[]> = {}
+    for (const m of marcacoesSalvas) if (m && Number.isInteger(m.idx)) out[m.idx] = falasDoTrecho(m, turnos.length)
+    return out
+  })
+  // Uma caixa por marcação, com as falas escolhidas (em ordem da transcrição).
   const trechosMarcados = turnos.flatMap((t, i) => t.mark
-    ? [{ idx: i, mark: t.mark, linhas: turnos.slice(Math.max(0, i - 1), i + 2).map((x, k) => ({ ...x, alvo: Math.max(0, i - 1) + k === i })) }]
+    ? [{ idx: i, mark: t.mark, linhas: (falasPorIdx[i] ?? falasPadrao(i, turnos.length)).filter(j => turnos[j]).map(j => ({ ...turnos[j], pos: j, alvo: j === i })) }]
     : [])
+
+  // Edição de um destaque por vez: seleção + janela de falas visíveis em volta.
+  const [editTrecho, setEditTrecho] = useState<{ idx: number; sel: Set<number>; ini: number; fim: number } | null>(null)
+  const [salvandoTrecho, setSalvandoTrecho] = useState(false)
+  const [trechoErro, setTrechoErro] = useState<string | null>(null)
+  const JANELA = 5
+  function abrirAjuste(idx: number) {
+    const sel = new Set(falasPorIdx[idx] ?? falasPadrao(idx, turnos.length))
+    const ini = Math.max(0, Math.min(idx - JANELA, ...sel))
+    const fim = Math.min(turnos.length - 1, Math.max(idx + JANELA, ...sel))
+    setEditTrecho({ idx, sel, ini, fim }); setTrechoErro(null)
+  }
+  function alternarFala(j: number) {
+    setEditTrecho(e => {
+      if (!e || j === e.idx) return e  // a fala marcada sempre entra
+      const sel = new Set(e.sel)
+      if (sel.has(j)) sel.delete(j)
+      else if (sel.size < FALAS_MAX) sel.add(j)
+      return { ...e, sel }
+    })
+  }
+  async function salvarTrecho() {
+    if (!editTrecho) return
+    const falas = [...editTrecho.sel].sort((a, b) => a - b)
+    setSalvandoTrecho(true); setTrechoErro(null)
+    try {
+      // Regrava a lista inteira; só o destaque editado leva `falas` — os demais
+      // omitem e o servidor preserva o ajuste já salvo de cada um.
+      const marcacoes = marcacoesSalvas
+        .filter(m => m && Number.isInteger(m.idx) && turnos[m.idx]?.mark)
+        .map(m => ({ idx: m.idx, mark: m.mark, who: m.who, ts: m.ts, ...(m.idx === editTrecho.idx ? { falas } : {}) }))
+      const res = await fetch(`/api/sessao/${sessao.id}/marcacoes`, {
+        method: 'PUT', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ marcacoes }),
+      })
+      if (!res.ok) throw new Error()
+      setFalasPorIdx(f => ({ ...f, [editTrecho.idx]: falas }))
+      setEditTrecho(null)
+    } catch {
+      setTrechoErro('Não foi possível salvar. Tente de novo.')
+    } finally {
+      setSalvandoTrecho(false)
+    }
+  }
 
   // Assinatura inline — resolve a pendência "Registrar" (sessão concluída e não
   // assinada). Antes a revisão era só leitura e não havia como resolver.
@@ -366,25 +419,86 @@ export function SessionReview({ sessao }: { sessao: Sessao }) {
           {trechosMarcados.length > 0 && (
             <Section title={`Trechos marcados (${trechosMarcados.length})`}>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                {trechosMarcados.map(tm => (
+                {trechosMarcados.map(tm => {
+                  const ed = editTrecho?.idx === tm.idx ? editTrecho : null
+                  const cor = MARK_COLOR[tm.mark]
+                  return (
                   <div
                     key={tm.idx}
                     style={{
                       borderRadius: 10, padding: '10px 12px',
-                      background: `var(--${MARK_COLOR[tm.mark]}-lo)`,
-                      boxShadow: `inset 3px 0 0 var(--${MARK_COLOR[tm.mark]})`,
+                      background: `var(--${cor}-lo)`,
+                      boxShadow: `inset 3px 0 0 var(--${cor})`,
                     }}
                   >
-                    <div style={{ fontSize: 11, fontWeight: 500, color: `var(--${MARK_COLOR[tm.mark]})`, marginBottom: 6, textTransform: 'uppercase', letterSpacing: '.05em' }}>
-                      {MARK_LABEL[tm.mark]}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+                      <div style={{ fontSize: 11, fontWeight: 500, color: `var(--${cor})`, textTransform: 'uppercase', letterSpacing: '.05em' }}>
+                        {MARK_LABEL[tm.mark]}
+                      </div>
+                      <div style={{ flex: 1 }} />
+                      {!ed && (
+                        <button className="btn ghost sm" onClick={() => abrirAjuste(tm.idx)} disabled={!!editTrecho}>
+                          Ajustar falas
+                        </button>
+                      )}
                     </div>
-                    {tm.linhas.map((l, k) => (
-                      <div key={k} style={{ fontSize: 13, lineHeight: 1.5, opacity: l.alvo ? 1 : 0.6, fontWeight: l.alvo ? 500 : 400 }}>
-                        <span className="who" data-who={l.who}>{l.who === 'psicologo' ? 'P' : 'C'}:</span>{' '}{l.texto}
+                    {ed ? (
+                      <>
+                        <div style={{ fontSize: 12, color: 'var(--muted)', marginBottom: 6 }}>
+                          Escolha as falas que entram neste destaque. A fala marcada entra sempre.
+                        </div>
+                        {ed.ini > 0 && (
+                          <button className="btn ghost sm" style={{ marginBottom: 4 }}
+                            onClick={() => setEditTrecho({ ...ed, ini: Math.max(0, ed.ini - JANELA) })}>
+                            ↑ Falas anteriores
+                          </button>
+                        )}
+                        {turnos.slice(ed.ini, ed.fim + 1).map((l, k) => {
+                          const j = ed.ini + k
+                          const alvo = j === ed.idx
+                          const on = ed.sel.has(j)
+                          return (
+                            <label key={j} style={{ display: 'flex', gap: 8, alignItems: 'flex-start', fontSize: 13, lineHeight: 1.5, padding: '2px 0', cursor: alvo ? 'default' : 'pointer', opacity: on ? 1 : 0.55, fontWeight: alvo ? 500 : 400 }}>
+                              <input type="checkbox" checked={on} disabled={alvo} onChange={() => alternarFala(j)} style={{ marginTop: 4 }} />
+                              <span><span className="who" data-who={l.who}>{l.who === 'psicologo' ? 'P' : 'C'}:</span>{' '}{l.texto}</span>
+                            </label>
+                          )
+                        })}
+                        {ed.fim < turnos.length - 1 && (
+                          <button className="btn ghost sm" style={{ marginTop: 4 }}
+                            onClick={() => setEditTrecho({ ...ed, fim: Math.min(turnos.length - 1, ed.fim + JANELA) })}>
+                            ↓ Falas seguintes
+                          </button>
+                        )}
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 10 }}>
+                          <span style={{ fontSize: 12, color: trechoErro ? 'var(--rose)' : 'var(--muted)' }}>
+                            {trechoErro ?? `${ed.sel.size} ${ed.sel.size === 1 ? 'fala selecionada' : 'falas selecionadas'}`}
+                          </span>
+                          <div style={{ flex: 1 }} />
+                          <button className="btn ghost sm" disabled={salvandoTrecho}
+                            onClick={() => setEditTrecho({ ...ed, sel: new Set(falasPadrao(ed.idx, turnos.length)) })}>
+                            Restaurar padrão
+                          </button>
+                          <button className="btn ghost sm" disabled={salvandoTrecho} onClick={() => setEditTrecho(null)}>Cancelar</button>
+                          <button className="btn primary sm" disabled={salvandoTrecho} onClick={salvarTrecho}>
+                            {salvandoTrecho ? 'Salvando…' : 'Salvar'}
+                          </button>
+                        </div>
+                      </>
+                    ) : tm.linhas.map((l, k) => (
+                      <div key={l.pos}>
+                        {/* Falas não contíguas: marca o salto na transcrição. */}
+                        {k > 0 && l.pos > tm.linhas[k - 1].pos + 1 && (
+                          <div style={{ fontSize: 12, color: 'var(--muted)', lineHeight: 1.2 }}>…</div>
+                        )}
+                        <div style={{ fontSize: 13, lineHeight: 1.5, opacity: l.alvo ? 1 : 0.6, fontWeight: l.alvo ? 500 : 400 }}>
+                          <span className="who" data-who={l.who}>{l.who === 'psicologo' ? 'P' : 'C'}:</span>{' '}{l.texto}
+                        </div>
                       </div>
                     ))}
                   </div>
-                ))}
+                  )
+                })}
               </div>
             </Section>
           )}
